@@ -1,7 +1,8 @@
 # ADR-004: Separate Project, ProjectFile, and FileLocation
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-04
+- Approved: 2026-09-04 by the product owner
 
 ## Context
 
