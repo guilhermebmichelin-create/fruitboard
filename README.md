@@ -21,6 +21,10 @@ environment. Start with [DEVELOPMENT.md](DEVELOPMENT.md); after installing the
 pinned tools, `pnpm check` is the single local verification entry point and
 `pnpm dev` launches the Windows desktop shell.
 
+The current shell's information hierarchy, responsive evidence, accessibility
+coverage, and intentional limitations are recorded in the
+[Issue #13 visual review](docs/review/issue-13/README.md).
+
 Start with [the Phase 0 review brief](docs/PHASE_0_REVIEW.md).
 
 ## Architecture documents

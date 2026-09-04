@@ -133,9 +133,12 @@ screen content and domain vocabulary remain shared.
 
 Phase 1 Issue #11 established the root pnpm/Cargo manifests and lockfiles.
 Issue #12 adds `apps/client` and `apps/desktop/src-tauri` because they now own the
-shared client and native shell behavior. The remaining proposed package/crate
-directories are still created only by the PR that first owns their behavior;
-empty architectural scaffolding remains deliberately avoided.
+shared client and native shell behavior. Issue #13 adds `packages/ui` when the
+first shared token vocabulary becomes real. It also gives the desktop entry a
+hash-based React Router data router so bundled navigation needs no server
+fallback. The remaining proposed package/crate directories are still created
+only by the PR that first owns their behavior; empty architectural scaffolding
+remains deliberately avoided.
 
 ## Desktop framework evaluation
 
