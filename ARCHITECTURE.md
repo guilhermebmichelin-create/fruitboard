@@ -1,6 +1,6 @@
 # Architecture
 
-Status: **Proposed for Phase 0 review**
+Status: **Accepted Phase 0 baseline; bounded PoCs may amend decisions**
 
 ## Goals and constraints
 

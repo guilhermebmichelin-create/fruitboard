@@ -1,7 +1,6 @@
 # Phase 0 review brief
 
-Status: **Conditionally accepted — documentation corrections complete; GitHub
-branch protection remains blocked**
+Status: **Accepted — GitHub Free manual-governance exception approved**
 
 Date: 2026-09-04
 
@@ -64,7 +63,7 @@ Full rationale and boundaries are in [ARCHITECTURE.md](../ARCHITECTURE.md).
 | PWA | Same client/domain packages; IndexedDB replica and service worker; iOS 17+ baseline subject to P0-H | Accepted |
 | Sync | Optional Drive `appDataFolder`, immutable per-device change batches, foreground PWA sync | Accepted |
 | Privacy | No login for local use, no telemetry, no FLP upload, paths excluded from sync by default | Accepted |
-| Delivery | Small PRs, protected `main`, required CI and review checkpoints | Blocked on repository protection entitlement |
+| Delivery | Small PRs and review checkpoints; manual controls until private-repository protection is available | Accepted with governance exception |
 
 The corresponding records are in [docs/adr](adr/README.md).
 
@@ -171,18 +170,28 @@ The product owner answered these on 2026-09-04:
 5. **Identity split: accepted.** `Project`, `ProjectFile`, and device-local
    `FileLocation` remain separate.
 
-## Unresolved repository-protection gate
+## Repository-protection decision
 
 On 2026-09-04, GitHub returned HTTP 403 for both the branch-protection and
-repository-rulesets APIs for this private repository, requiring GitHub Pro or a
-public repository. Repository visibility was not changed because making the
-project public is a separate privacy/distribution decision.
+repository-rulesets APIs for this private repository. The product owner declined
+GitHub Pro and accepted continuing with the private GitHub Free repository.
+Public visibility was not used as a workaround.
 
-The Phase 0 stack must remain unmerged until the private repository gains an
-entitlement that supports protection. Then protect `main` with pull requests,
-one approval, stale-approval dismissal, required checks, blocked force-push and
-deletion, and linear history. No Phase 1 epic/issues should be created before
-that gate is resolved and the checkpoint is finally accepted.
+This is an explicit governance exception, not equivalent technical enforcement.
+Until private-repository protection becomes available:
+
+- all planned work still uses an issue, feature branch, and pull request;
+- the maintainer does not directly develop on, force-push, or delete `main`;
+- PR checklists and test evidence are mandatory, with all available checks
+  passing before merge;
+- external review is requested when an eligible reviewer is available, but one
+  approval is not a blocking control for this single-maintainer repository;
+- Phase 1 issue 7 introduces CI and named checks even though GitHub Free cannot
+  make them branch-protection requirements here.
+
+Revisit enforced protection before adding regular collaborators or making the
+repository public. With this owner-approved exception, the Phase 0 protection
+blocker is resolved.
 
 ## Assignment coverage
 
