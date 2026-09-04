@@ -71,7 +71,11 @@ Create after Phase 0 acceptance.
 ### Epic: Phase 1 — Application foundation
 
 1. **Workspace and reproducible toolchains**
-   - pnpm/Cargo workspaces, pinned Node/Rust, basic scripts/lockfiles;
+   - Node 24 LTS with pnpm/Corepack, `rust-toolchain.toml`, an isolated pinned
+     Python 3.11 research environment, lockfiles, and SQLite 3.51.3-or-later
+     WAL-fix verification;
+   - create the proposed `docs/research/` location or remove it from the
+     repository diagram;
    - PR: `chore: initialize reproducible workspace toolchains`.
 2. **Tauri 2 desktop shell and shared React client**
    - minimal local bundle, typed platform port, no broad capabilities;
@@ -93,6 +97,8 @@ Create after Phase 0 acceptance.
    - PR: `test: prove client-to-SQLite application boundary`.
 7. **Pull-request CI and security baseline**
    - lint/type/test/build, Rust/Windows lanes, dependency/privacy checks;
+   - add `.github/ISSUE_TEMPLATE/`, workflows, and `CODEOWNERS` with the actual
+     maintainers and required-check names;
    - PR: `ci: enforce foundation quality gates`.
 8. **Foundation packaging smoke and checkpoint**
    - unsigned development artifact, startup/install notes, sizes/timings, Phase 1
@@ -101,6 +107,11 @@ Create after Phase 0 acceptance.
 
 Avoid putting the real scanner, parser, Drive OAuth, PWA service worker, project
 cards, or Kanban in these issues.
+
+After final Phase 0 acceptance, merge PRs #6, #7, #8, and #9 in that order with
+linear history, then create only the Phase 1 epic and these eight issues. Run
+P0-G and P0-D/P0-E early and in parallel; P0-G may amend ADR-001, while P0-D and
+P0-E must be complete before the Scanner MVP design is finalized.
 
 ## Phase 2 proposed issues and PRs
 
@@ -196,13 +207,17 @@ Keep these as outlines until the preceding design is informed by real usage.
 
 ## Phase 0 acceptance checklist
 
-- [ ] Product owner answers the five review questions in
+- [x] Product owner answers the five review questions in
   [docs/PHASE_0_REVIEW.md](docs/PHASE_0_REVIEW.md#review-questions).
-- [ ] ADR statuses are accepted or amended.
-- [ ] Product/distribution license direction is recorded; PyFLP remains blocked
+- [x] ADR statuses are accepted or amended.
+- [x] Product/distribution license direction is recorded; PyFLP remains blocked
   until GPL compatibility is resolved.
-- [ ] Phase 1 issue list is approved and created.
-- [ ] Branch protection/required-review policy is enabled.
-- [ ] No application feature implementation has entered Phase 0.
+- [x] Phase 1 issue list is approved.
+- [ ] Phase 1 epic and eight issues are created only after final acceptance.
+- [ ] Branch protection/required-review policy is enabled. GitHub currently
+  rejects both protection APIs for this private repository because the account
+  lacks the required entitlement; do not merge or create Phase 1 issues yet.
+- [x] No application feature implementation has entered Phase 0.
+- [ ] Phase 0 PRs are finally accepted and merged in order #6 → #7 → #8 → #9.
 
 After this checklist is accepted, start only the first Phase 1 issue/branch.

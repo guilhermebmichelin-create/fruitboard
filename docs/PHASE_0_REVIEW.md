@@ -1,6 +1,7 @@
 # Phase 0 review brief
 
-Status: **Proposed — awaiting product and architecture review**
+Status: **Conditionally accepted — documentation corrections complete; GitHub
+branch protection remains blocked**
 
 Date: 2026-09-04
 
@@ -50,20 +51,20 @@ flowchart LR
 
 Full rationale and boundaries are in [ARCHITECTURE.md](../ARCHITECTURE.md).
 
-## Decisions proposed for acceptance
+## Decisions accepted in review
 
 | Area | Recommendation | Status |
 | --- | --- | --- |
-| Desktop | Tauri 2, local bundled UI, narrow capabilities | Proposed |
-| Frontend | React 19, strict TypeScript, Vite, React Aria Components, vanilla CSS tokens | Proposed |
-| Desktop data | SQLite owned by the Rust application layer | Proposed |
-| IDs | UUIDv7 stable IDs; paths are locators, never identity | Proposed |
-| Scanner | Native watcher as an invalidation signal plus reconciliation | Proposed |
-| Parser | Versioned JSON-lines sidecar protocol with supervised Python/PyFLP candidate | Conditional |
-| PWA | Same client/domain packages; IndexedDB replica and service worker | Proposed |
-| Sync | Optional Drive `appDataFolder`, immutable per-device change batches | Proposed |
-| Privacy | No login for local use, no telemetry, no FLP upload, paths excluded from sync by default | Proposed |
-| Delivery | Small PRs, protected `main`, required CI and review checkpoints | Proposed |
+| Desktop | Tauri 2, local bundled UI, narrow capabilities | Accepted |
+| Frontend | React 19, strict TypeScript, Vite, React Aria Components, vanilla CSS tokens | Accepted |
+| Desktop data | SQLite owned by the Rust application layer | Accepted |
+| IDs | UUIDv7 stable IDs; paths are locators, never identity | Accepted |
+| Scanner | Native watcher as an invalidation signal plus reconciliation | Accepted |
+| Parser | Versioned JSON-lines boundary accepted; PyFLP dependency/distribution blocked | Conditional |
+| PWA | Same client/domain packages; IndexedDB replica and service worker; iOS 17+ baseline subject to P0-H | Accepted |
+| Sync | Optional Drive `appDataFolder`, immutable per-device change batches, foreground PWA sync | Accepted |
+| Privacy | No login for local use, no telemetry, no FLP upload, paths excluded from sync by default | Accepted |
+| Delivery | Small PRs, protected `main`, required CI and review checkpoints | Blocked on repository protection entitlement |
 
 The corresponding records are in [docs/adr](adr/README.md).
 
@@ -128,7 +129,9 @@ version before enabling multi-connection WAL use.
 - A single user may eventually use more than one desktop plus an iPhone PWA.
 - The repository may become public; privacy controls therefore assume every
   commit can become public even though it is currently private.
-- The product license and commercial distribution model have not been chosen.
+- The final product license and commercial distribution model have not been
+  chosen. GPL distribution is not accepted; the interim constraints are in
+  [LICENSE_INTENT.md](../LICENSE_INTENT.md).
 - Internet access is optional except for explicit Drive sync, dependency setup,
   and updates.
 - English is the first UI language, but storage and layout must accept Unicode
@@ -138,9 +141,9 @@ version before enabling multi-connection WAL use.
 
 | PoC | Question | Bounded output | Gate |
 | --- | --- | --- | --- |
-| P0-A parser matrix | What does PyFLP reliably expose across FL 12–current and feature combinations? | Sanitized fixture manifest, normalized JSON, expected-field matrix, failures | Before parser implementation |
-| P0-B parser packaging | Does a signed PyInstaller sidecar start, parse, update, and uninstall cleanly on supported Windows systems? | Test bundle, timings, AV/signing notes; no app feature | Before selecting sidecar packaging |
-| P0-C licensing | Can the intended application distribution comply with PyFLP GPL-3.0? | Owner/legal decision and repository license | Before shipping or linking/bundling PyFLP |
+| P0-A parser matrix | What does PyFLP reliably expose across FL 12–current and feature combinations? | Python 3.11 candidate; sanitized FL 21/2024/2025/current corpus; normalized JSON, expected-field matrix, failures | Before parser implementation |
+| P0-B parser packaging | Does a signed PyInstaller sidecar start, parse, update, and uninstall cleanly on supported Windows systems? | Python 3.11 candidate bundle, timings, AV/signing notes; no app feature | Before selecting sidecar packaging |
+| P0-C licensing | Can the intended application distribution comply with PyFLP GPL-3.0? | Final owner/legal decision and repository license; interim intent is recorded | Before adding, shipping, linking, or bundling PyFLP |
 | P0-D watcher/DriveFS | How do rename, burst-save, disconnect, stream placeholders, and root moves behave? | Event traces and reconciliation assertions | Before Scanner MVP watcher PR |
 | P0-E file identity | Are Windows volume serial + file ID stable on NTFS and Drive mirrored/streamed roots? | Matrix and fallback policy | Before automatic move detection |
 | P0-F duration | Which arrangement and tempo-automation events support a defensible estimate? | Fixture expectations and uncertainty rules | Before showing duration |
@@ -152,17 +155,34 @@ Personal projects are never automatic fixtures.
 
 ## Review questions
 
-Phase 1 should begin only after the owner confirms:
+The product owner answered these on 2026-09-04:
 
-1. Is a GPL-compatible release acceptable, or must the parser remain blocked
-   while another license/implementation is pursued?
-2. Is iOS 17+ an acceptable initial PWA baseline, subject to a later device
-   compatibility check?
-3. Should relative/full filesystem paths be excluded from Drive sync by default
-   as proposed?
-4. Is foreground/on-open PWA sync acceptable without a proprietary backend?
-5. Is the proposed separation between logical Project, physical ProjectFile,
-   and device-local FileLocation correct for the intended workflow?
+1. **GPL distribution: no.** Do not accept GPL distribution yet. Keep PyFLP
+   blocked behind the parser interface and complete P0-A/P0-B/P0-G before any
+   amended licensing decision. No PyFLP dependency is permitted in Phase 1.
+2. **iOS 17+ baseline: yes, conditionally.** P0-H must validate the required
+   installed-PWA, authorization, offline, storage, and recovery flows on real
+   devices.
+3. **Path sync: exclude by default.** Absolute and relative filesystem paths
+   remain device-local unless a future privacy review defines a narrower safe
+   projection.
+4. **PWA sync: foreground-only is accepted.** Do not add a proprietary backend
+   or promise silent background iOS synchronization.
+5. **Identity split: accepted.** `Project`, `ProjectFile`, and device-local
+   `FileLocation` remain separate.
+
+## Unresolved repository-protection gate
+
+On 2026-09-04, GitHub returned HTTP 403 for both the branch-protection and
+repository-rulesets APIs for this private repository, requiring GitHub Pro or a
+public repository. Repository visibility was not changed because making the
+project public is a separate privacy/distribution decision.
+
+The Phase 0 stack must remain unmerged until the private repository gains an
+entitlement that supports protection. Then protect `main` with pull requests,
+one approval, stale-approval dismissal, required checks, blocked force-push and
+deletion, and linear history. No Phase 1 epic/issues should be created before
+that gate is resolved and the checkpoint is finally accepted.
 
 ## Assignment coverage
 
