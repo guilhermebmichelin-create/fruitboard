@@ -61,9 +61,9 @@ Use labels by type (`epic`, `feature`, `bug`, `spike`, `docs`, `security`), area
 (`desktop`, `scanner`, `parser`, `database`, `client`, `pwa`, `sync`), and phase.
 Milestones represent phase review gates, not arbitrary dates.
 
-The Phase 0 epic is GitHub issue #1, with review units #2–#5. The proposed Phase
-1 set remains in [ROADMAP.md](ROADMAP.md); create it only after architecture
-review.
+The Phase 0 epic is GitHub issue #1, with review units #2–#5 and stacked PRs
+#6–#9. The proposed Phase 1 set remains in [ROADMAP.md](ROADMAP.md); create it
+only after architecture review.
 
 ## Toolchain
 

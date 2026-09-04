@@ -42,21 +42,21 @@ the owner wants strict one-concept PRs before merge, split the commits/changes a
 
 ### Epic: Phase 0 — Product and architecture
 
-1. **#2 — System architecture and desktop framework decision**
+1. **#2 — System architecture and desktop framework decision** (PR #6)
    - architecture diagram, boundaries, repository layout, Tauri/Electron and
      frontend evaluation;
    - ADR-001 and ADR-006;
    - PR: `docs: propose system and shared-client architecture`.
-2. **#3 — Local data, scanner, identity, and parser feasibility**
+2. **#3 — Local data, scanner, identity, and parser feasibility** (PR #7)
    - SQLite model, scanner/reconciliation, identity rules, research probe,
      parser protocol/PoCs and licensing gate;
    - ADR-002, ADR-003, ADR-004;
    - PR: `docs: define local data and FLP analysis boundaries`.
-3. **#4 — Sync, PWA, security, and privacy architecture**
+3. **#4 — Sync, PWA, security, and privacy architecture** (PR #8)
    - Drive operation log, conflict rules, browser auth limitation, threat model;
    - ADR-005 and security review gates;
    - PR: `docs: define optional sync and security model`.
-4. **#5 — Delivery plan and repository governance**
+4. **#5 — Delivery plan and repository governance** (PR #9)
    - roadmap, test/CI/tooling plan, privacy `.gitignore`, PR template;
    - PR: `docs: establish incremental delivery workflow`.
 
