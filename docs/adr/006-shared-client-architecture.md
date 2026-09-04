@@ -47,8 +47,12 @@ privileged desktop bundle unnecessarily.
 ## Phase 1 implementation note
 
 Issue #11 creates the root pnpm and Cargo workspaces without empty application
-packages. Issue #12 owns the first client/native package boundary and must keep
-shared code independent from Tauri globals.
+packages. Issue #12 implements `apps/client` as the reusable React client and
+`apps/desktop/src-tauri` as its native host. Shared components receive a typed
+`PlatformPort`; only `src/entries/desktop.tsx` selects the Tauri adapter, and a
+fake port exercises the client without a native runtime. A later PWA entry can
+mount the same client with a browser adapter without importing Tauri or adding a
+service worker to the desktop bundle.
 
 ## References
 

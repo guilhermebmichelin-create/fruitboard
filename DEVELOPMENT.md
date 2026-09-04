@@ -101,6 +101,17 @@ Pins selected and verified on 2026-09-04:
 | uv | 0.12.9 | Python runtime/environment and lock management |
 | SQLite | 3.51.3 minimum for WAL | Policy gate; no database binding exists yet |
 
+The first application packages use these exact Phase 1 foundation versions:
+
+| Dependency | Pin | Purpose |
+| --- | --- | --- |
+| Tauri Rust / build | 2.11.5 / 2.6.3 | Native desktop host and build integration |
+| Tauri JavaScript / CLI | 2.11.1 / 2.11.4 | Typed invoke adapter and desktop commands |
+| React / React DOM | 19.2.8 | Shared client rendering |
+| Vite / React plugin | 8.2.2 / 6.1.1 | Local development and production client bundle |
+| TypeScript | 6.0.3 | Strict shared-client compilation |
+| Vitest | 5.0.0 | Client and adapter contract tests |
+
 Dependency versions remain exact in their generated lockfiles. Updating a pin
 requires a focused PR that regenerates locks, runs the full check, and updates
 this table and the machine-readable policy together.
@@ -120,6 +131,7 @@ uv python install 3.11.16
 uv sync --frozen --python 3.11.16
 pnpm.cmd install --frozen-lockfile
 pnpm.cmd check
+pnpm.cmd dev
 ```
 
 Use the `.cmd` launchers on Windows so restrictive PowerShell execution policy
@@ -128,16 +140,17 @@ commands without `.cmd`; the Windows Rust target check is platform-conditional.
 Every subprocess receives encoded argument arrays, so repository paths with
 spaces are supported.
 
-`pnpm check` verifies exact runtime versions, formatting, Markdown/script
-syntax, policy tests, and the current Cargo workspace manifest. Run toolchain
-verification only through `pnpm check` or `pnpm verify:toolchains`; direct
-`node scripts/verify-toolchains.mjs` invocation is unsupported because pnpm's
-executable context is part of the version check.
+`pnpm check` verifies exact runtime versions, formatting, lint, strict
+TypeScript, Node/client/Rust tests, and the integrated production build. Run
+toolchain verification only through `pnpm check` or `pnpm verify:toolchains`;
+direct `node scripts/verify-toolchains.mjs` invocation is unsupported because
+pnpm's executable context is part of the version check.
 
-The Phase 1 Issue #11 workspace contains no buildable package yet, so
-`pnpm build:workspace` explicitly runs locked `cargo metadata`. Issue #12 adds
-the real `pnpm build` entry point when it introduces the first client and Rust
-packages.
+`pnpm dev` starts Vite and the Tauri development shell. `pnpm build` produces
+the local client bundle and optimized native executable. Installer bundling is
+disabled in Issue #12; unsigned installer evidence remains owned by Issue #18.
+The client can also be checked independently with `pnpm typecheck`, while the
+root lint and test commands include both TypeScript and Rust packages.
 
 When the SQLite binding is selected in Issue #15, query its embedded runtime
 version and pass that value to:
@@ -171,9 +184,9 @@ duplicated enough to justify it.
 Tauri's Windows prerequisites include Microsoft C++ Build Tools, WebView2, Rust,
 and Node. The global development-machine check on 2026-09-04 found Node 26.4.0,
 Python 3.8.5, and SQLite 3.33.0, but no `rustc`, `cargo`, `py` launcher, or
-`corepack` on `PATH`. Issue #11 was validated with portable Node 24.20.0 and
-temporary isolated Rust/Python toolchains rather than replacing those global
-installs. Before the Tauri shell PR, install/verify:
+`corepack` on `PATH`. Development verification therefore uses the pinned,
+isolated toolchains rather than silently falling back to those global versions.
+Install or verify:
 
 1. Microsoft C++ “Desktop development with C++” build tools;
 2. current patched WebView2 runtime;
@@ -184,8 +197,10 @@ installs. Before the Tauri shell PR, install/verify:
 6. the SQLite binding's embedded version is 3.51.3 or a documented official
    fixed backport before multi-connection WAL is enabled.
 
-The Microsoft build tools and WebView2 checks remain part of Issue #12 because
-Issue #11 contains no Tauri/native package to compile.
+The Issue #12 production command compiles the native Windows executable and the
+development command opens its locally bundled client in the installed WebView2
+runtime. It does not produce an installer; the explicit install/uninstall smoke,
+artifact measurements, and packaging decision remain Issue #18.
 
 ## Test strategy
 

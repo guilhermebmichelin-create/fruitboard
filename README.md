@@ -6,9 +6,10 @@ analyzing, and finishing music.
 ## Project status
 
 Fruitboard's **Phase 0 architecture is accepted** with a documented manual
-governance exception for this private GitHub Free repository. No application
-features have been implemented. Phase 1 remains limited to the approved
-Application Foundation scope and must follow its issue/PR sequence.
+governance exception for this private GitHub Free repository. Phase 1 is in
+progress: the repository contains only the reproducible workspace and minimal
+Tauri/React foundation, with no scanner or product features. Work remains
+limited to the approved Application Foundation issue/PR sequence.
 
 Tracking starts at
 [Phase 1 epic #10](https://github.com/guilhermebmichelin-create/fruitboard/issues/10).
@@ -17,7 +18,8 @@ Tracking starts at
 
 The repository pins Node, pnpm/Corepack, Rust, and an isolated Python research
 environment. Start with [DEVELOPMENT.md](DEVELOPMENT.md); after installing the
-pinned tools, `pnpm check` is the single local verification entry point.
+pinned tools, `pnpm check` is the single local verification entry point and
+`pnpm dev` launches the Windows desktop shell.
 
 Start with [the Phase 0 review brief](docs/PHASE_0_REVIEW.md).
 
