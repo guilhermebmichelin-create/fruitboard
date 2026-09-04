@@ -47,6 +47,13 @@ blocker.
   Python runtime may still be material.
 - Electron remains a fallback, not a parallel implementation.
 
+## Phase 1 implementation note
+
+Issue #11 pins Rust 1.98.1 with the MSVC Windows target, `clippy`, and `rustfmt`
+in `rust-toolchain.toml`. It introduces no Tauri/native package; Issue #12 must
+validate the remaining Visual C++ Build Tools and WebView2 prerequisites when
+the first desktop shell is compiled.
+
 ## References
 
 - [Tauri overview](https://v2.tauri.app/start/)

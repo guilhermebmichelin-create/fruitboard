@@ -44,6 +44,12 @@ privileged desktop bundle unnecessarily.
 - Responsive UX can diverge deliberately while design tokens and vocabulary
   remain consistent.
 
+## Phase 1 implementation note
+
+Issue #11 creates the root pnpm and Cargo workspaces without empty application
+packages. Issue #12 owns the first client/native package boundary and must keep
+shared code independent from Tauri globals.
+
 ## References
 
 - [Repository and client architecture](../../ARCHITECTURE.md)

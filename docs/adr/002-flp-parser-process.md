@@ -50,6 +50,13 @@ accepted GPL distribution. See [LICENSE_INTENT.md](../../LICENSE_INTENT.md).
 - If any gate fails, Scanner MVP can still discover filesystem metadata while a
   different parser is evaluated.
 
+## Phase 1 implementation note
+
+Issue #11 pins an isolated Python 3.11.16 research environment and its empty
+dependency lock. This is toolchain preparation only: PyFLP is absent from the
+manifest and lockfile, and the parser adoption/distribution gates remain
+unchanged.
+
 ## References
 
 - [Detailed parser design](../../FLP_PARSER.md)
