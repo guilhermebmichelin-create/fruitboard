@@ -1,0 +1,16 @@
+{
+  "name": "@fruitboard/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tauri build --no-bundle",
+    "dev": "tauri dev",
+    "frontend:build": "pnpm --filter @fruitboard/client build",
+    "frontend:dev": "pnpm --filter @fruitboard/client dev",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4"
+  }
+}

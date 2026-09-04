@@ -55,3 +55,32 @@ test("privacy and generated-output ignore rules remain present", () => {
     );
   }
 });
+
+test("application manifests use exact dependency versions", () => {
+  for (const path of [
+    "apps/client/package.json",
+    "apps/desktop/package.json",
+  ]) {
+    const manifest = JSON.parse(readRootFile(path));
+
+    for (const section of ["dependencies", "devDependencies"]) {
+      for (const [name, version] of Object.entries(manifest[section] ?? {})) {
+        assert.match(
+          version,
+          /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/,
+          `${path} must pin ${name} exactly`,
+        );
+      }
+    }
+  }
+});
+
+test("Cargo workspace contains only the first owned native package", () => {
+  const cargoManifest = readRootFile("Cargo.toml");
+
+  assert.match(cargoManifest, /members = \["apps\/desktop\/src-tauri"\]/);
+  assert.doesNotMatch(
+    cargoManifest,
+    /(?:scanner|storage-sqlite|parser-protocol)/,
+  );
+});

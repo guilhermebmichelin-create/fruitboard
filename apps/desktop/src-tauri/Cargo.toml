@@ -1,0 +1,21 @@
+[package]
+name = "fruitboard-desktop"
+version = "0.1.0"
+description = "Fruitboard desktop application host"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "fruitboard_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+serde.workspace = true
+tauri.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
