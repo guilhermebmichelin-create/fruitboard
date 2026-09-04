@@ -1,0 +1,6 @@
+.git/
+node_modules/
+target/
+.venv/
+pnpm-lock.yaml
+uv.lock

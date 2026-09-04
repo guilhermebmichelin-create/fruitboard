@@ -1,0 +1,28 @@
+{
+  "name": "fruitboard",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local-first FL Studio project library and production tracker",
+  "engines": {
+    "node": "24.20.0",
+    "pnpm": "11.25.0"
+  },
+  "packageManager": "pnpm@11.25.0+sha512.5cde925b4f075f725eb71fbae18a42ffe784524789f19b61c731cb8721ec28aaee160e01a8d5af4fedb2a42cdbf300efe23db356b0d4a17b4d63e11f8ab7c956",
+  "scripts": {
+    "build": "cargo metadata --locked --format-version 1 --no-deps",
+    "check": "pnpm verify:toolchains && pnpm format:check && pnpm lint && pnpm test && pnpm build",
+    "format": "prettier --write package.json pnpm-workspace.yaml tools scripts tests",
+    "format:check": "prettier --check package.json pnpm-workspace.yaml tools scripts tests",
+    "lint": "pnpm lint:docs && pnpm lint:scripts",
+    "lint:docs": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#.git\"",
+    "lint:scripts": "node --check scripts/lib/toolchain-policy.mjs && node --check scripts/verify-sqlite-version.mjs && node --check scripts/verify-toolchains.mjs && node --check tests/toolchain-policy.test.mjs && node --check tests/workspace-policy.test.mjs",
+    "test": "node --test",
+    "verify:sqlite": "node scripts/verify-sqlite-version.mjs",
+    "verify:toolchains": "node scripts/verify-toolchains.mjs"
+  },
+  "devDependencies": {
+    "corepack": "0.36.0",
+    "markdownlint-cli2": "0.23.2",
+    "prettier": "3.9.6"
+  }
+}

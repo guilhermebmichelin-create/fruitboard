@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-09-04",
+  "node": "24.20.0",
+  "pnpm": "11.25.0",
+  "corepack": "0.36.0",
+  "rust": "1.98.1",
+  "rustComponents": ["clippy", "rustfmt"],
+  "windowsRustTarget": "x86_64-pc-windows-msvc",
+  "python": "3.11.16",
+  "uv": "0.12.9",
+  "sqlite": {
+    "minimumWalSafeVersion": "3.51.3",
+    "approvedFixedBackports": []
+  }
+}
