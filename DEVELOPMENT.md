@@ -1,6 +1,6 @@
 # Development and delivery
 
-Status: **Accepted workflow; Phase 1 will add executable tooling and CI**
+Status: **Active workflow; Phase 1 adds executable tooling and CI incrementally**
 
 ## Working agreement
 
@@ -80,17 +80,75 @@ with issues #11–#18; the authoritative scope remains in
 
 ### Workspace
 
-- pnpm workspaces with one lockfile; use Corepack and pin `packageManager`.
-- Cargo workspace with `rust-toolchain.toml` pinned to an accepted stable
-  toolchain.
-- Node 24 LTS for development/CI at the Phase 0 date. Node's release page marks
-  installed Node 26 as Current, so it is not the production baseline yet.
-- Python in an isolated environment for parser research/builds. Test and pin a
-  supported non-EOL version (candidate 3.11) during P0-B; do not rely on the
-  system Python.
+- pnpm workspaces use one committed lockfile and Corepack verifies the exact
+  package manager from `package.json`.
+- The Cargo workspace uses a committed lockfile and the exact toolchain in
+  `rust-toolchain.toml`.
+- The Python 3.11 research environment is isolated in `.venv` and locked by uv.
+  It has no PyFLP dependency.
+- `tools/toolchain-policy.json` is the machine-readable source for cross-file
+  pin checks and the SQLite WAL safety floor.
 
-Exact library versions are selected and locked in Phase 1, not copied from a
-time-sensitive architecture document.
+Pins selected and verified on 2026-09-04:
+
+| Tool | Pin | Purpose |
+| --- | --- | --- |
+| Node.js | 24.20.0 LTS | JavaScript runtime and client tooling |
+| pnpm | 11.25.0 | Workspace package manager |
+| Corepack | 0.36.0 | Verifies and launches the pinned pnpm release |
+| Rust | 1.98.1 MSVC | Native workspace, with `clippy` and `rustfmt` |
+| Python | 3.11.16 | Isolated parser research baseline only |
+| uv | 0.12.9 | Python runtime/environment and lock management |
+| SQLite | 3.51.3 minimum for WAL | Policy gate; no database binding exists yet |
+
+Dependency versions remain exact in their generated lockfiles. Updating a pin
+requires a focused PR that regenerates locks, runs the full check, and updates
+this table and the machine-readable policy together.
+
+### Fresh Windows setup
+
+Install Node 24.20.0, rustup, and uv 0.12.9 from their official distributions,
+then run these commands from the repository root:
+
+```powershell
+node --version
+npm.cmd install --global corepack@0.36.0
+corepack.cmd enable
+corepack.cmd install
+rustup toolchain install 1.98.1 --profile minimal --component clippy --component rustfmt --target x86_64-pc-windows-msvc
+uv python install 3.11.16
+uv sync --frozen --python 3.11.16
+pnpm.cmd install --frozen-lockfile
+pnpm.cmd check
+```
+
+Use the `.cmd` launchers on Windows so restrictive PowerShell execution policy
+does not select blocked `npm.ps1`/`pnpm.ps1` shims. On macOS/Linux, use the same
+commands without `.cmd`; the Windows Rust target check is platform-conditional.
+Every subprocess receives encoded argument arrays, so repository paths with
+spaces are supported.
+
+`pnpm check` verifies exact runtime versions, formatting, Markdown/script
+syntax, policy tests, and the current Cargo workspace manifest. Run toolchain
+verification only through `pnpm check` or `pnpm verify:toolchains`; direct
+`node scripts/verify-toolchains.mjs` invocation is unsupported because pnpm's
+executable context is part of the version check.
+
+The Phase 1 Issue #11 workspace contains no buildable package yet, so
+`pnpm build:workspace` explicitly runs locked `cargo metadata`. Issue #12 adds
+the real `pnpm build` entry point when it introduces the first client and Rust
+packages.
+
+When the SQLite binding is selected in Issue #15, query its embedded runtime
+version and pass that value to:
+
+```powershell
+pnpm.cmd verify:sqlite -- 3.53.0
+```
+
+The command blocks versions below 3.51.3 unless an exact official fixed
+backport has first been reviewed and added to the policy. The operating-system
+`sqlite3` executable is not evidence for the version embedded by the app.
 
 ### Quality tools
 
@@ -111,21 +169,23 @@ duplicated enough to justify it.
 ## Local prerequisites
 
 Tauri's Windows prerequisites include Microsoft C++ Build Tools, WebView2, Rust,
-and Node. The current development machine check on 2026-09-04 found Node 26.4.0
-and Python 3.8.5, but no `rustc`, `cargo`, `py` launcher, or `corepack` on PATH.
-Phase 1 setup must install/verify:
+and Node. The global development-machine check on 2026-09-04 found Node 26.4.0,
+Python 3.8.5, and SQLite 3.33.0, but no `rustc`, `cargo`, `py` launcher, or
+`corepack` on `PATH`. Issue #11 was validated with portable Node 24.20.0 and
+temporary isolated Rust/Python toolchains rather than replacing those global
+installs. Before the Tauri shell PR, install/verify:
 
 1. Microsoft C++ “Desktop development with C++” build tools;
 2. current patched WebView2 runtime;
 3. Rust stable MSVC through rustup;
-4. Node 24 LTS plus pinned pnpm/Corepack setup;
-5. an isolated, pinned Python 3.11 research environment; no PyFLP dependency in
+4. Node 24.20.0 LTS plus pinned pnpm/Corepack setup;
+5. the isolated Python 3.11.16 research environment; no PyFLP dependency in
    Phase 1;
 6. the SQLite binding's embedded version is 3.51.3 or a documented official
    fixed backport before multi-connection WAL is enabled.
 
-Document exact commands and verify them in `DEVELOPMENT.md` during the relevant
-PR; do not make global machine changes as part of this architecture phase.
+The Microsoft build tools and WebView2 checks remain part of Issue #12 because
+Issue #11 contains no Tauri/native package to compile.
 
 ## Test strategy
 
@@ -278,3 +338,9 @@ Stop until the owner accepts the checkpoint.
 - [GitHub protected branch availability](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
 - [GitHub repository rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)
 - [Node release status](https://nodejs.org/en/about/previous-releases)
+- [Node.js 24.20.0 distribution](https://nodejs.org/dist/v24.20.0/)
+- [Corepack documentation](https://github.com/nodejs/corepack#readme)
+- [pnpm installation](https://pnpm.io/installation)
+- [Rust 1.98.1 channel manifest](https://static.rust-lang.org/dist/channel-rust-1.98.1.toml)
+- [Python 3.11.16 release](https://www.python.org/downloads/release/python-31116/)
+- [uv 0.12.9 release](https://github.com/astral-sh/uv/releases/tag/0.12.9)

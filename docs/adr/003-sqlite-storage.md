@@ -42,6 +42,13 @@ domain operations, never the database file.
 - Database backups and version compatibility are first-class release concerns.
 - SQLite library versions must be audited, not assumed from the OS.
 
+## Phase 1 implementation note
+
+Issue #11 adds a tested machine-readable gate that rejects SQLite versions
+below 3.51.3 unless an exact official fixed backport is explicitly allowlisted.
+No SQLite binding, database, migration, or WAL mode is introduced; Issue #15
+must feed the selected binding's runtime version through this gate.
+
 ## References
 
 - [Data model](../../DATA_MODEL.md)

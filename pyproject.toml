@@ -1,0 +1,9 @@
+[project]
+name = "fruitboard-research-tools"
+version = "0.0.0"
+description = "Isolated research tooling; not a production FLP parser"
+requires-python = "==3.11.*"
+dependencies = []
+
+[tool.uv]
+package = false

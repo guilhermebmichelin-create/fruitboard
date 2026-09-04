@@ -125,6 +125,10 @@ desktop entry and a PWA entry so platform-only routes and service-worker code do
 not enter the desktop bundle. Responsive navigation shells can differ while
 screen content and domain vocabulary remain shared.
 
+Phase 1 Issue #11 establishes only the root pnpm/Cargo manifests and lockfiles.
+The proposed package/crate directories are created by the PR that first owns
+their behavior; empty architectural scaffolding is deliberately avoided.
+
 ## Desktop framework evaluation
 
 | Criterion | Tauri 2 | Electron | Product-specific assessment |

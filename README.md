@@ -13,6 +13,12 @@ Application Foundation scope and must follow its issue/PR sequence.
 Tracking starts at
 [Phase 1 epic #10](https://github.com/guilhermebmichelin-create/fruitboard/issues/10).
 
+## Development
+
+The repository pins Node, pnpm/Corepack, Rust, and an isolated Python research
+environment. Start with [DEVELOPMENT.md](DEVELOPMENT.md); after installing the
+pinned tools, `pnpm check` is the single local verification entry point.
+
 Start with [the Phase 0 review brief](docs/PHASE_0_REVIEW.md).
 
 ## Architecture documents
