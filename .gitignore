@@ -34,6 +34,7 @@ node_modules/
 .pnpm-store/
 dist/
 target/
+apps/*/src-tauri/gen/schemas/
 .turbo/
 coverage/
 playwright-report/

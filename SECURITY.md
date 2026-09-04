@@ -1,6 +1,6 @@
 # Security and privacy
 
-Status: **Phase 0 threat model; controls become acceptance criteria in later PRs**
+Status: **Active threat model; Phase 1 controls are implemented incrementally**
 
 Fruitboard processes untrusted binary files while holding access to valuable
 creative work. Its primary safety property is that analysis cannot modify,
@@ -92,6 +92,15 @@ and all embedded metadata are untrusted inputs even after OAuth succeeds.
 
 Tauri capabilities reduce the impact of frontend compromise but do not protect
 against unsafe Rust or overly broad scopes, so command review remains required.
+
+The Issue #12 shell applies this baseline concretely. `apps/client` loads no
+remote assets, the global Tauri object is disabled, prototype freezing and a
+restrictive production CSP are enabled, and the capability is limited to the
+local window. Its only permission maps to `get_app_health`, an argument-free
+command that returns inert status/runtime/version strings. Boundary tests fail
+if remote authority or filesystem, shell, process, SQL, or opener permissions
+enter that capability. New commands must add a specific permission and matching
+contract tests; broad default permission sets are not accepted implicitly.
 
 ### Audio and artwork decoding
 

@@ -1,0 +1,6 @@
+"$schema" = "../gen/schemas/schema.json"
+
+[[permission]]
+identifier = "allow-get-app-health"
+description = "Allows the local main window to read inert application health and version data."
+commands.allow = ["get_app_health"]

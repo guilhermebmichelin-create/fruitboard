@@ -1,0 +1,21 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  padding: 2rem;
+}
+
+dl div {
+  display: flex;
+  gap: 0.5rem;
+}
+
+dd {
+  margin: 0;
+}

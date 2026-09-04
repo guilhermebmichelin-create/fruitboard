@@ -81,6 +81,12 @@ flowchart TB
 - Synchronization consumes durable operations from the same mutation path as
   local changes; sync is not a second write path.
 
+The Phase 1 shell implements this boundary with a shared `PlatformPort` in
+`apps/client`. Only the desktop entry adapter imports `@tauri-apps/api`; the
+shared React component is tested with a fake port. The local `main` window has
+one application permission for the inert `get_app_health` command and no
+filesystem, shell, process, SQL, opener, or remote-origin capability.
+
 ## Repository proposal
 
 Use a pnpm workspace plus a Cargo workspace. Start with these boundaries and
@@ -125,9 +131,11 @@ desktop entry and a PWA entry so platform-only routes and service-worker code do
 not enter the desktop bundle. Responsive navigation shells can differ while
 screen content and domain vocabulary remain shared.
 
-Phase 1 Issue #11 establishes only the root pnpm/Cargo manifests and lockfiles.
-The proposed package/crate directories are created by the PR that first owns
-their behavior; empty architectural scaffolding is deliberately avoided.
+Phase 1 Issue #11 established the root pnpm/Cargo manifests and lockfiles.
+Issue #12 adds `apps/client` and `apps/desktop/src-tauri` because they now own the
+shared client and native shell behavior. The remaining proposed package/crate
+directories are still created only by the PR that first owns their behavior;
+empty architectural scaffolding remains deliberately avoided.
 
 ## Desktop framework evaluation
 

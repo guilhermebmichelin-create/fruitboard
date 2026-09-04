@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Fruitboard",
+  "version": "0.1.0",
+  "identifier": "com.fruitboard.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm frontend:dev",
+    "beforeBuildCommand": "pnpm frontend:build",
+    "devUrl": "http://127.0.0.1:1420",
+    "frontendDist": "../../client/dist",
+    "removeUnusedCommands": true
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Fruitboard",
+        "width": 900,
+        "height": 600
+      }
+    ],
+    "security": {
+      "capabilities": ["main"],
+      "csp": {
+        "default-src": "'self'",
+        "base-uri": "'none'",
+        "connect-src": "ipc: http://ipc.localhost",
+        "frame-ancestors": "'none'",
+        "img-src": "'self' data:",
+        "object-src": "'none'",
+        "style-src": "'self'"
+      },
+      "freezePrototype": true
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["icons/icon.ico"]
+  }
+}

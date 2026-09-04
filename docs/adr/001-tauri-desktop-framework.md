@@ -50,9 +50,10 @@ blocker.
 ## Phase 1 implementation note
 
 Issue #11 pins Rust 1.98.1 with the MSVC Windows target, `clippy`, and `rustfmt`
-in `rust-toolchain.toml`. It introduces no Tauri/native package; Issue #12 must
-validate the remaining Visual C++ Build Tools and WebView2 prerequisites when
-the first desktop shell is compiled.
+in `rust-toolchain.toml`. Issue #12 implements the first Tauri 2 shell with one
+local window and one inert `get_app_health` command. Its explicit capability
+does not grant filesystem, shell, process, SQL, opener, or remote-origin access;
+the client bundle is local and protected by a restrictive CSP.
 
 ## References
 
