@@ -129,10 +129,15 @@ Every subprocess receives encoded argument arrays, so repository paths with
 spaces are supported.
 
 `pnpm check` verifies exact runtime versions, formatting, Markdown/script
-syntax, policy tests, and the current Cargo workspace manifest. The Phase 1
-Issue #11 workspace contains no Rust package yet, so `pnpm build` intentionally
-runs locked `cargo metadata`; Issue #12 replaces this with a real application
-build when the first package is introduced.
+syntax, policy tests, and the current Cargo workspace manifest. Run toolchain
+verification only through `pnpm check` or `pnpm verify:toolchains`; direct
+`node scripts/verify-toolchains.mjs` invocation is unsupported because pnpm's
+executable context is part of the version check.
+
+The Phase 1 Issue #11 workspace contains no buildable package yet, so
+`pnpm build:workspace` explicitly runs locked `cargo metadata`. Issue #12 adds
+the real `pnpm build` entry point when it introduces the first client and Rust
+packages.
 
 When the SQLite binding is selected in Issue #15, query its embedded runtime
 version and pass that value to:
