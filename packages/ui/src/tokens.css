@@ -1,0 +1,85 @@
+:root {
+  color-scheme: only light;
+
+  /* Typography */
+  --font-family-sans: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --font-size-caption: 0.75rem;
+  --font-size-small: 0.875rem;
+  --font-size-body: 1rem;
+  --font-size-title-small: 1.125rem;
+  --font-size-title: clamp(1.75rem, 4vw, 2.5rem);
+  --font-size-display: clamp(2rem, 5vw, 3.5rem);
+  --font-weight-regular: 400;
+  --font-weight-medium: 600;
+  --font-weight-bold: 720;
+  --line-height-tight: 1.15;
+  --line-height-body: 1.55;
+  --letter-spacing-heading: -0.025em;
+  --letter-spacing-label: 0.08em;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Light surfaces and text */
+  --color-canvas: #f4f7f3;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #edf3ed;
+  --color-surface-strong: #dce9de;
+  --color-sidebar: #173025;
+  --color-sidebar-raised: #244336;
+  --color-text: #17231b;
+  --color-text-muted: #56635a;
+  --color-text-on-dark: #f8fbf8;
+  --color-text-on-dark-muted: #c3d2c8;
+  --color-accent: #2f6847;
+  --color-accent-strong: #1d4d32;
+  --color-accent-soft: #dff0e4;
+  --color-border: #cbd8cd;
+  --color-border-strong: #9fb1a3;
+  --color-focus: #075fc7;
+  --color-focus-halo: #ffffff;
+  --color-success: #277448;
+  --color-success-indicator: #74d99b;
+  --color-warning: #8a5a00;
+  --color-danger: #9b2f38;
+  --color-danger-border: #dfaeb2;
+  --color-danger-on-dark: #ffb8bf;
+  --color-danger-soft: #fff0f1;
+  --border-width-standard: 0.0625rem;
+
+  /* Shape and elevation */
+  --radius-small: 0.5rem;
+  --radius-medium: 0.875rem;
+  --radius-large: 1.25rem;
+  --radius-pill: 999rem;
+  --shadow-small: 0 0.0625rem 0.125rem rgb(23 35 27 / 8%);
+  --shadow-medium: 0 0.75rem 2rem rgb(23 48 37 / 10%);
+  --shadow-navigation: 0 -0.25rem 1rem rgb(23 35 27 / 8%);
+
+  /* Motion and focus */
+  --duration-instant: 80ms;
+  --duration-standard: 180ms;
+  --duration-spin: 1.2s;
+  --easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --focus-outline-width: 0.1875rem;
+  --focus-outline-offset: 0.1875rem;
+
+  /* Icons, controls, and shell geometry */
+  --icon-size-small: 1rem;
+  --icon-size-medium: 1.25rem;
+  --icon-size-large: 1.5rem;
+  --control-size-compact: 2.5rem;
+  --control-size-touch: 3rem;
+  --shell-sidebar-width: 15.5rem;
+  --shell-content-max: 72rem;
+  --shell-reading-max: 44rem;
+}

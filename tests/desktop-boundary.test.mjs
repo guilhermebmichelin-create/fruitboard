@@ -48,10 +48,15 @@ test("desktop shell loads only local build and development content", () => {
 
 test("shared client modules do not import Tauri APIs", () => {
   const sharedFiles = [
+    "apps/client/src/app/AppIcon.tsx",
     "apps/client/src/app/FruitboardApp.tsx",
+    "apps/client/src/app/navigation.ts",
+    "apps/client/src/app/pages.tsx",
+    "apps/client/src/app/router.tsx",
     "apps/client/src/mount.tsx",
     "apps/client/src/platform/contracts.ts",
     "apps/client/src/platform/fake.ts",
+    "packages/ui/src/tokens.css",
   ];
 
   for (const path of sharedFiles) {
