@@ -1,6 +1,6 @@
 # Development and delivery
 
-Status: **Proposed workflow; Phase 1 will add executable tooling and CI**
+Status: **Accepted workflow; Phase 1 will add executable tooling and CI**
 
 ## Working agreement
 
@@ -59,10 +59,13 @@ Protect `main` with:
 
 Verification on 2026-09-04 found this configuration unavailable for the current
 private repository: both GitHub's branch-protection and repository-rulesets APIs
-returned HTTP 403 and requested an upgrade to GitHub Pro or public visibility.
-Do not make the repository public merely to bypass this gate. Keep the Phase 0
-stack unmerged until private-repository protection is available, then enable and
-verify every rule above before final Phase 0 acceptance.
+returned HTTP 403. The product owner declined GitHub Pro and accepted a manual
+governance exception for the private GitHub Free repository. This does not claim
+equivalent enforcement: the maintainer must still use issues, feature branches,
+PR checklists, test evidence, and all available CI; avoid direct development,
+force-pushes, and deletion of `main`; and request external review when an
+eligible reviewer is available. Revisit enforced protection before regular
+collaboration or public release.
 
 Use labels by type (`epic`, `feature`, `bug`, `spike`, `docs`, `security`), area
 (`desktop`, `scanner`, `parser`, `database`, `client`, `pwa`, `sync`), and phase.

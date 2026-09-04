@@ -1,6 +1,6 @@
 # Roadmap and issue/PR plan
 
-Status: **Proposed; create only the next accepted milestone's issues**
+Status: **Accepted; create only the next accepted milestone's issues**
 
 The product roadmap remains broadly sound. The principal changes are:
 
@@ -214,9 +214,9 @@ Keep these as outlines until the preceding design is informed by real usage.
   until GPL compatibility is resolved.
 - [x] Phase 1 issue list is approved.
 - [ ] Phase 1 epic and eight issues are created only after final acceptance.
-- [ ] Branch protection/required-review policy is enabled. GitHub currently
-  rejects both protection APIs for this private repository because the account
-  lacks the required entitlement; do not merge or create Phase 1 issues yet.
+- [x] The owner accepts the documented GitHub Free manual-governance exception
+  because private-repository protection is unavailable and GitHub Pro was
+  declined.
 - [x] No application feature implementation has entered Phase 0.
 - [ ] Phase 0 PRs are finally accepted and merged in order #6 → #7 → #8 → #9.
 

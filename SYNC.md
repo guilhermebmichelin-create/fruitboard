@@ -1,6 +1,6 @@
 # Synchronization architecture
 
-Status: **Proposed design for later Phase 11/12 implementation**
+Status: **Accepted architecture for later Phase 11/12 implementation**
 
 No sync code or Google Cloud credentials are created in Phase 0. Local desktop
 functionality remains complete without authorization or a network.

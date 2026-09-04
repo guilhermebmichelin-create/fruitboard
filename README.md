@@ -5,11 +5,10 @@ analyzing, and finishing music.
 
 ## Project status
 
-Fruitboard is at the **conditionally accepted Phase 0 architecture review
-checkpoint**. Documentation corrections are complete, but private-repository
-branch protection remains unavailable under the current GitHub entitlement. No
-application features have been implemented. The next phase must not begin until
-that gate is resolved and Phase 0 is finally accepted.
+Fruitboard's **Phase 0 architecture is accepted** with a documented manual
+governance exception for this private GitHub Free repository. No application
+features have been implemented. Phase 1 remains limited to the approved
+Application Foundation scope and must follow its issue/PR sequence.
 
 Start with [the Phase 0 review brief](docs/PHASE_0_REVIEW.md).
 

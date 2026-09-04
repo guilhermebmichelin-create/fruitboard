@@ -1,6 +1,6 @@
 # Data model
 
-Status: **Proposed logical model; no migration has been implemented**
+Status: **Accepted logical baseline; executable schema remains Phase 1 work**
 
 ## Modeling principles
 
