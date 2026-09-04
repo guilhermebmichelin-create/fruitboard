@@ -64,43 +64,44 @@ Suggested issue acceptance: documents exist, consequential uncertainty is
 labeled, primary sources are linked, review questions are answered, and no
 application code is added.
 
-## Phase 1 proposed issues and PRs
+## Phase 1 issues and PRs
 
-Create after Phase 0 acceptance.
+Created after Phase 0 acceptance under
+[epic #10](https://github.com/guilhermebmichelin-create/fruitboard/issues/10).
 
 ### Epic: Phase 1 — Application foundation
 
-1. **Workspace and reproducible toolchains**
+1. **[#11 — Workspace and reproducible toolchains](https://github.com/guilhermebmichelin-create/fruitboard/issues/11)**
    - Node 24 LTS with pnpm/Corepack, `rust-toolchain.toml`, an isolated pinned
      Python 3.11 research environment, lockfiles, and SQLite 3.51.3-or-later
      WAL-fix verification;
    - create the proposed `docs/research/` location or remove it from the
      repository diagram;
    - PR: `chore: initialize reproducible workspace toolchains`.
-2. **Tauri 2 desktop shell and shared React client**
+2. **[#12 — Tauri 2 desktop shell and shared React client](https://github.com/guilhermebmichelin-create/fruitboard/issues/12)**
    - minimal local bundle, typed platform port, no broad capabilities;
    - PR: `feat: add Tauri shell with shared React client`.
-3. **Design tokens, routing, and accessible application shell**
+3. **[#13 — Design tokens, routing, and accessible application shell](https://github.com/guilhermebmichelin-create/fruitboard/issues/13)**
    - light tokens, desktop navigation, route/error/loading/empty skeletons,
      keyboard/focus baseline and screenshots;
    - PR: `feat: add accessible light application shell`.
-4. **Rust command, logging, and error foundations**
+4. **[#14 — Rust command, logging, and error foundations](https://github.com/guilhermebmichelin-create/fruitboard/issues/14)**
    - structured local logging/redaction, stable error envelope, job/event
      skeleton; no scanner implementation;
    - PR: `feat: add native command and error infrastructure`.
-5. **SQLite schema and migration runner**
+5. **[#15 — SQLite schema and migration runner](https://github.com/guilhermebmichelin-create/fruitboard/issues/15)**
    - smallest Phase 1 subset of accepted model, patched SQLite verification,
      backup/migration tests;
    - PR: `feat: add SQLite schema and forward migrations`.
-6. **Project repository vertical slice**
+6. **[#16 — Project repository vertical slice](https://github.com/guilhermebmichelin-create/fruitboard/issues/16)**
    - one non-scanner repository/use case through typed IPC, proving boundaries;
    - PR: `test: prove client-to-SQLite application boundary`.
-7. **Pull-request CI and security baseline**
+7. **[#17 — Pull-request CI and security baseline](https://github.com/guilhermebmichelin-create/fruitboard/issues/17)**
    - lint/type/test/build, Rust/Windows lanes, dependency/privacy checks;
    - add `.github/ISSUE_TEMPLATE/`, workflows, and `CODEOWNERS` with the actual
      maintainers and required-check names;
    - PR: `ci: enforce foundation quality gates`.
-8. **Foundation packaging smoke and checkpoint**
+8. **[#18 — Foundation packaging smoke and checkpoint](https://github.com/guilhermebmichelin-create/fruitboard/issues/18)**
    - unsigned development artifact, startup/install notes, sizes/timings, Phase 1
      review evidence; not a public release;
    - PR: `test: add Windows foundation packaging smoke`.
@@ -108,10 +109,10 @@ Create after Phase 0 acceptance.
 Avoid putting the real scanner, parser, Drive OAuth, PWA service worker, project
 cards, or Kanban in these issues.
 
-After final Phase 0 acceptance, merge PRs #6, #7, #8, and #9 in that order with
-linear history, then create only the Phase 1 epic and these eight issues. Run
-P0-G and P0-D/P0-E early and in parallel; P0-G may amend ADR-001, while P0-D and
-P0-E must be complete before the Scanner MVP design is finalized.
+PRs #6, #7, #8, and #9 were merged in that order with linear history, after
+which the Phase 1 epic and these eight issues were created. Run P0-G and
+P0-D/P0-E early and in parallel; P0-G may amend ADR-001, while P0-D and P0-E
+must be complete before the Scanner MVP design is finalized.
 
 ## Phase 2 proposed issues and PRs
 
@@ -213,11 +214,11 @@ Keep these as outlines until the preceding design is informed by real usage.
 - [x] Product/distribution license direction is recorded; PyFLP remains blocked
   until GPL compatibility is resolved.
 - [x] Phase 1 issue list is approved.
-- [ ] Phase 1 epic and eight issues are created only after final acceptance.
+- [x] Phase 1 epic #10 and issues #11–#18 were created after final acceptance.
 - [x] The owner accepts the documented GitHub Free manual-governance exception
   because private-repository protection is unavailable and GitHub Pro was
   declined.
 - [x] No application feature implementation has entered Phase 0.
-- [ ] Phase 0 PRs are finally accepted and merged in order #6 → #7 → #8 → #9.
+- [x] Phase 0 PRs were accepted and merged in order #6 → #7 → #8 → #9.
 
 After this checklist is accepted, start only the first Phase 1 issue/branch.

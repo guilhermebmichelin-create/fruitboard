@@ -10,6 +10,9 @@ governance exception for this private GitHub Free repository. No application
 features have been implemented. Phase 1 remains limited to the approved
 Application Foundation scope and must follow its issue/PR sequence.
 
+Tracking starts at
+[Phase 1 epic #10](https://github.com/guilhermebmichelin-create/fruitboard/issues/10).
+
 Start with [the Phase 0 review brief](docs/PHASE_0_REVIEW.md).
 
 ## Architecture documents

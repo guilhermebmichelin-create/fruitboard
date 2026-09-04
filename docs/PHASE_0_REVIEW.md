@@ -7,8 +7,9 @@ Date: 2026-09-04
 No production application code exists in this phase. This brief is the review
 gate for Phase 1.
 
-GitHub review is organized under epic #1 as stacked PRs #6, #7, #8, and #9, in
-that order. Keep the intermediate branches until the full stack has merged.
+GitHub review was organized under epic #1 as stacked PRs #6, #7, #8, and #9.
+They were rebased and merged into `main` in that order on 2026-09-04, preserving
+linear history.
 
 ## Executive recommendation
 
