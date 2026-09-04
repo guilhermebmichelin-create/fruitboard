@@ -23,6 +23,13 @@ Invariants:
   excluded from the default sync projection.
 - Sync failure never prevents local desktop use.
 
+The product owner has confirmed both path exclusion and foreground-only PWA
+sync as Phase 0 decisions. Work sessions and meaningful activity events are
+included after the user enables Drive sync so history and analytics agree
+across replicas; raw process/window observations and low-level tracking
+evidence stay device-local. Phase 11 must show this category in the pre-sync
+preview and revisit encryption and a possible granular opt-out before release.
+
 Google documents `appDataFolder` as a hidden per-application area, accessible
 only to that app through the narrow `drive.appdata` scope. Users can delete the
 data or remove the app, and items there cannot be shared or moved to ordinary
@@ -207,10 +214,11 @@ flowchart TB
 - Audio/artwork caches use separate bounded policies and never evict metadata
   outbox state intentionally.
 
-The minimum supported iOS/Safari version is a Phase 12 product decision. P0-H
-must test installed Home Screen behavior, IndexedDB/storage persistence, OAuth
-popups/redirects, token expiry, service-worker updates, audio, and offline edits
-on real iPhones.
+Use iOS 17+ as the initial PWA baseline. This decision remains subject to P0-H,
+which must test installed Home Screen behavior, IndexedDB/storage persistence,
+OAuth popups/redirects, token expiry, service-worker updates, audio, and offline
+edits on real iPhones. Amend the baseline rather than weakening required flows
+silently if real-device evidence fails.
 
 ## Bootstrap and recovery
 
