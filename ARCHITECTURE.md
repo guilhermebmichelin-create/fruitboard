@@ -177,7 +177,10 @@ The light-only visual system starts with semantic tokens: color roles, type
 scale, spacing, radii, borders, shadows, motion, focus rings, z-order, and
 control sizes. Components must cover default, hover, focus-visible, pressed,
 disabled, loading, empty, and error states. Product screens are not blocked on
-a comprehensive design-system project.
+a comprehensive design-system project. Dark mode is deferred, not rejected;
+its later evaluation must preserve contrast, scalable text, focus visibility,
+and other accessibility requirements rather than being treated as a cosmetic
+theme swap.
 
 ## Desktop application services
 
