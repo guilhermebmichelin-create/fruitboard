@@ -54,6 +54,12 @@ Illustrative request:
 {"protocolVersion":1,"id":"request UUID","method":"parse","params":{"path":"absolute path","expected":{"size":190128,"modifiedAtMs":0},"features":["summary","plugins","arrangements"]}}
 ```
 
+The absolute path exists only in the private Rust-to-sidecar request needed to
+open the selected file. Exact request payloads and paths never enter logs or
+sync payloads; logs, progress events, and diagnostics use opaque request,
+location, and project-file IDs. Any user-facing path display is fetched through
+an explicit local-only use case.
+
 Illustrative response shape:
 
 ```json
@@ -205,10 +211,16 @@ Timing is a single warm developer-machine observation, not a benchmark. The
 fixture was created specifically for PyFLP and is FL 20-era data, so it says
 little about current compatibility.
 
+Python 3.8.5 is end-of-life and will not be a packaging baseline. P0-A and
+P0-B/P0-G must use a supported, pinned Python toolchain (candidate: Python
+3.11) and exercise the FL 21, FL 2024, FL 2025/current corpus before PyFLP can
+be considered for adoption.
+
 ## Required parser matrix PoC (P0-A)
 
 Create a separate research PR containing only harness code, fixture manifests,
-expected normalized JSON, and results. Proposed corpus:
+expected normalized JSON, and results. Run it with the supported, pinned Python
+3.11 candidate rather than the research machine's Python 3.8.5. Proposed corpus:
 
 - empty/minimal projects from representative FL versions that can legally be
   produced: older supported baseline, FL 20, FL 21, FL 2024, FL 2025/current;

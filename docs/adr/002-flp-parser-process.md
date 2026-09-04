@@ -1,7 +1,8 @@
 # ADR-002: Versioned FLP parser sidecar boundary
 
-- Status: Proposed, conditional on compatibility and licensing gates
+- Status: Accepted (conditional; PyFLP adoption and distribution remain blocked)
 - Date: 2026-09-04
+- Approved: 2026-09-04 by the product owner
 
 ## Context
 
@@ -23,6 +24,10 @@ The sidecar may be adopted for distribution only after:
 2. Windows package/startup/crash/signing/update tests;
 3. an explicit decision that the product's distribution complies with PyFLP's
    GPL-3.0 obligations.
+
+Acceptance covers the replaceable parser boundary and proof-of-concept work,
+not permission to add, bundle, or distribute PyFLP. The product owner has not
+accepted GPL distribution. See [LICENSE_INTENT.md](../../LICENSE_INTENT.md).
 
 ## Alternatives
 

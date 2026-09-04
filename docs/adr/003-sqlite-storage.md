@@ -1,7 +1,8 @@
 # ADR-003: Rust-owned local SQLite database
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-04
+- Approved: 2026-09-04 by the product owner
 
 ## Context
 

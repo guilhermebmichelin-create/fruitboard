@@ -356,6 +356,14 @@ desktop and memory/session-managed browser authorization on the PWA.
 | Artwork optimized derivative | Opt-in syncable |
 | FLPs and original audio exports | Never metadata-synced |
 
+Phase 0 confirms that work sessions and meaningful activity events are
+syncable after the user explicitly enables Google Drive sync; they do not
+require a second, category-specific opt-in by default. This supports consistent
+PWA history and analytics. Raw process/window observations and low-level
+tracking evidence remain device-local. The Phase 11 encryption/security ADR
+must re-evaluate this sensitivity, disclose the category in the pre-sync
+preview, and decide whether a granular opt-out is warranted before shipping.
+
 ## Index and query plan
 
 Initial indexes should cover:
