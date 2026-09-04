@@ -57,6 +57,13 @@ Protect `main` with:
 - CODEOWNERS for Rust/native, parser, sync/security, and migrations once owners
   exist.
 
+Verification on 2026-09-04 found this configuration unavailable for the current
+private repository: both GitHub's branch-protection and repository-rulesets APIs
+returned HTTP 403 and requested an upgrade to GitHub Pro or public visibility.
+Do not make the repository public merely to bypass this gate. Keep the Phase 0
+stack unmerged until private-repository protection is available, then enable and
+verify every rule above before final Phase 0 acceptance.
+
 Use labels by type (`epic`, `feature`, `bug`, `spike`, `docs`, `security`), area
 (`desktop`, `scanner`, `parser`, `database`, `client`, `pwa`, `sync`), and phase.
 Milestones represent phase review gates, not arbitrary dates.
@@ -108,7 +115,10 @@ Phase 1 setup must install/verify:
 2. current patched WebView2 runtime;
 3. Rust stable MSVC through rustup;
 4. Node 24 LTS plus pinned pnpm/Corepack setup;
-5. isolated parser Python only when the parser PoC begins.
+5. an isolated, pinned Python 3.11 research environment; no PyFLP dependency in
+   Phase 1;
+6. the SQLite binding's embedded version is 3.51.3 or a documented official
+   fixed backport before multi-connection WAL is enabled.
 
 Document exact commands and verify them in `DEVELOPMENT.md` during the relevant
 PR; do not make global machine changes as part of this architecture phase.
@@ -261,4 +271,6 @@ Stop until the owner accepts the checkpoint.
 - [GitHub Actions Node build/test guidance](https://docs.github.com/en/actions/tutorials/build-and-test-code/nodejs)
 - [GitHub Actions matrix syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
 - [GitHub CodeQL language support](https://docs.github.com/en/code-security/concepts/code-scanning/codeql/codeql-code-scanning)
+- [GitHub protected branch availability](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
+- [GitHub repository rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets)
 - [Node release status](https://nodejs.org/en/about/previous-releases)
