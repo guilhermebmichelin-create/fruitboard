@@ -152,6 +152,15 @@ disabled in Issue #12; unsigned installer evidence remains owned by Issue #18.
 The client can also be checked independently with `pnpm typecheck`, while the
 root lint and test commands include both TypeScript and Rust packages.
 
+The Issue #13 client uses hash-based data routes because the desktop loads a
+bundled static document. Shared light-theme values live in
+`packages/ui/src/tokens.css`; application CSS consumes semantic variables rather
+than declaring component colors or spacing. Keyboard tests cover skip-link and
+route focus, and axe checks cover initial, loading, empty, and error states.
+The visual review and agreed desktop/narrow viewport evidence live in
+`docs/review/issue-13/`. Dark mode remains a deliberate future theme, and the
+off-Windows/PWA browser target is not selected until the later PWA entry exists.
+
 When the SQLite binding is selected in Issue #15, query its embedded runtime
 version and pass that value to:
 

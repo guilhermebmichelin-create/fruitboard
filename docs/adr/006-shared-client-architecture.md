@@ -54,6 +54,16 @@ fake port exercises the client without a native runtime. A later PWA entry can
 mount the same client with a browser adapter without importing Tauri or adding a
 service worker to the desktop bundle.
 
+Issue #13 adds the first shared UI package, containing semantic light-theme CSS
+tokens with no runtime dependency. The desktop client creates one hash-based
+data router and renders the same route content through desktop-sidebar and
+narrow-touch layouts. Native landmarks and links cover this shell's behavior;
+React Aria Components remains the choice for the first composite widget that
+needs managed keyboard interaction. Dark mode and an explicit PWA browser target
+remain deferred.
+The Phase 12 PWA entry will reuse `createRoutes` with a browser platform adapter
+rather than create a second route tree.
+
 ## References
 
 - [Repository and client architecture](../../ARCHITECTURE.md)
