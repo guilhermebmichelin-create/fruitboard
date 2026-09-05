@@ -72,9 +72,11 @@ uncommitted pages, rollback after failure, and restoration after corruption.
 These tests do not claim hardware power-loss qualification.
 
 The complete implemented schema and recovery contract are documented in
-[DATA_MODEL.md](../../DATA_MODEL.md). React/IPC settings use cases belong to
-Issue #16; portable/Windows CI automation belongs to #17; installer preservation
-checks belong to #18. FTS and product/scanner/parser/sync schemas remain deferred.
+[DATA_MODEL.md](../../DATA_MODEL.md). Issue #16 connects the startup-view
+repository to a typed native service and shared Preferences control through the
+same single connection; no SQL or path authority crosses IPC. Portable/Windows
+CI automation belongs to #17; installer preservation checks belong to #18. FTS
+and product/scanner/parser/sync schemas remain deferred.
 
 ## References
 

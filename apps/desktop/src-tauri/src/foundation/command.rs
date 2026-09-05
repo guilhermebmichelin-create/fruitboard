@@ -5,7 +5,7 @@ use super::errors::{AppError, ErrorCode, UserFacingError};
 use super::identifiers::{IdGenerator, IdKind, OpaqueId};
 use super::logging::{LogEventKind, LogLevel, LogSink, OperationalLogEvent, SafeDiagnostic};
 use serde::Serialize;
-use std::panic::{AssertUnwindSafe, UnwindSafe, catch_unwind};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 pub const COMMAND_SCHEMA_VERSION: u64 = 1;
@@ -59,10 +59,12 @@ impl CommandRuntime {
         operation: Operation,
     ) -> CommandEnvelope<T>
     where
-        Operation: FnOnce() -> Result<T, AppError> + UnwindSafe,
+        Operation: FnOnce() -> Result<T, AppError>,
     {
         let correlation_id = self.ids.next_id(IdKind::Correlation);
-        let outcome = catch_unwind(operation);
+        // Commands may capture interior-mutable services. A panic is contained;
+        // poisoned service locks subsequently fail closed through their adapter.
+        let outcome = catch_unwind(AssertUnwindSafe(operation));
 
         match outcome {
             Ok(Ok(data)) => {

@@ -24,8 +24,12 @@ enforcement is enabled on every connection and tested with temporary relational
 tables. The logical product tables below remain proposals, not shipped schema.
 
 Rust exposes typed preference methods and keeps the connection and transaction
-closure private. Issue #16 adds the React/IPC use case. It will not need a
-second connection or raw SQL capability. No preference is syncable yet.
+closure private. Issue #16 connects them to exact `get_startup_view` and
+`set_startup_view` commands through the one native database owner. IPC carries
+only a schema version and the closed startup-view enum; no database identity,
+path, SQL, connection, or recovery capability crosses the boundary. The shared
+client restores this value on an unrouted desktop launch and lets the user edit
+it in Preferences. No preference is syncable yet.
 
 SQLite uses DELETE rollback journaling, `synchronous=FULL`, foreign keys,
 `trusted_schema=OFF`, and a two-second busy timeout. A process-lifetime file

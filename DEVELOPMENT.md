@@ -212,6 +212,18 @@ the other instance; for `storage_newer_schema`, use a compatible application;
 for schema/database failures, preserve all files before recovery. Installer
 adoption/preservation checks remain in #18.
 
+Issue #16 proves the first React-to-SQLite workflow with the startup-view
+preference. On launch without an explicit hash route, the client loads the
+saved value before creating the router; explicit deep links are preserved. Use
+Preferences to choose Home, Library, Board, or Preferences. The control keeps
+the previous value until Save preference succeeds and provides accessible
+loading, success, retryable load-error, and save-error states. Native close and
+reopen tests prove persistence in the same local database. The IPC payload
+contains only schema version 1 and the route enum; paths and SQL remain native.
+Scanner, parser, project storage, sync, and installer behavior are still
+deferred. Desktop and narrow keyboard interaction recordings are documented in
+[`docs/review/issue-16/`](docs/review/issue-16/README.md).
+
 ### Quality tools
 
 | Area | Proposed tools |

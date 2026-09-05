@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 import { AppIcon } from "./AppIcon";
+import { StartupViewPreference } from "./StartupViewPreference";
+import type { PlatformPort } from "../platform/contracts";
 
 export function HomePage() {
   return (
@@ -44,7 +46,10 @@ export function HomePage() {
           <article className="foundation-card">
             <AppIcon icon={ShieldCheck} />
             <h3>Local by default</h3>
-            <p>The desktop host exposes one narrow health command.</p>
+            <p>
+              The desktop host exposes only health and startup preference
+              commands.
+            </p>
           </article>
           <article className="foundation-card">
             <AppIcon icon={MonitorSmartphone} />
@@ -70,8 +75,8 @@ export function LibraryPage() {
       <p className="eyebrow">Empty library</p>
       <h2 id="library-state-title">No projects yet</h2>
       <p className="state-panel__description">
-        Projects will appear here after storage and safe folder discovery land
-        in their dedicated phases.
+        Projects will appear here after safe folder discovery lands in its
+        dedicated phase.
       </p>
     </section>
   );
@@ -97,31 +102,12 @@ export function BoardPage() {
   );
 }
 
-export function PreferencesPage() {
-  return (
-    <section aria-labelledby="preferences-title" className="preferences-card">
-      <div className="section-heading section-heading--compact">
-        <div>
-          <p className="eyebrow">Interface baseline</p>
-          <h2 id="preferences-title">Designed to adapt without surprises</h2>
-        </div>
-      </div>
-      <dl className="decision-list">
-        <div>
-          <dt>Appearance</dt>
-          <dd>Light foundation; dark mode is deferred, not rejected.</dd>
-        </div>
-        <div>
-          <dt>Motion</dt>
-          <dd>Reduced-motion preferences are respected automatically.</dd>
-        </div>
-        <div>
-          <dt>Narrow layout</dt>
-          <dd>Touch-sized navigation without PWA or scanner behavior.</dd>
-        </div>
-      </dl>
-    </section>
-  );
+export function PreferencesPage({
+  platform,
+}: {
+  readonly platform: PlatformPort;
+}) {
+  return <StartupViewPreference platform={platform} />;
 }
 
 export function NotFoundPage() {

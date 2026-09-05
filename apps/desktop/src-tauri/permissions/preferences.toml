@@ -1,0 +1,11 @@
+"$schema" = "../gen/schemas/schema.json"
+
+[[permission]]
+identifier = "allow-get-startup-view"
+description = "Allows the local main window to read the startup route preference."
+commands.allow = ["get_startup_view"]
+
+[[permission]]
+identifier = "allow-set-startup-view"
+description = "Allows the local main window to save one validated startup route preference."
+commands.allow = ["set_startup_view"]

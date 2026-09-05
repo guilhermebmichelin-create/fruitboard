@@ -1,6 +1,14 @@
 export type PlatformRuntime = "desktop" | "web";
 
 export const NATIVE_COMMAND_SCHEMA_VERSION = 1;
+export const STARTUP_VIEWS = [
+  "home",
+  "library",
+  "board",
+  "preferences",
+] as const;
+
+export type StartupView = (typeof STARTUP_VIEWS)[number];
 
 export type NativeErrorCode =
   | "invalid_request"
@@ -16,8 +24,14 @@ export interface AppHealth {
   readonly version: string;
 }
 
+export interface StartupViewPreference {
+  readonly startupView: StartupView;
+}
+
 export interface PlatformPort {
   getAppHealth(): Promise<AppHealth>;
+  getStartupView(): Promise<StartupViewPreference>;
+  setStartupView(startupView: StartupView): Promise<StartupViewPreference>;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -41,6 +55,7 @@ const nativeErrorCodes = new Set<NativeErrorCode>([
   "unavailable",
   "internal",
 ]);
+const startupViews = new Set<StartupView>(STARTUP_VIEWS);
 
 const isNativeErrorCode = (value: unknown): value is NativeErrorCode =>
   typeof value === "string" && nativeErrorCodes.has(value as NativeErrorCode);
@@ -124,4 +139,19 @@ export function parseAppHealth(value: unknown): AppHealth {
     runtime: value["runtime"],
     version: value["version"],
   };
+}
+
+export function parseStartupViewPreference(
+  value: unknown,
+): StartupViewPreference {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 1 ||
+    typeof value["startupView"] !== "string" ||
+    !startupViews.has(value["startupView"] as StartupView)
+  ) {
+    throw new Error("The platform returned an invalid startup preference.");
+  }
+
+  return { startupView: value["startupView"] as StartupView };
 }

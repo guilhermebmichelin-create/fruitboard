@@ -7,9 +7,10 @@ analyzing, and finishing music.
 
 Fruitboard's **Phase 0 architecture is accepted** with a documented manual
 governance exception for this private GitHub Free repository. Phase 1 is in
-progress: the repository contains only the reproducible workspace and minimal
-Tauri/React foundation, with no scanner or product features. Work remains
-limited to the approved Application Foundation issue/PR sequence.
+progress: the reproducible Tauri/React foundation now includes Rust-owned local
+SQLite and one persisted startup-view preference. It still has no scanner,
+parser, project workflow, sync, or PWA. Work remains limited to the approved
+Application Foundation issue/PR sequence.
 
 Tracking starts at
 [Phase 1 epic #10](https://github.com/guilhermebmichelin-create/fruitboard/issues/10).
@@ -23,7 +24,8 @@ pinned tools, `pnpm check` is the single local verification entry point and
 
 The current shell's information hierarchy, responsive evidence, accessibility
 coverage, and intentional limitations are recorded in the
-[Issue #13 visual review](docs/review/issue-13/README.md).
+[Issue #13 visual review](docs/review/issue-13/README.md). The first persisted
+workflow has separate [Issue #16 interaction evidence](docs/review/issue-16/README.md).
 
 Start with [the Phase 0 review brief](docs/PHASE_0_REVIEW.md).
 

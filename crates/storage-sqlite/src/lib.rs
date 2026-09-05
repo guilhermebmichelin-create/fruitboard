@@ -10,7 +10,7 @@ use rusqlite::{
     Connection, OpenFlags, TransactionBehavior,
     backup::{Backup, StepResult},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -234,7 +234,8 @@ impl Database {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum StartupView {
     Home,
     Library,

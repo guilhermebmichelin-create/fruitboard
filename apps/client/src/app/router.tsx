@@ -24,7 +24,10 @@ export function createRoutes(platform: PlatformPort): RouteObject[] {
         { index: true, element: <HomePage /> },
         { path: "library", element: <LibraryPage /> },
         { path: "board", element: <BoardPage /> },
-        { path: "preferences", element: <PreferencesPage /> },
+        {
+          path: "preferences",
+          element: <PreferencesPage platform={platform} />,
+        },
         { path: "*", element: <NotFoundPage /> },
       ],
     },
