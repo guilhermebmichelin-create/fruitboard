@@ -8,9 +8,10 @@ analyzing, and finishing music.
 Fruitboard's **Phase 0 architecture is accepted** with a documented manual
 governance exception for this private GitHub Free repository. Phase 1 is in
 progress: the reproducible Tauri/React foundation now includes Rust-owned local
-SQLite and one persisted startup-view preference. It still has no scanner,
-parser, project workflow, sync, or PWA. Work remains limited to the approved
-Application Foundation issue/PR sequence.
+SQLite, one persisted startup-view preference, and pull-request quality,
+privacy, dependency, portable Rust, and Windows build gates. It still has no
+scanner, parser, project workflow, sync, or PWA. Work remains limited to the
+approved Application Foundation issue/PR sequence.
 
 Tracking starts at
 [Phase 1 epic #10](https://github.com/guilhermebmichelin-create/fruitboard/issues/10).
@@ -21,6 +22,10 @@ The repository pins Node, pnpm/Corepack, Rust, and an isolated Python research
 environment. Start with [DEVELOPMENT.md](DEVELOPMENT.md); after installing the
 pinned tools, `pnpm check` is the single local verification entry point and
 `pnpm dev` launches the Windows desktop shell.
+
+CI mirrors that gate through six stable jobs. Repository policy intentionally
+uses manual merge governance until enforced private-repository protection is
+available; see [the CI and exception details](DEVELOPMENT.md#pull-request-ci).
 
 The current shell's information hierarchy, responsive evidence, accessibility
 coverage, and intentional limitations are recorded in the

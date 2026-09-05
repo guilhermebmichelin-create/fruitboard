@@ -1,0 +1,71 @@
+name: Bug report
+description: Report a reproducible Fruitboard defect without sharing private project data.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Fruitboard. Use synthetic names and paths. Do not upload FLPs, audio, presets, databases, logs, credentials, or personal filesystem details.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: User impact
+      description: What were you trying to accomplish, and what prevented it?
+      placeholder: I could not...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Give the shortest deterministic steps using synthetic data.
+      placeholder: |
+        1. Open...
+        2. Select...
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+      description: State both outcomes, including visible error or recovery behavior.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Fruitboard version or commit
+      placeholder: 0.1.0 or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows 11
+        - Windows 10
+        - Other or not applicable
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Paste only stable error codes or a hand-sanitized excerpt. Remove usernames, paths, project names, tokens, and content.
+      placeholder: storage_busy; correlation ID omitted
+  - type: textarea
+    id: regression
+    attributes:
+      label: Regression test idea
+      description: What small automated check would have caught this?
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I removed project files, audio, presets, databases, logs, credentials, personal paths, and other private data.
+          required: true

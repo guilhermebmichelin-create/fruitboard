@@ -1,0 +1,59 @@
+name: Feature proposal
+description: Propose one reviewable user outcome with explicit boundaries.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: User problem and outcome
+      description: Who benefits, what problem do they have, and what observable outcome solves it?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Proposed scope
+      description: Describe the smallest coherent slice and its acceptance criteria.
+      placeholder: |
+        - Given...
+        - When...
+        - Then...
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals and deferrals
+      description: Name adjacent behavior that must remain out of this issue.
+    validations:
+      required: true
+  - type: textarea
+    id: data_security
+    attributes:
+      label: Data, privacy, and security impact
+      description: Cover native authority, stored data, migrations, recovery, paths, logs, tokens, dependencies, and fixture provenance as applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: experience
+    attributes:
+      label: Accessibility and application states
+      description: Cover keyboard/focus/labels plus loading, empty, error, offline, narrow, and reduced-motion states as applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and sequencing
+      description: Link prerequisites, follow-ups, ADRs, or roadmap gates.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: This proposal contains no private project files, credentials, personal paths, or unsanitized diagnostics.
+          required: true

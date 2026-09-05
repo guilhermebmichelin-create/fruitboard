@@ -1,6 +1,6 @@
 # Development and delivery
 
-Status: **Active workflow; Phase 1 adds executable tooling and CI incrementally**
+Status: **Active workflow; Phase 1 foundation CI is executable**
 
 ## Working agreement
 
@@ -43,7 +43,7 @@ At least one review and all required checks are expected before merge. A PR may
 be intentionally experimental only when labeled as a spike, produces a written
 decision/result, and does not silently become production architecture.
 
-## GitHub configuration proposed
+## GitHub governance
 
 Protect `main` with:
 
@@ -54,8 +54,9 @@ Protect `main` with:
 - no force pushes or deletion;
 - linear history and signed commits/tags if practical;
 - merge queue when parallel contribution warrants it;
-- CODEOWNERS for Rust/native, parser, sync/security, and migrations once owners
-  exist.
+- CODEOWNERS for repository policy, Rust/native, security, and migrations. The
+  current entries name the actual maintainer and must expand when eligible
+  reviewers join.
 
 Verification on 2026-09-04 found this configuration unavailable for the current
 private repository: both GitHub's branch-protection and repository-rulesets APIs
@@ -64,8 +65,9 @@ governance exception for the private GitHub Free repository. This does not claim
 equivalent enforcement: the maintainer must still use issues, feature branches,
 PR checklists, test evidence, and all available CI; avoid direct development,
 force-pushes, and deletion of `main`; and request external review when an
-eligible reviewer is available. Revisit enforced protection before regular
-collaboration or public release.
+eligible reviewer is available. The stable checks described below run on every
+PR, but GitHub does not enforce them as required checks on the current plan.
+Revisit enforced protection before regular collaboration or public release.
 
 Use labels by type (`epic`, `feature`, `bug`, `spike`, `docs`, `security`), area
 (`desktop`, `scanner`, `parser`, `database`, `client`, `pwa`, `sync`), and phase.
@@ -142,11 +144,12 @@ commands without `.cmd`; the Windows Rust target check is platform-conditional.
 Every subprocess receives encoded argument arrays, so repository paths with
 spaces are supported.
 
-`pnpm check` verifies exact toolchain and embedded SQLite versions, formatting, lint, strict
-TypeScript, Node/client/Rust tests, and the integrated production build. Run
-toolchain verification only through `pnpm check` or `pnpm verify:toolchains`;
-direct `node scripts/verify-toolchains.mjs` invocation is unsupported because
-pnpm's executable context is part of the version check.
+`pnpm check` verifies exact toolchain and embedded SQLite versions, repository
+privacy, formatting, lint, strict TypeScript, Node/client/Rust tests, and the
+integrated production build. Run toolchain verification only through
+`pnpm check` or `pnpm verify:toolchains`; direct
+`node scripts/verify-toolchains.mjs` invocation is unsupported because pnpm's
+executable context is part of the version check.
 
 `pnpm dev` starts Vite and the Tauri development shell. `pnpm build` produces
 the local client bundle and optimized native executable. Installer bundling is
@@ -332,22 +335,53 @@ bindings or trivial glue. Mutation/property testing is more valuable than line
 coverage for matchers, query parsers, and merge rules. Every bug fix adds the
 smallest regression test that would have caught it.
 
-## CI proposal
+## Pull-request CI
 
-CI is introduced incrementally with the code it can verify.
+`.github/workflows/foundation.yml` runs six stable, always-present jobs for
+pull requests to `main`, pushes to `main`, and manual dispatch. Jobs do not use
+path filters or job-level conditions, so a skipped check cannot look like a
+successful quality signal.
 
-### Required pull-request checks
+### Foundation pull-request checks
 
-| Job | Runner | Scope |
-| --- | --- | --- |
-| `docs` | Ubuntu | Markdown, Mermaid, links, privacy pattern scan |
-| `client` | Ubuntu | frozen install, lint, typecheck, unit/component tests, production build |
-| `rust-core` | Ubuntu | format, Clippy, unit tests for portable crates |
-| `windows-core` | Windows | native scanner/storage integration and Tauri compile |
-| `parser` | Windows + pinned Python | lint/type/test, public fixtures, protocol smoke |
-| `migration` | Ubuntu/Windows | create latest DB and upgrade supported historical snapshots |
-| `e2e-web` | Ubuntu | critical client flows with fake ports; screenshots/artifacts on failure |
-| `security` | Ubuntu | dependency review/advisories, secret/privacy scan, CodeQL as configured |
+| Job | Runner | Scope | Local equivalent |
+| --- | --- | --- | --- |
+| `docs-policy` | Ubuntu | Markdown, script/policy tests, tracked and unignored-file privacy scan | `pnpm privacy:check && pnpm lint:docs && pnpm lint:scripts` |
+| `client` | Ubuntu | Frozen install, lint, typecheck, component tests, production web build | `pnpm --recursive --if-present lint && pnpm typecheck && pnpm --recursive --if-present test && pnpm --filter @fruitboard/client build` |
+| `rust-portable` | Ubuntu | Rustfmt, warning-denied Clippy, portable SQLite storage tests | `cargo fmt --all --check; cargo clippy -p fruitboard-storage --all-targets --locked -- -D warnings; cargo test -p fruitboard-storage --locked` |
+| `migration` | Ubuntu | Latest creation, every supported upgrade, killed migration, backup recovery | `cargo test -p fruitboard-storage --locked` |
+| `windows-foundation` | Windows | Exact Node/Rust/Python/uv/pnpm/SQLite pins and complete production build | `pnpm.cmd check` |
+| `security` | Ubuntu | Privacy regressions, high-severity npm audit, RustSec advisory audit | `pnpm privacy:check; pnpm audit --audit-level high; cargo audit` |
+
+The complete local pre-merge gate remains `pnpm.cmd check` on Windows with the
+pinned toolchains. `cargo audit` requires the separately installed RustSec CLI;
+CI installs the exact `cargo-audit` 0.22.2 release and runs it against
+`Cargo.lock`. `.cargo/audit.toml` denies every new RustSec warning. Its explicit
+17-advisory baseline covers 12 Tauri GTK3/WebKit transitive crates that are
+inactive on the supported Windows target and five unmaintained Unicode helpers
+through Tauri's `urlpattern`; none is a direct Fruitboard dependency. Revisit
+the list on every Tauri update and before adding Linux support.
+
+Workflow permissions default to read-only repository contents. Checkout does
+not persist credentials, pull-request code receives no release/signing secrets,
+and there is no `pull_request_target` path. All actions use reviewed immutable
+commit SHAs. Dependency and build caches are keyed from committed locks and
+contain only generated package/compiler data. CI uploads no artifacts, so it
+cannot persist project data, local databases, logs, or personal paths.
+
+GitHub dependency review, CodeQL for private repositories, and GitHub secret
+protection are not available on this private GitHub Free repository. The
+baseline therefore uses executable privacy regressions, `pnpm audit`, RustSec,
+and weekly Dependabot updates for pnpm, Cargo, and GitHub Actions; it does not
+publish misleading skipped checks for unavailable products. If the repository
+plan or visibility changes, enable those GitHub-native checks and preserve the
+same stable job names where practical.
+
+Bug and feature issue forms require bounded outcomes, acceptance/non-goals,
+accessibility states, and a privacy confirmation. Security reports route to a
+private advisory. CODEOWNERS names the actual current maintainer for repository
+policy, native code, security policy, and migrations; it is an ownership signal,
+not a substitute for independent review.
 
 Avoid an expensive full installer build on every tiny PR until build duration is
 measured. Run a scheduled/manual Windows packaging smoke and make it required on
