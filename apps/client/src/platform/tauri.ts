@@ -1,24 +1,45 @@
 import { invoke } from "@tauri-apps/api/core";
-import { parseAppHealth, type PlatformPort } from "./contracts";
+import {
+  NATIVE_COMMAND_SCHEMA_VERSION,
+  parseAppHealth,
+  PlatformError,
+  unwrapCommandEnvelope,
+  type PlatformPort,
+} from "./contracts";
 
 export const GET_APP_HEALTH_COMMAND = "get_app_health";
+export const GET_APP_HEALTH_ARGUMENTS = Object.freeze({
+  request: Object.freeze({ schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION }),
+});
 
-type InvokeCommand = (command: string) => Promise<unknown>;
+type InvokeCommand = (
+  command: string,
+  arguments_: Record<string, unknown>,
+) => Promise<unknown>;
 
 export function createTauriPlatform(
-  invokeCommand: InvokeCommand = (command) => invoke(command),
+  invokeCommand: InvokeCommand = (command, arguments_) =>
+    invoke(command, arguments_),
 ): PlatformPort {
   return {
     async getAppHealth() {
-      const health = parseAppHealth(
-        await invokeCommand(GET_APP_HEALTH_COMMAND),
-      );
-
-      if (health.runtime !== "desktop") {
-        throw new Error("The desktop adapter received a non-desktop response.");
+      try {
+        return unwrapCommandEnvelope(
+          await invokeCommand(GET_APP_HEALTH_COMMAND, GET_APP_HEALTH_ARGUMENTS),
+          (data) => {
+            const health = parseAppHealth(data);
+            if (health.runtime !== "desktop") {
+              throw new Error("unexpected runtime");
+            }
+            return health;
+          },
+        );
+      } catch (error) {
+        if (error instanceof PlatformError) {
+          throw error;
+        }
+        throw new PlatformError("unavailable");
       }
-
-      return health;
     },
   };
 }

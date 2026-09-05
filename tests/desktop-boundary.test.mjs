@@ -5,6 +5,41 @@ import test from "node:test";
 const readRootFile = (path) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const nativeErrors = [
+  {
+    code: "invalid_request",
+    rustVariant: "InvalidRequest",
+    message: "The request was not valid.",
+  },
+  {
+    code: "cancelled",
+    rustVariant: "Cancelled",
+    message: "The operation was cancelled.",
+  },
+  {
+    code: "not_found",
+    rustVariant: "NotFound",
+    message: "The requested item is no longer available.",
+  },
+  {
+    code: "conflict",
+    rustVariant: "Conflict",
+    message: "The request could not be completed because its state changed.",
+  },
+  {
+    code: "unavailable",
+    rustVariant: "Unavailable",
+    message: "The requested service is temporarily unavailable.",
+  },
+  {
+    code: "internal",
+    rustVariant: "Internal",
+    message: "Fruitboard could not complete the request.",
+  },
+];
+
 test("desktop capability exposes only the health command to the local window", () => {
   const capability = JSON.parse(
     readRootFile("apps/desktop/src-tauri/capabilities/main.json"),
@@ -49,6 +84,7 @@ test("desktop shell loads only local build and development content", () => {
 test("shared client modules do not import Tauri APIs", () => {
   const sharedFiles = [
     "apps/client/src/app/AppIcon.tsx",
+    "apps/client/src/app/AppErrorBoundary.tsx",
     "apps/client/src/app/FruitboardApp.tsx",
     "apps/client/src/app/navigation.ts",
     "apps/client/src/app/pages.tsx",
@@ -76,4 +112,63 @@ test("desktop version sources stay aligned", () => {
   assert.equal(clientManifest.version, desktopManifest.version);
   assert.equal(desktopManifest.version, tauriConfig.version);
   assert.equal(tauriConfig.version, cargoVersion);
+});
+
+test("native command contract stays aligned across Rust and TypeScript", () => {
+  const rustCommand = readRootFile(
+    "apps/desktop/src-tauri/src/foundation/command.rs",
+  );
+  const rustErrors = readRootFile(
+    "apps/desktop/src-tauri/src/foundation/errors.rs",
+  );
+  const clientContracts = readRootFile("apps/client/src/platform/contracts.ts");
+  const tauriAdapter = readRootFile("apps/client/src/platform/tauri.ts");
+
+  assert.match(rustCommand, /pub const COMMAND_SCHEMA_VERSION: u64 = 1;/);
+  assert.match(
+    clientContracts,
+    /export const NATIVE_COMMAND_SCHEMA_VERSION = 1;/,
+  );
+  assert.match(tauriAdapter, /schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION/);
+  assert.match(
+    rustErrors,
+    /matches!\(self, Self::Conflict \| Self::Unavailable\)/,
+  );
+  assert.match(
+    clientContracts,
+    /new Set<NativeErrorCode>\(\["conflict", "unavailable"\]\)/,
+  );
+
+  for (const { code, rustVariant, message } of nativeErrors) {
+    assert.equal(
+      rustVariant.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase(),
+      code,
+    );
+    assert.match(
+      rustErrors,
+      new RegExp(`Self::${rustVariant}\\s*=>\\s*"${escapeRegExp(message)}"`),
+      `Rust mapping for ${code}`,
+    );
+    assert.match(
+      clientContracts,
+      new RegExp(`${code}:\\s*"${escapeRegExp(message)}"`),
+      `TypeScript mapping for ${code}`,
+    );
+  }
+});
+
+test("renderer error hooks do not print untrusted Error objects", () => {
+  const mount = readRootFile("apps/client/src/mount.tsx");
+
+  for (const callback of [
+    "onCaughtError",
+    "onRecoverableError",
+    "onUncaughtError",
+  ]) {
+    assert.match(
+      mount,
+      new RegExp(`${callback}: containUntrustedRendererDiagnostic`),
+    );
+  }
+  assert.doesNotMatch(mount, /console\.(?:debug|error|info|log|warn)/);
 });

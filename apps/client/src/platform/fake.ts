@@ -1,4 +1,9 @@
-import type { AppHealth, PlatformPort } from "./contracts";
+import {
+  PlatformError,
+  type AppHealth,
+  type NativeErrorCode,
+  type PlatformPort,
+} from "./contracts";
 
 const defaultHealth: AppHealth = {
   status: "ok",
@@ -12,6 +17,16 @@ export function createFakePlatform(
   return {
     getAppHealth() {
       return Promise.resolve(health);
+    },
+  };
+}
+
+export function createFailingPlatform(
+  code: NativeErrorCode = "unavailable",
+): PlatformPort {
+  return {
+    getAppHealth() {
+      return Promise.reject(new PlatformError(code));
     },
   };
 }

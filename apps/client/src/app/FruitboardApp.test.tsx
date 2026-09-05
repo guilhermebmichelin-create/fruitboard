@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { RouterProvider } from "react-router/dom";
 import { describe, expect, it } from "vitest";
 import type { PlatformPort } from "../platform/contracts";
-import { createFakePlatform } from "../platform/fake";
+import { createFailingPlatform, createFakePlatform } from "../platform/fake";
 import { createFruitboardMemoryRouter } from "./router";
 
 const readyPlatform = createFakePlatform({
@@ -16,9 +16,7 @@ const loadingPlatform: PlatformPort = {
   getAppHealth: () => new Promise(() => undefined),
 };
 
-const errorPlatform: PlatformPort = {
-  getAppHealth: () => Promise.reject(new Error("native host unavailable")),
-};
+const errorPlatform = createFailingPlatform();
 
 function renderApp(initialEntry = "/", platform: PlatformPort = readyPlatform) {
   const router = createFruitboardMemoryRouter(platform, [initialEntry]);
