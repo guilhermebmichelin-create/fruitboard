@@ -187,12 +187,15 @@ test("the Phase 1 shell does not introduce PWA or scanner authority", () => {
   assert.doesNotMatch(navigation, /(?:scanner|service worker)/i);
 });
 
-test("Cargo workspace contains the desktop host and portable SQLite storage", () => {
+test("Cargo workspace contains only the Phase 1 native packages", () => {
   const cargoManifest = readRootFile("Cargo.toml");
 
-  assert.match(
-    cargoManifest,
-    /members = \["apps\/desktop\/src-tauri", "crates\/storage-sqlite"\]/,
-  );
+  for (const member of [
+    "apps/desktop/src-tauri",
+    "crates/foundation-sidecar-smoke",
+    "crates/storage-sqlite",
+  ]) {
+    assert.match(cargoManifest, new RegExp(`"${member}"`));
+  }
   assert.doesNotMatch(cargoManifest, /(?:scanner|parser-protocol)/);
 });

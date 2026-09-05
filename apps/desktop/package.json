@@ -8,6 +8,7 @@
     "dev": "tauri dev",
     "frontend:build": "pnpm --filter @fruitboard/client build",
     "frontend:dev": "pnpm --filter @fruitboard/client dev",
+    "package:windows:smoke": "tauri build --ci --no-sign --config src-tauri/tauri.package.conf.json --features packaging-smoke --bundles nsis",
     "tauri": "tauri"
   },
   "devDependencies": {

@@ -1,0 +1,11 @@
+[package]
+name = "fruitboard-foundation-sidecar-smoke"
+version = "0.1.0"
+description = "Inert process-lifecycle probe for the Fruitboard foundation package"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "fruitboard-sidecar-smoke"
+path = "src/main.rs"

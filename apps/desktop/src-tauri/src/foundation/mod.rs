@@ -4,6 +4,8 @@ mod errors;
 mod identifiers;
 mod jobs;
 mod logging;
+#[cfg(feature = "packaging-smoke")]
+pub(crate) mod packaging_smoke;
 
 pub use command::{COMMAND_SCHEMA_VERSION, CommandEnvelope};
 pub use errors::{ErrorCode, UserFacingError};

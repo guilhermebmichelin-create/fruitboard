@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Fruitboard Foundation Smoke",
+  "identifier": "com.fruitboard.desktop.foundation-smoke",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Fruitboard Foundation Smoke",
+        "width": 900,
+        "height": 600
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": false,
+    "externalBin": ["binaries/fruitboard-sidecar-smoke"],
+    "useLocalToolsDir": true,
+    "windows": {
+      "allowDowngrades": false,
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["English"]
+      }
+    }
+  }
+}
