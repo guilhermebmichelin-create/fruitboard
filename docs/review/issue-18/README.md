@@ -34,24 +34,39 @@ artifact. The unsigned installer exists only during the bounded run.
 ## Local observation
 
 Observed on 2026-09-05 with Windows AMD64, Microsoft Defender antivirus and
-real-time protection enabled, and WebView2 reporting Edge 152.0.0.0. This warm
-local build reused compiler state from an earlier package attempt.
+real-time protection enabled, and WebView2 reporting Edge 152.0.0.0. The v2 run
+used application and probe code from `b67f26fa36258915bfa337758f014ec39b3538e5`
+([PR #31](https://github.com/guilhermebmichelin-create/fruitboard/pull/31)).
+The only harness change before execution retained the cold/warm observed URLs
+in the summary. The build reused existing local caches but recompiled Rust
+dependencies; its duration is not a clean-machine benchmark.
 
 | Measurement                         |                   Observed |
 | ----------------------------------- | -------------------------: |
-| NSIS installer                      | 2,588,735 bytes (2.47 MiB) |
+| NSIS installer                      | 2,589,146 bytes (2.47 MiB) |
 | Installed directory                 | 8,694,050 bytes (8.29 MiB) |
-| Application executable              | 8,468,992 bytes (8.08 MiB) |
+| Application executable              | 8,458,752 bytes (8.07 MiB) |
 | Inert sidecar executable            |   156,160 bytes (0.15 MiB) |
-| Warm package build                  |                  24,974 ms |
-| Cold launch to inspectable document |                     747 ms |
-| Warm launch to inspectable document |                     508 ms |
+| Package build                       |                 181,796 ms |
+| Cold WebView target discovery       |                   1,346 ms |
+| Cold shell readiness polling        |                   1,699 ms |
+| Warm WebView target discovery       |                   1,729 ms |
+| Warm shell readiness polling        |                     963 ms |
 | SQLite database                     |      16,384 bytes (16 KiB) |
 
-Those launch timings predate the split readiness schema: they measured process
-start to capability-probe completion. The current schema records WebView target
-appearance and rendered-shell observation separately; the next interactive run
-refreshes this table and `windows-smoke.json`.
+The schema-v2 summary linked above supersedes the previous schema-v1 evidence
+and its 747/508 ms timings. Those older numbers measured process start to
+capability-probe completion and are not directly comparable. The current
+WebView interval starts when the Node probe begins discovery; the shell interval
+starts after the debugging connection opens. They are sequential intervals,
+not total launch latency, and exclude process/probe startup and connection time.
+Cold/warm mean the first and second launch in this run, not OS-cache-controlled
+benchmarks.
+
+Both launches reported `http://tauri.localhost/#/` (origin
+`http://tauri.localhost`) with `shellRendered: true`. This is the observed Windows
+origin, not an inference from the allowlist. WAV PCM, MP3, FLAC, AAC, and Ogg
+Vorbis all returned `probably`; the summary records these capability signals.
 
 Both installer and application signatures were verified as `NotSigned`. The
 installer was copied to a path containing spaces and Unicode, installed to a
@@ -75,8 +90,9 @@ implements only three fixed modes.
 | Termination        | The timed-out child was killed and reaped                   |
 | Path handling      | Executable and argument paths with spaces/Unicode succeeded |
 
-The child never echoes its supplied path. The harness records only booleans,
-fixed codes, durations, and sizes.
+The child never echoes its supplied path. The sidecar evidence contains only
+booleans and fixed codes; launch evidence also retains the validated local app
+URLs, durations, and sizes, without personal filesystem paths.
 
 ## Data preservation
 
@@ -95,6 +111,13 @@ The final synthetic database is deliberately retained for local review. It is
 not committed or uploaded. A future production uninstaller must preserve the
 same application-data boundary unless a separately confirmed data-removal flow
 is designed.
+
+Before the v2 run, the previous dedicated smoke-data directory was moved from
+`%LOCALAPPDATA%\com.fruitboard.desktop.foundation-smoke` to
+`.tools/evidence/issue-18/retained-pre-v2-run`. Its database SHA-256 was checked
+before and after the move and was unchanged. The directory was not deleted;
+the original evidence can be recovered from that ignored location. Ordinary
+Fruitboard application data was not moved or modified.
 
 ## Audio capability probe
 
