@@ -109,6 +109,11 @@ test("the smoke preserves data and records bounded platform evidence", () => {
   assert.match(script, /reinstallRestoredStartupView = \$true/);
   assert.match(script, /secondUninstallPreservedDatabase = \$true/);
   assert.match(script, /Get-AuthenticodeSignature/);
+  assert.match(script, /WindowsPowerShell\\v1\.0\\Modules/);
+  assert.match(
+    script,
+    /Import-Module Microsoft\.PowerShell\.Security -ErrorAction Stop/,
+  );
   assert.match(script, /coldReadyMilliseconds/);
   assert.match(script, /warmReadyMilliseconds/);
   assert.match(script, /audioCanPlayType/);

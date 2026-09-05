@@ -10,6 +10,21 @@ if ($env:OS -ne "Windows_NT") {
     throw "The foundation packaging smoke requires Windows."
 }
 
+# A PowerShell 7 parent can pass a module path that omits Windows PowerShell's
+# inbox modules to this script's powershell.exe process. Resolve the signature
+# command from its OS-owned module directory instead of relying on that parent.
+$windowsPowerShellModules = Join-Path $env:WINDIR "System32\WindowsPowerShell\v1.0\Modules"
+$modulePaths = @($env:PSModulePath -split ";" | Where-Object { $_ })
+if ($windowsPowerShellModules -notin $modulePaths) {
+    $env:PSModulePath = if ([string]::IsNullOrWhiteSpace($env:PSModulePath)) {
+        $windowsPowerShellModules
+    }
+    else {
+        "$windowsPowerShellModules;$env:PSModulePath"
+    }
+}
+Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
+
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $resolvedRepositoryRoot = (Resolve-Path -LiteralPath $repositoryRoot).Path
 $runId = [Guid]::NewGuid().ToString("N")
