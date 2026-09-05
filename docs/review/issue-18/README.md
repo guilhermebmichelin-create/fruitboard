@@ -22,8 +22,9 @@ directories. Only the path-free summary in
 
 The dedicated `Windows Packaging Smoke` workflow repeats package, signature,
 install, native launch/exit, sidecar, data-preservation, reinstall, and uninstall
-checks on a fresh `windows-latest` worker when packaging inputs change, monthly,
-or on manual dispatch. GitHub's service-hosted Windows session did not expose an
+checks on a fresh `windows-latest` worker when any packaged input changes
+(`apps/**`, `crates/**`, `packages/**`, scripts, manifests, and lockfiles),
+monthly, or on manual dispatch. GitHub's service-hosted Windows session did not expose an
 interactive WebView2 debugging target even while the application process stayed
 alive, so the workflow explicitly marks the window/audio portion unprobed; the
 interactive observations below come from the local Windows run. The workflow
@@ -46,6 +47,11 @@ local build reused compiler state from an earlier package attempt.
 | Cold launch to inspectable document |                     747 ms |
 | Warm launch to inspectable document |                     508 ms |
 | SQLite database                     |      16,384 bytes (16 KiB) |
+
+Those launch timings predate the split readiness schema: they measured process
+start to capability-probe completion. The current schema records WebView target
+appearance and rendered-shell observation separately; the next interactive run
+refreshes this table and `windows-smoke.json`.
 
 Both installer and application signatures were verified as `NotSigned`. The
 installer was copied to a path containing spaces and Unicode, installed to a
@@ -94,7 +100,15 @@ is designed.
 
 The harness exposes a loopback-only Chrome DevTools Protocol port to the test
 process through the documented development-only WebView2 environment variable.
-It evaluates `HTMLMediaElement.canPlayType` against bounded candidate formats;
+Before any capability is trusted, the probe requires a debuggable target served
+from the packaged app origin and a rendered, usable shell marker: a
+`· Fruitboard` document title, the primary navigation with links, and a page
+heading, with no loading or error shell state. `about:blank`, missing URLs,
+devtools, and foreign origins fail the probe closed, and WebView target
+appearance and shell rendering are recorded as distinct bounded measurements
+(`webviewReadyMs`, `appReadyMs`; evidence schema v2).
+
+It then evaluates `HTMLMediaElement.canPlayType` against bounded candidate formats;
 no media file is opened, generated, committed, or played. WAV, MP3 and FLAC are
 the initial security allowlist and fail the smoke if WebView2 advertises no
 support; AAC and Ogg are informational candidates.

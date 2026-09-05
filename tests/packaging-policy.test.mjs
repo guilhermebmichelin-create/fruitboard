@@ -75,6 +75,10 @@ test("the packaging workflow is bounded, read-only, and secret-free", () => {
   assert.match(workflow, /^permissions:\n  contents: read$/m);
   assert.match(workflow, /^  windows-packaging-smoke:$/m);
   assert.match(workflow, /pnpm\.cmd smoke:windows:foundation:hosted/);
+  // Every packaged input must trigger the smoke: the storage crate owns the
+  // preserved database and the shared UI package owns the rendered shell.
+  assert.match(workflow, /^\s+- "crates\/\*\*"$/m);
+  assert.match(workflow, /^\s+- "packages\/\*\*"$/m);
   assert.doesNotMatch(
     workflow,
     /pull_request_target|\bsecrets[.:]|upload-artifact|release|publish/i,
@@ -114,7 +118,21 @@ test("the smoke preserves data and records bounded platform evidence", () => {
   assert.match(launcher, /spawnSync\(\s*"powershell\.exe"/);
   assert.match(launcher, /name\.toLowerCase\(\) !== "psmodulepath"/);
   assert.match(launcher, /windows-foundation-smoke\.ps1/);
-  assert.match(audioProbe, /const readinessTimeoutMs = 60_000/);
+  assert.match(audioProbe, /selectAppTarget/);
+  assert.match(audioProbe, /assessShellReadiness/);
+  assert.match(audioProbe, /SHELL_READINESS_EXPRESSION/);
+  assert.match(audioProbe, /WEBVIEW_READINESS_TIMEOUT_MS/);
+  assert.match(audioProbe, /APP_READINESS_TIMEOUT_MS/);
+  assert.match(audioProbe, /webviewReadyMs/);
+  assert.match(audioProbe, /appReadyMs/);
+  const probeLib = readRootFile("scripts/lib/webview-probe.mjs");
+  assert.match(probeLib, /about:blank/);
+  assert.match(probeLib, /tauri\.localhost/);
+  assert.match(probeLib, /no-app-target/);
+  assert.match(probeLib, /shell-still-loading/);
+  assert.match(probeLib, /shell-error-state/);
+  assert.match(probeLib, /WEBVIEW_READINESS_TIMEOUT_MS = 60_000/);
+  assert.match(probeLib, /APP_READINESS_TIMEOUT_MS = 30_000/);
   assert.match(script, /firstUninstallPreservedDatabase = \$true/);
   assert.match(script, /reinstallRestoredStartupView = \$true/);
   assert.match(script, /secondUninstallPreservedDatabase = \$true/);
@@ -123,8 +141,12 @@ test("the smoke preserves data and records bounded platform evidence", () => {
     script,
     /Import-Module Microsoft\.PowerShell\.Security -ErrorAction Stop/,
   );
-  assert.match(script, /coldReadyMilliseconds/);
-  assert.match(script, /warmReadyMilliseconds/);
+  assert.match(script, /coldWebviewReadyMilliseconds/);
+  assert.match(script, /coldAppReadyMilliseconds/);
+  assert.match(script, /warmWebviewReadyMilliseconds/);
+  assert.match(script, /warmAppReadyMilliseconds/);
+  assert.match(script, /shellRendered = \$true/);
+  assert.match(script, /schemaVersion = 2/);
   assert.match(script, /audioCanPlayType/);
   assert.match(script, /mode = "hosted-service-session"/);
   assert.match(script, /"not-probed-hosted-service-session"/);
