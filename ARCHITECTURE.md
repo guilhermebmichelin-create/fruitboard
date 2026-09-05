@@ -107,12 +107,11 @@ fruitboard/
 │  └─ test-support/           # builders, fake clocks, fixtures (no personal data)
 ├─ crates/
 │  ├─ app-core/               # Rust use cases and ports
-│  ├─ storage-sqlite/         # repositories and migrations
+│  ├─ storage-sqlite/         # repositories and embedded migrations/ (Issue #15)
 │  ├─ scanner/                # discovery, watching, reconciliation, matching signals
 │  └─ parser-protocol/        # sidecar protocol and normalized parser DTOs
 ├─ services/
 │  └─ flp-parser/             # isolated Python package and packaging configuration
-├─ migrations/                # ordered desktop SQLite migrations
 ├─ fixtures/                  # manifest; approved synthetic/public fixtures only
 ├─ docs/
 │  ├─ adr/
@@ -141,6 +140,11 @@ first shared token vocabulary becomes real. It also gives the desktop entry a
 hash-based React Router data router so bundled navigation needs no server
 fallback. Issue #14 keeps the first command, error, logging, and job primitives
 inside the desktop crate until a second consumer makes a crate split useful.
+Issue #15 adds `crates/storage-sqlite` so database tests run without the desktop
+runtime. It owns the minimal settings schema, migration ledger, bundled SQLite,
+and backup/recovery API. Tauri resolves local app data and owns the database
+behind a Mutex. The only renderer capability remains `get_app_health`; typed
+settings IPC is the next Issue #16 slice.
 The remaining proposed package/crate directories are still created only by the
 PR that first owns their behavior; empty architectural scaffolding remains
 deliberately avoided.

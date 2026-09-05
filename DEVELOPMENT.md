@@ -99,7 +99,7 @@ Pins selected and verified on 2026-09-04:
 | Rust | 1.98.1 MSVC | Native workspace, with `clippy` and `rustfmt` |
 | Python | 3.11.16 | Isolated parser research baseline only |
 | uv | 0.12.9 | Python runtime/environment and lock management |
-| SQLite | 3.51.3 minimum for WAL | Policy gate; no database binding exists yet |
+| SQLite | 3.53.2 embedded; 3.51.3 policy floor | Runtime checked; WAL remains disabled |
 
 The first application packages use these exact Phase 1 foundation versions:
 
@@ -108,6 +108,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | Tauri Rust / build | 2.11.5 / 2.6.3 | Native desktop host and build integration |
 | Tauri JavaScript / CLI | 2.11.1 / 2.11.4 | Typed invoke adapter and desktop commands |
 | UUID / regex | 1.26.0 / 1.13.1 | Opaque native IDs and diagnostic redaction |
+| rusqlite / libsqlite3-sys | 0.40.2 / 0.38.2 | Bundled native SQLite and backup API |
 | React / React DOM | 19.2.8 | Shared client rendering |
 | Vite / React plugin | 8.2.2 / 6.1.1 | Local development and production client bundle |
 | TypeScript | 6.0.3 | Strict shared-client compilation |
@@ -141,7 +142,7 @@ commands without `.cmd`; the Windows Rust target check is platform-conditional.
 Every subprocess receives encoded argument arrays, so repository paths with
 spaces are supported.
 
-`pnpm check` verifies exact runtime versions, formatting, lint, strict
+`pnpm check` verifies exact toolchain and embedded SQLite versions, formatting, lint, strict
 TypeScript, Node/client/Rust tests, and the integrated production build. Run
 toolchain verification only through `pnpm check` or `pnpm verify:toolchains`;
 direct `node scripts/verify-toolchains.mjs` invocation is unsupported because
@@ -177,16 +178,39 @@ record after a restart. Rust tests use fake clocks/IDs/errors/log sinks, while
 client and repository policy tests keep serialization and error vocabulary
 aligned.
 
-When the SQLite binding is selected in Issue #15, query its embedded runtime
-version and pass that value to:
+Issue #15 initializes the native database on startup. The linked runtime probe
+is part of `pnpm check`, and can also run independently:
 
 ```powershell
-pnpm.cmd verify:sqlite -- 3.53.0
+pnpm.cmd verify:sqlite:embedded
+cargo test -p fruitboard-storage --locked -- --nocapture
 ```
 
 The command blocks versions below 3.51.3 unless an exact official fixed
 backport has first been reviewed and added to the policy. The operating-system
 `sqlite3` executable is not evidence for the version embedded by the app.
+
+The standalone storage test command requires Rust and the native C compiler
+only; it does not build Tauri/WebView2 and is the portable lane for Issue #17.
+It prints the embedded runtime version and generates synthetic database
+fixtures in temporary directories. Tests exercise v0/v1, a synthetic future
+migration, process termination during a transaction, and backup recovery.
+
+The database lives in Tauri's local application-data directory under `storage/`.
+Keep the application closed for any operator maintenance. Do not delete the
+`owner.lock` file to bypass another running process. SQLite owns rollback-journal
+recovery; copying a live database is unsupported. Completed backups end in
+`.backup.db`; `.pending.db` files are unfinished and cannot be restored.
+
+Native `Database::recover_to` restores a checked backup into a fresh location,
+preserving the original files and refusing a destination containing the
+database or any `-journal`, `-wal`, or `-shm` companion, including empty files.
+Choose a fresh location; do not delete companions to make recovery proceed.
+There is no renderer recovery command yet. Storage startup failures stop native
+initialization and emit only a fixed `storage_*` code; for `storage_busy`, close
+the other instance; for `storage_newer_schema`, use a compatible application;
+for schema/database failures, preserve all files before recovery. Installer
+adoption/preservation checks remain in #18.
 
 ### Quality tools
 

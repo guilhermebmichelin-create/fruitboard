@@ -73,6 +73,11 @@ test("privacy and generated-output ignore rules remain present", () => {
     "node_modules/",
     "target/",
     ".venv/",
+    "*.db",
+    "*.db-*",
+    "*.sqlite-*",
+    "*.sqlite3-*",
+    "backups/",
   ]) {
     assert.match(
       gitignore,
@@ -182,12 +187,12 @@ test("the Phase 1 shell does not introduce PWA or scanner authority", () => {
   assert.doesNotMatch(navigation, /(?:scanner|service worker)/i);
 });
 
-test("Cargo workspace contains only the first owned native package", () => {
+test("Cargo workspace contains the desktop host and portable SQLite storage", () => {
   const cargoManifest = readRootFile("Cargo.toml");
 
-  assert.match(cargoManifest, /members = \["apps\/desktop\/src-tauri"\]/);
-  assert.doesNotMatch(
+  assert.match(
     cargoManifest,
-    /(?:scanner|storage-sqlite|parser-protocol)/,
+    /members = \["apps\/desktop\/src-tauri", "crates\/storage-sqlite"\]/,
   );
+  assert.doesNotMatch(cargoManifest, /(?:scanner|parser-protocol)/);
 });

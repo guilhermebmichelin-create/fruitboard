@@ -11,7 +11,7 @@ use foundation::{
 use serde::Serialize;
 use serde_json::Value;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 const SAFE_NATIVE_PANIC_MESSAGE: &str = "Fruitboard contained an unexpected native failure.";
@@ -93,6 +93,14 @@ pub fn run() -> tauri::Result<()> {
         .setup(|app| {
             let log_directory = app.path().app_log_dir().ok();
             app.manage(NativeFoundation::new(log_directory));
+            let data_directory = app.path().app_local_data_dir()?;
+            let storage =
+                fruitboard_storage::Database::open(&data_directory).inspect_err(|error| {
+                    // StorageError is a closed set of fixed codes, without a raw
+                    // SQLite/io source, SQL statement, or filesystem path.
+                    eprintln!("{error}");
+                })?;
+            app.manage(Mutex::new(storage));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![get_app_health])

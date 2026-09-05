@@ -1,6 +1,72 @@
 # Data model
 
-Status: **Accepted logical baseline; executable schema remains Phase 1 work**
+Status: **Accepted logical baseline; Phase 1 implements local settings only**
+
+## Implemented Phase 1 subset
+
+Issue #15 adds `crates/storage-sqlite`, using pinned `rusqlite` 0.40.2 with
+bundled SQLite 3.53.2. Native startup opens
+`app_local_data_dir()/storage/fruitboard.db`; Windows resolves this below the
+current user's local application data, outside roaming/Drive locations.
+
+The executable schema is version 1:
+
+| Table | Fields and constraints | Classification |
+| --- | --- | --- |
+| `schema_migration` | Positive version primary key, unique name, exact committed SQL | Device-local migration ledger |
+| `app_settings` | Singleton primary key fixed to 1; `startup_view` constrained to `home`, `library`, `board`, or `preferences` | Device-local preference |
+
+Both tables are STRICT. The preference defaults to Home. Only their primary
+key/uniqueness indexes exist; this slice has no query requiring another index.
+The singleton key is infrastructure identity, not a domain entity UUID.
+There is no foreign-key relationship between these two tables; foreign-key
+enforcement is enabled on every connection and tested with temporary relational
+tables. The logical product tables below remain proposals, not shipped schema.
+
+Rust exposes typed preference methods and keeps the connection and transaction
+closure private. Issue #16 adds the React/IPC use case. It will not need a
+second connection or raw SQL capability. No preference is syncable yet.
+
+SQLite uses DELETE rollback journaling, `synchronous=FULL`, foreign keys,
+`trusted_schema=OFF`, and a two-second busy timeout. A process-lifetime file
+lock gives this application one native owner per data directory; a Mutex in
+the Tauri host serializes access. WAL is rejected even though the embedded
+version meets the policy floor.
+
+Migrations are embedded from `crates/storage-sqlite/migrations/`. The runner
+checks the application ID, `user_version`, and the complete ordered ledger,
+then commits all pending SQL, seeds, ledger rows, and the version in one
+IMMEDIATE transaction. Changed history, unrelated databases, and newer schemas
+are refused. Only v0 (empty) and v1 exist; tests cover both and use a synthetic
+v2 to exercise upgrades and failures without shipping a speculative schema.
+
+Before upgrading an existing schema, the SQLite backup API creates a verified
+snapshot in `storage/backups/`. Backup failure prevents the upgrade. Completed
+files use UUID names ending in `.backup.db`; unfinished `.pending.db` files
+are never recovery candidates. Backups are preserved until explicitly managed;
+there is no automatic pruning or repair. Integrity and foreign-key checks run
+at migration, backup, and recovery boundaries, not on every normal startup.
+
+`Database::recover_to` validates a completed backup and copies it through SQLite
+into a staged database in a fresh native-selected application-data location.
+It publishes the recovered database only after validation and any forward
+migrations succeed. Recovery refuses a destination containing `fruitboard.db`
+or any of its `-journal`, `-wal`, or `-shm` companions, even if empty. The check
+runs under the owner lock before staging; all existing files are preserved.
+An orphan hot journal could otherwise replay old pages over the restored data
+on the first SQLite read. Original
+databases, corrupt data, and backups remain available for diagnosis. A future
+native recovery workflow must own selecting and adopting that location.
+
+Tests cover rollback after SQL failure, process termination before commit,
+foreign keys, transaction commit/rollback, settings across reopen, Unicode
+locations, backup failure, and recovery after synthetic corruption. Independent
+regressions verify refusal and preservation of each destination artifact; a
+real hot-journal fixture proves that stale pages can replace Library with Home
+if recovery ignores the companion. Process
+termination evidence is not a hardware power-loss qualification.
+Projects, workflows, parser snapshots, scanner/sync tables, tombstones, notes,
+and FTS remain deferred to their owning slices.
 
 ## Modeling principles
 
