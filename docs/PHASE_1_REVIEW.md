@@ -8,18 +8,18 @@ parser, project library, Kanban workflow, audio player, synchronization, or PWA.
 
 ## Acceptance map
 
-| Issue | Merged PR / evidence | Accepted outcome |
-| --- | --- | --- |
-| #11 | [PR #20](https://github.com/guilhermebmichelin-create/fruitboard/pull/20) | Exact Node, pnpm, Rust, Python/uv and SQLite policies; workspace locks |
-| #12 | [PR #21](https://github.com/guilhermebmichelin-create/fruitboard/pull/21) | Local Tauri shell, React client, typed platform port, minimal capability |
-| #13 | [PR #22](https://github.com/guilhermebmichelin-create/fruitboard/pull/22) | Shared tokens, routing, responsive navigation and accessible states |
-| #14 | [PR #23](https://github.com/guilhermebmichelin-create/fruitboard/pull/23) | Versioned command envelope, panic containment, redacted bounded logs |
-| #15 | [PR #24](https://github.com/guilhermebmichelin-create/fruitboard/pull/24) | Rust-owned SQLite, atomic migrations, backup/recovery and WAL gate |
-| #16 | [PR #25](https://github.com/guilhermebmichelin-create/fruitboard/pull/25) | Startup preference through React, typed IPC, Rust and SQLite restart |
-| #17 | [PR #26](https://github.com/guilhermebmichelin-create/fruitboard/pull/26) | Six stable CI gates, privacy/dependency checks and governance baseline |
-| #18 | [packaging evidence](review/issue-18/README.md) | Unsigned NSIS smoke, inert sidecar, media probe and data preservation |
+| Issue | Merged PR / evidence                                                                                                          | Accepted outcome                                                         |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| #11   | [PR #20](https://github.com/guilhermebmichelin-create/fruitboard/pull/20)                                                     | Exact Node, pnpm, Rust, Python/uv and SQLite policies; workspace locks   |
+| #12   | [PR #21](https://github.com/guilhermebmichelin-create/fruitboard/pull/21)                                                     | Local Tauri shell, React client, typed platform port, minimal capability |
+| #13   | [PR #22](https://github.com/guilhermebmichelin-create/fruitboard/pull/22)                                                     | Shared tokens, routing, responsive navigation and accessible states      |
+| #14   | [PR #23](https://github.com/guilhermebmichelin-create/fruitboard/pull/23)                                                     | Versioned command envelope, panic containment, redacted bounded logs     |
+| #15   | [PR #24](https://github.com/guilhermebmichelin-create/fruitboard/pull/24)                                                     | Rust-owned SQLite, atomic migrations, backup/recovery and WAL gate       |
+| #16   | [PR #25](https://github.com/guilhermebmichelin-create/fruitboard/pull/25)                                                     | Startup preference through React, typed IPC, Rust and SQLite restart     |
+| #17   | [PR #26](https://github.com/guilhermebmichelin-create/fruitboard/pull/26)                                                     | Six stable CI gates, privacy/dependency checks and governance baseline   |
+| #18   | [PR #29](https://github.com/guilhermebmichelin-create/fruitboard/pull/29) and [packaging evidence](review/issue-18/README.md) | Unsigned NSIS smoke, inert sidecar, media probe and data preservation    |
 
-The #18 row is this checkpoint change and remains unmerged until owner review.
+PR #29 is the checkpoint change and remains unmerged until owner review.
 Issue #18 and parent epic #10 must not be closed merely because the candidate is
 presented.
 
