@@ -11,6 +11,7 @@ on:
       - "crates/foundation-sidecar-smoke/**"
       - "scripts/prepare-foundation-sidecar.mjs"
       - "scripts/probe-webview-audio.mjs"
+      - "scripts/run-windows-foundation-smoke.mjs"
       - "scripts/windows-foundation-smoke.ps1"
       - "Cargo.lock"
       - "Cargo.toml"
