@@ -356,7 +356,11 @@ successful quality signal.
 The complete local pre-merge gate remains `pnpm.cmd check` on Windows with the
 pinned toolchains. `cargo audit` requires the separately installed RustSec CLI;
 CI installs the exact `cargo-audit` 0.22.2 release and runs it against
-`Cargo.lock`.
+`Cargo.lock`. `.cargo/audit.toml` denies every new RustSec warning. Its explicit
+17-advisory baseline covers 12 Tauri GTK3/WebKit transitive crates that are
+inactive on the supported Windows target and five unmaintained Unicode helpers
+through Tauri's `urlpattern`; none is a direct Fruitboard dependency. Revisit
+the list on every Tauri update and before adding Linux support.
 
 Workflow permissions default to read-only repository contents. Checkout does
 not persist credentials, pull-request code receives no release/signing secrets,

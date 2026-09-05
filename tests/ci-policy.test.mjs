@@ -94,6 +94,7 @@ test("CI commands cover locked client, portable storage, migrations, and Windows
 
 test("security checks cover repository privacy and both dependency locks", () => {
   const packageJson = JSON.parse(readRootFile("package.json"));
+  const auditConfig = readRootFile(".cargo/audit.toml");
 
   assert.match(packageJson.scripts.check, /pnpm privacy:check/);
   assert.match(workflow, /node scripts\/verify-repository-privacy\.mjs/);
@@ -103,6 +104,26 @@ test("security checks cover repository privacy and both dependency locks", () =>
     /cargo install cargo-audit --locked --version 0\.22\.2/,
   );
   assert.match(workflow, /cargo audit --file Cargo\.lock/);
+  assert.match(auditConfig, /deny = \["warnings"\]/);
+  assert.deepEqual((auditConfig.match(/RUSTSEC-\d{4}-\d{4}/g) ?? []).sort(), [
+    "RUSTSEC-2024-0370",
+    "RUSTSEC-2024-0411",
+    "RUSTSEC-2024-0412",
+    "RUSTSEC-2024-0413",
+    "RUSTSEC-2024-0414",
+    "RUSTSEC-2024-0415",
+    "RUSTSEC-2024-0416",
+    "RUSTSEC-2024-0417",
+    "RUSTSEC-2024-0418",
+    "RUSTSEC-2024-0419",
+    "RUSTSEC-2024-0420",
+    "RUSTSEC-2024-0429",
+    "RUSTSEC-2025-0075",
+    "RUSTSEC-2025-0080",
+    "RUSTSEC-2025-0081",
+    "RUSTSEC-2025-0098",
+    "RUSTSEC-2025-0100",
+  ]);
 });
 
 test("repository ownership and update automation use real maintainers and ecosystems", () => {

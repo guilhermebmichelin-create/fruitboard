@@ -161,6 +161,11 @@ print only fixed safe text.
 - Pull-request CI runs a repository privacy gate, high-severity `pnpm audit`,
   and RustSec advisory scanning. Dependabot proposes weekly pnpm, Cargo, and
   GitHub Actions updates for review.
+- RustSec fails on every new vulnerability, unsoundness, unmaintained crate, or
+  yanked crate. The reviewed exception list contains only Tauri's off-target
+  Linux GTK3/WebKit graph and unmaintained Unicode helpers reached through
+  Tauri's `urlpattern`; reassess it on every Tauri update and before Linux
+  support.
 - The CI token is read-only, checkout does not retain credentials, untrusted PR
   code receives no release secrets, and foundation jobs upload no artifacts.
 - GitHub dependency review, private-repository CodeQL, and GitHub secret
