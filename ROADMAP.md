@@ -119,7 +119,7 @@ which the Phase 1 epic and these eight issues were created. Run P0-G and
 P0-D/P0-E early and in parallel; P0-G may amend ADR-001, while P0-D and P0-E
 must be complete before the Scanner MVP design is finalized.
 
-## Phase 2 proposed issues and PRs
+## Phase 2 issues and execution plan
 
 Created on Phase 1 acceptance as
 [epic #33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)
@@ -127,17 +127,64 @@ with issues #34–#41 and spikes #42 (P0-D) and #43 (P0-E).
 
 ### Epic: Phase 2 — Scanner MVP
 
-1. Scan-root repository and native folder picker.
-2. Onboarding/root settings and root status UI.
-3. Incremental reconciler with filesystem-only metadata.
-4. Watcher adapter, event coalescing, and overflow recovery.
-5. Durable scan queue, cancellation, retries, and observability.
-6. Basic parser adapter after P0-A/B/C gates (or filesystem-only MVP if blocked).
-7. Atomic project-file/snapshot persistence and missing/restored behavior.
-8. Scanner integration/E2E test corpus and Phase 2 checkpoint.
+1. **#34:** Scan-root repository and native folder picker.
+2. **#35:** Onboarding/root settings and root status UI.
+3. **#36:** Incremental reconciler with filesystem-only metadata.
+4. **#37:** Watcher adapter, event coalescing, and overflow recovery.
+5. **#38:** Durable scan queue, cancellation, retries, and observability.
+6. **#39:** Basic parser adapter after P0-A/B/C gates (or filesystem-only MVP).
+7. **#40:** Atomic project-file/snapshot persistence and missing/restored behavior.
+8. **#41:** Scanner integration/E2E test corpus and Phase 2 checkpoint.
 
-The DriveFS watcher/placeholder and Windows file-identity spikes should be
-separate `spike` issues that land written results before issues 3–6 finalize.
+Review baseline: main `a865962` (PR #44), following interactive evidence PR #32.
+All six PR #44 checks and its
+[push-to-main CI](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/33998232108)
+passed. Phase 2 issues are created; no Phase 2 implementation or spike results
+have landed at this baseline. Issue creation is planning progress, not delivered
+scanner behavior.
+
+### Execution order and acceptance boundaries
+
+1. **Research first: #42 (P0-D) and #43 (P0-E).** Use disposable, synthetic trees
+   and record environment, operations, observations, limitations, and decisions
+   under `docs/research/`. Cover local NTFS and Drive mirrored/streamed roots
+   separately. Missing Drive access must be labeled unverified; it is not a
+   passing result. Land written findings before finalizing scanner behavior.
+   Any proposal to exclude unverified Drive modes needs an explicit scope
+   decision; do not silently claim their support.
+2. **First product slice: #34, then #35.** #34 can be designed independently of
+   the spikes: persist roots and expose a native folder picker through typed
+   IPC, with no enumeration or watcher. Specify duplicate/overlapping-root,
+   unavailable-path, cancellation, and removal semantics. Display a selected
+   path where needed for root management, but keep paths out of diagnostics.
+   Removing a root must not delete source files. #35 adds accessible onboarding
+   and settings; scanning/progress states only become active with a real scanner.
+3. **Agree integration contracts before #36/#38/#40 implementation.** Specify
+   scan generations, root availability, cancellation, queue leases, and atomic
+   result application. #36 supplies reconciliation decisions against a repository
+   interface; #38 supplies durable execution. #40 supplies transactional file/
+   location persistence and missing/restored transitions. These are dependent
+   slices, not independent end-to-end features: do not expose a production scan
+   until all three are integrated and restart behavior is tested.
+4. **Integrate #37 after reconciliation and recovery work.** Watcher events are
+   hints that schedule reconciliation. Test event bursts, overflow, stale jobs,
+   root disable/removal, and crash recovery against #38/#40. Do not silently
+   convert incomplete enumeration, offline roots, or permission errors into
+   missing files. Absence requires a successfully completed, authoritative scan.
+5. **Resolve #39 through its existing filesystem-only alternative while parser
+   gates remain unresolved.** Record the parser deferral and keep PyFLP absent.
+   Do not create an empty production parser merely to check off the issue.
+6. **Build #41 evidence throughout the slices, then stop at its checkpoint.**
+   Use synthetic/private-data-safe fixtures and deterministic fault injection;
+   explicitly distinguish CI coverage from manual DriveFS evidence. Cover
+   restart, cancellation, partial traversal, rename/replacement, queue dedup,
+   backup/recovery, and root removal without source-file mutation. Epic #33
+   closes only after owner acceptance of the completed Phase 2 review.
+
+Each data-changing slice includes forward migrations and rollback-on-failure,
+backup/recovery, and privacy tests. Keep WAL disabled unless a separately reviewed
+change justifies enabling it. Keep Phase 3 intelligence and Phase 4 logical
+grouping outside Scanner MVP.
 
 ## Phase 3 proposed issues and PRs
 
