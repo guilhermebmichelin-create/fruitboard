@@ -41,7 +41,6 @@ test("workflow permissions and third-party execution fail closed", () => {
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
     "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d",
-    "rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998",
   ]);
   assert.ok(actionReferences.length > 0);
   for (const reference of actionReferences) {
@@ -101,8 +100,9 @@ test("security checks cover repository privacy and both dependency locks", () =>
   assert.match(workflow, /pnpm audit --audit-level high/);
   assert.match(
     workflow,
-    /rustsec\/audit-check@69366f33c96575abad1ee0dba8212993eecbe998/,
+    /cargo install cargo-audit --locked --version 0\.22\.2/,
   );
+  assert.match(workflow, /cargo audit --file Cargo\.lock/);
 });
 
 test("repository ownership and update automation use real maintainers and ecosystems", () => {

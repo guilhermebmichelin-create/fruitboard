@@ -355,7 +355,8 @@ successful quality signal.
 
 The complete local pre-merge gate remains `pnpm.cmd check` on Windows with the
 pinned toolchains. `cargo audit` requires the separately installed RustSec CLI;
-the pinned CI action installs and runs it against `Cargo.lock`.
+CI installs the exact `cargo-audit` 0.22.2 release and runs it against
+`Cargo.lock`.
 
 Workflow permissions default to read-only repository contents. Checkout does
 not persist credentials, pull-request code receives no release/signing secrets,
