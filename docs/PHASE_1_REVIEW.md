@@ -38,6 +38,12 @@ checkpoint; merging did not itself accept the phase.
   hardens the launch probe (app-origin target plus rendered-shell marker), keeps
   WebView and application readiness distinct, widens the packaging workflow to
   `crates/**` and `packages/**`, and corrects this checkpoint's merge state.
+- Post-merge review follow-up
+  [PR #31](https://github.com/guilhermebmichelin-create/fruitboard/pull/31)
+  validates origins as parsed protocol/host/port (rejecting suffixes,
+  credentials, and unexpected ports), re-validates the snapshot URL on every
+  poll, bounds discovery network I/O with cancellation, and widens the
+  packaging trigger to `scripts/**`.
 - The #18 local smoke built a 2.47 MiB unsigned NSIS installer and an 8.29 MiB
   installation. Cold/warm inspectable startup was 747/508 ms on the observed
   host. The dedicated packaging workflow repeats the non-interactive package,
