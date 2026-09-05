@@ -1,5 +1,5 @@
-﻿{
-  "schemaVersion": 1,
+{
+  "schemaVersion": 2,
   "status": "ok",
   "platform": {
     "os": "Windows",
@@ -9,18 +9,25 @@
   "package": {
     "format": "NSIS current-user",
     "unsigned": true,
-    "installerBytes": 2588735,
+    "installerBytes": 2589146,
     "installedBytes": 8694050,
-    "applicationBytes": 8468992,
+    "applicationBytes": 8458752,
     "sidecarBytes": 156160,
-    "buildMilliseconds": 24974,
+    "buildMilliseconds": 181796,
     "spacesAndUnicodeInstallerPath": true,
     "spacesAndUnicodeInstallPath": true,
     "webViewInstallMode": "downloadBootstrapper"
   },
   "launch": {
-    "coldReadyMilliseconds": 747,
-    "warmReadyMilliseconds": 508,
+    "mode": "interactive",
+    "interactiveWindowObserved": true,
+    "coldWebviewReadyMilliseconds": 1346,
+    "coldAppReadyMilliseconds": 1699,
+    "warmWebviewReadyMilliseconds": 1729,
+    "warmAppReadyMilliseconds": 963,
+    "coldAppUrl": "http://tauri.localhost/#/",
+    "warmAppUrl": "http://tauri.localhost/#/",
+    "shellRendered": true,
     "gracefulClose": true
   },
   "audioCanPlayType": {
@@ -55,6 +62,7 @@
   "limitations": [
     "Unsigned development evidence only; Windows trust warnings remain expected.",
     "Audio results are WebView2 canPlayType capability signals, not decoded playback tests.",
+    "Launch readiness separates WebView target appearance from rendered-shell observation; blank, loading, or error pages fail the probe closed.",
     "The download-bootstrapper installer requires network access when WebView2 is absent.",
     "No updater, signing credential, Python runtime, PyFLP, scanner, parser, or player is included."
   ]

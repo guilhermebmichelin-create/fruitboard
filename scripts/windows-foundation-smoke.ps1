@@ -313,6 +313,8 @@ else {
         coldAppReadyMilliseconds = $coldLaunch.appReadyMilliseconds
         warmWebviewReadyMilliseconds = $warmLaunch.webviewReadyMilliseconds
         warmAppReadyMilliseconds = $warmLaunch.appReadyMilliseconds
+        coldAppUrl = $coldLaunch.probe.url
+        warmAppUrl = $warmLaunch.probe.url
         shellRendered = $true
         gracefulClose = $true
     }

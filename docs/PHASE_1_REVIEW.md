@@ -44,9 +44,16 @@ checkpoint; merging did not itself accept the phase.
   credentials, and unexpected ports), re-validates the snapshot URL on every
   poll, bounds discovery network I/O with cancellation, and widens the
   packaging trigger to `scripts/**`.
-- The #18 local smoke built a 2.47 MiB unsigned NSIS installer and an 8.29 MiB
-  installation. Cold/warm inspectable startup was 747/508 ms on the observed
-  host. The dedicated packaging workflow repeats the non-interactive package,
+- The refreshed [interactive schema-v2 evidence](review/issue-18/windows-smoke.json)
+  was captured on 2026-09-05 using application and probe code at `b67f26f`,
+  with two evidence-only harness fields retaining the observed URLs. Both
+  launches rendered the shell at `http://tauri.localhost/#/` and closed normally.
+  The run built a 2.47 MiB unsigned NSIS installer and an 8.29 MiB installation.
+  Cold WebView/shell intervals were 1,346/1,699 ms; warm intervals were
+  1,729/963 ms. These are separate probe intervals, not total startup latency;
+  the prior schema-v1 747/508 ms figures are superseded and not comparable.
+  See the [measurement and data-retention notes](review/issue-18/README.md).
+  The dedicated packaging workflow repeats the non-interactive package,
   native lifecycle, and data-safety subset on fresh hosted Windows workers
   without secrets or artifact upload; the service-hosted session does not claim
   interactive WebView/audio evidence.
