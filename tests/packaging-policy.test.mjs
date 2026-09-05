@@ -79,6 +79,9 @@ test("the packaging workflow is bounded, read-only, and secret-free", () => {
   // preserved database and the shared UI package owns the rendered shell.
   assert.match(workflow, /^\s+- "crates\/\*\*"$/m);
   assert.match(workflow, /^\s+- "packages\/\*\*"$/m);
+  // The extracted probe helper and its runners share one scripts filter so no
+  // probe change can bypass packaging verification.
+  assert.match(workflow, /^\s+- "scripts\/\*\*"$/m);
   assert.doesNotMatch(
     workflow,
     /pull_request_target|\bsecrets[.:]|upload-artifact|release|publish/i,
@@ -118,17 +121,23 @@ test("the smoke preserves data and records bounded platform evidence", () => {
   assert.match(launcher, /spawnSync\(\s*"powershell\.exe"/);
   assert.match(launcher, /name\.toLowerCase\(\) !== "psmodulepath"/);
   assert.match(launcher, /windows-foundation-smoke\.ps1/);
-  assert.match(audioProbe, /selectAppTarget/);
+  assert.match(audioProbe, /discoverAppTarget/);
   assert.match(audioProbe, /assessShellReadiness/);
   assert.match(audioProbe, /SHELL_READINESS_EXPRESSION/);
   assert.match(audioProbe, /WEBVIEW_READINESS_TIMEOUT_MS/);
   assert.match(audioProbe, /APP_READINESS_TIMEOUT_MS/);
   assert.match(audioProbe, /webviewReadyMs/);
   assert.match(audioProbe, /appReadyMs/);
+  assert.match(audioProbe, /\{\s*signal,/);
   const probeLib = readRootFile("scripts/lib/webview-probe.mjs");
   assert.match(probeLib, /about:blank/);
   assert.match(probeLib, /tauri\.localhost/);
   assert.match(probeLib, /no-app-target/);
+  assert.match(probeLib, /APP_ORIGINS/);
+  assert.match(probeLib, /parsed\.username/);
+  assert.match(probeLib, /unexpected-page-url/);
+  assert.match(probeLib, /discoverAppTarget/);
+  assert.match(probeLib, /AbortController/);
   assert.match(probeLib, /shell-still-loading/);
   assert.match(probeLib, /shell-error-state/);
   assert.match(probeLib, /WEBVIEW_READINESS_TIMEOUT_MS = 60_000/);
