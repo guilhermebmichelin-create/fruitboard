@@ -4,6 +4,7 @@ import {
   type RouteObject,
 } from "react-router";
 import type { PlatformPort } from "../platform/contracts";
+import { SafeApplicationError } from "./AppErrorBoundary";
 import { FruitboardApp } from "./FruitboardApp";
 import {
   BoardPage,
@@ -13,11 +14,12 @@ import {
   PreferencesPage,
 } from "./pages";
 
-function createRoutes(platform: PlatformPort): RouteObject[] {
+export function createRoutes(platform: PlatformPort): RouteObject[] {
   return [
     {
       path: "/",
       element: <FruitboardApp platform={platform} />,
+      errorElement: <SafeApplicationError />,
       children: [
         { index: true, element: <HomePage /> },
         { path: "library", element: <LibraryPage /> },

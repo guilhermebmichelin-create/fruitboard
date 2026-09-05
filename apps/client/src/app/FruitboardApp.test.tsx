@@ -1,10 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PlatformPort } from "../platform/contracts";
-import { createFakePlatform } from "../platform/fake";
-import { createFruitboardMemoryRouter } from "./router";
+import { createFailingPlatform, createFakePlatform } from "../platform/fake";
+import { createFruitboardMemoryRouter, createRoutes } from "./router";
 
 const readyPlatform = createFakePlatform({
   status: "ok",
@@ -16,9 +17,11 @@ const loadingPlatform: PlatformPort = {
   getAppHealth: () => new Promise(() => undefined),
 };
 
-const errorPlatform: PlatformPort = {
-  getAppHealth: () => Promise.reject(new Error("native host unavailable")),
-};
+const errorPlatform = createFailingPlatform();
+
+function BrokenPage(): never {
+  throw new Error("Bearer secret C:\\Users\\producer\\private.flp");
+}
 
 function renderApp(initialEntry = "/", platform: PlatformPort = readyPlatform) {
   const router = createFruitboardMemoryRouter(platform, [initialEntry]);
@@ -116,5 +119,59 @@ describe("FruitboardApp", () => {
       "textContent",
       expect.stringContaining("Connection unavailable"),
     );
+  });
+
+  it("renders correct metadata for case-insensitive and trailing-slash routes", async () => {
+    for (const entry of ["/library/", "/LIBRARY"]) {
+      const view = renderApp(entry);
+
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "Library" }),
+      ).toBeTruthy();
+      expect(document.title).toBe("Library · Fruitboard");
+      expect(screen.queryByText("Page not found")).toBeNull();
+      expect(screen.getByRole("link", { name: "Library" }).ariaCurrent).toBe(
+        "page",
+      );
+      view.unmount();
+    }
+  });
+
+  it("contains route render failures without displaying diagnostics", async () => {
+    const routes = createRoutes(readyPlatform);
+    const rootRoute = routes[0];
+    if (!rootRoute?.children) {
+      throw new Error("test route tree is missing its root children");
+    }
+    rootRoute.children.push({ path: "broken", element: <BrokenPage /> });
+    const router = createMemoryRouter(routes, { initialEntries: ["/broken"] });
+    const onError = vi.fn();
+    const containUntrustedRendererDiagnostic = () => undefined;
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+
+    try {
+      render(<RouterProvider onError={onError} router={router} />, {
+        onCaughtError: containUntrustedRendererDiagnostic,
+      });
+
+      expect(
+        await screen.findByRole("heading", {
+          level: 1,
+          name: "Fruitboard needs to restart",
+        }),
+      ).toBeTruthy();
+      expect(screen.getByRole("alert")).toBeTruthy();
+      expect(document.body.textContent).not.toContain("secret");
+      expect(document.body.textContent).not.toContain("private.flp");
+      await waitFor(() => {
+        expect(document.title).toBe("Application error · Fruitboard");
+      });
+      expect(onError).toHaveBeenCalledOnce();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

@@ -66,7 +66,10 @@ const notFoundRoute: NavigationItem = {
 };
 
 export function getNavigationItem(pathname: string): NavigationItem {
+  const normalizedPath = pathname.toLowerCase().replace(/\/+$/, "") || "/";
+
   return (
-    navigationItems.find((item) => item.path === pathname) ?? notFoundRoute
+    navigationItems.find((item) => item.path === normalizedPath) ??
+    notFoundRoute
   );
 }

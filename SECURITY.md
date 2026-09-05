@@ -96,11 +96,23 @@ against unsafe Rust or overly broad scopes, so command review remains required.
 The Issue #12 shell applies this baseline concretely. `apps/client` loads no
 remote assets, the global Tauri object is disabled, prototype freezing and a
 restrictive production CSP are enabled, and the capability is limited to the
-local window. Its only permission maps to `get_app_health`, an argument-free
-command that returns inert status/runtime/version strings. Boundary tests fail
-if remote authority or filesystem, shell, process, SQL, or opener permissions
-enter that capability. New commands must add a specific permission and matching
-contract tests; broad default permission sets are not accepted implicitly.
+local window. Its only permission maps to `get_app_health`; Issue #14 changes
+that inert command to require exactly `{ schemaVersion: 1 }` and return a
+versioned success-or-error envelope with a native correlation ID. Boundary
+tests fail if remote authority or filesystem, shell, process, SQL, or opener
+permissions enter that capability. New commands must add a specific permission
+and matching contract tests; broad default permission sets are not accepted
+implicitly.
+
+Malformed command input is rejected before use-case work and is never copied to
+logs. Native operations run inside the command panic boundary, while unknown
+failures become the fixed `internal` response. The renderer accepts only the six
+known error codes with their exact message and retry policy; malformed or future
+envelopes also fail closed as `internal`. Diagnostic text remains native-only.
+The React root suppresses default callbacks that would print untrusted `Error`
+objects, and the application error boundary replaces a failed render with a
+fixed restart message. The native panic hook and startup failure path likewise
+print only fixed safe text.
 
 ### Audio and artwork decoding
 
@@ -187,17 +199,38 @@ a local data export/delete workflow before sync is called stable.
 
 ## Logging policy
 
-Structured logs contain timestamp, level, subsystem, version, correlation ID,
-opaque entity/root/file IDs, error code, and safe context. By default they omit:
+Issue #14 writes newline-delimited JSON to `fruitboard.log` in Tauri's app log
+directory. Each record is an allowlist of timestamp, level, subsystem, app
+version, event, operation, correlation ID, and optional job ID, error code, and
+diagnostic. There is no request, response, path, or binary-payload field. Command
+errors select a fixed diagnostic code and discard unknown source text. Any
+future diagnostic context must first enter the `SafeDiagnostic` value type,
+which redacts OAuth tokens/codes/state/PKCE material, bearer credentials,
+Windows/Unix/request paths, and relative FLP paths at construction. Because
+paths can contain spaces and punctuation, any path signal replaces the complete
+diagnostic with `[REDACTED_PATH]`; no path fragment is preserved. Control
+characters or invalid-text replacement markers similarly replace the whole
+value with a binary-payload marker, and the final diagnostic is at most 512
+Unicode characters.
+
+The default retention limit is 1 MiB per file, five files total including the
+active file, and 14 days. Rotation and pruning run during writes. If the app log
+directory cannot be resolved or initialized, logging disables itself rather
+than failing a command or the shell. The active file's first record preserves
+its original start timestamp across app restarts, so appending cannot refresh
+its age. These logs omit:
 
 - access/refresh tokens and authorization codes;
 - absolute paths, usernames, Drive file names, project notes/comments;
 - raw parser payloads and plugin state;
 - full sync bodies and HTTP authorization headers.
 
-An explicit diagnostic export may include selected paths only after preview and
-confirmation. Rotation limits both size and age. Human activity history is a
-different data set and must not ingest debug noise.
+Issue #14 adds no log-export command and no telemetry or crash-reporting
+service. Any future diagnostic export must default to the already-redacted log,
+show a preview, and require confirmation. Including a separately selected path
+would require an explicit per-export choice; existing redactions are never
+reversed. Human activity history is a different data set and must not ingest
+debug noise.
 
 ## PWA origin controls
 
