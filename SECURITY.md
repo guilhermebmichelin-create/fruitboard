@@ -156,11 +156,19 @@ print only fixed safe text.
 
 ### Supply chain and releases
 
-- Commit lockfiles for pnpm, Cargo, and the parser; pin GitHub Actions by reviewed
-  immutable commit SHA for release/security-sensitive workflows.
-- Use dependency review, `cargo audit`/advisory scanning, Python dependency
-  auditing, npm audit policy, secret scanning, and CodeQL where repository plan
-  permits.
+- Commit lockfiles for pnpm, Cargo, and the parser; every GitHub Action reference
+  uses a reviewed immutable commit SHA.
+- Pull-request CI runs a repository privacy gate, high-severity `pnpm audit`,
+  and RustSec advisory scanning. Dependabot proposes weekly pnpm, Cargo, and
+  GitHub Actions updates for review.
+- The CI token is read-only, checkout does not retain credentials, untrusted PR
+  code receives no release secrets, and foundation jobs upload no artifacts.
+- GitHub dependency review, private-repository CodeQL, and GitHub secret
+  protection remain unavailable on the current private GitHub Free plan. Enable
+  them if the plan or repository visibility changes; do not represent an
+  unavailable or skipped integration as a passing security check.
+- Add Python dependency auditing with the parser environment; the current empty
+  research lock has no parser dependency and PyFLP remains blocked.
 - Generate an SBOM for installers including the Python sidecar.
 - Build sidecars and installers in controlled CI; sign Windows artifacts and
   future macOS artifacts. Keep signing credentials in protected environments.

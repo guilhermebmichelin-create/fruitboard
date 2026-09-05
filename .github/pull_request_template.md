@@ -26,6 +26,7 @@ Closes #
 
 - [ ] Tests added or updated where behavior changed
 - [ ] Relevant lint/type/build checks pass
+- [ ] `pnpm check` passes on the pinned Windows toolchain, or the exception and equivalent evidence are stated
 - [ ] Existing FLP fixtures are byte-identical after tests, if applicable
 
 ## Review checklist

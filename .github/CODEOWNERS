@@ -1,0 +1,9 @@
+# The repository currently has one GitHub maintainer. Replace or extend these
+# entries when eligible reviewers join; CODEOWNERS does not waive independent
+# review where one is available.
+* @guilhermebmichelin-create
+
+/.github/ @guilhermebmichelin-create
+/SECURITY.md @guilhermebmichelin-create
+/apps/desktop/src-tauri/ @guilhermebmichelin-create
+/crates/storage-sqlite/migrations/ @guilhermebmichelin-create
