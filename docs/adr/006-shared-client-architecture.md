@@ -64,6 +64,12 @@ remain deferred.
 The Phase 12 PWA entry will reuse `createRoutes` with a browser platform adapter
 rather than create a second route tree.
 
+Issue #16 adds startup-view read/write methods to `PlatformPort`. The Tauri
+adapter validates exact versioned envelopes, while the stateful fake drives the
+same Preferences and startup-routing behavior in component tests. An empty
+desktop hash restores the saved route before router creation; an explicit hash
+route remains authoritative. This adds no PWA entry or second route tree.
+
 ## References
 
 - [Repository and client architecture](../../ARCHITECTURE.md)

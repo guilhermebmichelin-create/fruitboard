@@ -96,13 +96,13 @@ against unsafe Rust or overly broad scopes, so command review remains required.
 The Issue #12 shell applies this baseline concretely. `apps/client` loads no
 remote assets, the global Tauri object is disabled, prototype freezing and a
 restrictive production CSP are enabled, and the capability is limited to the
-local window. Its only permission maps to `get_app_health`; Issue #14 changes
-that inert command to require exactly `{ schemaVersion: 1 }` and return a
-versioned success-or-error envelope with a native correlation ID. Boundary
-tests fail if remote authority or filesystem, shell, process, SQL, or opener
-permissions enter that capability. New commands must add a specific permission
-and matching contract tests; broad default permission sets are not accepted
-implicitly.
+local window. Issue #14 makes `get_app_health` require exactly
+`{ schemaVersion: 1 }` and return a versioned success-or-error envelope with a
+native correlation ID. Issue #16 adds separate permissions for reading and
+writing one closed startup-view enum. Boundary tests fail if remote authority
+or filesystem, shell, process, SQL, or opener permissions enter that capability.
+New commands must add a specific permission and matching contract tests; broad
+default permission sets are not accepted implicitly.
 
 Malformed command input is rejected before use-case work and is never copied to
 logs. Native operations run inside the command panic boundary, while unknown
@@ -220,6 +220,13 @@ Database companions, backups, and staged recovery files are ignored by Git.
 `StorageError` exposes a closed set of fixed codes and discards underlying
 SQLite/io error strings, including their SQL, values, and paths. These codes
 are the only storage diagnostics emitted during native startup.
+
+The startup-view commands expose only the closed route enum, never a row key,
+database path, SQL statement, or storage error. Unknown storage failures become
+the fixed `internal` user response and `storage_failed` diagnostic; contention
+becomes the fixed `unavailable` response and `storage_busy` diagnostic. Invalid
+or extra request fields are rejected before repository work, and tests prove
+that malformed values do not mutate the saved setting.
 
 ### Operational logs
 

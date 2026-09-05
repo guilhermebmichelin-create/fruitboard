@@ -82,13 +82,13 @@ flowchart TB
   local changes; sync is not a second write path.
 
 The Phase 1 shell implements this boundary with a shared `PlatformPort` in
-`apps/client`. Only the desktop entry adapter imports `@tauri-apps/api`; the
-shared React component is tested with a fake port. The local `main` window has
-one application permission for the inert `get_app_health` command and no
-filesystem, shell, process, SQL, opener, or remote-origin capability. The
-command requires a versioned request and returns a versioned success-or-error
-envelope; Rust generates the correlation ID and TypeScript validates the full
-user-facing error contract before exposing it to shared code.
+`apps/client`. Only the desktop entry adapter imports `@tauri-apps/api`; shared
+React components are tested with a stateful fake port. The local `main` window
+has three application permissions: health plus read/write of one startup-view
+enum. It has no filesystem, shell, process, SQL, opener, or remote-origin
+capability. Every command requires a versioned request and returns a versioned
+success-or-error envelope; Rust generates the correlation ID and TypeScript
+validates the full response before exposing it to shared code.
 
 ## Repository proposal
 
@@ -143,8 +143,9 @@ inside the desktop crate until a second consumer makes a crate split useful.
 Issue #15 adds `crates/storage-sqlite` so database tests run without the desktop
 runtime. It owns the minimal settings schema, migration ledger, bundled SQLite,
 and backup/recovery API. Tauri resolves local app data and owns the database
-behind a Mutex. The only renderer capability remains `get_app_health`; typed
-settings IPC is the next Issue #16 slice.
+behind a Mutex. Issue #16 connects that repository to exact read/write command
+contracts and an accessible Preferences control without exposing paths, SQL,
+connections, or recovery authority to the renderer.
 The remaining proposed package/crate directories are still created only by the
 PR that first owns their behavior; empty architectural scaffolding remains
 deliberately avoided.
@@ -249,6 +250,16 @@ routers catch render failures before an outer React boundary can see them, the
 root route also owns the same safe error element and the `RouterProvider` error
 callback discards raw payloads. No renderer diagnostic transport or crash
 reporter exists in Phase 1.
+
+Issue #16 proves the first complete application use case through that boundary.
+`get_startup_view` and `set_startup_view` accept exact schema-versioned objects
+and return only `home`, `library`, `board`, or `preferences`. The service locks
+the one native database owner and calls its typed repository transaction. On an
+unrouted desktop launch, the client reads the saved value before constructing
+the hash router; an explicit hash deep link wins. Loading, safe retry/fallback,
+default, save-success, and save-error states are owned by shared React code.
+Rust close/reopen tests prove persistence, while adapter and component tests use
+the same contract through native and fake ports.
 
 ## Scanner architecture
 
