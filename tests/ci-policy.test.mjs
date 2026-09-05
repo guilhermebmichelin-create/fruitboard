@@ -40,7 +40,7 @@ test("workflow permissions and third-party execution fail closed", () => {
     "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
-    "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+    "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d",
     "rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998",
   ]);
   assert.ok(actionReferences.length > 0);
@@ -55,6 +55,7 @@ test("workflow permissions and third-party execution fail closed", () => {
       `${reference} must be explicitly reviewed and allowlisted`,
     );
   }
+  assert.deepEqual(new Set(actionReferences), approvedActionReferences);
 
   const checkoutCount = actionReferences.filter((reference) =>
     reference.startsWith("actions/checkout@"),
@@ -88,6 +89,8 @@ test("CI commands cover locked client, portable storage, migrations, and Windows
     /killed_migration_recovers_the_original_committed_database/,
   );
   assert.match(workflow, /pnpm\.cmd check/);
+  assert.match(workflow, /uv python install 3\.11\.16/);
+  assert.match(workflow, /uv sync --frozen --python 3\.11\.16/);
 });
 
 test("security checks cover repository privacy and both dependency locks", () => {
