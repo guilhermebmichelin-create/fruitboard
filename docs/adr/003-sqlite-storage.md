@@ -63,8 +63,10 @@ atomically. An application ID and exact ordered migration history prevent
 silently opening unrelated, newer, or changed schemas.
 
 Before upgrading an existing schema, a checked SQLite backup must succeed.
-Recovery validates the backup, writes a staged database in a fresh location,
-and preserves all original files. No automatic restore, down migration, or
+Recovery validates the backup and requires the destination database and its
+`-journal`, `-wal`, and `-shm` companions to be absent before staging, even when
+a companion is empty. Existing files are preserved; orphan journals must not
+be replayed against restored data. No automatic restore, down migration, or
 backup pruning is provided. Tests include a terminated process with dirty
 uncommitted pages, rollback after failure, and restoration after corruption.
 These tests do not claim hardware power-loss qualification.
@@ -81,3 +83,4 @@ checks belong to #18. FTS and product/scanner/parser/sync schemas remain deferre
 - [SQLite FTS5](https://www.sqlite.org/fts5.html)
 - [rusqlite backup API](https://docs.rs/rusqlite/0.40.2/rusqlite/backup/index.html)
 - [SQLite atomic commit](https://www.sqlite.org/atomiccommit.html)
+- [SQLite hot-journal recovery](https://www.sqlite.org/lockingv3.html#hot_journals)

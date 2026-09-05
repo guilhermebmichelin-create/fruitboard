@@ -164,6 +164,7 @@ impl Database {
 
     /// Restore into a fresh application-data location. The source database and
     /// backup are preserved, including when the original database is corrupt.
+    /// The destination must contain neither the database nor its journal/WAL/SHM.
     /// Selecting/adopting that location belongs to a future native recovery UI.
     pub fn recover_to(backup: &Path, new_app_data: &Path) -> Result<Self> {
         verify_embedded_version()?;
@@ -180,9 +181,7 @@ impl Database {
         }
         read_startup_view(&source).map_err(|_| StorageError::InvalidBackup)?;
         let location = Location::acquire(new_app_data)?;
-        if location.database().try_exists()? {
-            return Err(StorageError::UnsafeLocation);
-        }
+        location.ensure_recovery_destination_empty()?;
         let pending = location
             .directory
             .join(format!("{}.recovery.pending.db", uuid::Uuid::now_v7()));

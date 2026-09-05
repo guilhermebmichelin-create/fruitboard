@@ -212,7 +212,10 @@ grant additional access. Custom ACL editing and defense against hostile
 processes running as the same user are not implemented.
 
 Backups have the same privacy classification as the database. Source databases
-and backups are retained during recovery; an existing destination is refused.
+and backups are retained during recovery. Under the owner lock, recovery
+refuses destinations containing the database or any rollback-journal, WAL,
+or SHM companion before staging. Empty companions also block recovery, and
+all pre-existing files are preserved.
 Database companions, backups, and staged recovery files are ignored by Git.
 `StorageError` exposes a closed set of fixed codes and discards underlying
 SQLite/io error strings, including their SQL, values, and paths. These codes

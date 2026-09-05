@@ -203,7 +203,9 @@ recovery; copying a live database is unsupported. Completed backups end in
 `.backup.db`; `.pending.db` files are unfinished and cannot be restored.
 
 Native `Database::recover_to` restores a checked backup into a fresh location,
-preserving the original files and refusing an existing database destination.
+preserving the original files and refusing a destination containing the
+database or any `-journal`, `-wal`, or `-shm` companion, including empty files.
+Choose a fresh location; do not delete companions to make recovery proceed.
 There is no renderer recovery command yet. Storage startup failures stop native
 initialization and emit only a fixed `storage_*` code; for `storage_busy`, close
 the other instance; for `storage_newer_schema`, use a compatible application;

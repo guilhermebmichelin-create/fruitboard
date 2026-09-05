@@ -50,13 +50,20 @@ at migration, backup, and recovery boundaries, not on every normal startup.
 `Database::recover_to` validates a completed backup and copies it through SQLite
 into a staged database in a fresh native-selected application-data location.
 It publishes the recovered database only after validation and any forward
-migrations succeed. An existing destination is never overwritten. Original
+migrations succeed. Recovery refuses a destination containing `fruitboard.db`
+or any of its `-journal`, `-wal`, or `-shm` companions, even if empty. The check
+runs under the owner lock before staging; all existing files are preserved.
+An orphan hot journal could otherwise replay old pages over the restored data
+on the first SQLite read. Original
 databases, corrupt data, and backups remain available for diagnosis. A future
 native recovery workflow must own selecting and adopting that location.
 
 Tests cover rollback after SQL failure, process termination before commit,
 foreign keys, transaction commit/rollback, settings across reopen, Unicode
-locations, backup failure, and recovery after synthetic corruption. Process
+locations, backup failure, and recovery after synthetic corruption. Independent
+regressions verify refusal and preservation of each destination artifact; a
+real hot-journal fixture proves that stale pages can replace Library with Home
+if recovery ignores the companion. Process
 termination evidence is not a hardware power-loss qualification.
 Projects, workflows, parser snapshots, scanner/sync tables, tombstones, notes,
 and FTS remain deferred to their owning slices.

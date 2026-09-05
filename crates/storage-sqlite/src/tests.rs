@@ -325,6 +325,122 @@ fn raw_sqlite_errors_never_escape_in_storage_diagnostics() {
     assert!(std::error::Error::source(&safe).is_none());
 }
 
+fn assert_recovery_rejects_existing_artifact(name: &str) {
+    let source_directory = TestDirectory::new();
+    let backup = {
+        let mut database = Database::open(source_directory.path()).unwrap();
+        database.set_startup_view(StartupView::Library).unwrap();
+        database.create_backup().unwrap()
+    };
+    let backup_before = fs::read(&backup).unwrap();
+    let source_before = fs::read(source_directory.database()).unwrap();
+    for contents in [b"".as_slice(), b"existing recovery evidence".as_slice()] {
+        let destination = TestDirectory::new();
+        let storage = destination.path().join("storage");
+        fs::create_dir(&storage).unwrap();
+        fs::write(storage.join("owner.lock"), b"existing owner lock").unwrap();
+        fs::write(storage.join(name), contents).unwrap();
+        assert!(
+            matches!(
+                Database::recover_to(&backup, destination.path()),
+                Err(StorageError::UnsafeLocation)
+            ),
+            "recovery must refuse {name}, including when empty"
+        );
+        assert_eq!(fs::read(storage.join(name)).unwrap(), contents);
+        assert_eq!(
+            fs::read(storage.join("owner.lock")).unwrap(),
+            b"existing owner lock"
+        );
+        assert_eq!(
+            fs::read_dir(&storage).unwrap().count(),
+            2,
+            "rejection must not create a staged or published database"
+        );
+        assert_eq!(fs::read(&backup).unwrap(), backup_before);
+        assert_eq!(
+            fs::read(source_directory.database()).unwrap(),
+            source_before
+        );
+    }
+}
+
+#[test]
+fn recovery_rejects_an_existing_database_without_changing_files() {
+    assert_recovery_rejects_existing_artifact("fruitboard.db");
+}
+
+#[test]
+fn recovery_rejects_an_orphan_journal_without_changing_files() {
+    assert_recovery_rejects_existing_artifact("fruitboard.db-journal");
+}
+
+#[test]
+fn recovery_rejects_an_orphan_wal_without_changing_files() {
+    assert_recovery_rejects_existing_artifact("fruitboard.db-wal");
+}
+
+#[test]
+fn recovery_rejects_an_orphan_shm_without_changing_files() {
+    assert_recovery_rejects_existing_artifact("fruitboard.db-shm");
+}
+
+#[test]
+fn recovery_rejects_a_hot_journal_that_would_replace_library_with_home() {
+    let source_directory = TestDirectory::new();
+    let (backup, journal) = {
+        let mut database = Database::open(source_directory.path()).unwrap();
+        let transaction = database.connection.transaction().unwrap();
+        transaction
+            .execute("UPDATE app_settings SET startup_view = 'board'", [])
+            .unwrap();
+        transaction.cache_flush().unwrap();
+        // Capture a valid rollback journal containing Home before rolling back.
+        // Only generated test files are copied; no live product database is used.
+        let journal = fs::read(
+            source_directory
+                .path()
+                .join("storage/fruitboard.db-journal"),
+        )
+        .unwrap();
+        transaction.rollback().unwrap();
+        database.set_startup_view(StartupView::Library).unwrap();
+        (database.create_backup().unwrap(), journal)
+    };
+    let backup_before = fs::read(&backup).unwrap();
+    let source_before = fs::read(source_directory.database()).unwrap();
+
+    // Independently prove this fixture is dangerous: SQLite replays the journal
+    // against the offline Library backup and silently returns Home.
+    let replay_control = TestDirectory::new();
+    fs::create_dir(replay_control.path().join("storage")).unwrap();
+    fs::copy(&backup, replay_control.database()).unwrap();
+    let control_journal = replay_control.path().join("storage/fruitboard.db-journal");
+    fs::write(&control_journal, &journal).unwrap();
+    let control = Connection::open(replay_control.database()).unwrap();
+    assert_eq!(read_startup_view(&control).unwrap(), StartupView::Home);
+    assert!(!control_journal.exists());
+
+    let destination = TestDirectory::new();
+    let storage = destination.path().join("storage");
+    fs::create_dir(&storage).unwrap();
+    fs::write(storage.join("owner.lock"), b"existing owner lock").unwrap();
+    let orphan = storage.join("fruitboard.db-journal");
+    fs::write(&orphan, &journal).unwrap();
+    assert!(matches!(
+        Database::recover_to(&backup, destination.path()),
+        Err(StorageError::UnsafeLocation)
+    ));
+    assert_eq!(fs::read(&orphan).unwrap(), journal);
+    assert_eq!(fs::read_dir(&storage).unwrap().count(), 2);
+    assert!(!destination.database().exists());
+    assert_eq!(fs::read(&backup).unwrap(), backup_before);
+    assert_eq!(
+        fs::read(source_directory.database()).unwrap(),
+        source_before
+    );
+}
+
 #[test]
 fn backup_failure_prevents_migration_from_touching_original_data() {
     let directory = TestDirectory::new();

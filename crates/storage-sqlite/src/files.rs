@@ -3,6 +3,12 @@ use std::fs::{self, File, OpenOptions};
 use std::path::{Component, Path, PathBuf};
 
 pub(crate) const DATABASE_NAME: &str = "fruitboard.db";
+const DATABASE_FILES: [&str; 4] = [
+    DATABASE_NAME,
+    "fruitboard.db-journal",
+    "fruitboard.db-wal",
+    "fruitboard.db-shm",
+];
 
 // These checks reject pre-existing links/reparse points. The per-user directory
 // is the access boundary; this does not defend against another process running
@@ -101,12 +107,7 @@ impl Location {
         private_directory(&directory)?;
         let lock = private_file(&directory.join("owner.lock"), false)?;
         lock.try_lock().map_err(|_| StorageError::Busy)?;
-        for name in [
-            DATABASE_NAME,
-            "fruitboard.db-journal",
-            "fruitboard.db-wal",
-            "fruitboard.db-shm",
-        ] {
+        for name in DATABASE_FILES {
             check_path(&directory.join(name))?;
         }
         Ok(Self {
@@ -116,5 +117,20 @@ impl Location {
     }
     pub(crate) fn database(&self) -> PathBuf {
         self.directory.join(DATABASE_NAME)
+    }
+
+    pub(crate) fn ensure_recovery_destination_empty(&self) -> Result<()> {
+        // A database and its companions are one recovery unit. An orphan hot
+        // journal can overwrite restored pages on the first SQLite read.
+        // Refuse every existing entry, including empty files, without opening
+        // it in SQLite or deleting evidence needed for recovery.
+        for name in DATABASE_FILES {
+            match fs::symlink_metadata(self.directory.join(name)) {
+                Ok(_) => return Err(StorageError::UnsafeLocation),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Ok(())
     }
 }
