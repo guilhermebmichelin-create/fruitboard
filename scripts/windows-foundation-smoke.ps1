@@ -326,13 +326,20 @@ else {
     $coldLaunch.probe.audioCanPlayType
 }
 
+$webViewUserAgent = if ($NonInteractive) {
+    "not-probed-hosted-service-session"
+}
+else {
+    $coldLaunch.probe.userAgent
+}
+
 $evidence = [ordered]@{
     schemaVersion = 1
     status = "ok"
     platform = [ordered]@{
         os = "Windows"
         architecture = $env:PROCESSOR_ARCHITECTURE
-        webViewUserAgent = $coldLaunch.probe.userAgent
+        webViewUserAgent = $webViewUserAgent
     }
     package = [ordered]@{
         format = "NSIS current-user"

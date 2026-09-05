@@ -127,6 +127,7 @@ test("the smoke preserves data and records bounded platform evidence", () => {
   assert.match(script, /warmReadyMilliseconds/);
   assert.match(script, /audioCanPlayType/);
   assert.match(script, /mode = "hosted-service-session"/);
+  assert.match(script, /"not-probed-hosted-service-session"/);
   assert.match(script, /nativeSeedAndVerifyLaunches = \$true/);
   assert.doesNotMatch(script, /Remove-Item/);
 });
