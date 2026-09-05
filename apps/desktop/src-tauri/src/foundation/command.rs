@@ -1,7 +1,9 @@
 use super::clock::Clock;
+#[cfg(test)]
+use super::errors::DiagnosticCode;
 use super::errors::{AppError, ErrorCode, UserFacingError};
 use super::identifiers::{IdGenerator, IdKind, OpaqueId};
-use super::logging::{LogEventKind, LogLevel, LogSink, OperationalLogEvent};
+use super::logging::{LogEventKind, LogLevel, LogSink, OperationalLogEvent, SafeDiagnostic};
 use serde::Serialize;
 use std::panic::{AssertUnwindSafe, UnwindSafe, catch_unwind};
 use std::sync::Arc;
@@ -39,7 +41,7 @@ struct CommandLog {
     operation: &'static str,
     correlation_id: OpaqueId,
     error_code: Option<ErrorCode>,
-    diagnostic: Option<String>,
+    diagnostic: Option<SafeDiagnostic>,
 }
 
 impl CommandRuntime {
@@ -95,7 +97,9 @@ impl CommandRuntime {
                     operation: operation_name,
                     correlation_id: correlation_id.clone(),
                     error_code: Some(code),
-                    diagnostic: Some(error.diagnostic().summary.clone()),
+                    diagnostic: Some(SafeDiagnostic::new(
+                        error.diagnostic().diagnostic_code.as_str(),
+                    )),
                 });
                 CommandEnvelope::Error {
                     schema_version: COMMAND_SCHEMA_VERSION,
@@ -104,14 +108,16 @@ impl CommandRuntime {
                 }
             }
             Err(_) => {
-                let error = AppError::unknown("panic caught at the native command boundary");
+                let error = AppError::command_panicked();
                 self.write_log(CommandLog {
                     level: LogLevel::Error,
                     kind: LogEventKind::Panicked,
                     operation: operation_name,
                     correlation_id: correlation_id.clone(),
                     error_code: Some(ErrorCode::Internal),
-                    diagnostic: Some(error.diagnostic().summary.clone()),
+                    diagnostic: Some(SafeDiagnostic::new(
+                        error.diagnostic().diagnostic_code.as_str(),
+                    )),
                 });
                 CommandEnvelope::Error {
                     schema_version: COMMAND_SCHEMA_VERSION,
@@ -192,7 +198,7 @@ mod tests {
         let response = runtime.execute::<(), _>("test_command", || {
             Err(AppError::new(
                 ErrorCode::Unavailable,
-                "access_token=secret C:\\Users\\person\\private.flp",
+                DiagnosticCode::UnexpectedFailure,
             ))
         });
         let serialized = serde_json::to_value(response).expect("command error should serialize");
@@ -216,7 +222,7 @@ mod tests {
 
     #[test]
     fn maps_unknown_errors_to_internal_without_exposing_details() {
-        let (runtime, _) = runtime();
+        let (runtime, logs) = runtime();
         let response = runtime.execute::<(), _>("test_command", || {
             Err(AppError::unknown(FakeError::new("private adapter detail")))
         });
@@ -228,10 +234,18 @@ mod tests {
             "Fruitboard could not complete the request."
         );
         assert!(!serialized.to_string().contains("private adapter detail"));
+        assert_eq!(
+            logs.events()[0]
+                .diagnostic
+                .as_ref()
+                .map(SafeDiagnostic::as_str),
+            Some("unexpected_failure")
+        );
     }
 
     #[test]
     fn catches_panics_without_crashing_the_command_host() {
+        crate::install_safe_panic_hook();
         let (runtime, logs) = runtime();
         let response = runtime.execute::<(), _>("test_command", || {
             panic!("untrusted panic detail must not cross the boundary")
@@ -243,8 +257,11 @@ mod tests {
         assert!(!serialized.to_string().contains("untrusted panic detail"));
         assert_eq!(logs.events()[0].kind, LogEventKind::Panicked);
         assert_eq!(
-            logs.events()[0].diagnostic.as_deref(),
-            Some("panic caught at the native command boundary")
+            logs.events()[0]
+                .diagnostic
+                .as_ref()
+                .map(SafeDiagnostic::as_str),
+            Some("command_panicked")
         );
     }
 

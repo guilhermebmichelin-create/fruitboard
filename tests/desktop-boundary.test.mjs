@@ -170,5 +170,6 @@ test("renderer error hooks do not print untrusted Error objects", () => {
       new RegExp(`${callback}: containUntrustedRendererDiagnostic`),
     );
   }
+  assert.match(mount, /onError=\{containUntrustedRendererDiagnostic\}/);
   assert.doesNotMatch(mount, /console\.(?:debug|error|info|log|warn)/);
 });

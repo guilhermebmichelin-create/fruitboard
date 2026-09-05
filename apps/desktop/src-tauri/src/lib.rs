@@ -5,14 +5,16 @@
 pub mod foundation;
 
 use foundation::{
-    AppError, COMMAND_SCHEMA_VERSION, Clock, CommandEnvelope, CommandRuntime, IdGenerator,
-    SystemClock, SystemIdGenerator, default_log_sink,
+    AppError, COMMAND_SCHEMA_VERSION, Clock, CommandEnvelope, CommandRuntime, DiagnosticCode,
+    IdGenerator, SystemClock, SystemIdGenerator, default_log_sink,
 };
 use serde::Serialize;
 use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
+
+const SAFE_NATIVE_PANIC_MESSAGE: &str = "Fruitboard contained an unexpected native failure.";
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,7 +55,7 @@ fn handle_get_app_health(
 
         if !valid_request {
             return Err(AppError::invalid_request(
-                "get_app_health request failed schema validation",
+                DiagnosticCode::RequestSchemaValidationFailed,
             ));
         }
 
@@ -74,9 +76,13 @@ fn get_app_health(
 }
 
 fn install_safe_panic_hook() {
-    std::panic::set_hook(Box::new(|_| {
-        eprintln!("Fruitboard contained an unexpected native failure.");
-    }));
+    static INSTALL: std::sync::Once = std::sync::Once::new();
+
+    INSTALL.call_once(|| {
+        std::panic::set_hook(Box::new(|_| {
+            eprintln!("{SAFE_NATIVE_PANIC_MESSAGE}");
+        }));
+    });
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -99,6 +105,8 @@ mod tests {
     use crate::foundation::test_support::{FakeClock, FakeIdGenerator, RecordingLogSink};
     use crate::foundation::{ErrorCode, LogSink};
     use serde_json::json;
+
+    const PANIC_HOOK_PROBE: &str = "FRUITBOARD_SAFE_PANIC_HOOK_PROBE";
 
     fn test_runtime() -> (CommandRuntime, Arc<RecordingLogSink>) {
         let logs = Arc::new(RecordingLogSink::default());
@@ -137,6 +145,40 @@ mod tests {
     }
 
     #[test]
+    fn safe_panic_hook_omits_the_panic_payload() {
+        if std::env::var_os(PANIC_HOOK_PROBE).is_some() {
+            install_safe_panic_hook();
+            let outcome = std::panic::catch_unwind(|| {
+                panic!("Bearer secret C:\\Users\\producer\\private.flp")
+            });
+            assert!(outcome.is_err());
+            return;
+        }
+
+        let output = std::process::Command::new(
+            std::env::current_exe().expect("the test executable should have a path"),
+        )
+        .args([
+            "--exact",
+            "tests::safe_panic_hook_omits_the_panic_payload",
+            "--nocapture",
+        ])
+        .env(PANIC_HOOK_PROBE, "1")
+        .output()
+        .expect("the panic-hook probe should run");
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        assert!(output.status.success(), "probe failed: {combined}");
+        assert!(combined.contains(SAFE_NATIVE_PANIC_MESSAGE));
+        assert!(!combined.contains("Bearer secret"));
+        assert!(!combined.contains("private.flp"));
+    }
+
+    #[test]
     fn malformed_health_requests_fail_closed_without_logging_input() {
         let malformed = [
             None,
@@ -159,14 +201,12 @@ mod tests {
             assert_eq!(serialized["status"], "error");
             assert_eq!(serialized["error"]["code"], "invalid_request");
             assert_eq!(logs.events()[0].error_code, Some(ErrorCode::InvalidRequest));
-            let diagnostic = logs.events()[0]
+            let events = logs.events();
+            let diagnostic = events[0]
                 .diagnostic
-                .clone()
+                .as_ref()
                 .expect("rejected request should have a safe diagnostic");
-            assert_eq!(
-                diagnostic,
-                "get_app_health request failed schema validation"
-            );
+            assert_eq!(diagnostic.as_str(), "request_schema_validation_failed");
         }
     }
 }

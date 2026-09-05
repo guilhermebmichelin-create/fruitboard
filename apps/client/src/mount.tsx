@@ -23,7 +23,10 @@ export function mountFruitboard(
   root.render(
     <StrictMode>
       <AppErrorBoundary>
-        <RouterProvider router={router} />
+        <RouterProvider
+          onError={containUntrustedRendererDiagnostic}
+          router={router}
+        />
       </AppErrorBoundary>
     </StrictMode>,
   );

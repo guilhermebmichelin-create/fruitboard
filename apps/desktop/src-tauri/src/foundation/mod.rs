@@ -12,7 +12,7 @@ pub use jobs::{JobProgressEvent, JobState, JobTracker, JobTransitionError};
 
 pub(crate) use clock::{Clock, SystemClock};
 pub(crate) use command::CommandRuntime;
-pub(crate) use errors::AppError;
+pub(crate) use errors::{AppError, DiagnosticCode};
 pub(crate) use logging::default_log_sink;
 
 #[cfg(test)]

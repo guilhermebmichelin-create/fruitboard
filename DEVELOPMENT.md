@@ -168,7 +168,10 @@ must reject missing, future, or malformed envelopes instead of guessing. Local
 command diagnostics use allowlisted JSONL records in Tauri's app log directory;
 the default rotation is 1 MiB per file, five files total, and 14 days. There is
 no diagnostic export, telemetry, crash reporting, scanner job, or parser process
-in this slice. Rust tests use fake clocks/IDs/errors/log sinks, while client and
+in this slice. Command errors log fixed diagnostic codes, and arbitrary context
+must pass through the redacted `SafeDiagnostic` type before it can enter an
+event. The active log recovers its start timestamp from the first record after a
+restart. Rust tests use fake clocks/IDs/errors/log sinks, while client and
 repository policy tests keep serialization and error vocabulary aligned.
 
 When the SQLite binding is selected in Issue #15, query its embedded runtime

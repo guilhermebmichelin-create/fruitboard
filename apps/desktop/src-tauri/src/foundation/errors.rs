@@ -1,5 +1,4 @@
 use serde::Serialize;
-use std::fmt::Display;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -29,6 +28,27 @@ impl ErrorCode {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DiagnosticCode {
+    CommandPanicked,
+    RequestSchemaValidationFailed,
+    #[allow(
+        dead_code,
+        reason = "reserved for adapters added after the command foundation"
+    )]
+    UnexpectedFailure,
+}
+
+impl DiagnosticCode {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::CommandPanicked => "command_panicked",
+            Self::RequestSchemaValidationFailed => "request_schema_validation_failed",
+            Self::UnexpectedFailure => "unexpected_failure",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserFacingError {
@@ -40,7 +60,7 @@ pub struct UserFacingError {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiagnosticError {
     pub code: ErrorCode,
-    pub summary: String,
+    pub diagnostic_code: DiagnosticCode,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -50,7 +70,7 @@ pub struct AppError {
 }
 
 impl AppError {
-    pub fn new(code: ErrorCode, diagnostic: impl Into<String>) -> Self {
+    pub(crate) fn new(code: ErrorCode, diagnostic_code: DiagnosticCode) -> Self {
         Self {
             user: UserFacingError {
                 code,
@@ -59,17 +79,25 @@ impl AppError {
             },
             diagnostic: DiagnosticError {
                 code,
-                summary: diagnostic.into(),
+                diagnostic_code,
             },
         }
     }
 
-    pub fn invalid_request(diagnostic: impl Into<String>) -> Self {
-        Self::new(ErrorCode::InvalidRequest, diagnostic)
+    pub(crate) fn invalid_request(diagnostic_code: DiagnosticCode) -> Self {
+        Self::new(ErrorCode::InvalidRequest, diagnostic_code)
     }
 
-    pub fn unknown(error: impl Display) -> Self {
-        Self::new(ErrorCode::Internal, error.to_string())
+    #[allow(
+        dead_code,
+        reason = "the first fallible product adapter lands after this foundation"
+    )]
+    pub(crate) fn unknown<Source>(_source: Source) -> Self {
+        Self::new(ErrorCode::Internal, DiagnosticCode::UnexpectedFailure)
+    }
+
+    pub(crate) fn command_panicked() -> Self {
+        Self::new(ErrorCode::Internal, DiagnosticCode::CommandPanicked)
     }
 
     pub fn user(&self) -> &UserFacingError {
@@ -133,7 +161,7 @@ mod tests {
         ];
 
         for (code, serialized_code, message, retryable) in expected {
-            let error = AppError::new(code, "diagnostic detail");
+            let error = AppError::new(code, DiagnosticCode::UnexpectedFailure);
 
             assert_eq!(
                 serde_json::to_value(error.user()).expect("user error should serialize"),
@@ -148,10 +176,7 @@ mod tests {
 
     #[test]
     fn user_error_serialization_excludes_diagnostics() {
-        let error = AppError::new(
-            ErrorCode::Unavailable,
-            "C:\\Users\\producer\\Music\\private.flp access_token=secret",
-        );
+        let error = AppError::new(ErrorCode::Unavailable, DiagnosticCode::UnexpectedFailure);
 
         assert_eq!(
             serde_json::to_value(error.user()).expect("user error should serialize"),
@@ -172,6 +197,13 @@ mod tests {
             error.user().message,
             "Fruitboard could not complete the request."
         );
-        assert_eq!(error.diagnostic().summary, "unexpected adapter failure");
+        assert_eq!(
+            error.diagnostic().diagnostic_code,
+            DiagnosticCode::UnexpectedFailure
+        );
+        assert_ne!(
+            error.diagnostic().diagnostic_code.as_str(),
+            "unexpected adapter failure"
+        );
     }
 }

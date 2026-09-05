@@ -202,17 +202,21 @@ a local data export/delete workflow before sync is called stable.
 Issue #14 writes newline-delimited JSON to `fruitboard.log` in Tauri's app log
 directory. Each record is an allowlist of timestamp, level, subsystem, app
 version, event, operation, correlation ID, and optional job ID, error code, and
-diagnostic summary. There is no request, response, path, or binary-payload field.
-Before a diagnostic is written, OAuth tokens/codes/state/PKCE material, bearer
-credentials, Windows/Unix/request paths, and relative FLP paths are redacted.
-Control characters or invalid-text replacement markers replace the whole value
-with a binary-payload marker, and the final diagnostic is at most 512 Unicode
+diagnostic. There is no request, response, path, or binary-payload field. Command
+errors select a fixed diagnostic code and discard unknown source text. Any
+future diagnostic context must first enter the `SafeDiagnostic` value type,
+which redacts OAuth tokens/codes/state/PKCE material, bearer credentials,
+Windows/Unix/request paths, and relative FLP paths at construction. Control
+characters or invalid-text replacement markers replace the whole value with a
+binary-payload marker, and the final diagnostic is at most 512 Unicode
 characters.
 
 The default retention limit is 1 MiB per file, five files total including the
 active file, and 14 days. Rotation and pruning run during writes. If the app log
 directory cannot be resolved or initialized, logging disables itself rather
-than failing a command or the shell. These logs omit:
+than failing a command or the shell. The active file's first record preserves
+its original start timestamp across app restarts, so appending cannot refresh
+its age. These logs omit:
 
 - access/refresh tokens and authorization codes;
 - absolute paths, usernames, Drive file names, project notes/comments;

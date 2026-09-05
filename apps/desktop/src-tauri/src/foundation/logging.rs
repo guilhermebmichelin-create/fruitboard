@@ -2,9 +2,9 @@ use super::clock::Clock;
 use super::errors::ErrorCode;
 use super::identifiers::OpaqueId;
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex, PoisonError};
 use std::time::UNIX_EPOCH;
@@ -13,6 +13,7 @@ const ACTIVE_LOG_NAME: &str = "fruitboard.log";
 const LOG_PREFIX: &str = "fruitboard.";
 const LOG_SUFFIX: &str = ".log";
 const MAX_DIAGNOSTIC_CHARS: usize = 512;
+const MAX_START_RECORD_BYTES: u64 = 4 * 1024;
 
 pub const DEFAULT_MAX_FILE_BYTES: u64 = 1024 * 1024;
 pub const DEFAULT_MAX_FILES: usize = 5;
@@ -72,7 +73,20 @@ pub(crate) struct OperationalLogEvent {
     pub(crate) correlation_id: OpaqueId,
     pub(crate) job_id: Option<OpaqueId>,
     pub(crate) error_code: Option<ErrorCode>,
-    pub(crate) diagnostic: Option<String>,
+    pub(crate) diagnostic: Option<SafeDiagnostic>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SafeDiagnostic(String);
+
+impl SafeDiagnostic {
+    pub(crate) fn new(value: &str) -> Self {
+        Self(redact_sensitive(value))
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Serialize)]
@@ -90,7 +104,13 @@ struct StoredLogRecord<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     error_code: Option<ErrorCode>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    diagnostic: Option<String>,
+    diagnostic: Option<&'a str>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ActiveLogStart {
+    timestamp_millis: u64,
 }
 
 pub(crate) trait LogSink: Send + Sync {
@@ -167,12 +187,26 @@ impl LocalLogSink {
     }
 
     fn active_start(&self, path: &Path, now: u64) -> u64 {
-        path.metadata()
-            .and_then(|metadata| metadata.modified())
-            .ok()
-            .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
-            .and_then(|duration| u64::try_from(duration.as_millis()).ok())
-            .map_or(now, |modified| modified.min(now))
+        let recorded_start = fs::File::open(path).ok().and_then(|file| {
+            let mut reader = BufReader::new(file).take(MAX_START_RECORD_BYTES);
+            let mut first_line = String::new();
+            reader.read_line(&mut first_line).ok()?;
+            serde_json::from_str::<ActiveLogStart>(&first_line)
+                .ok()
+                .map(|record| record.timestamp_millis)
+        });
+        let metadata_start = path.metadata().ok().and_then(|metadata| {
+            metadata
+                .created()
+                .or_else(|_| metadata.modified())
+                .ok()
+                .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+                .and_then(|duration| u64::try_from(duration.as_millis()).ok())
+        });
+
+        recorded_start
+            .or(metadata_start)
+            .map_or(now, |started_at| started_at.min(now))
     }
 
     fn rotate_if_needed(
@@ -264,7 +298,7 @@ impl LogSink for LocalLogSink {
             correlation_id: &event.correlation_id,
             job_id: event.job_id.as_ref(),
             error_code: event.error_code,
-            diagnostic: event.diagnostic.as_deref().map(redact_sensitive),
+            diagnostic: event.diagnostic.as_ref().map(SafeDiagnostic::as_str),
         };
         let line = serde_json::to_string(&record).map_err(io::Error::other)?;
         let line_bytes = u64::try_from(line.len()).unwrap_or(u64::MAX);
@@ -300,7 +334,7 @@ pub(crate) fn default_log_sink(
         .unwrap_or_else(|| Arc::new(DisabledLogSink))
 }
 
-pub(crate) fn redact_sensitive(value: &str) -> String {
+fn redact_sensitive(value: &str) -> String {
     if value.chars().any(|character| {
         character == '\u{fffd}'
             || (character.is_control() && !matches!(character, '\n' | '\r' | '\t'))
@@ -389,7 +423,7 @@ mod tests {
             correlation_id: ids.next_id(IdKind::Correlation),
             job_id: None,
             error_code: Some(ErrorCode::Internal),
-            diagnostic: Some(diagnostic.to_owned()),
+            diagnostic: Some(SafeDiagnostic::new(diagnostic)),
         }
     }
 
@@ -417,12 +451,14 @@ mod tests {
             "access_token=access-secret refresh_token='refresh-secret' ",
             "C:\\Users\\producer\\Music\\Private Project\\song.flp ",
             "D:/Users/artist/Exports/master.wav ",
+            "{\"path\":\"/Users/example/audio.wav\"} ",
             "{\"path\":\"/home/producer/private/project\"} ",
             "file:///home/producer/private/export.wav ",
             "code_verifier=pkce-secret oauth_state=state-secret ",
             "GET /oauth/callback?code=authorization-secret"
         );
-        let redacted = redact_sensitive(value);
+        let diagnostic = SafeDiagnostic::new(value);
+        let redacted = diagnostic.as_str();
 
         for forbidden in [
             "header.payload.signature",
@@ -433,6 +469,7 @@ mod tests {
             "song.flp",
             "artist",
             "master.wav",
+            "/Users/example/audio.wav",
             "/home/producer",
             "file:///home",
             "pkce-secret",
@@ -546,5 +583,53 @@ mod tests {
         assert_eq!(names, [ACTIVE_LOG_NAME]);
         assert!(log_contents(directory.path()).contains("second"));
         assert!(!log_contents(directory.path()).contains("first"));
+    }
+
+    #[test]
+    fn preserves_the_active_log_start_time_across_restarts() {
+        let directory = TestDirectory::new();
+        let clock = Arc::new(FakeClock::new(100));
+        let retention = RetentionPolicy {
+            max_file_bytes: u64::MAX,
+            max_files: 5,
+            max_age_millis: 10,
+        };
+        let ids = FakeIdGenerator::new(1);
+
+        {
+            let logger =
+                LocalLogSink::new(directory.path().to_path_buf(), retention, clock.clone())
+                    .expect("first logger should initialize");
+            logger
+                .write(&event(&ids, "first session", 100))
+                .expect("first session should be written");
+        }
+
+        clock.set(109);
+        {
+            let logger =
+                LocalLogSink::new(directory.path().to_path_buf(), retention, clock.clone())
+                    .expect("second logger should initialize");
+            logger
+                .write(&event(&ids, "second session", 109))
+                .expect("second session should be written");
+        }
+        assert!(log_contents(directory.path()).contains("first session"));
+        assert!(log_contents(directory.path()).contains("second session"));
+
+        clock.set(111);
+        {
+            let logger =
+                LocalLogSink::new(directory.path().to_path_buf(), retention, clock.clone())
+                    .expect("third logger should initialize");
+            logger
+                .write(&event(&ids, "third session", 111))
+                .expect("third session should be written");
+        }
+
+        let contents = log_contents(directory.path());
+        assert!(contents.contains("third session"));
+        assert!(!contents.contains("first session"));
+        assert!(!contents.contains("second session"));
     }
 }

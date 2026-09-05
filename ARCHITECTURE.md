@@ -240,8 +240,11 @@ metadata: parsing results are validated and persisted in a single transaction.
 At the client edge, invalid native envelopes and unknown codes become the fixed
 `internal` error. Expected command failures stay contained in the platform port.
 Unexpected render failures reach the top-level React error boundary, whose root
-callbacks deliberately do not print the untrusted `Error` object. No renderer
-diagnostic transport or crash reporter exists in Phase 1.
+callbacks deliberately do not print the untrusted `Error` object. Because data
+routers catch render failures before an outer React boundary can see them, the
+root route also owns the same safe error element and the `RouterProvider` error
+callback discards raw payloads. No renderer diagnostic transport or crash
+reporter exists in Phase 1.
 
 ## Scanner architecture
 
@@ -400,7 +403,10 @@ uses a scoped asset protocol or safe local stream rather than exposing arbitrary
 - Paginate by stable cursor; virtualize only after realistic profiling.
 - Issue #14 writes allowlisted JSONL command records with severity, operation,
   version, correlation ID, optional job/error fields, and a bounded redacted
-  diagnostic. Defaults are 1 MiB per file, five total files, and 14 days.
+  diagnostic. Command errors use fixed diagnostic codes; redacted contexts are
+  represented by a type that cannot contain an unprocessed string. Defaults are
+  1 MiB per file, five total files, and 14 days. The first record retains the
+  active file's start time across restarts.
 - Future scanner/storage logs may add opaque root/file IDs, but not raw request
   or binary payload fields. Full paths require an explicit diagnostic-export
   choice after preview; no export or telemetry exists yet.
