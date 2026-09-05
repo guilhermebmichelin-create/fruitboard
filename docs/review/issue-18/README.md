@@ -106,7 +106,12 @@ from the packaged app origin and a rendered, usable shell marker: a
 heading, with no loading or error shell state. `about:blank`, missing URLs,
 devtools, and foreign origins fail the probe closed, and WebView target
 appearance and shell rendering are recorded as distinct bounded measurements
-(`webviewReadyMs`, `appReadyMs`; evidence schema v2).
+(`webviewReadyMs`, `appReadyMs`; evidence schema v2). Target origins are parsed
+and compared as protocol, hostname, and port — host suffixes, credentials,
+unexpected ports, and malformed URLs fail closed — and the evaluated page URL
+is re-validated on every poll, so navigation after target discovery cannot
+bypass the check. Discovery requests are cancelled at the remaining deadline,
+so stalled network I/O cannot exceed the advertised bound.
 
 It then evaluates `HTMLMediaElement.canPlayType` against bounded candidate formats;
 no media file is opened, generated, committed, or played. WAV, MP3 and FLAC are

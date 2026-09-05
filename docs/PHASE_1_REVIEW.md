@@ -50,16 +50,21 @@ checkpoint; merging did not itself accept the phase.
 - The launch probe accepts only a debuggable target served from the packaged
   app origin (`https://tauri.localhost`, `http://tauri.localhost`, or
   `tauri://localhost`); `about:blank`, missing URLs, devtools, and foreign
-  origins fail closed. It then requires a rendered, usable shell marker — a
-  `· Fruitboard` document title, the primary navigation with links, and a page
-  heading, with no loading or error state — before trusting any audio
-  capability signal. WebView target appearance and shell rendering are measured
-  as distinct bounded phases, and the policy is covered by unit regressions in
-  `tests/webview-probe.test.mjs`.
+  origins fail closed. Origins are parsed and compared as protocol, hostname,
+  and port — host suffixes, credentials, unexpected ports, and malformed URLs
+  fail closed — and the evaluated snapshot URL is re-validated on every poll,
+  so post-discovery navigation cannot bypass the check. Discovery requests are
+  cancelled at the remaining deadline. It then requires a rendered, usable
+  shell marker — a `· Fruitboard` document title, the primary navigation with
+  links, and a page heading, with no loading or error state — before trusting
+  any audio capability signal. WebView target appearance and shell rendering
+  are measured as distinct bounded phases, and the policy is covered by unit
+  regressions in `tests/webview-probe.test.mjs`.
 - The `Windows Packaging Smoke` workflow triggers on every packaged input,
   including `crates/**` (the storage crate owns the preserved database) and
-  `packages/**` (the shared UI package owns the rendered shell), so storage or
-  styling changes cannot bypass packaging and data-preservation verification.
+  `packages/**` (the shared UI package owns the rendered shell), and
+  `scripts/**` (the probe helper and its runners), so storage, styling, or
+  probe changes cannot bypass packaging and data-preservation verification.
 - Install, uninstall, reinstall, native database reopen, and second uninstall
   preserved a byte-identical 16 KiB database and the saved Library startup view.
 - WebView2 returned `probably` for the bounded WAV PCM, MP3, FLAC, AAC and Ogg

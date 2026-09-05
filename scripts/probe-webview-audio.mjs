@@ -5,7 +5,7 @@ import {
   SHELL_READINESS_EXPRESSION,
   WEBVIEW_READINESS_TIMEOUT_MS,
   assessShellReadiness,
-  selectAppTarget,
+  discoverAppTarget,
 } from "./lib/webview-probe.mjs";
 
 const port = Number.parseInt(process.argv[2] ?? "", 10);
@@ -14,40 +14,36 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
   process.exit(2);
 }
 
-async function readTargets() {
-  const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+// Phase 1 — WebView readiness: a debuggable target served from the packaged
+// app origin appears. Blank, loading, or foreign pages never satisfy this.
+// Every list attempt is cancelled at the remaining deadline, so stalled
+// network I/O cannot exceed the advertised bound.
+async function listTargets(signal) {
+  const response = await fetch(`http://127.0.0.1:${port}/json/list`, {
+    signal,
+  });
+  // Body consumption rejects when the attempt signal aborts mid-body.
   return response.json();
 }
 
-// Phase 1 — WebView readiness: a debuggable target served from the packaged
-// app origin appears. Blank, loading, or foreign pages never satisfy this.
-const webviewStarted = Date.now();
-let appTarget;
-for (;;) {
-  try {
-    const selection = selectAppTarget(await readTargets());
-    if (selection.ok) {
-      appTarget = selection.target;
-      break;
-    }
-    if (Date.now() - webviewStarted >= WEBVIEW_READINESS_TIMEOUT_MS) {
-      console.error(
-        `The packaged app target did not appear within the bounded timeout: ${selection.reason}.`,
-      );
-      process.exit(1);
-    }
-  } catch {
-    if (Date.now() - webviewStarted >= WEBVIEW_READINESS_TIMEOUT_MS) {
-      console.error(
-        "The packaged WebView2 page did not become ready within the bounded timeout.",
-      );
-      process.exit(1);
-    }
-    // WebView2 starts asynchronously; retry until the bounded deadline.
+const discovery = await discoverAppTarget({
+  listTargets,
+  timeoutMs: WEBVIEW_READINESS_TIMEOUT_MS,
+});
+if (!discovery.ok) {
+  if (discovery.reason === "no-app-target") {
+    console.error(
+      "The packaged app target did not appear within the bounded timeout: no-app-target.",
+    );
+  } else {
+    console.error(
+      "The packaged WebView2 page did not become ready within the bounded timeout.",
+    );
   }
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  process.exit(1);
 }
-const webviewReadyMs = Date.now() - webviewStarted;
+const appTarget = discovery.target;
+const webviewReadyMs = discovery.webviewReadyMs;
 
 const socket = new WebSocket(appTarget.webSocketDebuggerUrl);
 let nextId = 0;
