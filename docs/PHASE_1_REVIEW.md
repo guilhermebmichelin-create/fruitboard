@@ -33,6 +33,11 @@ checkpoint; merging did not itself accept the phase.
   [push-to-main Foundation CI](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/33990241467)
   passed all six jobs at `8251f43`, including the complete pinned Windows gate
   in 16m45s.
+- Post-merge review follow-up
+  [PR #30](https://github.com/guilhermebmichelin-create/fruitboard/pull/30)
+  hardens the launch probe (app-origin target plus rendered-shell marker), keeps
+  WebView and application readiness distinct, widens the packaging workflow to
+  `crates/**` and `packages/**`, and corrects this checkpoint's merge state.
 - The #18 local smoke built a 2.47 MiB unsigned NSIS installer and an 8.29 MiB
   installation. Cold/warm inspectable startup was 747/508 ms on the observed
   host. The dedicated packaging workflow repeats the non-interactive package,
