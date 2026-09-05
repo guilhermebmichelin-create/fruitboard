@@ -106,8 +106,10 @@ Created after Phase 0 acceptance under
      review evidence; not a public release;
    - PR: `test: add Windows foundation packaging smoke`.
 
-Issues #11–#17 are merged. Issue #18 now carries the Phase 1 checkpoint
-candidate; the phase remains stopped until the owner accepts that review.
+Issues #11–#18 are merged (PR #29 squash-merged as `8251f43`; issue #18
+closed). The Phase 1 checkpoint in `docs/PHASE_1_REVIEW.md` is pending explicit
+owner acceptance with epic #10 open; the phase remains stopped until that
+acceptance — no Phase 2 code or issues.
 
 Avoid putting the real scanner, parser, Drive OAuth, PWA service worker, project
 cards, or Kanban in these issues.

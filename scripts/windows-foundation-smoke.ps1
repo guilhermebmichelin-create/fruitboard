@@ -97,7 +97,6 @@ function Invoke-LaunchProbe {
     )
 
     $port = Get-FreeTcpPort
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $process = New-AppProcess -FilePath $ApplicationPath -Environment @{
         WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$port"
     }
@@ -109,11 +108,11 @@ function Invoke-LaunchProbe {
             }
             throw "The WebView2 capability probe failed."
         }
-        $stopwatch.Stop()
         $probe = $probeOutput | ConvertFrom-Json
         Stop-AppGracefully -Process $process
         return [ordered]@{
-            readyMilliseconds = $stopwatch.ElapsedMilliseconds
+            webviewReadyMilliseconds = $probe.webviewReadyMs
+            appReadyMilliseconds = $probe.appReadyMs
             probe = $probe
         }
     }
@@ -310,8 +309,11 @@ else {
     [ordered]@{
         mode = "interactive"
         interactiveWindowObserved = $true
-        coldReadyMilliseconds = $coldLaunch.readyMilliseconds
-        warmReadyMilliseconds = $warmLaunch.readyMilliseconds
+        coldWebviewReadyMilliseconds = $coldLaunch.webviewReadyMilliseconds
+        coldAppReadyMilliseconds = $coldLaunch.appReadyMilliseconds
+        warmWebviewReadyMilliseconds = $warmLaunch.webviewReadyMilliseconds
+        warmAppReadyMilliseconds = $warmLaunch.appReadyMilliseconds
+        shellRendered = $true
         gracefulClose = $true
     }
 }
@@ -334,7 +336,7 @@ else {
 }
 
 $evidence = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     status = "ok"
     platform = [ordered]@{
         os = "Windows"
@@ -367,6 +369,7 @@ $evidence = [ordered]@{
     limitations = @(
         "Unsigned development evidence only; Windows trust warnings remain expected.",
         "Audio results are WebView2 canPlayType capability signals, not decoded playback tests.",
+        "Launch readiness separates WebView target appearance from rendered-shell observation; blank, loading, or error pages fail the probe closed.",
         "The download-bootstrapper installer requires network access when WebView2 is absent.",
         "No updater, signing credential, Python runtime, PyFLP, scanner, parser, or player is included."
     )

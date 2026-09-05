@@ -19,15 +19,25 @@ parser, project library, Kanban workflow, audio player, synchronization, or PWA.
 | #17   | [PR #26](https://github.com/guilhermebmichelin-create/fruitboard/pull/26)                                                     | Six stable CI gates, privacy/dependency checks and governance baseline   |
 | #18   | [PR #29](https://github.com/guilhermebmichelin-create/fruitboard/pull/29) and [packaging evidence](review/issue-18/README.md) | Unsigned NSIS smoke, inert sidecar, media probe and data preservation    |
 
-PR #29 is the checkpoint change and remains unmerged until owner review.
-Issue #18 and parent epic #10 must not be closed merely because the candidate is
-presented.
+PR #29 is merged (squash commit `8251f43`, 2026-09-05) and issue #18 is
+closed. Parent epic #10 stays open until the owner explicitly accepts this
+checkpoint; merging did not itself accept the phase.
 
 ## Verification evidence
 
 - PR #26's [push-to-main Foundation CI](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/33982318322)
   passed all six jobs at merge commit `2cf9697`, including the complete pinned
   Windows gate.
+- PR #29 passed all seven checks on its final SHA `7f26ae1` (six Foundation CI
+  jobs plus `windows-packaging-smoke`), then squash-merged as `8251f43`. The
+  [push-to-main Foundation CI](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/33990241467)
+  passed all six jobs at `8251f43`, including the complete pinned Windows gate
+  in 16m45s.
+- Post-merge review follow-up
+  [PR #30](https://github.com/guilhermebmichelin-create/fruitboard/pull/30)
+  hardens the launch probe (app-origin target plus rendered-shell marker), keeps
+  WebView and application readiness distinct, widens the packaging workflow to
+  `crates/**` and `packages/**`, and corrects this checkpoint's merge state.
 - The #18 local smoke built a 2.47 MiB unsigned NSIS installer and an 8.29 MiB
   installation. Cold/warm inspectable startup was 747/508 ms on the observed
   host. The dedicated packaging workflow repeats the non-interactive package,
@@ -37,6 +47,19 @@ presented.
 - The installed Tauri sidecar started, responded, returned a controlled failure,
   exceeded a bounded timeout, and terminated cleanly from paths and arguments
   containing spaces/Unicode.
+- The launch probe accepts only a debuggable target served from the packaged
+  app origin (`https://tauri.localhost`, `http://tauri.localhost`, or
+  `tauri://localhost`); `about:blank`, missing URLs, devtools, and foreign
+  origins fail closed. It then requires a rendered, usable shell marker — a
+  `· Fruitboard` document title, the primary navigation with links, and a page
+  heading, with no loading or error state — before trusting any audio
+  capability signal. WebView target appearance and shell rendering are measured
+  as distinct bounded phases, and the policy is covered by unit regressions in
+  `tests/webview-probe.test.mjs`.
+- The `Windows Packaging Smoke` workflow triggers on every packaged input,
+  including `crates/**` (the storage crate owns the preserved database) and
+  `packages/**` (the shared UI package owns the rendered shell), so storage or
+  styling changes cannot bypass packaging and data-preservation verification.
 - Install, uninstall, reinstall, native database reopen, and second uninstall
   preserved a byte-identical 16 KiB database and the saved Library startup view.
 - WebView2 returned `probably` for the bounded WAV PCM, MP3, FLAC, AAC and Ogg

@@ -1,4 +1,12 @@
 import process from "node:process";
+import {
+  APP_READINESS_TIMEOUT_MS,
+  CDP_EVALUATION_TIMEOUT_MS,
+  SHELL_READINESS_EXPRESSION,
+  WEBVIEW_READINESS_TIMEOUT_MS,
+  assessShellReadiness,
+  selectAppTarget,
+} from "./lib/webview-probe.mjs";
 
 const port = Number.parseInt(process.argv[2] ?? "", 10);
 if (!Number.isInteger(port) || port < 1 || port > 65_535) {
@@ -6,92 +14,162 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
   process.exit(2);
 }
 
-// A fresh hosted Windows profile can spend substantially longer initializing
-// WebView2 than an already-used developer profile.
-const readinessTimeoutMs = 60_000;
-const deadline = Date.now() + readinessTimeoutMs;
-let target;
-while (Date.now() < deadline) {
+async function readTargets() {
+  const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+  return response.json();
+}
+
+// Phase 1 — WebView readiness: a debuggable target served from the packaged
+// app origin appears. Blank, loading, or foreign pages never satisfy this.
+const webviewStarted = Date.now();
+let appTarget;
+for (;;) {
   try {
-    const targets = await fetch(`http://127.0.0.1:${port}/json/list`).then(
-      (response) => response.json(),
-    );
-    target = targets.find(
-      (candidate) =>
-        candidate.type === "page" &&
-        typeof candidate.webSocketDebuggerUrl === "string",
-    );
-    if (target) break;
+    const selection = selectAppTarget(await readTargets());
+    if (selection.ok) {
+      appTarget = selection.target;
+      break;
+    }
+    if (Date.now() - webviewStarted >= WEBVIEW_READINESS_TIMEOUT_MS) {
+      console.error(
+        `The packaged app target did not appear within the bounded timeout: ${selection.reason}.`,
+      );
+      process.exit(1);
+    }
   } catch {
+    if (Date.now() - webviewStarted >= WEBVIEW_READINESS_TIMEOUT_MS) {
+      console.error(
+        "The packaged WebView2 page did not become ready within the bounded timeout.",
+      );
+      process.exit(1);
+    }
     // WebView2 starts asynchronously; retry until the bounded deadline.
   }
   await new Promise((resolve) => setTimeout(resolve, 50));
 }
+const webviewReadyMs = Date.now() - webviewStarted;
 
-if (!target) {
-  console.error(
-    "The packaged WebView2 page did not become ready within the bounded timeout.",
-  );
-  process.exit(1);
-}
-
-const expression = String.raw`(() => {
-  const audio = document.createElement("audio");
-  return {
-    audioCanPlayType: {
-      aac: audio.canPlayType('audio/mp4; codecs="mp4a.40.2"'),
-      flac: audio.canPlayType("audio/flac"),
-      mp3: audio.canPlayType("audio/mpeg"),
-      oggVorbis: audio.canPlayType('audio/ogg; codecs="vorbis"'),
-      wavPcm: audio.canPlayType('audio/wav; codecs="1"'),
-    },
-    documentTitle: document.title,
-    userAgent: navigator.userAgent.replace(/\([^)]*\)/gu, "(platform)"),
-  };
-})()`;
-
-const socket = new WebSocket(target.webSocketDebuggerUrl);
-const response = await new Promise((resolve, reject) => {
+const socket = new WebSocket(appTarget.webSocketDebuggerUrl);
+let nextId = 0;
+const pending = new Map();
+const socketReady = new Promise((resolve, reject) => {
   const timer = setTimeout(
-    () => reject(new Error("CDP evaluation timed out")),
-    5_000,
+    () => reject(new Error("CDP connection timed out")),
+    CDP_EVALUATION_TIMEOUT_MS,
   );
   socket.addEventListener("open", () => {
-    socket.send(
-      JSON.stringify({
-        id: 1,
-        method: "Runtime.evaluate",
-        params: { expression, returnByValue: true },
-      }),
-    );
-  });
-  socket.addEventListener("message", (event) => {
-    const message = JSON.parse(String(event.data));
-    if (message.id === 1) {
-      clearTimeout(timer);
-      resolve(message);
-    }
+    clearTimeout(timer);
+    resolve();
   });
   socket.addEventListener("error", () => {
     clearTimeout(timer);
     reject(new Error("CDP connection failed"));
   });
 });
-socket.close();
+socket.addEventListener("message", (event) => {
+  const message = JSON.parse(String(event.data));
+  const waiter = pending.get(message.id);
+  if (waiter) {
+    pending.delete(message.id);
+    clearTimeout(waiter.timer);
+    waiter.resolve(message);
+  }
+});
+socket.addEventListener("error", () => {
+  for (const waiter of pending.values()) {
+    clearTimeout(waiter.timer);
+    waiter.reject(new Error("CDP connection failed"));
+  }
+  pending.clear();
+});
 
-const value = response.result?.result?.value;
-if (!value || response.result?.exceptionDetails) {
-  console.error("The WebView2 audio capability probe failed closed.");
-  process.exit(1);
+function evaluate(expression) {
+  return new Promise((resolve, reject) => {
+    const id = (nextId += 1);
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error("CDP evaluation timed out"));
+    }, CDP_EVALUATION_TIMEOUT_MS);
+    pending.set(id, { resolve, reject, timer });
+    socket.send(
+      JSON.stringify({
+        id,
+        method: "Runtime.evaluate",
+        params: { expression, returnByValue: true },
+      }),
+    );
+  });
 }
 
-for (const requiredFormat of ["wavPcm", "mp3", "flac"]) {
-  if (!value.audioCanPlayType?.[requiredFormat]) {
-    console.error(
-      "WebView2 did not advertise every required foundation audio format.",
-    );
+try {
+  await socketReady;
+
+  // Phase 2 — application readiness: the shell renders a usable marker
+  // (document title, primary navigation, page heading) with no loading or
+  // error state. Kept distinct from WebView readiness above.
+  const appStarted = Date.now();
+  let shell;
+  for (;;) {
+    const message = await evaluate(SHELL_READINESS_EXPRESSION);
+    const assessment = assessShellReadiness(message.result?.result?.value);
+    if (assessment.ok) {
+      shell = message.result.result.value;
+      break;
+    }
+    if (Date.now() - appStarted >= APP_READINESS_TIMEOUT_MS) {
+      console.error(
+        `The packaged app shell did not render within the bounded timeout: ${assessment.reasons.join(", ")}.`,
+      );
+      process.exit(1);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  const appReadyMs = Date.now() - appStarted;
+
+  const audioExpression = String.raw`(() => {
+    const audio = document.createElement("audio");
+    return {
+      audioCanPlayType: {
+        aac: audio.canPlayType('audio/mp4; codecs="mp4a.40.2"'),
+        flac: audio.canPlayType("audio/flac"),
+        mp3: audio.canPlayType("audio/mpeg"),
+        oggVorbis: audio.canPlayType('audio/ogg; codecs="vorbis"'),
+        wavPcm: audio.canPlayType('audio/wav; codecs="1"'),
+      },
+      userAgent: navigator.userAgent.replace(/\([^)]*\)/gu, "(platform)"),
+    };
+  })()`;
+  const audioMessage = await evaluate(audioExpression);
+  const audio = audioMessage.result?.result?.value;
+  if (!audio || audioMessage.result?.exceptionDetails) {
+    console.error("The WebView2 audio capability probe failed closed.");
     process.exit(1);
   }
-}
 
-process.stdout.write(`${JSON.stringify(value)}\n`);
+  for (const requiredFormat of ["wavPcm", "mp3", "flac"]) {
+    if (!audio.audioCanPlayType?.[requiredFormat]) {
+      console.error(
+        "WebView2 did not advertise every required foundation audio format.",
+      );
+      process.exit(1);
+    }
+  }
+
+  process.stdout.write(
+    `${JSON.stringify({
+      url: shell.pageUrl,
+      title: shell.title,
+      webviewReadyMs,
+      appReadyMs,
+      audioCanPlayType: audio.audioCanPlayType,
+      userAgent: audio.userAgent,
+    })}\n`,
+  );
+} catch (error) {
+  console.error(
+    error instanceof Error ? error.message : "The WebView2 probe failed.",
+  );
+  process.exit(1);
+} finally {
+  socket.close();
+}
