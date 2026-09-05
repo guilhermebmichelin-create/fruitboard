@@ -1,6 +1,6 @@
 # Phase 1 review: Application foundation
 
-Status: **Checkpoint candidate; owner acceptance pending**
+Status: **Accepted by the owner on 2026-09-06; Phase 2 may proceed**
 
 Phase 1 establishes a reproducible, accessible, least-privilege Windows
 application foundation. It deliberately does not implement the scanner, FLP
@@ -20,8 +20,8 @@ parser, project library, Kanban workflow, audio player, synchronization, or PWA.
 | #18   | [PR #29](https://github.com/guilhermebmichelin-create/fruitboard/pull/29) and [packaging evidence](review/issue-18/README.md) | Unsigned NSIS smoke, inert sidecar, media probe and data preservation    |
 
 PR #29 is merged (squash commit `8251f43`, 2026-09-05) and issue #18 is
-closed. Parent epic #10 stays open until the owner explicitly accepts this
-checkpoint; merging did not itself accept the phase.
+closed. Parent epic #10 was closed on explicit owner acceptance on 2026-09-06;
+merging alone did not accept the phase.
 
 ## Verification evidence
 
@@ -136,14 +136,18 @@ No unresolved result currently invalidates Tauri or the Phase 1 architecture.
 The close-time WebView diagnostic and online-bootstrapper dependency are
 recorded in the #18 evidence rather than hidden.
 
-## Proposed post-acceptance sequence
+## Post-acceptance sequence (executed on 2026-09-06 acceptance)
 
-After, and only after, owner acceptance:
-
-1. create the Phase 2 epic and issues from `ROADMAP.md`;
-2. run filesystem spikes P0-D and P0-E before Scanner MVP design;
-3. treat P0-G as satisfied by #18 while keeping P0-A/P0-B/P0-C closed;
-4. keep PyFLP absent until compatibility and GPL distribution decisions pass.
-
-This document is the stop point. Do not create Phase 2 issues or code until the
-owner accepts the checkpoint.
+1. Phase 2 epic
+   [#33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)
+   and issues
+   [#34](https://github.com/guilhermebmichelin-create/fruitboard/issues/34)–[#41](https://github.com/guilhermebmichelin-create/fruitboard/issues/41)
+   created from `ROADMAP.md`, plus spike issues
+   [#42](https://github.com/guilhermebmichelin-create/fruitboard/issues/42)
+   (P0-D) and
+   [#43](https://github.com/guilhermebmichelin-create/fruitboard/issues/43)
+   (P0-E);
+2. filesystem spikes P0-D and P0-E land written results before Scanner MVP
+   design finalizes;
+3. P0-G stays satisfied by #18 while P0-A/P0-B/P0-C stay closed;
+4. PyFLP stays absent until compatibility and GPL distribution decisions pass.
