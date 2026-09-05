@@ -199,6 +199,27 @@ a local data export/delete workflow before sync is called stable.
 
 ## Logging policy
 
+### Native storage boundary
+
+Issue #15 opens SQLite only in the native-resolved local application-data
+directory. Connections, SQL, backup paths, and recovery targets do not cross
+IPC. File operations use fixed owned names, exclusive creation for backup and
+recovery staging files, and a process-lifetime owner lock. Existing symlinks,
+Windows reparse points, parent traversal, and Windows UNC/device paths are
+refused. Unix files use mode 0600 and storage directories 0700. On Windows,
+files inherit the current user's local application-data ACL; the app does not
+grant additional access. Custom ACL editing and defense against hostile
+processes running as the same user are not implemented.
+
+Backups have the same privacy classification as the database. Source databases
+and backups are retained during recovery; an existing destination is refused.
+Database companions, backups, and staged recovery files are ignored by Git.
+`StorageError` exposes a closed set of fixed codes and discards underlying
+SQLite/io error strings, including their SQL, values, and paths. These codes
+are the only storage diagnostics emitted during native startup.
+
+### Operational logs
+
 Issue #14 writes newline-delimited JSON to `fruitboard.log` in Tauri's app log
 directory. Each record is an allowlist of timestamp, level, subsystem, app
 version, event, operation, correlation ID, and optional job ID, error code, and

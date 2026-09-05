@@ -44,13 +44,40 @@ domain operations, never the database file.
 
 ## Phase 1 implementation note
 
-Issue #11 adds a tested machine-readable gate that rejects SQLite versions
-below 3.51.3 unless an exact official fixed backport is explicitly allowlisted.
-No SQLite binding, database, migration, or WAL mode is introduced; Issue #15
-must feed the selected binding's runtime version through this gate.
+Issue #15 selects `rusqlite` 0.40.2 with its bundled and backup features, locking
+`libsqlite3-sys` 0.38.2 and embedded SQLite 3.53.2. Its synchronous ownership and
+backup API fit one small native writer without an async pool. The portable
+`crates/storage-sqlite` crate owns schema, connections, and typed repositories;
+the Tauri host resolves `app_local_data_dir()` and owns it behind a Mutex.
+
+The Issue #11 policy remains the single version floor. Native opens check the
+embedded runtime against the committed policy, and `pnpm verify:sqlite:embedded`
+runs a linked Rust probe through the existing JavaScript gate during
+`pnpm check`. Neither the OS SQLite executable nor a manifest version is used
+as runtime evidence. WAL remains disabled and existing WAL databases fail
+closed; version eligibility alone does not qualify concurrency or durability.
+
+Version 1 contains only a local singleton startup-view preference and migration
+ledger. SQL migrations live with the crate and all pending changes commit
+atomically. An application ID and exact ordered migration history prevent
+silently opening unrelated, newer, or changed schemas.
+
+Before upgrading an existing schema, a checked SQLite backup must succeed.
+Recovery validates the backup, writes a staged database in a fresh location,
+and preserves all original files. No automatic restore, down migration, or
+backup pruning is provided. Tests include a terminated process with dirty
+uncommitted pages, rollback after failure, and restoration after corruption.
+These tests do not claim hardware power-loss qualification.
+
+The complete implemented schema and recovery contract are documented in
+[DATA_MODEL.md](../../DATA_MODEL.md). React/IPC settings use cases belong to
+Issue #16; portable/Windows CI automation belongs to #17; installer preservation
+checks belong to #18. FTS and product/scanner/parser/sync schemas remain deferred.
 
 ## References
 
 - [Data model](../../DATA_MODEL.md)
 - [SQLite WAL](https://www.sqlite.org/wal.html)
 - [SQLite FTS5](https://www.sqlite.org/fts5.html)
+- [rusqlite backup API](https://docs.rs/rusqlite/0.40.2/rusqlite/backup/index.html)
+- [SQLite atomic commit](https://www.sqlite.org/atomiccommit.html)
