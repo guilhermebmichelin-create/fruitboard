@@ -28,6 +28,9 @@ async function expectAccessible(
     await screen.findByText(settledText);
   }
 
+  // axe cannot calculate rendered color contrast in jsdom. The workspace
+  // policy test compensates by enforcing the shell's 4.5:1 text and 3:1 focus
+  // token pairs.
   const results = await axe.run(view.container, {
     rules: {
       "color-contrast": { enabled: false },

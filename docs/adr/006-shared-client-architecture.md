@@ -61,6 +61,8 @@ narrow-touch layouts. Native landmarks and links cover this shell's behavior;
 React Aria Components remains the choice for the first composite widget that
 needs managed keyboard interaction. Dark mode and an explicit PWA browser target
 remain deferred.
+The Phase 12 PWA entry will reuse `createRoutes` with a browser platform adapter
+rather than create a second route tree.
 
 ## References
 
