@@ -206,10 +206,12 @@ diagnostic. There is no request, response, path, or binary-payload field. Comman
 errors select a fixed diagnostic code and discard unknown source text. Any
 future diagnostic context must first enter the `SafeDiagnostic` value type,
 which redacts OAuth tokens/codes/state/PKCE material, bearer credentials,
-Windows/Unix/request paths, and relative FLP paths at construction. Control
-characters or invalid-text replacement markers replace the whole value with a
-binary-payload marker, and the final diagnostic is at most 512 Unicode
-characters.
+Windows/Unix/request paths, and relative FLP paths at construction. Because
+paths can contain spaces and punctuation, any path signal replaces the complete
+diagnostic with `[REDACTED_PATH]`; no path fragment is preserved. Control
+characters or invalid-text replacement markers similarly replace the whole
+value with a binary-payload marker, and the final diagnostic is at most 512
+Unicode characters.
 
 The default retention limit is 1 MiB per file, five files total including the
 active file, and 14 days. Rotation and pruning run during writes. If the app log

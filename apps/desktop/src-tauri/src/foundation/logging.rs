@@ -29,19 +29,9 @@ static SECRET_PAIR: LazyLock<Regex> = LazyLock::new(|| {
     )
     .expect("the static secret pair pattern must compile")
 });
-static WINDOWS_PATH: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)(?:[a-z]:[\\/]|\\\\)[^"\r\n,;]+"#)
-        .expect("the static Windows path pattern must compile")
-});
-static FILE_URI: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)\bfile:///[^\s"',;)]+"#).expect("the static file URI pattern must compile")
-});
-static UNIX_OR_REQUEST_PATH: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?m)(^|[\s=('"])\/[^\s"',;)]+"#)
-        .expect("the static request path pattern must compile")
-});
-static RELATIVE_FLP_PATH: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r#"(?i)\b[^\s"'<>|]*\.flp\b"#).expect("the static FLP path pattern must compile")
+static PATH_SIGNAL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)^/|[\s=('"]/|[a-z]:[\\/]|\\\\|\bfile:///|\.flp\b"#)
+        .expect("the static path signal pattern must compile")
 });
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -352,12 +342,16 @@ fn redact_sensitive(value: &str) -> String {
             }
         })
         .collect();
+
+    // Paths may legally contain whitespace and punctuation that cannot be used as
+    // reliable free-text boundaries. Drop the complete diagnostic when one is
+    // present so a suffix can never survive a partial regex replacement.
+    if PATH_SIGNAL.is_match(&normalized) {
+        return "[REDACTED_PATH]".to_owned();
+    }
+
     let redacted = BEARER_CREDENTIAL.replace_all(&normalized, "Bearer [REDACTED]");
     let redacted = SECRET_PAIR.replace_all(&redacted, "$1=[REDACTED]");
-    let redacted = FILE_URI.replace_all(&redacted, "[REDACTED_PATH]");
-    let redacted = WINDOWS_PATH.replace_all(&redacted, "[REDACTED_PATH]");
-    let redacted = UNIX_OR_REQUEST_PATH.replace_all(&redacted, "$1[REDACTED_PATH]");
-    let redacted = RELATIVE_FLP_PATH.replace_all(&redacted, "[REDACTED_PATH]");
     let mut characters = redacted.chars();
     let mut bounded: String = characters.by_ref().take(MAX_DIAGNOSTIC_CHARS).collect();
     if characters.next().is_some() {
@@ -445,17 +439,12 @@ mod tests {
     }
 
     #[test]
-    fn redacts_oauth_material_and_personal_paths() {
+    fn redacts_oauth_material_without_relying_on_path_redaction() {
         let value = concat!(
-            "authorization: Bearer header.payload.signature ",
+            "Bearer header.payload.signature ",
             "access_token=access-secret refresh_token='refresh-secret' ",
-            "C:\\Users\\producer\\Music\\Private Project\\song.flp ",
-            "D:/Users/artist/Exports/master.wav ",
-            "{\"path\":\"/Users/example/audio.wav\"} ",
-            "{\"path\":\"/home/producer/private/project\"} ",
-            "file:///home/producer/private/export.wav ",
             "code_verifier=pkce-secret oauth_state=state-secret ",
-            "GET /oauth/callback?code=authorization-secret"
+            "authorization_code=authorization-secret"
         );
         let diagnostic = SafeDiagnostic::new(value);
         let redacted = diagnostic.as_str();
@@ -464,23 +453,54 @@ mod tests {
             "header.payload.signature",
             "access-secret",
             "refresh-secret",
-            "producer",
-            "Private Project",
-            "song.flp",
-            "artist",
-            "master.wav",
-            "/Users/example/audio.wav",
-            "/home/producer",
-            "file:///home",
             "pkce-secret",
             "state-secret",
-            "/oauth/callback",
             "authorization-secret",
         ] {
             assert!(!redacted.contains(forbidden), "leaked {forbidden}");
         }
         assert!(redacted.contains("[REDACTED]"));
-        assert!(redacted.contains("[REDACTED_PATH]"));
+    }
+
+    #[test]
+    fn redacts_a_quoted_unix_path_as_one_complete_value() {
+        assert_eq!(
+            SafeDiagnostic::new(r#"{"path":"/Users/example/My Music/private-master.wav"}"#)
+                .as_str(),
+            "[REDACTED_PATH]"
+        );
+    }
+
+    #[test]
+    fn redacts_a_windows_path_with_semicolons_as_one_complete_value() {
+        assert_eq!(
+            SafeDiagnostic::new(r#"C:\Users\example\Sets;Archive\private-master.wav"#).as_str(),
+            "[REDACTED_PATH]"
+        );
+    }
+
+    #[test]
+    fn redacts_an_flp_name_with_spaces_as_one_complete_value() {
+        assert_eq!(
+            SafeDiagnostic::new("failed to open Private Client Project.flp").as_str(),
+            "[REDACTED_PATH]"
+        );
+    }
+
+    #[test]
+    fn redacts_other_supported_path_forms_as_complete_values() {
+        for value in [
+            r#"D:/Users/artist/Exports/master.wav"#,
+            r#"{"path":"/home/producer/private/project"}"#,
+            "file:///home/producer/My Music/export.wav",
+            "GET /oauth/callback?code=authorization-secret",
+        ] {
+            assert_eq!(
+                SafeDiagnostic::new(value).as_str(),
+                "[REDACTED_PATH]",
+                "failed to redact {value:?}"
+            );
+        }
     }
 
     #[test]
@@ -550,6 +570,61 @@ mod tests {
                 && record["event"] == "command_failed"
                 && record.get("correlationId").is_some()
         }));
+    }
+
+    #[test]
+    fn persisted_logs_do_not_retain_fragments_of_sensitive_paths() {
+        let directory = TestDirectory::new();
+        let clock = Arc::new(FakeClock::new(1_000));
+        let logger = LocalLogSink::new(
+            directory.path().to_path_buf(),
+            RetentionPolicy::default(),
+            clock,
+        )
+        .expect("test logger should initialize");
+        let ids = FakeIdGenerator::new(1);
+        let diagnostics = [
+            r#"{"path":"/Users/example/My Music/private-master.wav"}"#,
+            r#"C:\Users\example\Sets;Archive\private-master.wav"#,
+            "failed to open Private Client Project.flp",
+        ];
+
+        for (offset, diagnostic) in diagnostics.iter().enumerate() {
+            let timestamp = 1_000 + u64::try_from(offset).expect("test offset should fit");
+            logger
+                .write(&event(&ids, diagnostic, timestamp))
+                .expect("path-bearing event should be written");
+        }
+
+        let contents = log_contents(directory.path());
+        for forbidden in [
+            "Users",
+            "example",
+            "My Music",
+            "private-master.wav",
+            "Sets;Archive",
+            "Private Client Project.flp",
+        ] {
+            assert!(!contents.contains(forbidden), "persisted {forbidden}");
+        }
+
+        let stored_diagnostics: Vec<_> = contents
+            .lines()
+            .map(|line| {
+                let record: serde_json::Value =
+                    serde_json::from_str(line).expect("each log line should be JSON");
+                record["diagnostic"]
+                    .as_str()
+                    .expect("diagnostic should be stored")
+                    .to_owned()
+            })
+            .collect();
+        assert_eq!(stored_diagnostics.len(), diagnostics.len());
+        assert!(
+            stored_diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic == "[REDACTED_PATH]")
+        );
     }
 
     #[test]

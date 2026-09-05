@@ -170,9 +170,12 @@ the default rotation is 1 MiB per file, five files total, and 14 days. There is
 no diagnostic export, telemetry, crash reporting, scanner job, or parser process
 in this slice. Command errors log fixed diagnostic codes, and arbitrary context
 must pass through the redacted `SafeDiagnostic` type before it can enter an
-event. The active log recovers its start timestamp from the first record after a
-restart. Rust tests use fake clocks/IDs/errors/log sinks, while client and
-repository policy tests keep serialization and error vocabulary aligned.
+event. A diagnostic containing a filesystem, request, or FLP path is replaced
+as a complete value so spaces and punctuation cannot leave private suffixes in
+the persisted log. The active log recovers its start timestamp from the first
+record after a restart. Rust tests use fake clocks/IDs/errors/log sinks, while
+client and repository policy tests keep serialization and error vocabulary
+aligned.
 
 When the SQLite binding is selected in Issue #15, query its embedded runtime
 version and pass that value to:

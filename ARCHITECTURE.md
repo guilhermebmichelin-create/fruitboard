@@ -404,9 +404,10 @@ uses a scoped asset protocol or safe local stream rather than exposing arbitrary
 - Issue #14 writes allowlisted JSONL command records with severity, operation,
   version, correlation ID, optional job/error fields, and a bounded redacted
   diagnostic. Command errors use fixed diagnostic codes; redacted contexts are
-  represented by a type that cannot contain an unprocessed string. Defaults are
-  1 MiB per file, five total files, and 14 days. The first record retains the
-  active file's start time across restarts.
+  represented by a type that cannot contain an unprocessed string. A path signal
+  replaces the entire diagnostic rather than attempting to retain free-text
+  fragments. Defaults are 1 MiB per file, five total files, and 14 days. The
+  first record retains the active file's start time across restarts.
 - Future scanner/storage logs may add opaque root/file IDs, but not raw request
   or binary payload fields. Full paths require an explicit diagnostic-export
   choice after preview; no export or telemetry exists yet.
