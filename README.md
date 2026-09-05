@@ -6,12 +6,12 @@ analyzing, and finishing music.
 ## Project status
 
 Fruitboard's **Phase 0 architecture is accepted** with a documented manual
-governance exception for this private GitHub Free repository. Phase 1 is in
-progress: the reproducible Tauri/React foundation now includes Rust-owned local
-SQLite, one persisted startup-view preference, and pull-request quality,
-privacy, dependency, portable Rust, and Windows build gates. It still has no
-scanner, parser, project workflow, sync, or PWA. Work remains limited to the
-approved Application Foundation issue/PR sequence.
+governance exception for this private GitHub Free repository. The Phase 1
+foundation checkpoint is ready for owner review: the reproducible Tauri/React
+shell now includes Rust-owned local SQLite, one persisted startup-view
+preference, automated quality/security gates, and a Windows packaging smoke. It
+still has no scanner, parser, project workflow, sync, or PWA. Phase 2 must not
+start until the checkpoint is accepted.
 
 Tracking starts at
 [Phase 1 epic #10](https://github.com/guilhermebmichelin-create/fruitboard/issues/10).
@@ -31,8 +31,11 @@ The current shell's information hierarchy, responsive evidence, accessibility
 coverage, and intentional limitations are recorded in the
 [Issue #13 visual review](docs/review/issue-13/README.md). The first persisted
 workflow has separate [Issue #16 interaction evidence](docs/review/issue-16/README.md).
+The [Issue #18 Windows evidence](docs/review/issue-18/README.md) feeds the
+[Phase 1 checkpoint](docs/PHASE_1_REVIEW.md).
 
-Start with [the Phase 0 review brief](docs/PHASE_0_REVIEW.md).
+Start with [the Phase 1 review brief](docs/PHASE_1_REVIEW.md); Phase 0 remains
+available in its [accepted review brief](docs/PHASE_0_REVIEW.md).
 
 ## Architecture documents
 

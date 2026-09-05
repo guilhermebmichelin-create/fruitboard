@@ -57,6 +57,17 @@ capability does not grant filesystem, shell, process, SQL, opener, recovery, or
 remote-origin access; the client bundle is local and protected by a restrictive
 CSP.
 
+Issue #18 completes P0-G with a separate unsigned NSIS smoke identity. The
+2.47 MiB installer produced an 8.29 MiB current-user installation; cold/warm
+inspectable startup measured 747/508 ms on the local evidence host. Install,
+graceful close, uninstall, reinstall and database restoration passed. Rust-only
+Tauri plugin access exercised inert sidecar response, controlled failure,
+timeout and termination without granting renderer shell/process authority.
+WebView2 advertised the bounded candidate media formats. The observed online
+WebView bootstrap requirement, unsigned trust posture, benign close diagnostic,
+and missing macOS/real-playback qualification are explicit gates, but none
+invalidates the Tauri decision. No ADR amendment is required.
+
 ## References
 
 - [Tauri overview](https://v2.tauri.app/start/)

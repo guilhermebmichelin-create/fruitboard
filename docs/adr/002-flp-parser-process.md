@@ -57,6 +57,13 @@ dependency lock. This is toolchain preparation only: PyFLP is absent from the
 manifest and lockfile, and the parser adoption/distribution gates remain
 unchanged.
 
+Issue #18 packages a zero-dependency Rust executable solely to prove Tauri's
+external-binary lifecycle from paths and arguments containing spaces/Unicode.
+It responds to one fixed ping, exits with one controlled failure, or waits to be
+timed out and terminated. It has no parser protocol, Python runtime, PyFLP,
+filesystem input, or product authority. P0-G is satisfied, while P0-B/P0-C and
+the three adoption conditions above remain closed.
+
 ## References
 
 - [Detailed parser design](../../FLP_PARSER.md)

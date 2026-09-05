@@ -1,0 +1,61 @@
+﻿{
+  "schemaVersion": 1,
+  "status": "ok",
+  "platform": {
+    "os": "Windows",
+    "architecture": "AMD64",
+    "webViewUserAgent": "Mozilla/5.0 (platform) AppleWebKit/537.36 (platform) Chrome/152.0.0.0 Safari/537.36 Edg/152.0.0.0"
+  },
+  "package": {
+    "format": "NSIS current-user",
+    "unsigned": true,
+    "installerBytes": 2588735,
+    "installedBytes": 8694050,
+    "applicationBytes": 8468992,
+    "sidecarBytes": 156160,
+    "buildMilliseconds": 24974,
+    "spacesAndUnicodeInstallerPath": true,
+    "spacesAndUnicodeInstallPath": true,
+    "webViewInstallMode": "downloadBootstrapper"
+  },
+  "launch": {
+    "coldReadyMilliseconds": 747,
+    "warmReadyMilliseconds": 508,
+    "gracefulClose": true
+  },
+  "audioCanPlayType": {
+    "aac": "probably",
+    "flac": "probably",
+    "mp3": "probably",
+    "oggVorbis": "probably",
+    "wavPcm": "probably"
+  },
+  "sidecar": {
+    "controlledFailureExitCode": 17,
+    "failureContained": true,
+    "responded": true,
+    "spacesAndUnicodeArgument": true,
+    "started": true,
+    "terminated": true,
+    "timeoutObserved": true
+  },
+  "dataSafety": {
+    "databaseBytes": 16384,
+    "firstUninstallPreservedDatabase": true,
+    "reinstallRestoredStartupView": true,
+    "secondUninstallPreservedDatabase": true,
+    "syntheticStateRetainedForReview": true
+  },
+  "antivirus": {
+    "provider": "Microsoft Defender",
+    "antivirusEnabled": true,
+    "realTimeProtectionEnabled": true,
+    "installerOrLaunchBlockObserved": false
+  },
+  "limitations": [
+    "Unsigned development evidence only; Windows trust warnings remain expected.",
+    "Audio results are WebView2 canPlayType capability signals, not decoded playback tests.",
+    "The download-bootstrapper installer requires network access when WebView2 is absent.",
+    "No updater, signing credential, Python runtime, PyFLP, scanner, parser, or player is included."
+  ]
+}

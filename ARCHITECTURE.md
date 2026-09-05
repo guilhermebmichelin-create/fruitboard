@@ -177,6 +177,16 @@ Electron remains the documented fallback. Tauri uses WebView2 on Windows and
 has platform-scoped capabilities; Electron's own security guide emphasizes that
 Node and filesystem authority must be isolated from renderer content.
 
+Issue #18 completes the bounded P0-G packaging smoke with a separately
+identified, unsigned current-user NSIS build. The installed foundation remained
+responsive, preserved its Rust-owned database through uninstall/reinstall, and
+ran a zero-dependency inert external binary through Rust-only Tauri shell-plugin
+access. The renderer still has no shell/process permission. WebView2 reported
+the expected media capability signals and the 2.47 MiB installer/8.29 MiB
+installation did not reveal a framework blocker. This supports ADR-001 without
+making a signing, updater, production-parser, playback, or macOS claim; detailed
+evidence is in `docs/review/issue-18/`.
+
 ## Frontend choices
 
 | Concern | Choice | Reason |
