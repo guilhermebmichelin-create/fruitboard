@@ -6,7 +6,10 @@ if (!Number.isInteger(port) || port < 1 || port > 65_535) {
   process.exit(2);
 }
 
-const deadline = Date.now() + 15_000;
+// A fresh hosted Windows profile can spend substantially longer initializing
+// WebView2 than an already-used developer profile.
+const readinessTimeoutMs = 60_000;
+const deadline = Date.now() + readinessTimeoutMs;
 let target;
 while (Date.now() < deadline) {
   try {
@@ -27,7 +30,7 @@ while (Date.now() < deadline) {
 
 if (!target) {
   console.error(
-    "The packaged WebView2 page did not become ready in 15 seconds.",
+    "The packaged WebView2 page did not become ready within the bounded timeout.",
   );
   process.exit(1);
 }

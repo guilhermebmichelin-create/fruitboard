@@ -95,6 +95,7 @@ test("the packaging workflow is bounded, read-only, and secret-free", () => {
 
 test("the smoke preserves data and records bounded platform evidence", () => {
   const launcher = readRootFile("scripts/run-windows-foundation-smoke.mjs");
+  const audioProbe = readRootFile("scripts/probe-webview-audio.mjs");
   const script = readRootFile("scripts/windows-foundation-smoke.ps1");
   const packageJson = JSON.parse(readRootFile("package.json"));
 
@@ -109,6 +110,7 @@ test("the smoke preserves data and records bounded platform evidence", () => {
   assert.match(launcher, /spawnSync\(\s*"powershell\.exe"/);
   assert.match(launcher, /name\.toLowerCase\(\) !== "psmodulepath"/);
   assert.match(launcher, /windows-foundation-smoke\.ps1/);
+  assert.match(audioProbe, /const readinessTimeoutMs = 60_000/);
   assert.match(script, /firstUninstallPreservedDatabase = \$true/);
   assert.match(script, /reinstallRestoredStartupView = \$true/);
   assert.match(script, /secondUninstallPreservedDatabase = \$true/);

@@ -103,6 +103,9 @@ function Invoke-LaunchProbe {
     try {
         $probeOutput = & $NodePath (Join-Path $PSScriptRoot "probe-webview-audio.mjs") $port
         if ($LASTEXITCODE -ne 0) {
+            if ($process.HasExited) {
+                throw "The packaged shell exited before WebView2 became inspectable."
+            }
             throw "The WebView2 capability probe failed."
         }
         $stopwatch.Stop()
