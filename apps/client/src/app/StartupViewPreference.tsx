@@ -29,7 +29,7 @@ type LoadState =
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
-export function StartupViewPreferenceControl({
+export function StartupViewPreference({
   platform,
 }: {
   readonly platform: PlatformPort;

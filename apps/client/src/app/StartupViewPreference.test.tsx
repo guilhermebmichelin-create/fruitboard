@@ -3,11 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { PlatformPort } from "../platform/contracts";
 import { createFakePlatform } from "../platform/fake";
-import { StartupViewPreferenceControl } from "./StartupViewPreference";
+import { StartupViewPreference } from "./StartupViewPreference";
 
-describe("StartupViewPreferenceControl", () => {
+describe("StartupViewPreference", () => {
   it("loads the safe Home default without enabling an unnecessary save", async () => {
-    render(<StartupViewPreferenceControl platform={createFakePlatform()} />);
+    render(<StartupViewPreference platform={createFakePlatform()} />);
 
     const select = await screen.findByRole("combobox");
     const saveButton = screen.getByRole("button", {
@@ -27,7 +27,7 @@ describe("StartupViewPreferenceControl", () => {
   it("saves a valid selection with the keyboard through the platform port", async () => {
     const user = userEvent.setup();
     const platform = createFakePlatform();
-    render(<StartupViewPreferenceControl platform={platform} />);
+    render(<StartupViewPreference platform={platform} />);
     const select = await screen.findByRole("combobox", {
       name: "Open Fruitboard on",
     });
@@ -60,7 +60,7 @@ describe("StartupViewPreferenceControl", () => {
       getStartupView,
       setStartupView: vi.fn(),
     };
-    render(<StartupViewPreferenceControl platform={platform} />);
+    render(<StartupViewPreference platform={platform} />);
 
     expect(screen.getByRole("status").textContent).toContain(
       "Loading your preference",
@@ -88,7 +88,7 @@ describe("StartupViewPreferenceControl", () => {
       setStartupView: () =>
         Promise.reject(new Error("Bearer private diagnostic")),
     };
-    render(<StartupViewPreferenceControl platform={platform} />);
+    render(<StartupViewPreference platform={platform} />);
     const select = await screen.findByRole("combobox");
 
     await user.selectOptions(select, "board");

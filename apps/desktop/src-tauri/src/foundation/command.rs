@@ -62,6 +62,8 @@ impl CommandRuntime {
         Operation: FnOnce() -> Result<T, AppError>,
     {
         let correlation_id = self.ids.next_id(IdKind::Correlation);
+        // Commands may capture interior-mutable services. A panic is contained;
+        // poisoned service locks subsequently fail closed through their adapter.
         let outcome = catch_unwind(AssertUnwindSafe(operation));
 
         match outcome {

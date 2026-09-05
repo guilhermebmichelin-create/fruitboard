@@ -20,6 +20,10 @@ Both recordings show the native select, Save preference action, saved-value
 hint, and polite success announcement. The narrow view retains 48-pixel controls
 and the existing bottom navigation.
 
+The Issue #13 implementation-focused Preferences placeholder is intentionally
+replaced by this first actionable control. Its original shell rationale and
+visual baseline remain in the Issue #13 review evidence.
+
 ## Behavioral evidence
 
 - Fresh databases default to Home.

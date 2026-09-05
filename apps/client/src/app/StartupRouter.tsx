@@ -18,19 +18,6 @@ type StartupState =
 const hasExplicitRoute = () =>
   window.location.hash !== "" && window.location.hash !== "#";
 
-function replaceEmptyHashWithStartupView(startupView: StartupView) {
-  if (hasExplicitRoute()) {
-    return;
-  }
-
-  const hash = `#${startupPaths[startupView]}`;
-  window.history.replaceState(
-    null,
-    "",
-    `${window.location.pathname}${window.location.search}${hash}`,
-  );
-}
-
 function ReadyFruitboard({
   onError,
   platform,
@@ -40,12 +27,13 @@ function ReadyFruitboard({
   readonly platform: PlatformPort;
   readonly startupView: StartupView | null;
 }) {
-  const [router] = useState(() => {
-    if (startupView !== null) {
-      replaceEmptyHashWithStartupView(startupView);
+  const [router] = useState(() => createFruitboardHashRouter(platform));
+
+  useEffect(() => {
+    if (startupView !== null && !hasExplicitRoute()) {
+      void router.navigate(startupPaths[startupView], { replace: true });
     }
-    return createFruitboardHashRouter(platform);
-  });
+  }, [router, startupView]);
 
   return (
     <StrictMode>

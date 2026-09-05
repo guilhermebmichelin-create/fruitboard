@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 import { AppIcon } from "./AppIcon";
-import { StartupViewPreferenceControl } from "./StartupViewPreference";
+import { StartupViewPreference } from "./StartupViewPreference";
 import type { PlatformPort } from "../platform/contracts";
 
 export function HomePage() {
@@ -107,7 +107,7 @@ export function PreferencesPage({
 }: {
   readonly platform: PlatformPort;
 }) {
-  return <StartupViewPreferenceControl platform={platform} />;
+  return <StartupViewPreference platform={platform} />;
 }
 
 export function NotFoundPage() {
