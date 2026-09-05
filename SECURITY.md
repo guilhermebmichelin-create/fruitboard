@@ -104,6 +104,13 @@ or filesystem, shell, process, SQL, or opener permissions enter that capability.
 New commands must add a specific permission and matching contract tests; broad
 default permission sets are not accepted implicitly.
 
+Issue #18's `packaging-smoke` feature registers the pinned Tauri shell plugin
+only in the dedicated smoke artifact. Rust selects one configured inert binary
+and three fixed modes; JavaScript receives no shell/process capability. The
+probe echoes no supplied path, its failure text is fixed, timeouts are bounded,
+and terminated children are reaped. This demonstrates lifecycle containment,
+not a parser sandbox or permission to package Python/PyFLP.
+
 Malformed command input is rejected before use-case work and is never copied to
 logs. Native operations run inside the command panic boundary, while unknown
 failures become the fixed `internal` response. The renderer accepts only the six
@@ -168,6 +175,11 @@ print only fixed safe text.
   support.
 - The CI token is read-only, checkout does not retain credentials, untrusted PR
   code receives no release secrets, and foundation jobs upload no artifacts.
+- The separate Windows packaging smoke is also read-only and secret-free. It
+  creates an explicitly unsigned installer only on its ephemeral worker, uploads
+  nothing, and verifies `NotSigned` rather than implying trust. Public builds
+  must sign the application, every sidecar, installer, and update metadata in a
+  protected release environment with timestamping and post-build verification.
 - GitHub dependency review, private-repository CodeQL, and GitHub secret
   protection remain unavailable on the current private GitHub Free plan. Enable
   them if the plan or repository visibility changes; do not represent an
@@ -306,7 +318,7 @@ debug noise.
 ## Security review gates
 
 1. Phase 1: capability/CSP baseline, SQLite version, logging/redaction, migration
-   backup design.
+   backup design, unsigned package/sidecar lifecycle and uninstall preservation.
 2. Phase 2: scanner path/symlink threat model and non-destructive hash test.
 3. Phase 3: parser sandbox limits, fixture/fuzz corpus, GPL decision.
 4. Phase 6/7: OS open actions and media stream/decode review.

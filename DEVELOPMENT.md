@@ -1,6 +1,6 @@
 # Development and delivery
 
-Status: **Active workflow; Phase 1 foundation CI is executable**
+Status: **Active workflow; Phase 1 checkpoint is under review**
 
 ## Working agreement
 
@@ -93,28 +93,29 @@ with issues #11–#18; the authoritative scope remains in
 
 Pins selected and verified on 2026-09-04:
 
-| Tool | Pin | Purpose |
-| --- | --- | --- |
-| Node.js | 24.20.0 LTS | JavaScript runtime and client tooling |
-| pnpm | 11.25.0 | Workspace package manager |
-| Corepack | 0.36.0 | Verifies and launches the pinned pnpm release |
-| Rust | 1.98.1 MSVC | Native workspace, with `clippy` and `rustfmt` |
-| Python | 3.11.16 | Isolated parser research baseline only |
-| uv | 0.12.9 | Python runtime/environment and lock management |
-| SQLite | 3.53.2 embedded; 3.51.3 policy floor | Runtime checked; WAL remains disabled |
+| Tool     | Pin                                  | Purpose                                        |
+| -------- | ------------------------------------ | ---------------------------------------------- |
+| Node.js  | 24.20.0 LTS                          | JavaScript runtime and client tooling          |
+| pnpm     | 11.25.0                              | Workspace package manager                      |
+| Corepack | 0.36.0                               | Verifies and launches the pinned pnpm release  |
+| Rust     | 1.98.1 MSVC                          | Native workspace, with `clippy` and `rustfmt`  |
+| Python   | 3.11.16                              | Isolated parser research baseline only         |
+| uv       | 0.12.9                               | Python runtime/environment and lock management |
+| SQLite   | 3.53.2 embedded; 3.51.3 policy floor | Runtime checked; WAL remains disabled          |
 
 The first application packages use these exact Phase 1 foundation versions:
 
-| Dependency | Pin | Purpose |
-| --- | --- | --- |
-| Tauri Rust / build | 2.11.5 / 2.6.3 | Native desktop host and build integration |
-| Tauri JavaScript / CLI | 2.11.1 / 2.11.4 | Typed invoke adapter and desktop commands |
-| UUID / regex | 1.26.0 / 1.13.1 | Opaque native IDs and diagnostic redaction |
-| rusqlite / libsqlite3-sys | 0.40.2 / 0.38.2 | Bundled native SQLite and backup API |
-| React / React DOM | 19.2.8 | Shared client rendering |
-| Vite / React plugin | 8.2.2 / 6.1.1 | Local development and production client bundle |
-| TypeScript | 6.0.3 | Strict shared-client compilation |
-| Vitest | 5.0.0 | Client and adapter contract tests |
+| Dependency                | Pin             | Purpose                                        |
+| ------------------------- | --------------- | ---------------------------------------------- |
+| Tauri Rust / build        | 2.11.5 / 2.6.3  | Native desktop host and build integration      |
+| Tauri JavaScript / CLI    | 2.11.1 / 2.11.4 | Typed invoke adapter and desktop commands      |
+| Tauri shell plugin        | 2.3.6           | Rust-only inert sidecar packaging smoke        |
+| UUID / regex              | 1.26.0 / 1.13.1 | Opaque native IDs and diagnostic redaction     |
+| rusqlite / libsqlite3-sys | 0.40.2 / 0.38.2 | Bundled native SQLite and backup API           |
+| React / React DOM         | 19.2.8          | Shared client rendering                        |
+| Vite / React plugin       | 8.2.2 / 6.1.1   | Local development and production client bundle |
+| TypeScript                | 6.0.3           | Strict shared-client compilation               |
+| Vitest                    | 5.0.0           | Client and adapter contract tests              |
 
 Dependency versions remain exact in their generated lockfiles. Updating a pin
 requires a focused PR that regenerates locks, runs the full check, and updates
@@ -227,18 +228,44 @@ Scanner, parser, project storage, sync, and installer behavior are still
 deferred. Desktop and narrow keyboard interaction recordings are documented in
 [`docs/review/issue-16/`](docs/review/issue-16/README.md).
 
+Issue #18 adds an explicitly unsigned, separately identified current-user NSIS
+smoke package. It is not the production release configuration. On Windows, run:
+
+```powershell
+pnpm.cmd smoke:windows:foundation
+```
+
+The command builds the zero-dependency Rust probe from `Cargo.lock`, packages it
+as a Tauri external binary, installs into a generated path containing spaces and
+Unicode, measures cold/warm shell startup through a loopback-only WebView2 debug
+port, closes the app, exercises fixed respond/fail/timeout/terminate modes,
+uninstalls, verifies the database is byte-identical, reinstalls, verifies the
+saved startup view, and uninstalls again. Generated installers and raw evidence
+stay ignored. The committed summary and limitations are in
+[`docs/review/issue-18/`](docs/review/issue-18/README.md).
+
+The package uses WebView2's `downloadBootstrapper`, so installation needs
+network access when the runtime is absent. Downgrades are refused and updater
+artifacts are disabled. Phase 1 has no automatic updater: an approved replacement
+build is installed manually under the same production identity only after
+backup/recovery checks. Public distribution additionally requires protected
+Windows signing and timestamp credentials, signatures over the application,
+sidecars, installer and update metadata, SBOM generation, signature verification,
+rollback qualification and SmartScreen/reputation review. Never add signing
+material to repository files or pull-request jobs.
+
 ### Quality tools
 
-| Area | Proposed tools |
-| --- | --- |
-| TypeScript/React | TypeScript strict, ESLint (`typescript-eslint`, React Hooks, JSX accessibility), Prettier |
-| Unit/component tests | Vitest, React Testing Library, `user-event`, axe integration |
-| Browser E2E/visual | Playwright with desktop and iPhone viewport projects; real iPhone manual matrix for platform behavior |
-| Rust | `rustfmt`, Clippy with warnings denied in CI, built-in tests, `cargo-audit`/advisory scanning |
-| Python sidecar | Ruff format/lint, mypy or Pyright, pytest, coverage, dependency audit |
-| SQL | Numbered SQL migrations, SQL formatter/lint conventions, repository integration tests |
-| Documentation | markdownlint, Mermaid render check, link checker with retries/allowlist |
-| Supply chain | Dependabot/Renovate decision, dependency review, CodeQL, secret scanning, SBOM on release |
+| Area                 | Proposed tools                                                                                        |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| TypeScript/React     | TypeScript strict, ESLint (`typescript-eslint`, React Hooks, JSX accessibility), Prettier             |
+| Unit/component tests | Vitest, React Testing Library, `user-event`, axe integration                                          |
+| Browser E2E/visual   | Playwright with desktop and iPhone viewport projects; real iPhone manual matrix for platform behavior |
+| Rust                 | `rustfmt`, Clippy with warnings denied in CI, built-in tests, `cargo-audit`/advisory scanning         |
+| Python sidecar       | Ruff format/lint, mypy or Pyright, pytest, coverage, dependency audit                                 |
+| SQL                  | Numbered SQL migrations, SQL formatter/lint conventions, repository integration tests                 |
+| Documentation        | markdownlint, Mermaid render check, link checker with retries/allowlist                               |
+| Supply chain         | Dependabot/Renovate decision, dependency review, CodeQL, secret scanning, SBOM on release             |
 
 Do not add a monorepo task orchestrator until pnpm/Cargo commands become slow or
 duplicated enough to justify it.
@@ -344,14 +371,14 @@ successful quality signal.
 
 ### Foundation pull-request checks
 
-| Job | Runner | Scope | Local equivalent |
-| --- | --- | --- | --- |
-| `docs-policy` | Ubuntu | Markdown, script/policy tests, tracked and unignored-file privacy scan | `pnpm privacy:check && pnpm lint:docs && pnpm lint:scripts` |
-| `client` | Ubuntu | Frozen install, lint, typecheck, component tests, production web build | `pnpm --recursive --if-present lint && pnpm typecheck && pnpm --recursive --if-present test && pnpm --filter @fruitboard/client build` |
-| `rust-portable` | Ubuntu | Rustfmt, warning-denied Clippy, portable SQLite storage tests | `cargo fmt --all --check; cargo clippy -p fruitboard-storage --all-targets --locked -- -D warnings; cargo test -p fruitboard-storage --locked` |
-| `migration` | Ubuntu | Latest creation, every supported upgrade, killed migration, backup recovery | `cargo test -p fruitboard-storage --locked` |
-| `windows-foundation` | Windows | Exact Node/Rust/Python/uv/pnpm/SQLite pins and complete production build | `pnpm.cmd check` |
-| `security` | Ubuntu | Privacy regressions, high-severity npm audit, RustSec advisory audit | `pnpm privacy:check; pnpm audit --audit-level high; cargo audit` |
+| Job                  | Runner  | Scope                                                                       | Local equivalent                                                                                                                               |
+| -------------------- | ------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs-policy`        | Ubuntu  | Markdown, script/policy tests, tracked and unignored-file privacy scan      | `pnpm privacy:check && pnpm lint:docs && pnpm lint:scripts`                                                                                    |
+| `client`             | Ubuntu  | Frozen install, lint, typecheck, component tests, production web build      | `pnpm --recursive --if-present lint && pnpm typecheck && pnpm --recursive --if-present test && pnpm --filter @fruitboard/client build`         |
+| `rust-portable`      | Ubuntu  | Rustfmt, warning-denied Clippy, portable SQLite storage tests               | `cargo fmt --all --check; cargo clippy -p fruitboard-storage --all-targets --locked -- -D warnings; cargo test -p fruitboard-storage --locked` |
+| `migration`          | Ubuntu  | Latest creation, every supported upgrade, killed migration, backup recovery | `cargo test -p fruitboard-storage --locked`                                                                                                    |
+| `windows-foundation` | Windows | Exact Node/Rust/Python/uv/pnpm/SQLite pins and complete production build    | `pnpm.cmd check`                                                                                                                               |
+| `security`           | Ubuntu  | Privacy regressions, high-severity npm audit, RustSec advisory audit        | `pnpm privacy:check; pnpm audit --audit-level high; cargo audit`                                                                               |
 
 The complete local pre-merge gate remains `pnpm.cmd check` on Windows with the
 pinned toolchains. `cargo audit` requires the separately installed RustSec CLI;
@@ -387,6 +414,17 @@ Avoid an expensive full installer build on every tiny PR until build duration is
 measured. Run a scheduled/manual Windows packaging smoke and make it required on
 release candidates. Add a macOS compile/package lane before declaring macOS
 portability, not after platform-specific assumptions accumulate.
+
+`.github/workflows/windows-packaging-smoke.yml` implements that separate smoke.
+It runs when packaging inputs change, on a monthly schedule, or by manual
+dispatch. The single Windows job has read-only repository permission, immutable
+action SHAs, no secrets, and no artifact upload. The hosted runner uses
+`pnpm.cmd smoke:windows:foundation:hosted` to exercise package, signature,
+install, native launch/exit, sidecar, data-preservation, reinstall, and uninstall
+behavior without claiming an interactive desktop. The complete local equivalent
+is `pnpm.cmd smoke:windows:foundation`, which additionally proves WebView2
+inspection, audio capability signals, timings, and graceful window close. The
+six always-present Foundation CI jobs remain unchanged.
 
 ### Release workflow
 
@@ -457,3 +495,6 @@ Stop until the owner accepts the checkpoint.
 - [Rust 1.98.1 channel manifest](https://static.rust-lang.org/dist/channel-rust-1.98.1.toml)
 - [Python 3.11.16 release](https://www.python.org/downloads/release/python-31116/)
 - [uv 0.12.9 release](https://github.com/astral-sh/uv/releases/tag/0.12.9)
+- [Tauri Windows installers](https://v2.tauri.app/distribute/windows-installer/)
+- [Tauri external binaries](https://v2.tauri.app/develop/sidecar/)
+- [Tauri Windows signing](https://v2.tauri.app/distribute/sign/windows/)

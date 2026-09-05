@@ -1,5 +1,9 @@
 [workspace]
-members = ["apps/desktop/src-tauri", "crates/storage-sqlite"]
+members = [
+  "apps/desktop/src-tauri",
+  "crates/foundation-sidecar-smoke",
+  "crates/storage-sqlite",
+]
 resolver = "3"
 
 [workspace.package]
@@ -14,4 +18,5 @@ serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
 tauri = { version = "=2.11.5", features = [] }
 tauri-build = { version = "=2.6.3", features = [] }
+tauri-plugin-shell = { version = "=2.3.6" }
 uuid = { version = "=1.26.0", features = ["v7"] }

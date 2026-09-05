@@ -4,6 +4,9 @@
 
 pub mod foundation;
 
+#[cfg(feature = "packaging-smoke")]
+use foundation::packaging_smoke::{SmokeMode, SmokeRequest};
+
 use foundation::{
     AppError, COMMAND_SCHEMA_VERSION, Clock, CommandEnvelope, CommandRuntime, DiagnosticCode,
     ErrorCode, IdGenerator, SystemClock, SystemIdGenerator, default_log_sink,
@@ -208,7 +211,11 @@ fn install_safe_panic_hook() {
 pub fn run() -> tauri::Result<()> {
     install_safe_panic_hook();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(feature = "packaging-smoke")]
+    let builder = builder.plugin(tauri_plugin_shell::init());
+
+    builder
         .setup(|app| {
             let log_directory = app.path().app_log_dir().ok();
             let data_directory = app.path().app_local_data_dir()?;
@@ -218,7 +225,37 @@ pub fn run() -> tauri::Result<()> {
                     // SQLite/io source, SQL statement, or filesystem path.
                     eprintln!("{error}");
                 })?;
+
+            #[cfg(feature = "packaging-smoke")]
+            let smoke = SmokeRequest::from_environment().map(|request| {
+                let storage = foundation
+                    .preferences
+                    .get_startup_view()
+                    .map(|before| {
+                        let after = match request.mode {
+                            SmokeMode::Seed => foundation
+                                .preferences
+                                .set_startup_view(StartupView::Library)?,
+                            SmokeMode::Verify => foundation.preferences.get_startup_view()?,
+                        };
+                        if request.mode == SmokeMode::Verify
+                            && before.startup_view != StartupView::Library
+                        {
+                            return Err(storage_failed());
+                        }
+                        Ok((before.startup_view, after.startup_view))
+                    })
+                    .and_then(|value| value)
+                    .map_err(|_| "storage_preservation_failed");
+                (request, storage)
+            });
+
             app.manage(foundation);
+
+            #[cfg(feature = "packaging-smoke")]
+            if let Some((request, storage)) = smoke {
+                foundation::packaging_smoke::schedule(app.handle().clone(), request, storage);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -106,6 +106,9 @@ Created after Phase 0 acceptance under
      review evidence; not a public release;
    - PR: `test: add Windows foundation packaging smoke`.
 
+Issues #11–#17 are merged. Issue #18 now carries the Phase 1 checkpoint
+candidate; the phase remains stopped until the owner accepts that review.
+
 Avoid putting the real scanner, parser, Drive OAuth, PWA service worker, project
 cards, or Kanban in these issues.
 
