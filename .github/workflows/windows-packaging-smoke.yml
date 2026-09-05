@@ -78,4 +78,4 @@ jobs:
       - name: Install locked dependencies
         run: pnpm.cmd install --frozen-lockfile --ignore-scripts
       - name: Build, install, launch, and uninstall the development package
-        run: pnpm.cmd smoke:windows:foundation
+        run: pnpm.cmd smoke:windows:foundation:hosted

@@ -30,8 +30,10 @@ presented.
   Windows gate.
 - The #18 local smoke built a 2.47 MiB unsigned NSIS installer and an 8.29 MiB
   installation. Cold/warm inspectable startup was 747/508 ms on the observed
-  host. The dedicated packaging workflow repeats the smoke on fresh hosted
-  Windows workers without secrets or artifact upload.
+  host. The dedicated packaging workflow repeats the non-interactive package,
+  native lifecycle, and data-safety subset on fresh hosted Windows workers
+  without secrets or artifact upload; the service-hosted session does not claim
+  interactive WebView/audio evidence.
 - The installed Tauri sidecar started, responded, returned a controlled failure,
   exceeded a bounded timeout, and terminated cleanly from paths and arguments
   containing spaces/Unicode.

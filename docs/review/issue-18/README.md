@@ -20,10 +20,15 @@ installers, raw process evidence, and private paths remain under ignored local
 directories. Only the path-free summary in
 [`windows-smoke.json`](windows-smoke.json) is committed.
 
-The dedicated `Windows Packaging Smoke` workflow repeats this on a fresh
-`windows-latest` worker when packaging inputs change, monthly, or on manual
-dispatch. It uses read-only repository permission, receives no secrets, and
-uploads no artifact. The unsigned installer exists only during the bounded run.
+The dedicated `Windows Packaging Smoke` workflow repeats package, signature,
+install, native launch/exit, sidecar, data-preservation, reinstall, and uninstall
+checks on a fresh `windows-latest` worker when packaging inputs change, monthly,
+or on manual dispatch. GitHub's service-hosted Windows session did not expose an
+interactive WebView2 debugging target even while the application process stayed
+alive, so the workflow explicitly marks the window/audio portion unprobed; the
+interactive observations below come from the local Windows run. The workflow
+uses read-only repository permission, receives no secrets, and uploads no
+artifact. The unsigned installer exists only during the bounded run.
 
 ## Local observation
 
@@ -31,16 +36,16 @@ Observed on 2026-09-05 with Windows AMD64, Microsoft Defender antivirus and
 real-time protection enabled, and WebView2 reporting Edge 152.0.0.0. This warm
 local build reused compiler state from an earlier package attempt.
 
-| Measurement | Observed |
-| --- | ---: |
-| NSIS installer | 2,588,735 bytes (2.47 MiB) |
-| Installed directory | 8,694,050 bytes (8.29 MiB) |
-| Application executable | 8,468,992 bytes (8.08 MiB) |
-| Inert sidecar executable | 156,160 bytes (0.15 MiB) |
-| Warm package build | 24,974 ms |
-| Cold launch to inspectable document | 747 ms |
-| Warm launch to inspectable document | 508 ms |
-| SQLite database | 16,384 bytes (16 KiB) |
+| Measurement                         |                   Observed |
+| ----------------------------------- | -------------------------: |
+| NSIS installer                      | 2,588,735 bytes (2.47 MiB) |
+| Installed directory                 | 8,694,050 bytes (8.29 MiB) |
+| Application executable              | 8,468,992 bytes (8.08 MiB) |
+| Inert sidecar executable            |   156,160 bytes (0.15 MiB) |
+| Warm package build                  |                  24,974 ms |
+| Cold launch to inspectable document |                     747 ms |
+| Warm launch to inspectable document |                     508 ms |
+| SQLite database                     |      16,384 bytes (16 KiB) |
 
 Both installer and application signatures were verified as `NotSigned`. The
 installer was copied to a path containing spaces and Unicode, installed to a
@@ -56,13 +61,13 @@ feature. Rust calls the configured Tauri sidecar directly; no shell or process
 permission is granted to the renderer. The executable has no dependencies and
 implements only three fixed modes.
 
-| Scenario | Result |
-| --- | --- |
-| Start/respond | `ping` produced the fixed `pong:path-accepted` response |
-| Controlled failure | Exit code 17 and fixed stderr were contained |
-| Timeout | The wait process remained alive past the 250 ms deadline |
-| Termination | The timed-out child was killed and reaped |
-| Path handling | Executable and argument paths with spaces/Unicode succeeded |
+| Scenario           | Result                                                      |
+| ------------------ | ----------------------------------------------------------- |
+| Start/respond      | `ping` produced the fixed `pong:path-accepted` response     |
+| Controlled failure | Exit code 17 and fixed stderr were contained                |
+| Timeout            | The wait process remained alive past the 250 ms deadline    |
+| Termination        | The timed-out child was killed and reaped                   |
+| Path handling      | Executable and argument paths with spaces/Unicode succeeded |
 
 The child never echoes its supplied path. The harness records only booleans,
 fixed codes, durations, and sizes.
@@ -94,13 +99,13 @@ no media file is opened, generated, committed, or played. WAV, MP3 and FLAC are
 the initial security allowlist and fail the smoke if WebView2 advertises no
 support; AAC and Ogg are informational candidates.
 
-| Candidate | WebView2 result |
-| --- | --- |
-| WAV PCM | `probably` |
-| MP3 | `probably` |
-| FLAC | `probably` |
-| AAC in MP4 | `probably` |
-| Ogg Vorbis | `probably` |
+| Candidate  | WebView2 result |
+| ---------- | --------------- |
+| WAV PCM    | `probably`      |
+| MP3        | `probably`      |
+| FLAC       | `probably`      |
+| AAC in MP4 | `probably`      |
+| Ogg Vorbis | `probably`      |
 
 This proves API-level format signaling only. Real decode, malformed-input,
 seeking, device, and playback behavior remains owned by the later audio phase.

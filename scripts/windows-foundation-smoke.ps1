@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$EvidencePath = "docs/review/issue-18/windows-smoke.json"
+    [string]$EvidencePath = "docs/review/issue-18/windows-smoke.json",
+    [switch]$NonInteractive
 )
 
 Set-StrictMode -Version Latest
@@ -242,9 +243,13 @@ if ($installedSignature.Status -ne [System.Management.Automation.SignatureStatus
     throw "The development smoke expected an explicitly unsigned application."
 }
 
-$nodePath = (Get-Command node.exe -ErrorAction Stop).Source
-$coldLaunch = Invoke-LaunchProbe -ApplicationPath $applicationPath -NodePath $nodePath
-$warmLaunch = Invoke-LaunchProbe -ApplicationPath $applicationPath -NodePath $nodePath
+$coldLaunch = $null
+$warmLaunch = $null
+if (-not $NonInteractive) {
+    $nodePath = (Get-Command node.exe -ErrorAction Stop).Source
+    $coldLaunch = Invoke-LaunchProbe -ApplicationPath $applicationPath -NodePath $nodePath
+    $warmLaunch = Invoke-LaunchProbe -ApplicationPath $applicationPath -NodePath $nodePath
+}
 $seedEvidencePath = Join-Path $rawEvidenceDirectory "seed.json"
 $seedEvidence = Invoke-AppSmokeMode -ApplicationPath $applicationPath -Mode "seed" -OutputPath $seedEvidencePath
 
@@ -294,6 +299,33 @@ catch {
     }
 }
 
+$launchEvidence = if ($NonInteractive) {
+    [ordered]@{
+        mode = "hosted-service-session"
+        interactiveWindowObserved = $false
+        nativeSeedAndVerifyLaunches = $true
+    }
+}
+else {
+    [ordered]@{
+        mode = "interactive"
+        interactiveWindowObserved = $true
+        coldReadyMilliseconds = $coldLaunch.readyMilliseconds
+        warmReadyMilliseconds = $warmLaunch.readyMilliseconds
+        gracefulClose = $true
+    }
+}
+
+$audioEvidence = if ($NonInteractive) {
+    [ordered]@{
+        status = "not-probed"
+        reason = "hosted-service-session"
+    }
+}
+else {
+    $coldLaunch.probe.audioCanPlayType
+}
+
 $evidence = [ordered]@{
     schemaVersion = 1
     status = "ok"
@@ -314,12 +346,8 @@ $evidence = [ordered]@{
         spacesAndUnicodeInstallPath = $true
         webViewInstallMode = "downloadBootstrapper"
     }
-    launch = [ordered]@{
-        coldReadyMilliseconds = $coldLaunch.readyMilliseconds
-        warmReadyMilliseconds = $warmLaunch.readyMilliseconds
-        gracefulClose = $true
-    }
-    audioCanPlayType = $coldLaunch.probe.audioCanPlayType
+    launch = $launchEvidence
+    audioCanPlayType = $audioEvidence
     sidecar = $seedEvidence.sidecar
     dataSafety = [ordered]@{
         databaseBytes = $databaseSize

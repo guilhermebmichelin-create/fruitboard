@@ -74,7 +74,7 @@ test("the packaging workflow is bounded, read-only, and secret-free", () => {
   assert.match(workflow, /^  workflow_dispatch:$/m);
   assert.match(workflow, /^permissions:\n  contents: read$/m);
   assert.match(workflow, /^  windows-packaging-smoke:$/m);
-  assert.match(workflow, /pnpm\.cmd smoke:windows:foundation/);
+  assert.match(workflow, /pnpm\.cmd smoke:windows:foundation:hosted/);
   assert.doesNotMatch(
     workflow,
     /pull_request_target|\bsecrets[.:]|upload-artifact|release|publish/i,
@@ -107,6 +107,10 @@ test("the smoke preserves data and records bounded platform evidence", () => {
     packageJson.scripts["smoke:windows:foundation"],
     /run-windows-foundation-smoke\.mjs/,
   );
+  assert.match(
+    packageJson.scripts["smoke:windows:foundation:hosted"],
+    /run-windows-foundation-smoke\.mjs -NonInteractive/,
+  );
   assert.match(launcher, /spawnSync\(\s*"powershell\.exe"/);
   assert.match(launcher, /name\.toLowerCase\(\) !== "psmodulepath"/);
   assert.match(launcher, /windows-foundation-smoke\.ps1/);
@@ -122,5 +126,7 @@ test("the smoke preserves data and records bounded platform evidence", () => {
   assert.match(script, /coldReadyMilliseconds/);
   assert.match(script, /warmReadyMilliseconds/);
   assert.match(script, /audioCanPlayType/);
+  assert.match(script, /mode = "hosted-service-session"/);
+  assert.match(script, /nativeSeedAndVerifyLaunches = \$true/);
   assert.doesNotMatch(script, /Remove-Item/);
 });
