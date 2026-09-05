@@ -240,7 +240,7 @@ jobs:
           key: ${{ runner.os }}-cargo-audit-0.22.2-rust-1.98.1
       - name: Install pinned RustSec auditor
         run: |
-          if ! cargo audit --version | grep -Fxq "cargo-audit 0.22.2"; then
+          if ! cargo-audit --version | grep -Fxq "cargo-audit 0.22.2"; then
             cargo install cargo-audit --locked --version 0.22.2
           fi
       - name: Verify Rust advisories
