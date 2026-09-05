@@ -1,6 +1,6 @@
 # Development and delivery
 
-Status: **Active workflow; Phase 1 checkpoint is under review**
+Status: **Active workflow; Phase 1 accepted, Phase 2 (epic #33) underway**
 
 ## Working agreement
 
@@ -76,7 +76,9 @@ Milestones represent phase review gates, not arbitrary dates.
 The Phase 0 epic is GitHub issue #1, with review units #2–#5 and merged pull
 requests #6–#9. After architecture acceptance, Phase 1 was created as epic #10
 with issues #11–#18; the authoritative scope remains in
-[ROADMAP.md](ROADMAP.md).
+[ROADMAP.md](ROADMAP.md). Phase 1 was accepted on 2026-09-06, epic #10 is
+closed, and Phase 2 proceeds as epic #33 with issues #34–#41 and spikes #42
+(P0-D) and #43 (P0-E).
 
 ## Toolchain
 

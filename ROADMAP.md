@@ -107,9 +107,9 @@ Created after Phase 0 acceptance under
    - PR: `test: add Windows foundation packaging smoke`.
 
 Issues #11–#18 are merged (PR #29 squash-merged as `8251f43`; issue #18
-closed). The Phase 1 checkpoint in `docs/PHASE_1_REVIEW.md` is pending explicit
-owner acceptance with epic #10 open; the phase remains stopped until that
-acceptance — no Phase 2 code or issues.
+closed). Phase 1 was explicitly accepted by the owner on 2026-09-06, closing
+epic #10. Phase 2 proceeds under epic #33 with spikes #42 (P0-D) and #43
+(P0-E) landing before Scanner MVP design finalizes.
 
 Avoid putting the real scanner, parser, Drive OAuth, PWA service worker, project
 cards, or Kanban in these issues.
@@ -120,6 +120,10 @@ P0-D/P0-E early and in parallel; P0-G may amend ADR-001, while P0-D and P0-E
 must be complete before the Scanner MVP design is finalized.
 
 ## Phase 2 proposed issues and PRs
+
+Created on Phase 1 acceptance as
+[epic #33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)
+with issues #34–#41 and spikes #42 (P0-D) and #43 (P0-E).
 
 ### Epic: Phase 2 — Scanner MVP
 
