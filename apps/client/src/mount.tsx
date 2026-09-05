@@ -1,16 +1,12 @@
-import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { RouterProvider } from "react-router/dom";
 import { AppErrorBoundary } from "./app/AppErrorBoundary";
-import { createFruitboardHashRouter } from "./app/router";
+import { StartupRouter } from "./app/StartupRouter";
 import type { PlatformPort } from "./platform/contracts";
 
 export function mountFruitboard(
   container: HTMLElement,
   platform: PlatformPort,
 ) {
-  const router = createFruitboardHashRouter(platform);
-
   // React's default root callbacks print Error objects. Native logging owns
   // diagnostics, so renderer failures must not copy paths or tokens to console.
   const containUntrustedRendererDiagnostic = () => undefined;
@@ -21,13 +17,11 @@ export function mountFruitboard(
   });
 
   root.render(
-    <StrictMode>
-      <AppErrorBoundary>
-        <RouterProvider
-          onError={containUntrustedRendererDiagnostic}
-          router={router}
-        />
-      </AppErrorBoundary>
-    </StrictMode>,
+    <AppErrorBoundary>
+      <StartupRouter
+        onError={containUntrustedRendererDiagnostic}
+        platform={platform}
+      />
+    </AppErrorBoundary>,
   );
 }

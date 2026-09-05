@@ -34,6 +34,11 @@
   a {
     color: inherit;
   }
+
+  button,
+  select {
+    font: inherit;
+  }
 }
 
 @layer base {
@@ -52,7 +57,7 @@
     line-height: var(--line-height-body);
   }
 
-  :where(a, button, [tabindex]):focus-visible {
+  :where(a, button, select, [tabindex]):focus-visible {
     outline: var(--focus-outline-width) solid var(--color-focus);
     outline-offset: var(--focus-outline-offset);
     box-shadow: 0 0 0
@@ -465,26 +470,129 @@
     color: var(--color-text-muted);
   }
 
-  .decision-list {
+  .startup-gate {
     display: grid;
-    margin-block-start: var(--space-8);
-    border-block-start: var(--border-width-standard) solid var(--color-border);
+    min-block-size: 100vh;
+    min-block-size: 100dvh;
+    padding: var(--space-6);
+    place-items: center;
+    background: var(--color-canvas);
   }
 
-  .decision-list > div {
+  .startup-gate__panel {
     display: grid;
-    grid-template-columns: minmax(8rem, 0.35fr) minmax(0, 1fr);
+    inline-size: min(100%, var(--shell-reading-max));
     gap: var(--space-4);
-    padding-block: var(--space-5);
-    border-block-end: var(--border-width-standard) solid var(--color-border);
+    padding: clamp(var(--space-8), 7vw, var(--space-16));
+    border: var(--border-width-standard) solid var(--color-border);
+    border-radius: var(--radius-large);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-medium);
   }
 
-  .decision-list dt {
+  .startup-gate__panel--error {
+    border-color: var(--color-danger-border);
+  }
+
+  .startup-gate__panel p {
+    color: var(--color-text-muted);
+  }
+
+  .startup-gate__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-block-start: var(--space-3);
+  }
+
+  .startup-gate__secondary {
+    min-block-size: var(--control-size-touch);
+    padding-inline: var(--space-5);
+    border: var(--border-width-standard) solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+  }
+
+  .preference-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: var(--space-5);
+    margin-block-start: var(--space-8);
+  }
+
+  .preference-field {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .preference-field label {
     font-weight: var(--font-weight-bold);
   }
 
-  .decision-list dd {
+  .preference-field select {
+    min-block-size: var(--control-size-touch);
+    padding-inline: var(--space-4);
+    border: var(--border-width-standard) solid var(--color-border-strong);
+    border-radius: var(--radius-small);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .preference-hint,
+  .preference-state p,
+  .preference-message {
     color: var(--color-text-muted);
+  }
+
+  .preference-hint {
+    font-size: var(--font-size-small);
+  }
+
+  .preference-button {
+    min-block-size: var(--control-size-touch);
+    padding-inline: var(--space-5);
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: var(--color-accent);
+    color: var(--color-text-on-dark);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+  }
+
+  .preference-button:hover:not(:disabled) {
+    background: var(--color-accent-strong);
+  }
+
+  .preference-button:disabled {
+    background: var(--color-surface-strong);
+    color: var(--color-text-muted);
+    cursor: default;
+  }
+
+  .preference-state {
+    display: grid;
+    gap: var(--space-5);
+  }
+
+  .preference-state--error {
+    border-color: var(--color-danger-border);
+  }
+
+  .preference-state .preference-button {
+    justify-self: start;
+  }
+
+  .preference-message {
+    margin-block-start: var(--space-5);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .preference-message--error {
+    color: var(--color-danger);
   }
 
   .app-icon {
@@ -633,9 +741,8 @@
       flex-direction: column;
     }
 
-    .decision-list > div {
+    .preference-form {
       grid-template-columns: minmax(0, 1fr);
-      gap: var(--space-1);
     }
   }
 }
@@ -675,7 +782,10 @@
   .navigation-link--active,
   .state-panel,
   .preferences-card,
-  .foundation-card {
+  .foundation-card,
+  .preference-field select,
+  .preference-button,
+  .startup-gate__secondary {
     border: var(--border-width-standard) solid CanvasText;
   }
 

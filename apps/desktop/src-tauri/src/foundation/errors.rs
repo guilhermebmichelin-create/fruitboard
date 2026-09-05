@@ -32,6 +32,8 @@ impl ErrorCode {
 pub(crate) enum DiagnosticCode {
     CommandPanicked,
     RequestSchemaValidationFailed,
+    StorageBusy,
+    StorageFailed,
     #[allow(
         dead_code,
         reason = "reserved for adapters added after the command foundation"
@@ -44,6 +46,8 @@ impl DiagnosticCode {
         match self {
             Self::CommandPanicked => "command_panicked",
             Self::RequestSchemaValidationFailed => "request_schema_validation_failed",
+            Self::StorageBusy => "storage_busy",
+            Self::StorageFailed => "storage_failed",
             Self::UnexpectedFailure => "unexpected_failure",
         }
     }

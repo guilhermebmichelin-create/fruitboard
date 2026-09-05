@@ -15,6 +15,8 @@ const readyPlatform = createFakePlatform({
 
 const loadingPlatform: PlatformPort = {
   getAppHealth: () => new Promise(() => undefined),
+  getStartupView: () => new Promise(() => undefined),
+  setStartupView: () => new Promise(() => undefined),
 };
 
 const errorPlatform = createFailingPlatform();

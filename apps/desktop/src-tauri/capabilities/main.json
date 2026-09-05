@@ -4,5 +4,9 @@
   "description": "Minimal capability for Fruitboard's local main window",
   "local": true,
   "windows": ["main"],
-  "permissions": ["allow-get-app-health"]
+  "permissions": [
+    "allow-get-app-health",
+    "allow-get-startup-view",
+    "allow-set-startup-view"
+  ]
 }

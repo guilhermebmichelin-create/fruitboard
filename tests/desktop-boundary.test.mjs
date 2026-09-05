@@ -40,21 +40,43 @@ const nativeErrors = [
   },
 ];
 
-test("desktop capability exposes only the health command to the local window", () => {
+const startupViews = [
+  ["home", "Home"],
+  ["library", "Library"],
+  ["board", "Board"],
+  ["preferences", "Preferences"],
+];
+
+test("desktop capability exposes only health and startup-view commands", () => {
   const capability = JSON.parse(
     readRootFile("apps/desktop/src-tauri/capabilities/main.json"),
   );
   const permission = readRootFile(
     "apps/desktop/src-tauri/permissions/health.toml",
   );
+  const preferencesPermission = readRootFile(
+    "apps/desktop/src-tauri/permissions/preferences.toml",
+  );
 
   assert.equal(capability.local, true);
   assert.equal(capability.remote, undefined);
   assert.deepEqual(capability.windows, ["main"]);
-  assert.deepEqual(capability.permissions, ["allow-get-app-health"]);
+  assert.deepEqual(capability.permissions, [
+    "allow-get-app-health",
+    "allow-get-startup-view",
+    "allow-set-startup-view",
+  ]);
   assert.match(permission, /commands\.allow = \["get_app_health"\]/);
+  assert.match(
+    preferencesPermission,
+    /commands\.allow = \["get_startup_view"\]/,
+  );
+  assert.match(
+    preferencesPermission,
+    /commands\.allow = \["set_startup_view"\]/,
+  );
   assert.doesNotMatch(
-    `${JSON.stringify(capability)}\n${permission}`,
+    `${JSON.stringify(capability)}\n${permission}\n${preferencesPermission}`,
     /(?:fs|shell|sql|process|opener):/,
   );
 });
@@ -89,6 +111,8 @@ test("shared client modules do not import Tauri APIs", () => {
     "apps/client/src/app/navigation.ts",
     "apps/client/src/app/pages.tsx",
     "apps/client/src/app/router.tsx",
+    "apps/client/src/app/StartupRouter.tsx",
+    "apps/client/src/app/StartupViewPreference.tsx",
     "apps/client/src/mount.tsx",
     "apps/client/src/platform/contracts.ts",
     "apps/client/src/platform/fake.ts",
@@ -123,6 +147,11 @@ test("native command contract stays aligned across Rust and TypeScript", () => {
   );
   const clientContracts = readRootFile("apps/client/src/platform/contracts.ts");
   const tauriAdapter = readRootFile("apps/client/src/platform/tauri.ts");
+  const nativeHost = readRootFile("apps/desktop/src-tauri/src/lib.rs");
+  const storage = readRootFile("crates/storage-sqlite/src/lib.rs");
+  const initialMigration = readRootFile(
+    "crates/storage-sqlite/migrations/001_local_settings.sql",
+  );
 
   assert.match(rustCommand, /pub const COMMAND_SCHEMA_VERSION: u64 = 1;/);
   assert.match(
@@ -138,6 +167,28 @@ test("native command contract stays aligned across Rust and TypeScript", () => {
     clientContracts,
     /new Set<NativeErrorCode>\(\["conflict", "unavailable"\]\)/,
   );
+  assert.match(
+    nativeHost,
+    /serde\(deny_unknown_fields, rename_all = "camelCase"\)/,
+  );
+
+  for (const command of [
+    "get_app_health",
+    "get_startup_view",
+    "set_startup_view",
+  ]) {
+    assert.match(nativeHost, new RegExp(`commands\\.execute\\("${command}"`));
+    assert.match(tauriAdapter, new RegExp(`"${command}"`));
+  }
+
+  for (const [value, rustVariant] of startupViews) {
+    assert.match(
+      storage,
+      new RegExp(`Self::${rustVariant}\\s*=>\\s*"${value}"`),
+    );
+    assert.match(clientContracts, new RegExp(`"${value}"`));
+    assert.match(initialMigration, new RegExp(`'${value}'`));
+  }
 
   for (const { code, rustVariant, message } of nativeErrors) {
     assert.equal(
