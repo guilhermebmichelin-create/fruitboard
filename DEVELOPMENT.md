@@ -107,6 +107,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | --- | --- | --- |
 | Tauri Rust / build | 2.11.5 / 2.6.3 | Native desktop host and build integration |
 | Tauri JavaScript / CLI | 2.11.1 / 2.11.4 | Typed invoke adapter and desktop commands |
+| UUID / regex | 1.26.0 / 1.13.1 | Opaque native IDs and diagnostic redaction |
 | React / React DOM | 19.2.8 | Shared client rendering |
 | Vite / React plugin | 8.2.2 / 6.1.1 | Local development and production client bundle |
 | TypeScript | 6.0.3 | Strict shared-client compilation |
@@ -160,6 +161,15 @@ route focus, and axe checks cover initial, loading, empty, and error states.
 The visual review and agreed desktop/narrow viewport evidence live in
 `docs/review/issue-13/`. Dark mode remains a deliberate future theme, and the
 off-Windows/PWA browser target is not selected until the later PWA entry exists.
+
+Issue #14 wraps native command results in schema version 1 with a native
+correlation ID and either data or one of six stable user-safe errors. The client
+must reject missing, future, or malformed envelopes instead of guessing. Local
+command diagnostics use allowlisted JSONL records in Tauri's app log directory;
+the default rotation is 1 MiB per file, five files total, and 14 days. There is
+no diagnostic export, telemetry, crash reporting, scanner job, or parser process
+in this slice. Rust tests use fake clocks/IDs/errors/log sinks, while client and
+repository policy tests keep serialization and error vocabulary aligned.
 
 When the SQLite binding is selected in Issue #15, query its embedded runtime
 version and pass that value to:
@@ -216,6 +226,8 @@ artifact measurements, and packaging decision remain Issue #18.
 ### Pyramid
 
 1. **Fast unit/domain tests (largest layer)**
+   - command envelopes, fixed error serialization, job transitions, panic
+     containment, retention, and diagnostic redaction;
    - filename normalization/version suffix parsing and candidate blocking;
    - grouping/export scoring, confidence bands, rejection memory;
    - duration/bar calculations and uncertainty rules;
@@ -229,6 +241,7 @@ artifact measurements, and packaging decision remain Issue #18.
    - loading/empty/error/offline states and reduced motion;
    - domain views against fake platform ports.
 3. **Integration/contract tests**
+   - Rust/TypeScript command schema, error vocabulary, and capability alignment;
    - SQLite repositories, indexes, transactions, FTS, migrations/backups;
    - scanner against temporary directory fixtures and synthetic event streams;
    - parser protocol, process crash/timeout/restart, normalized golden results;

@@ -85,7 +85,10 @@ The Phase 1 shell implements this boundary with a shared `PlatformPort` in
 `apps/client`. Only the desktop entry adapter imports `@tauri-apps/api`; the
 shared React component is tested with a fake port. The local `main` window has
 one application permission for the inert `get_app_health` command and no
-filesystem, shell, process, SQL, opener, or remote-origin capability.
+filesystem, shell, process, SQL, opener, or remote-origin capability. The
+command requires a versioned request and returns a versioned success-or-error
+envelope; Rust generates the correlation ID and TypeScript validates the full
+user-facing error contract before exposing it to shared code.
 
 ## Repository proposal
 
@@ -136,9 +139,11 @@ Issue #12 adds `apps/client` and `apps/desktop/src-tauri` because they now own t
 shared client and native shell behavior. Issue #13 adds `packages/ui` when the
 first shared token vocabulary becomes real. It also gives the desktop entry a
 hash-based React Router data router so bundled navigation needs no server
-fallback. The remaining proposed package/crate directories are still created
-only by the PR that first owns their behavior; empty architectural scaffolding
-remains deliberately avoided.
+fallback. Issue #14 keeps the first command, error, logging, and job primitives
+inside the desktop crate until a second consumer makes a crate split useful.
+The remaining proposed package/crate directories are still created only by the
+PR that first owns their behavior; empty architectural scaffolding remains
+deliberately avoided.
 
 ## Desktop framework evaluation
 
@@ -210,9 +215,33 @@ The Rust layer exposes use-case-oriented ports:
 - `SyncBackend` (Drive is one adapter);
 - `SecureSecretStore`, `Clock`, and `IdGenerator`.
 
-Long operations return job IDs and publish coarse progress events. The UI can
-cancel user-initiated jobs. Closing a window must not leave partially committed
+### Phase 1 command foundation
+
+Issue #14 establishes the boundary before product commands arrive:
+
+- every response is `{ schemaVersion, status, correlationId, data | error }`;
+- the stable error vocabulary is `invalid_request`, `cancelled`, `not_found`,
+  `conflict`, `unavailable`, and `internal`, with fixed user text and retry
+  semantics; native diagnostics are not serialized to the renderer;
+- correlation and job identifiers are opaque UUIDv7 values with distinct
+  prefixes; deterministic clocks and ID/error/log fakes support unit tests;
+- a command panic is contained and becomes `internal`; logging failure cannot
+  fail the command, and the process panic hook omits panic payloads;
+- the job skeleton permits only queued, running, cancellation-requested,
+  cancelled, completed, and failed transitions. Progress contains only the two
+  opaque IDs, state, completed units, and an optional total.
+
+No scanner job, event transport, persistence, background queue, or product
+activity is implemented by this foundation. Later long operations will return
+job IDs and publish coarse progress events, and the UI will be able to request
+cooperative cancellation. Closing a window must not leave partially committed
 metadata: parsing results are validated and persisted in a single transaction.
+
+At the client edge, invalid native envelopes and unknown codes become the fixed
+`internal` error. Expected command failures stay contained in the platform port.
+Unexpected render failures reach the top-level React error boundary, whose root
+callbacks deliberately do not print the untrusted `Error` object. No renderer
+diagnostic transport or crash reporter exists in Phase 1.
 
 ## Scanner architecture
 
@@ -369,8 +398,12 @@ uses a scoped asset protocol or safe local stream rather than exposing arbitrary
 - Parse snapshots cache expensive results and include parser/schema versions so
   reparsing can be scheduled selectively.
 - Paginate by stable cursor; virtualize only after realistic profiling.
-- Use structured local logs with category, severity, job/root/file opaque IDs,
-  and error chain. Full paths require an explicit diagnostic export choice.
+- Issue #14 writes allowlisted JSONL command records with severity, operation,
+  version, correlation ID, optional job/error fields, and a bounded redacted
+  diagnostic. Defaults are 1 MiB per file, five total files, and 14 days.
+- Future scanner/storage logs may add opaque root/file IDs, but not raw request
+  or binary payload fields. Full paths require an explicit diagnostic-export
+  choice after preview; no export or telemetry exists yet.
 - Maintain separate operational scan logs and human activity events.
 - Measure discovery rate, parse latency/error class, queue depth, database query
   latency, sidecar restarts, and sync backlog locally. Do not transmit metrics.
