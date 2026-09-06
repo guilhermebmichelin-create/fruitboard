@@ -1,0 +1,108 @@
+[
+  {
+    "adapter": "stateful fake; no native enumeration, permissions, or SQLite",
+    "name": "desktop",
+    "width": 1280,
+    "height": 1600,
+    "steps": [
+      {
+        "step": "Tab reaches Scan now",
+        "focus": "Scan now Projects (C:\\Synthetic\\Music\\Projects)",
+        "pageOverflow": false,
+        "viewport": [
+          1280,
+          1600
+        ]
+      },
+      {
+        "step": "Enter queues scan",
+        "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
+        "pageOverflow": false,
+        "viewport": [
+          1280,
+          1600
+        ]
+      },
+      {
+        "step": "Fake adapter advances to running",
+        "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
+        "pageOverflow": false,
+        "viewport": [
+          1280,
+          1600
+        ]
+      },
+      {
+        "step": "Cancel retains previous committed results",
+        "focus": "Retry scan Projects (C:\\Synthetic\\Music\\Projects)",
+        "pageOverflow": false,
+        "viewport": [
+          1280,
+          1600
+        ]
+      },
+      {
+        "step": "Enter retries scan",
+        "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
+        "pageOverflow": false,
+        "viewport": [
+          1280,
+          1600
+        ]
+      }
+    ]
+  },
+  {
+    "adapter": "stateful fake; no native enumeration, permissions, or SQLite",
+    "name": "narrow",
+    "width": 390,
+    "height": 844,
+    "steps": [
+      {
+        "step": "Tab reaches Scan now",
+        "focus": "Scan now Projects (C:\\Synthetic\\Music\\Projects)",
+        "pageOverflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Enter queues scan",
+        "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
+        "pageOverflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Fake adapter advances to running",
+        "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
+        "pageOverflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Cancel retains previous committed results",
+        "focus": "Retry scan Projects (C:\\Synthetic\\Music\\Projects)",
+        "pageOverflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Enter retries scan",
+        "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
+        "pageOverflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      }
+    ]
+  }
+]

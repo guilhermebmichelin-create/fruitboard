@@ -1,7 +1,6 @@
 import {
   CircleAlert,
   Columns3,
-  FolderOpen,
   MonitorSmartphone,
   ShieldCheck,
   Sparkles,
@@ -11,6 +10,7 @@ import { AppIcon } from "./AppIcon";
 import { ScanRootsManager } from "./ScanRootsManager";
 import { StartupViewPreference } from "./StartupViewPreference";
 import type { PlatformPort } from "../platform/contracts";
+export { LibraryPage } from "../library/LibraryPage";
 
 export function HomePage() {
   return (
@@ -60,26 +60,6 @@ export function HomePage() {
         </div>
       </section>
     </div>
-  );
-}
-
-export function LibraryPage() {
-  return (
-    <section
-      aria-labelledby="library-state-title"
-      className="state-panel state-panel--empty"
-      data-shell-state="empty"
-    >
-      <div className="state-panel__icon">
-        <AppIcon icon={FolderOpen} size="large" />
-      </div>
-      <p className="eyebrow">Empty library</p>
-      <h2 id="library-state-title">No projects yet</h2>
-      <p className="state-panel__description">
-        Projects will appear here after safe folder discovery lands in its
-        dedicated phase.
-      </p>
-    </section>
   );
 }
 
