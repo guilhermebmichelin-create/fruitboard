@@ -3,6 +3,7 @@ members = [
   "apps/desktop/src-tauri",
   "crates/foundation-sidecar-smoke",
   "crates/storage-sqlite",
+  "crates/reconciliation",
 ]
 resolver = "3"
 
