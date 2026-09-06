@@ -1,11 +1,13 @@
 # Phase 2 execution contracts and acceptance plan
 
-Status: **Proposed for review; not an implementation or measured performance claim.**
-Baseline: main `d1e3bdd` (PR #58), 2026-09-06. This document makes the accepted
-filesystem-only direction executable. Merge accepts the contracts; numerical
-targets below require explicit owner review. Do not silently relax safety gates
-to meet a target. ROADMAP remains the milestone sequence; this document owns
-the detailed Phase 2 contracts and acceptance IDs referenced by issues.
+Status: **Accepted for implementation; not an implementation or measured
+performance claim.** Owner checkpoint: 2026-09-06 accepted the shared contracts
+and proposed starting budgets below. Inline Preferences onboarding remains a
+separate pending decision. Baseline: main `d1e3bdd` (PR #58), 2026-09-06. This
+document makes the accepted filesystem-only direction executable. Do not
+silently relax safety gates to meet a target. ROADMAP remains the milestone
+sequence; this document owns the detailed Phase 2 contracts and acceptance IDs
+referenced by issues.
 
 ## Current status
 
@@ -14,7 +16,7 @@ the detailed Phase 2 contracts and acceptance IDs referenced by issues.
 | Delivered | Phase 1 foundation, accepted; #34 native picker/root storage | PRs #20-32 and #44; installed picker evidence in `docs/review/issue-34/` via #54 |
 | Delivered | #35 persistent rename/enabled settings, inline onboarding, failure/focus fixes | PRs #55/#56/#58; CI and regression tests; not scanner execution |
 | Delivered | #35 rendered desktop/narrow keyboard verification | [Evidence](review/issue-35/README.md) and PR #58; fake-adapter rendering is labeled separately from installed-app evidence |
-| Decision pending | Inline Preferences onboarding instead of a separate first-run route | Implementation documented; request owner confirmation with #35 evidence |
+| Decision pending | Inline Preferences onboarding instead of a separate first-run route | Implementation documented; owner review remains separate from the accepted scanner contracts |
 | Next | Agree #36/#38/#40 contracts, then implement bounded slices | This planning PR; no production scan until integrated restart/safety tests pass |
 | Blocked/unverified | DriveFS modes (#47), cross-volume/FAT32 identity (#48) | #42/#43 closed with partial findings, not blanket platform qualification |
 | Deferred | Parsing (#39), logical grouping, Kanban, playback, sync, PWA | Phase 2 is filesystem-only; bounded independent Rust-parser spike follows accepted MVP |
@@ -197,9 +199,9 @@ Each implementation PR cites its acceptance IDs and supplies tests in that PR.
 Cross-issue criteria require integrated evidence before they count as complete.
 Issue #41 aggregates evidence throughout development; it is not a late testing phase.
 
-## Proposed targets requiring owner review
+## Proposed targets accepted as provisional budgets
 
-These are starting budgets, not measured promises. Record a reference Windows
+These are owner-accepted starting budgets, not measured promises. Record a reference Windows
 machine (CPU, RAM, storage, OS, power mode), pinned release build and synthetic
 fixture generator/seed. Run 10 measured iterations after one warm-up; report
 median, maximum and nearest-rank p95. Report first-run separately; do not call
