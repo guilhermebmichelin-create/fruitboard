@@ -250,20 +250,7 @@ impl Database {
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        rows.into_iter()
-            .map(
-                |(id, display_name, canonical_path, enabled, availability, last_error_code)| {
-                    Ok(ScanRoot {
-                        id,
-                        display_name,
-                        canonical_path,
-                        enabled: enabled == 1,
-                        availability: ScanRootAvailability::parse(&availability)?,
-                        last_error_code,
-                    })
-                },
-            )
-            .collect()
+        rows.into_iter().map(Self::scan_root_from_tuple).collect()
     }
 
     pub fn add_scan_root(&mut self, display_name: &str, canonical_path: &str) -> Result<ScanRoot> {
@@ -301,6 +288,43 @@ impl Database {
             Ok(root)
         })
     }
+    fn scan_root_from_tuple(
+        row: (String, String, String, i64, String, Option<String>),
+    ) -> Result<ScanRoot> {
+        let (id, display_name, canonical_path, enabled, availability, last_error_code) = row;
+        Ok(ScanRoot {
+            id,
+            display_name,
+            canonical_path,
+            enabled: enabled == 1,
+            availability: ScanRootAvailability::parse(&availability)?,
+            last_error_code,
+        })
+    }
+
+    fn select_scan_root(transaction: &rusqlite::Transaction<'_>, id: &str) -> Result<ScanRoot> {
+        let row = transaction
+            .query_row(
+                "SELECT id, display_name, canonical_path, enabled, availability, last_error_code
+                 FROM scan_root WHERE id = ?1",
+                [id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, Option<String>>(5)?,
+                    ))
+                },
+            )
+            .map_err(|error| match error {
+                rusqlite::Error::QueryReturnedNoRows => StorageError::NotFound,
+                _ => error.into(),
+            })?;
+        Self::scan_root_from_tuple(row)
+    }
 
     pub fn remove_scan_root(&mut self, id: &str) -> Result<()> {
         self.transaction(|transaction| {
@@ -309,6 +333,35 @@ impl Database {
                 return Err(StorageError::NotFound);
             }
             Ok(())
+        })
+    }
+
+    pub fn set_scan_root_display_name(&mut self, id: &str, display_name: &str) -> Result<ScanRoot> {
+        if display_name.is_empty() {
+            return Err(StorageError::InvalidSchema);
+        }
+        self.transaction(|transaction| {
+            let changed = transaction.execute(
+                "UPDATE scan_root SET display_name = ?1 WHERE id = ?2",
+                rusqlite::params![display_name, id],
+            )?;
+            if changed != 1 {
+                return Err(StorageError::NotFound);
+            }
+            Self::select_scan_root(transaction, id)
+        })
+    }
+
+    pub fn set_scan_root_enabled(&mut self, id: &str, enabled: bool) -> Result<ScanRoot> {
+        self.transaction(|transaction| {
+            let changed = transaction.execute(
+                "UPDATE scan_root SET enabled = ?1 WHERE id = ?2",
+                rusqlite::params![i64::from(enabled), id],
+            )?;
+            if changed != 1 {
+                return Err(StorageError::NotFound);
+            }
+            Self::select_scan_root(transaction, id)
         })
     }
 }

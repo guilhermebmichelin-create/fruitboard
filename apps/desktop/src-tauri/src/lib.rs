@@ -129,6 +129,34 @@ impl ScanRootsService {
         database.remove_scan_root(&id).map_err(map_storage_error)?;
         Ok(ScanRootRemoved { id })
     }
+
+    fn set_scan_root_display_name(
+        &self,
+        id: String,
+        display_name: String,
+    ) -> Result<ScanRoot, AppError> {
+        if id.is_empty() {
+            return Err(invalid_request());
+        }
+        let display_name = display_name.trim().to_owned();
+        if display_name.is_empty() {
+            return Err(invalid_request());
+        }
+        let mut database = self.database.lock().map_err(|_| storage_failed())?;
+        database
+            .set_scan_root_display_name(&id, &display_name)
+            .map_err(map_storage_error)
+    }
+
+    fn set_scan_root_enabled(&self, id: String, enabled: bool) -> Result<ScanRoot, AppError> {
+        if id.is_empty() {
+            return Err(invalid_request());
+        }
+        let mut database = self.database.lock().map_err(|_| storage_failed())?;
+        database
+            .set_scan_root_enabled(&id, enabled)
+            .map_err(map_storage_error)
+    }
 }
 
 /// Resolve a renderer-supplied path to the canonical directory form stored for
@@ -330,6 +358,22 @@ struct RemoveScanRootRequest {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct SetScanRootDisplayNameRequest {
+    schema_version: u64,
+    id: String,
+    display_name: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct SetScanRootEnabledRequest {
+    schema_version: u64,
+    id: String,
+    enabled: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct PickScanRootRequest {
     schema_version: u64,
 }
@@ -376,6 +420,34 @@ fn handle_remove_scan_root(
     })
 }
 
+fn handle_set_scan_root_display_name(
+    commands: &CommandRuntime,
+    scan_roots: &ScanRootsService,
+    request: Option<Value>,
+) -> CommandEnvelope<ScanRoot> {
+    commands.execute("set_scan_root_display_name", move || {
+        let request: SetScanRootDisplayNameRequest = decode_request(request)?;
+        if request.schema_version != COMMAND_SCHEMA_VERSION {
+            return Err(invalid_request());
+        }
+        scan_roots.set_scan_root_display_name(request.id, request.display_name)
+    })
+}
+
+fn handle_set_scan_root_enabled(
+    commands: &CommandRuntime,
+    scan_roots: &ScanRootsService,
+    request: Option<Value>,
+) -> CommandEnvelope<ScanRoot> {
+    commands.execute("set_scan_root_enabled", move || {
+        let request: SetScanRootEnabledRequest = decode_request(request)?;
+        if request.schema_version != COMMAND_SCHEMA_VERSION {
+            return Err(invalid_request());
+        }
+        scan_roots.set_scan_root_enabled(request.id, request.enabled)
+    })
+}
+
 fn handle_pick_scan_root(
     commands: &CommandRuntime,
     request: Option<Value>,
@@ -416,6 +488,22 @@ fn remove_scan_root(
     state: tauri::State<'_, NativeFoundation>,
 ) -> CommandEnvelope<ScanRootRemoved> {
     handle_remove_scan_root(&state.commands, &state.scan_roots, request)
+}
+
+#[tauri::command]
+fn set_scan_root_display_name(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<ScanRoot> {
+    handle_set_scan_root_display_name(&state.commands, &state.scan_roots, request)
+}
+
+#[tauri::command]
+fn set_scan_root_enabled(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<ScanRoot> {
+    handle_set_scan_root_enabled(&state.commands, &state.scan_roots, request)
 }
 
 #[tauri::command]
@@ -522,7 +610,9 @@ pub fn run() -> tauri::Result<()> {
             list_scan_roots,
             add_scan_root,
             remove_scan_root,
-            pick_scan_root
+            pick_scan_root,
+            set_scan_root_display_name,
+            set_scan_root_enabled
         ])
         .run(tauri::generate_context!())
 }
@@ -1073,5 +1163,139 @@ mod tests {
             "invalid_request"
         );
         assert!(!called.get());
+    }
+
+    #[test]
+    fn scan_root_settings_round_trip_and_persist_across_restart() {
+        let directory = TestDirectory::new();
+        let root_path = test_root_directory(&directory, "music");
+        let root_id;
+
+        {
+            let scan_roots = test_scan_roots(&directory);
+            let (runtime, _) = test_runtime();
+            let added =
+                handle_add_scan_root(&runtime, &scan_roots, add_root_request("Music", &root_path));
+            root_id = serde_json::to_value(added).expect("add should serialize")["data"]["id"]
+                .as_str()
+                .expect("added root should have an id")
+                .to_owned();
+
+            let (runtime, logs) = test_runtime();
+            let renamed = handle_set_scan_root_display_name(
+                &runtime,
+                &scan_roots,
+                Some(json!({
+                    "schemaVersion": COMMAND_SCHEMA_VERSION,
+                    "id": root_id,
+                    "displayName": "Released Music",
+                })),
+            );
+            let serialized = serde_json::to_value(renamed).expect("rename should serialize");
+            assert_eq!(serialized["status"], "ok");
+            assert_eq!(serialized["data"]["displayName"], "Released Music");
+            assert_eq!(logs.events()[0].operation, "set_scan_root_display_name");
+
+            let (runtime, logs) = test_runtime();
+            let disabled = handle_set_scan_root_enabled(
+                &runtime,
+                &scan_roots,
+                Some(json!({
+                    "schemaVersion": COMMAND_SCHEMA_VERSION,
+                    "id": root_id,
+                    "enabled": false,
+                })),
+            );
+            let serialized = serde_json::to_value(disabled).expect("disable should serialize");
+            assert_eq!(serialized["data"]["enabled"], false);
+            assert_eq!(logs.events()[0].operation, "set_scan_root_enabled");
+        }
+
+        let scan_roots = ScanRootsService::new(Arc::new(Mutex::new(
+            Database::open(directory.path()).expect("test database should reopen"),
+        )));
+        let (runtime, _) = test_runtime();
+        let listed = handle_list_scan_roots(
+            &runtime,
+            &scan_roots,
+            Some(json!({ "schemaVersion": COMMAND_SCHEMA_VERSION })),
+        );
+        let roots = serde_json::to_value(listed).expect("list should serialize")["data"]
+            .as_array()
+            .expect("roots")
+            .clone();
+        assert_eq!(roots.len(), 1);
+        assert_eq!(roots[0]["displayName"], "Released Music");
+        assert_eq!(roots[0]["enabled"], false);
+    }
+
+    #[test]
+    fn scan_root_settings_reject_malformed_and_unknown_requests() {
+        let directory = TestDirectory::new();
+        let root_path = test_root_directory(&directory, "music");
+        let scan_roots = test_scan_roots(&directory);
+        let (runtime, _) = test_runtime();
+        handle_add_scan_root(&runtime, &scan_roots, add_root_request("Music", &root_path));
+
+        let malformed_names = [
+            None,
+            Some(Value::Null),
+            Some(json!({ "schemaVersion": COMMAND_SCHEMA_VERSION })),
+            Some(json!({
+                "schemaVersion": COMMAND_SCHEMA_VERSION,
+                "id": "missing-root-id",
+                "displayName": "Name",
+            })),
+            Some(json!({
+                "schemaVersion": 0,
+                "id": "missing-root-id",
+                "displayName": "Name",
+            })),
+            Some(json!({
+                "schemaVersion": COMMAND_SCHEMA_VERSION,
+                "id": "",
+                "displayName": "Name",
+            })),
+            Some(json!({
+                "schemaVersion": COMMAND_SCHEMA_VERSION,
+                "id": "missing-root-id",
+                "displayName": "   ",
+            })),
+            Some(json!({
+                "schemaVersion": COMMAND_SCHEMA_VERSION,
+                "id": "missing-root-id",
+                "displayName": "Name",
+                "extra": true,
+            })),
+        ];
+        for request in malformed_names {
+            let (runtime, _) = test_runtime();
+            let response = handle_set_scan_root_display_name(&runtime, &scan_roots, request);
+            let serialized = serde_json::to_value(response).expect("error should serialize");
+            assert_eq!(serialized["status"], "error");
+            assert!(
+                ["invalid_request", "not_found"]
+                    .contains(&serialized["error"]["code"].as_str().expect("error code"))
+            );
+            assert!(
+                !serialized.to_string().contains("missing-root-id")
+                    || serialized["error"]["code"] == "not_found"
+            );
+        }
+
+        let (runtime, _) = test_runtime();
+        let toggled = handle_set_scan_root_enabled(
+            &runtime,
+            &scan_roots,
+            Some(json!({
+                "schemaVersion": COMMAND_SCHEMA_VERSION,
+                "id": "missing-root-id",
+                "enabled": false,
+            })),
+        );
+        assert_eq!(
+            serde_json::to_value(toggled).expect("error should serialize")["error"]["code"],
+            "not_found"
+        );
     }
 }

@@ -642,6 +642,62 @@
     gap: var(--space-3);
   }
 
+  .scan-roots-item__status {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-small);
+  }
+
+  .scan-roots-item__settings {
+    display: grid;
+    gap: var(--space-3);
+    justify-items: end;
+  }
+
+  .scan-roots-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .scan-roots-toggle input {
+    inline-size: var(--control-size-touch);
+    block-size: var(--control-size-touch);
+    accent-color: var(--color-accent);
+  }
+
+  .scan-roots-rename {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .scan-roots-rename label {
+    font-weight: var(--font-weight-bold);
+  }
+
+  .scan-roots-rename input {
+    min-block-size: var(--control-size-touch);
+    padding-inline: var(--space-4);
+    border: var(--border-width-standard) solid var(--color-border-strong);
+    border-radius: var(--radius-small);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .scan-roots-onboarding {
+    display: grid;
+    gap: var(--space-3);
+    margin-block-end: var(--space-5);
+  }
+
+  .scan-roots-steps {
+    display: grid;
+    gap: var(--space-2);
+    margin-block: 0;
+    padding-inline-start: var(--space-5);
+    color: var(--color-text-muted);
+  }
+
   .app-icon {
     display: block;
     flex: 0 0 auto;

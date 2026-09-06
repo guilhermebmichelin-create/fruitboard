@@ -55,6 +55,26 @@ export function createFakePlatform(
       scanRoots = scanRoots.filter((root) => root.id !== id);
       return Promise.resolve(id);
     },
+    updateScanRootDisplayName(id, displayName) {
+      scanRoots = scanRoots.map((root) =>
+        root.id === id ? { ...root, displayName } : root,
+      );
+      const updated = scanRoots.find((root) => root.id === id);
+      if (updated === undefined) {
+        return Promise.reject(new PlatformError("not_found"));
+      }
+      return Promise.resolve(updated);
+    },
+    setScanRootEnabled(id, enabled) {
+      scanRoots = scanRoots.map((root) =>
+        root.id === id ? { ...root, enabled } : root,
+      );
+      const updated = scanRoots.find((root) => root.id === id);
+      if (updated === undefined) {
+        return Promise.reject(new PlatformError("not_found"));
+      }
+      return Promise.resolve(updated);
+    },
   };
 }
 
@@ -71,7 +91,12 @@ export function createFakePlatformWithPickedDirectory(
 
 type ScanRootMethods = Pick<
   PlatformPort,
-  "pickScanRootDirectory" | "listScanRoots" | "addScanRoot" | "removeScanRoot"
+  | "pickScanRootDirectory"
+  | "listScanRoots"
+  | "addScanRoot"
+  | "removeScanRoot"
+  | "updateScanRootDisplayName"
+  | "setScanRootEnabled"
 >;
 
 // Shared stubs for test platforms that only exercise other slices. The
@@ -82,6 +107,8 @@ export const pendingScanRootMethods: ScanRootMethods = {
   listScanRoots: () => new Promise<readonly ScanRoot[]>(() => undefined),
   addScanRoot: () => new Promise<ScanRoot>(() => undefined),
   removeScanRoot: () => new Promise<string>(() => undefined),
+  updateScanRootDisplayName: () => new Promise<ScanRoot>(() => undefined),
+  setScanRootEnabled: () => new Promise<ScanRoot>(() => undefined),
 };
 
 export const failingScanRootMethods = (error: Error): ScanRootMethods => ({
@@ -89,6 +116,8 @@ export const failingScanRootMethods = (error: Error): ScanRootMethods => ({
   listScanRoots: () => Promise.reject(error),
   addScanRoot: () => Promise.reject(error),
   removeScanRoot: () => Promise.reject(error),
+  updateScanRootDisplayName: () => Promise.reject(error),
+  setScanRootEnabled: () => Promise.reject(error),
 });
 
 export function createFailingPlatform(
@@ -114,6 +143,12 @@ export function createFailingPlatform(
       return Promise.reject(new PlatformError(code));
     },
     removeScanRoot() {
+      return Promise.reject(new PlatformError(code));
+    },
+    updateScanRootDisplayName() {
+      return Promise.reject(new PlatformError(code));
+    },
+    setScanRootEnabled() {
       return Promise.reject(new PlatformError(code));
     },
   };

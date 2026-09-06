@@ -19,3 +19,13 @@ commands.allow = ["remove_scan_root"]
 identifier = "allow-pick-scan-root"
 description = "Allows the local main window to open the native folder picker and read its single-directory result."
 commands.allow = ["pick_scan_root"]
+
+[[permission]]
+identifier = "allow-set-scan-root-display-name"
+description = "Allows the local main window to rename one tracked scan root."
+commands.allow = ["set_scan_root_display_name"]
+
+[[permission]]
+identifier = "allow-set-scan-root-enabled"
+description = "Allows the local main window to enable or disable one tracked scan root."
+commands.allow = ["set_scan_root_enabled"]

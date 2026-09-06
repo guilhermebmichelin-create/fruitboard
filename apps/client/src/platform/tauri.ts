@@ -24,6 +24,8 @@ export const PICK_SCAN_ROOT_COMMAND = "pick_scan_root";
 export const LIST_SCAN_ROOTS_COMMAND = "list_scan_roots";
 export const ADD_SCAN_ROOT_COMMAND = "add_scan_root";
 export const REMOVE_SCAN_ROOT_COMMAND = "remove_scan_root";
+export const SET_SCAN_ROOT_DISPLAY_NAME_COMMAND = "set_scan_root_display_name";
+export const SET_SCAN_ROOT_ENABLED_COMMAND = "set_scan_root_enabled";
 
 const PICK_SCAN_ROOT_ARGUMENTS = Object.freeze({
   request: Object.freeze({ schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION }),
@@ -46,6 +48,30 @@ export const createRemoveScanRootArguments = (id: string) =>
     request: Object.freeze({
       schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION,
       id,
+    }),
+  });
+
+export const createSetScanRootDisplayNameArguments = (
+  id: string,
+  displayName: string,
+) =>
+  Object.freeze({
+    request: Object.freeze({
+      schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION,
+      id,
+      displayName,
+    }),
+  });
+
+export const createSetScanRootEnabledArguments = (
+  id: string,
+  enabled: boolean,
+) =>
+  Object.freeze({
+    request: Object.freeze({
+      schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION,
+      id,
+      enabled,
     }),
   });
 
@@ -189,6 +215,34 @@ export function createTauriPlatform(
         createRemoveScanRootArguments(id),
         (data) => parseRemovedScanRoot(id, data),
       );
+    },
+    async updateScanRootDisplayName(id, displayName) {
+      if (id === "" || displayName.trim() === "") {
+        throw new PlatformError("invalid_request");
+      }
+      const root = await execute(
+        SET_SCAN_ROOT_DISPLAY_NAME_COMMAND,
+        createSetScanRootDisplayNameArguments(id, displayName),
+        parseScanRoot,
+      );
+      if (root.id !== id || root.displayName !== displayName.trim()) {
+        throw new PlatformError("internal");
+      }
+      return root;
+    },
+    async setScanRootEnabled(id, enabled) {
+      if (id === "") {
+        throw new PlatformError("invalid_request");
+      }
+      const root = await execute(
+        SET_SCAN_ROOT_ENABLED_COMMAND,
+        createSetScanRootEnabledArguments(id, enabled),
+        parseScanRoot,
+      );
+      if (root.id !== id || root.enabled !== enabled) {
+        throw new PlatformError("internal");
+      }
+      return root;
     },
   };
 }

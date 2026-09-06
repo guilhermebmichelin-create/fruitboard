@@ -3,11 +3,15 @@ import {
   ADD_SCAN_ROOT_COMMAND,
   createAddScanRootArguments,
   createRemoveScanRootArguments,
+  createSetScanRootDisplayNameArguments,
+  createSetScanRootEnabledArguments,
   createTauriPlatform,
   LIST_SCAN_ROOTS_ARGUMENTS,
   LIST_SCAN_ROOTS_COMMAND,
   PICK_SCAN_ROOT_COMMAND,
   REMOVE_SCAN_ROOT_COMMAND,
+  SET_SCAN_ROOT_DISPLAY_NAME_COMMAND,
+  SET_SCAN_ROOT_ENABLED_COMMAND,
 } from "./tauri";
 
 const correlationId = "correlation_00000000000000000000000000000001";
@@ -143,5 +147,58 @@ describe("scan-root platform commands", () => {
     await expect(platform.listScanRoots()).rejects.toMatchObject({
       code: "internal",
     });
+  });
+
+  it("renames and toggles roots with exact typed arguments", async () => {
+    const renamed = { ...scanRoot, displayName: "Released" };
+    const disabled = { ...renamed, enabled: false };
+    const invokeCommand = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: "ok",
+        schemaVersion: 1,
+        correlationId,
+        data: renamed,
+      })
+      .mockResolvedValueOnce({
+        status: "ok",
+        schemaVersion: 1,
+        correlationId,
+        data: disabled,
+      });
+    const platform = createTauriPlatform(invokeCommand);
+
+    await expect(
+      platform.updateScanRootDisplayName("root-1", "Released"),
+    ).resolves.toEqual(renamed);
+    await expect(platform.setScanRootEnabled("root-1", false)).resolves.toEqual(
+      disabled,
+    );
+    expect(invokeCommand).toHaveBeenNthCalledWith(
+      1,
+      SET_SCAN_ROOT_DISPLAY_NAME_COMMAND,
+      createSetScanRootDisplayNameArguments("root-1", "Released"),
+    );
+    expect(invokeCommand).toHaveBeenNthCalledWith(
+      2,
+      SET_SCAN_ROOT_ENABLED_COMMAND,
+      createSetScanRootEnabledArguments("root-1", false),
+    );
+  });
+
+  it("validates settings input before invoking native code", async () => {
+    const invokeCommand = vi.fn();
+    const platform = createTauriPlatform(invokeCommand);
+
+    await expect(
+      platform.updateScanRootDisplayName("", "Name"),
+    ).rejects.toMatchObject({ code: "invalid_request" });
+    await expect(
+      platform.updateScanRootDisplayName("root-1", "   "),
+    ).rejects.toMatchObject({ code: "invalid_request" });
+    await expect(platform.setScanRootEnabled("", false)).rejects.toMatchObject({
+      code: "invalid_request",
+    });
+    expect(invokeCommand).not.toHaveBeenCalled();
   });
 });

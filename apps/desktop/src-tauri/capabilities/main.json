@@ -11,6 +11,8 @@
     "allow-list-scan-roots",
     "allow-add-scan-root",
     "allow-remove-scan-root",
-    "allow-pick-scan-root"
+    "allow-pick-scan-root",
+    "allow-set-scan-root-display-name",
+    "allow-set-scan-root-enabled"
   ]
 }

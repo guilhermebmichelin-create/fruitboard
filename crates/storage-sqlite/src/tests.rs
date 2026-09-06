@@ -735,3 +735,61 @@ fn upgrade_from_v1_preserves_preferences_and_starts_empty_roots() {
     assert_eq!(database.startup_view().unwrap(), StartupView::Board);
     assert!(database.list_scan_roots().unwrap().is_empty());
 }
+
+#[test]
+fn scan_root_settings_update_atomically_and_persist_across_restart() {
+    let directory = TestDirectory::new();
+    let root_id;
+    {
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        root_id = root.id.clone();
+
+        let renamed = database
+            .set_scan_root_display_name(&root_id, "Released Projects")
+            .unwrap();
+        assert_eq!(renamed.id, root_id);
+        assert_eq!(renamed.display_name, "Released Projects");
+        assert_eq!(renamed.canonical_path, "C:\\Music\\Projects");
+
+        let disabled = database.set_scan_root_enabled(&root_id, false).unwrap();
+        assert!(!disabled.enabled);
+        assert_eq!(disabled.display_name, "Released Projects");
+        let enabled = database.set_scan_root_enabled(&root_id, true).unwrap();
+        assert!(enabled.enabled);
+    }
+    let database = Database::open(directory.path()).unwrap();
+    let listed = database.list_scan_roots().unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].display_name, "Released Projects");
+    assert!(listed[0].enabled);
+}
+
+#[test]
+fn scan_root_settings_reject_unknown_ids_and_blank_names() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+
+    assert!(matches!(
+        database.set_scan_root_display_name("missing-root-id", "Name"),
+        Err(StorageError::NotFound)
+    ));
+    assert!(matches!(
+        database.set_scan_root_enabled("missing-root-id", false),
+        Err(StorageError::NotFound)
+    ));
+    assert!(matches!(
+        database.set_scan_root_display_name(&root.id, ""),
+        Err(StorageError::InvalidSchema)
+    ));
+
+    let unchanged = database.list_scan_roots().unwrap();
+    assert_eq!(unchanged.len(), 1);
+    assert_eq!(unchanged[0].display_name, "Projects");
+    assert!(unchanged[0].enabled);
+}
