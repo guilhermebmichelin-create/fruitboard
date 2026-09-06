@@ -46,10 +46,25 @@ operation on one synthetic file:
    cycles change the ID under a stable name.
 3. A stable name must not be read as the same file: delete-recreate reuses the
    name with a new ID.
-4. Hardlink aliases share one ID: deduplicate locations by identity instead of
-   counting paths as files.
+4. Hardlink aliases share one ID but remain distinct paths: preserve one
+   presence record per path and deduplicate at the file-identity level, never
+   by collapsing locations. When one alias disappears, the surviving path
+   stays available under the same identity. This matches DATA_MODEL.md, where
+   `file_location` is unique per normalized path while the
+   `(device_id, volume_id, filesystem_file_id)` uniqueness links aliases to
+   one underlying file. Required regression before #36/#38/#40: two aliases
+   exist, one disappears, the other remains available.
 5. Copies are new files, even with identical content; content hashing stays a
    move/duplicate candidate signal, never identity.
 6. Absence requires a successfully completed authoritative scan of an available
    root. Offline, denied, cancelled, or partial enumeration never marks unseen
    files missing.
+
+## Reproduction
+
+Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+scripts/research-fs-probe.ps1 -Mode Identity` on Windows. The probe builds a
+disposable synthetic tree under the system temp directory, asserts each row of
+the table above plus alias survival and serial stability, prints path-free
+PASS lines, and removes the tree. Any FAIL line is a finding, not an
+environment quirk: rerun with `-Mode Identity` isolated before concluding.

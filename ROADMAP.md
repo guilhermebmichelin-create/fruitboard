@@ -139,9 +139,11 @@ with issues #34–#41 and spikes #42 (P0-D) and #43 (P0-E).
 Review baseline: main `a865962` (PR #44), following interactive evidence PR #32.
 All six PR #44 checks and its
 [push-to-main CI](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/33998232108)
-passed. Phase 2 issues are created; no Phase 2 implementation or spike results
-have landed at this baseline. Issue creation is planning progress, not delivered
-scanner behavior.
+passed. Spike partial results landed as PRs #45 (P0-D) and #46 (P0-E) with
+reproducible probes in `scripts/research-fs-probe.ps1`; remaining DriveFS,
+cross-volume, and FAT32 work is tracked by open follow-ups #47 and #48, and no
+Phase 2 application code has landed. A closed spike is not qualification
+evidence for the unverified environments.
 
 ### Execution order and acceptance boundaries
 

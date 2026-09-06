@@ -59,3 +59,13 @@ it needs a faster generator or real burst load to observe.
    affected root; offline, denied, or partial enumeration must not mark unseen
    files missing.
 4. DriveFS roots stay unqualified until the blocked environment run completes.
+
+## Reproduction
+
+Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+scripts/research-fs-probe.ps1 -Mode Watcher` on Windows. The probe builds a
+disposable synthetic tree under the system temp directory, replays the burst,
+rename, delete, and append operations, prints the observed event counts, and
+removes the tree. Observed counts are measurements from this host, not API
+guarantees: a different machine or load may deliver different coalescing, so
+issue #37 must debounce per path regardless.
