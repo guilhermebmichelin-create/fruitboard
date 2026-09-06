@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 import { AppIcon } from "./AppIcon";
+import { ScanRootsManager } from "./ScanRootsManager";
 import { StartupViewPreference } from "./StartupViewPreference";
 import type { PlatformPort } from "../platform/contracts";
 
@@ -107,7 +108,12 @@ export function PreferencesPage({
 }: {
   readonly platform: PlatformPort;
 }) {
-  return <StartupViewPreference platform={platform} />;
+  return (
+    <div className="content-stack">
+      <StartupViewPreference platform={platform} />
+      <ScanRootsManager platform={platform} />
+    </div>
+  );
 }
 
 export function NotFoundPage() {

@@ -28,10 +28,25 @@ export interface StartupViewPreference {
   readonly startupView: StartupView;
 }
 
+export type ScanRootAvailability = "available" | "unavailable" | "unknown";
+
+export interface ScanRoot {
+  readonly id: string;
+  readonly displayName: string;
+  readonly canonicalPath: string;
+  readonly enabled: boolean;
+  readonly availability: ScanRootAvailability;
+  readonly lastErrorCode: string | null;
+}
+
 export interface PlatformPort {
   getAppHealth(): Promise<AppHealth>;
   getStartupView(): Promise<StartupViewPreference>;
   setStartupView(startupView: StartupView): Promise<StartupViewPreference>;
+  pickScanRootDirectory(): Promise<string | null>;
+  listScanRoots(): Promise<readonly ScanRoot[]>;
+  addScanRoot(displayName: string, path: string): Promise<ScanRoot>;
+  removeScanRoot(id: string): Promise<string>;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -154,4 +169,48 @@ export function parseStartupViewPreference(
   }
 
   return { startupView: value["startupView"] as StartupView };
+}
+
+const scanRootAvailabilities = new Set<ScanRootAvailability>([
+  "available",
+  "unavailable",
+  "unknown",
+]);
+
+export function parseScanRoot(value: unknown): ScanRoot {
+  if (
+    !isRecord(value) ||
+    typeof value["id"] !== "string" ||
+    value["id"].length === 0 ||
+    typeof value["displayName"] !== "string" ||
+    value["displayName"].length === 0 ||
+    typeof value["canonicalPath"] !== "string" ||
+    value["canonicalPath"].length === 0 ||
+    typeof value["enabled"] !== "boolean" ||
+    typeof value["availability"] !== "string" ||
+    !scanRootAvailabilities.has(
+      value["availability"] as ScanRootAvailability,
+    ) ||
+    (value["lastErrorCode"] !== null &&
+      typeof value["lastErrorCode"] !== "string")
+  ) {
+    throw new Error("The platform returned an invalid scan root.");
+  }
+
+  return {
+    id: value["id"],
+    displayName: value["displayName"],
+    canonicalPath: value["canonicalPath"],
+    enabled: value["enabled"],
+    availability: value["availability"] as ScanRootAvailability,
+    lastErrorCode: value["lastErrorCode"],
+  };
+}
+
+export function parseScanRootList(value: unknown): readonly ScanRoot[] {
+  if (!Array.isArray(value)) {
+    throw new Error("The platform returned an invalid scan-root list.");
+  }
+
+  return value.map(parseScanRoot);
 }

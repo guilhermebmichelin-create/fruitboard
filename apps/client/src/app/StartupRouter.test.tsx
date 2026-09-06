@@ -2,7 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlatformPort } from "../platform/contracts";
-import { createFakePlatform } from "../platform/fake";
+import {
+  createFakePlatform,
+  failingScanRootMethods,
+  pendingScanRootMethods,
+} from "../platform/fake";
 import { StartupRouter } from "./StartupRouter";
 
 const containDiagnostic = () => undefined;
@@ -17,6 +21,7 @@ describe("StartupRouter", () => {
       getAppHealth: () => new Promise(() => undefined),
       getStartupView: () => new Promise(() => undefined),
       setStartupView: () => new Promise(() => undefined),
+      ...pendingScanRootMethods,
     };
 
     render(<StartupRouter onError={containDiagnostic} platform={platform} />);
@@ -55,6 +60,7 @@ describe("StartupRouter", () => {
         }),
       getStartupView,
       setStartupView: vi.fn(),
+      ...pendingScanRootMethods,
     };
 
     render(<StartupRouter onError={containDiagnostic} platform={platform} />);
@@ -83,6 +89,7 @@ describe("StartupRouter", () => {
         }),
       getStartupView,
       setStartupView: vi.fn(),
+      ...failingScanRootMethods(new Error("storage unavailable")),
     };
 
     render(<StartupRouter onError={containDiagnostic} platform={platform} />);
@@ -114,6 +121,7 @@ describe("StartupRouter", () => {
         }),
       getStartupView: () => Promise.reject(new Error("storage unavailable")),
       setStartupView: vi.fn(),
+      ...failingScanRootMethods(new Error("storage unavailable")),
     };
 
     render(<StartupRouter onError={containDiagnostic} platform={platform} />);

@@ -47,7 +47,7 @@ const startupViews = [
   ["preferences", "Preferences"],
 ];
 
-test("desktop capability exposes only health and startup-view commands", () => {
+test("desktop capability exposes only health, preference, and scan-root commands", () => {
   const capability = JSON.parse(
     readRootFile("apps/desktop/src-tauri/capabilities/main.json"),
   );
@@ -57,6 +57,9 @@ test("desktop capability exposes only health and startup-view commands", () => {
   const preferencesPermission = readRootFile(
     "apps/desktop/src-tauri/permissions/preferences.toml",
   );
+  const scanRootsPermission = readRootFile(
+    "apps/desktop/src-tauri/permissions/scan-roots.toml",
+  );
 
   assert.equal(capability.local, true);
   assert.equal(capability.remote, undefined);
@@ -65,6 +68,10 @@ test("desktop capability exposes only health and startup-view commands", () => {
     "allow-get-app-health",
     "allow-get-startup-view",
     "allow-set-startup-view",
+    "allow-list-scan-roots",
+    "allow-add-scan-root",
+    "allow-remove-scan-root",
+    "allow-pick-scan-root",
   ]);
   assert.match(permission, /commands\.allow = \["get_app_health"\]/);
   assert.match(
@@ -75,9 +82,20 @@ test("desktop capability exposes only health and startup-view commands", () => {
     preferencesPermission,
     /commands\.allow = \["set_startup_view"\]/,
   );
+  for (const command of [
+    "list_scan_roots",
+    "add_scan_root",
+    "remove_scan_root",
+    "pick_scan_root",
+  ]) {
+    assert.match(
+      scanRootsPermission,
+      new RegExp(`commands\\.allow = \\["${command}"\\]`),
+    );
+  }
   assert.doesNotMatch(
-    `${JSON.stringify(capability)}\n${permission}\n${preferencesPermission}`,
-    /(?:fs|shell|sql|process|opener):/,
+    `${JSON.stringify(capability)}\n${permission}\n${preferencesPermission}\n${scanRootsPermission}`,
+    /(?:dialog|fs|shell|sql|process|opener):/,
   );
 });
 
@@ -113,6 +131,7 @@ test("shared client modules do not import Tauri APIs", () => {
     "apps/client/src/app/router.tsx",
     "apps/client/src/app/StartupRouter.tsx",
     "apps/client/src/app/StartupViewPreference.tsx",
+    "apps/client/src/app/ScanRootsManager.tsx",
     "apps/client/src/mount.tsx",
     "apps/client/src/platform/contracts.ts",
     "apps/client/src/platform/fake.ts",
@@ -176,6 +195,10 @@ test("native command contract stays aligned across Rust and TypeScript", () => {
     "get_app_health",
     "get_startup_view",
     "set_startup_view",
+    "list_scan_roots",
+    "add_scan_root",
+    "remove_scan_root",
+    "pick_scan_root",
   ]) {
     assert.match(nativeHost, new RegExp(`commands\\.execute\\("${command}"`));
     assert.match(tauriAdapter, new RegExp(`"${command}"`));

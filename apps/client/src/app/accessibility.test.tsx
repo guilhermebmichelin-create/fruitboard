@@ -3,7 +3,7 @@ import axe from "axe-core";
 import { RouterProvider } from "react-router/dom";
 import { describe, expect, it } from "vitest";
 import type { PlatformPort } from "../platform/contracts";
-import { createFakePlatform } from "../platform/fake";
+import { createFakePlatform, pendingScanRootMethods } from "../platform/fake";
 import { createFruitboardMemoryRouter } from "./router";
 import { StartupRouter } from "./StartupRouter";
 
@@ -13,12 +13,14 @@ const loadingPlatform: PlatformPort = {
   getAppHealth: () => new Promise(() => undefined),
   getStartupView: () => new Promise(() => undefined),
   setStartupView: () => new Promise(() => undefined),
+  ...pendingScanRootMethods,
 };
 
 const errorPlatform: PlatformPort = {
   getAppHealth: () => Promise.reject(new Error("native host unavailable")),
   getStartupView: () => Promise.reject(new Error("native host unavailable")),
   setStartupView: () => Promise.reject(new Error("native host unavailable")),
+  ...pendingScanRootMethods,
 };
 
 async function expectAccessible(

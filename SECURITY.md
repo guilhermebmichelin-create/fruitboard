@@ -111,6 +111,14 @@ probe echoes no supplied path, its failure text is fixed, timeouts are bounded,
 and terminated children are reaped. This demonstrates lifecycle containment,
 not a parser sandbox or permission to package Python/PyFLP.
 
+Issue #34 adds four scan-root permissions (list, add, remove, pick) plus the
+pinned dialog plugin registered in Rust only. The renderer never invokes
+plugin dialogs directly: folder selection passes through the typed
+`pick_scan_root` command, cancellation yields a null selection without
+mutation, and picked paths are canonicalized, validated, and redacted from
+diagnostics natively. Scan-root removal deletes configuration rows only and
+never touches source files.
+
 Malformed command input is rejected before use-case work and is never copied to
 logs. Native operations run inside the command panic boundary, while unknown
 failures become the fixed `internal` response. The renderer accepts only the six

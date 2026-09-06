@@ -59,9 +59,32 @@ test("the renderer receives no process or shell permission", () => {
   const packageConfig = readRootFile(
     "apps/desktop/src-tauri/tauri.package.conf.json",
   );
+  const desktopHost = readRootFile("apps/desktop/src-tauri/src/lib.rs");
 
   assert.doesNotMatch(capability, /(?:shell|process):/i);
   assert.doesNotMatch(packageConfig, /permissions|capabilities/);
+  // The native folder picker runs behind the typed pick_scan_root command;
+  // the renderer never invokes plugin dialogs directly.
+  assert.match(desktopHost, /tauri_plugin_dialog::init\(\)/);
+  assert.match(desktopHost, /blocking_pick_folder/);
+  assert.doesNotMatch(capability, /dialog:/i);
+});
+
+test("the dialog dependency is exact, default-free, and locked", () => {
+  const workspace = readRootFile("Cargo.toml");
+  const lock = readRootFile("Cargo.lock");
+
+  assert.match(
+    workspace,
+    /tauri-plugin-dialog = \{ version = "=2\.7\.3", default-features = false \}/,
+  );
+  for (const [name, version] of [
+    ["tauri-plugin-dialog", "2.7.3"],
+    ["rfd", "0.16.0"],
+    ["tauri-plugin-fs", "2.5.2"],
+  ]) {
+    assert.match(lock, new RegExp(`name = "${name}"\\nversion = "${version}"`));
+  }
 });
 
 test("the packaging workflow is bounded, read-only, and secret-free", () => {
