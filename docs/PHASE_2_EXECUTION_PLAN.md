@@ -131,6 +131,51 @@ empty, stale/offline, error, populated, keyboard and narrow-layout states.
   files or historical missing locations. Specify history retention in the schema
   PR, independently of the existing diagnostic-log retention policy.
 
+### Deterministic identity and per-path transitions
+
+The first core slice compares one root's previous committed observations with
+one completed enumeration. It is an isolated library, with no renderer command
+or production traversal. A failed or incomplete enumeration returns no change
+set, including no positive updates. Staging is disposable until atomic apply.
+
+| Previous versus observed | Decision |
+| --- | --- |
+| Same normalized path, same identity/size/mtime | No file change; run freshness advances separately |
+| Same path, same qualified identity, changed size/mtime | Modified filesystem metadata; no claim about content equality |
+| Same path, both qualified identities differ | Replacement, retaining path history and assigning the observed physical association; never silently continue the old physical file |
+| Same path, identity unavailable on either side | Path continuity only, explicitly uncertain; changed metadata is modification evidence, never proof of identity |
+| Old path absent, new path has same qualified identity | Record old path missing and new path present; emit rename evidence only for an unambiguous one-old/one-new match |
+| Two or more paths share an identity | Preserve every location; identity lookup is non-unique, and ambiguous alias changes do not prove a rename |
+| Missing path observed again | Restore that location's presence; separately flag replacement if qualified identity changed |
+| Unseen path after incomplete/offline/cancelled traversal | No transition; previous committed state remains intact |
+
+A rename signal is advisory physical-locator evidence, not a logical-project
+merge and not deletion of the old path's history. Cross-root moves, unsupported
+filesystem IDs, identity reuse after a historical absence, names, sizes and
+timestamps alone never establish a rename. Identity supplied by the enumerator
+must already be qualified for the researched local NTFS scope. Metadata-only
+comparison cannot detect same-size writes that preserve timestamps.
+
+Normalization is supplied by the Windows boundary, not a generic lowercase
+operation inside the core. Duplicate normalized paths invalidate a run rather
+than letting enumeration order select a winner. Before production integration,
+the boundary must reject paths outside the root, scope policy exclusions, and
+prove traversal completion; callers cannot treat a renderer boolean as authority.
+
+Retries allocate fresh generations, preserving a separate retry-chain attempt
+count so restarting cannot reset the automatic retry budget. Lease deadlines
+are checked in every staging and publication transaction as well as token
+ownership; token equality alone is insufficient. The process-session ID fences
+old workers across restarts regardless of wall-clock changes. Within a session,
+use a monotonic deadline for worker liveness; durable timestamps schedule retry
+eligibility after restart, never resurrect an old lease.
+
+Root removal deletes configuration but retains file/location history as detached
+from tracking (nullable root association plus former-root identity). It does not
+mark detached locations missing. The removal transaction invalidates leases and
+staging first; a re-added path has a fresh root ID and cannot receive old work.
+The schema PR must implement this policy without cascading away file history.
+
 ## Acceptance ownership and evidence
 
 | ID | Acceptance criterion | Owner | Required evidence |
