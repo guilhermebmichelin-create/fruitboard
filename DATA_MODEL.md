@@ -370,6 +370,12 @@ desktop master.
 
 ### Scan operations — device-local
 
+The [Phase 2 execution contracts](docs/PHASE_2_EXECUTION_PLAN.md) propose root
+configuration revisions, generation/lease validation, run-scoped staging,
+atomic publication and recovery semantics for #36/#38/#40. The entities below
+are the conceptual model, not a claim that those migrations already exist.
+Schema PRs must map the contracts to durable constraints and failure tests.
+
 `scan_root`
 
 - `id`, `device_id`, display name, absolute/canonical path, enabled

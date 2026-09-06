@@ -18,7 +18,7 @@ The product roadmap remains broadly sound. The principal changes are:
 | --- | --- | --- | --- |
 | 0 Product & Architecture | Reviewed architecture and bounded uncertainties | Requirements | Accepted ADRs/review questions; PoCs scheduled |
 | 1 Application Foundation | Installable/tested shell and durable foundation | Phase 0 accepted | CI, migrations, logging/errors, accessible shell; no scanner |
-| 2 Scanner MVP | Roots discover and monitor FLPs safely | Watcher/parser gates relevant to MVP | Reconciliation/event tests; corrupt file isolation; status UI |
+| 2 Scanner MVP | Roots discover and monitor FLPs safely, filesystem-only | Shared scanner contracts; qualified filesystem scope | Reconciliation/recovery tests; safe metadata-error isolation; visible Library workflow |
 | 3 FLP Intelligence | Useful normalized FLP/dependency metadata | Parser matrix and license gate passed | Field reliability matrix; diagnostics; Plugin Explorer MVP |
 | 4 Project Identity & Versions | Reversible logical grouping | Stable file/snapshot model | Suggestions/merge/split/reject with evidence tests |
 | 5 Project Management | Core creative workflow | Project identity stable | Kanban, fields, notes, journal, tasks, timeline |
@@ -117,7 +117,9 @@ cards, or Kanban in these issues.
 PRs #6, #7, #8, and #9 were merged in that order with linear history, after
 which the Phase 1 epic and these eight issues were created. Run P0-G and
 P0-D/P0-E early and in parallel; P0-G may amend ADR-001, while P0-D and P0-E
-must be complete before the Scanner MVP design is finalized.
+must qualify each claimed filesystem before its Scanner MVP support is finalized.
+Recorded findings permit local NTFS design/implementation while #47/#48 remain
+unverified; excluding their environments requires an explicit owner decision.
 
 ## Phase 2 issues and execution plan
 
@@ -127,12 +129,17 @@ with issues #34–#41 and spikes #42 (P0-D) and #43 (P0-E).
 
 ### Epic: Phase 2 — Scanner MVP
 
+The [Phase 2 execution plan](docs/PHASE_2_EXECUTION_PLAN.md) owns the current-status
+table, visible completion journey, shared #36/#38/#40 contracts, acceptance IDs,
+and proposed resource/performance budgets. Its contracts and budgets are proposed
+for review, not claims of implemented or measured behavior.
+
 1. **#34:** Scan-root repository and native folder picker.
 2. **#35:** Onboarding/root settings and root status UI.
 3. **#36:** Incremental reconciler with filesystem-only metadata.
 4. **#37:** Watcher adapter, event coalescing, and overflow recovery.
 5. **#38:** Durable scan queue, cancellation, retries, and observability.
-6. **#39:** Basic parser adapter after P0-A/B/C gates (or filesystem-only MVP).
+6. **#39:** Record and verify the chosen filesystem-only MVP; defer parsing.
 7. **#40:** Atomic project-file/snapshot persistence and missing/restored behavior.
 8. **#41:** Scanner integration/E2E test corpus and Phase 2 checkpoint.
 
@@ -176,8 +183,9 @@ evidence for the unverified environments.
    root disable/removal, and crash recovery against #38/#40. Do not silently
    convert incomplete enumeration, offline roots, or permission errors into
    missing files. Absence requires a successfully completed, authoritative scan.
-5. **Resolve #39 through its existing filesystem-only alternative while parser
-   gates remain unresolved.** Record the parser deferral and keep PyFLP absent.
+5. **Resolve #39 through the selected filesystem-only path.** Parser research
+   follows the accepted Phase 2 checkpoint regardless of earlier gate progress.
+   Record the parser deferral and keep PyFLP absent.
    Do not create an empty production parser merely to check off the issue.
 6. **Build #41 evidence throughout the slices, then stop at its checkpoint.**
    Use synthetic/private-data-safe fixtures and deterministic fault injection;
