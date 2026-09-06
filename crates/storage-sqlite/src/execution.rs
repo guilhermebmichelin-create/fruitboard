@@ -464,19 +464,8 @@ pub(crate) fn invalidate_inflight_after_recovery(
 ) -> Result<()> {
     let transaction =
         connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-    transaction.execute(
-        "UPDATE scan_run
-         SET state = 'interrupted', finished_at_ms = ?1,
-             outcome = 'interrupted', error_code = 'recovery'
-         WHERE state = 'running'",
-        [now_ms],
-    )?;
-    transaction.execute(
-        "UPDATE scan_job
-         SET state = 'interrupted', updated_at_ms = ?1, last_error_code = 'recovery'
-         WHERE state = 'running'",
-        [now_ms],
-    )?;
+    recover_interrupted_tx(&transaction, now_ms, "recovery")?;
+    resume_interrupted_jobs_tx(&transaction, now_ms, "recovery")?;
     transaction.execute(
         "UPDATE scan_session
          SET ended_at_ms = CASE
@@ -485,6 +474,238 @@ pub(crate) fn invalidate_inflight_after_recovery(
         [now_ms],
     )?;
     transaction.commit()?;
+    Ok(())
+}
+
+/// Fence runs left by a process that stopped before it could reap its leases.
+/// The job remains the same retry chain: only its current attempt is terminal,
+/// while the job is requeued with the persisted budget and the normal backoff.
+fn recover_interrupted_tx(
+    transaction: &Transaction<'_>,
+    now_ms: i64,
+    reason: &'static str,
+) -> Result<usize> {
+    let mut statement = transaction.prepare(
+        "SELECT r.id, r.scan_job_id, r.cancellation_requested,
+                j.cancellation_requested, j.attempt, j.max_attempts
+         FROM scan_run AS r
+         JOIN scan_job AS j ON j.id = r.scan_job_id
+         WHERE r.state = 'running'
+         ORDER BY r.id",
+    )?;
+    let running = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, i64>(5)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(statement);
+
+    let mut changed = 0;
+    for (run_id, job_id, run_cancel_requested, job_cancel_requested, attempt, max_attempts) in
+        running
+    {
+        let cancelled = parse_flag(run_cancel_requested)? || parse_flag(job_cancel_requested)?;
+        let run_state = if cancelled {
+            ScanRunState::Cancelled
+        } else {
+            ScanRunState::Interrupted
+        };
+        let run_outcome = if cancelled {
+            ScanRunOutcome::Cancelled
+        } else {
+            ScanRunOutcome::Interrupted
+        };
+        let run_error = if cancelled {
+            "cancellation_requested"
+        } else {
+            reason
+        };
+        let run_changed = transaction.execute(
+            "UPDATE scan_run
+             SET state = ?1, cancellation_requested = ?2, finished_at_ms = ?3,
+                 outcome = ?4, error_code = ?5
+             WHERE id = ?6 AND state = 'running'",
+            params![
+                run_state.as_str(),
+                i64::from(cancelled),
+                now_ms,
+                run_outcome.as_str(),
+                run_error,
+                &run_id,
+            ],
+        )?;
+        if run_changed != 1 {
+            continue;
+        }
+        changed += 1;
+
+        let next_job_state = if cancelled {
+            ScanJobState::Cancelled
+        } else if attempt < max_attempts {
+            ScanJobState::Queued
+        } else {
+            ScanJobState::Failed
+        };
+        let not_before_ms = if next_job_state == ScanJobState::Queued {
+            now_ms
+                .checked_add(retry_backoff_ms(attempt)?)
+                .ok_or(StorageError::Conflict)?
+        } else {
+            now_ms
+        };
+        let job_error = if cancelled {
+            "cancellation_requested"
+        } else if next_job_state == ScanJobState::Failed {
+            "retry_exhausted"
+        } else {
+            reason
+        };
+        let job_changed = transaction.execute(
+            "UPDATE scan_job
+             SET state = ?1, cancellation_requested = ?2,
+                 not_before_ms = ?3, updated_at_ms = ?3,
+                 last_error_code = ?4
+             WHERE id = ?5 AND state = 'running'",
+            params![
+                next_job_state.as_str(),
+                i64::from(cancelled),
+                not_before_ms,
+                job_error,
+                &job_id,
+            ],
+        )?;
+        if job_changed != 1 {
+            return Err(StorageError::Conflict);
+        }
+    }
+    Ok(changed)
+}
+
+/// Older execution-ledger versions left restart-fenced jobs in `interrupted`.
+/// Resume at most the newest such job per enabled root, while respecting the
+/// active-slot index and the persisted retry budget.
+fn resume_interrupted_jobs_tx(
+    transaction: &Transaction<'_>,
+    now_ms: i64,
+    reason: &'static str,
+) -> Result<usize> {
+    let mut statement = transaction.prepare(
+        "SELECT j.id, j.attempt, j.max_attempts
+         FROM scan_job AS j
+         JOIN scan_root AS r ON r.id = j.scan_root_id
+         WHERE j.state = 'interrupted' AND j.cancellation_requested = 0
+           AND r.enabled = 1
+           AND NOT EXISTS (
+               SELECT 1 FROM scan_job AS active
+               WHERE active.scan_root_id = j.scan_root_id
+                 AND active.state IN ('queued', 'running')
+           )
+           AND NOT EXISTS (
+               SELECT 1 FROM scan_job AS newer
+               WHERE newer.scan_root_id = j.scan_root_id
+                 AND (newer.created_at_ms > j.created_at_ms
+                      OR (newer.created_at_ms = j.created_at_ms AND newer.id > j.id))
+           )
+         ORDER BY j.created_at_ms, j.id",
+    )?;
+    let interrupted = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(statement);
+
+    let mut changed = 0;
+    for (job_id, attempt, max_attempts) in interrupted {
+        let next_state = if attempt < max_attempts {
+            ScanJobState::Queued
+        } else {
+            ScanJobState::Failed
+        };
+        let not_before_ms = if next_state == ScanJobState::Queued {
+            now_ms
+                .checked_add(retry_backoff_ms(attempt)?)
+                .ok_or(StorageError::Conflict)?
+        } else {
+            now_ms
+        };
+        let error = if next_state == ScanJobState::Failed {
+            "retry_exhausted"
+        } else {
+            reason
+        };
+        let updated = transaction.execute(
+            "UPDATE scan_job
+             SET state = ?1, not_before_ms = ?2, updated_at_ms = ?2,
+                 last_error_code = ?3
+             WHERE id = ?4 AND state = 'interrupted' AND cancellation_requested = 0",
+            params![next_state.as_str(), not_before_ms, error, &job_id],
+        )?;
+        changed += updated;
+    }
+    Ok(changed)
+}
+
+/// Queue startup recovery only when no interrupted/queued work already owns
+/// the root. Cancelled and exhausted work is never replaced by an implicit
+/// recovery chain.
+fn enqueue_recovery_jobs_tx(transaction: &Transaction<'_>, now_ms: i64) -> Result<()> {
+    let mut statement =
+        transaction.prepare("SELECT id FROM scan_root WHERE enabled = 1 ORDER BY rowid")?;
+    let roots = statement
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(statement);
+
+    for root_id in roots {
+        let latest = transaction
+            .query_row(
+                "SELECT state, cancellation_requested, attempt, max_attempts
+                 FROM scan_job
+                 WHERE scan_root_id = ?1
+                 ORDER BY created_at_ms DESC, id DESC
+                 LIMIT 1",
+                [&root_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let suppress =
+            latest.is_some_and(|(state, cancellation_requested, attempt, max_attempts)| {
+                state == ScanJobState::Queued.as_str()
+                    || state == ScanJobState::Running.as_str()
+                    // A terminal cancelled job is never an implicit recovery
+                    // candidate. The flag is retained for running/interrupted
+                    // compatibility rows, but terminal state is authoritative.
+                    || state == ScanJobState::Cancelled.as_str()
+                    || (cancellation_requested == 1
+                        && state == ScanJobState::Interrupted.as_str())
+                    // Retry eligibility is a durable state/budget decision;
+                    // diagnostics describe why the attempt failed but cannot
+                    // reset an exhausted chain after restart or recovery.
+                    || (state == ScanJobState::Failed.as_str() && attempt >= max_attempts)
+            });
+        if !suppress {
+            let _ = enqueue_scan_tx(transaction, &root_id, ScanKind::Recovery, now_ms)?;
+        }
+    }
     Ok(())
 }
 
@@ -721,7 +942,8 @@ impl Database {
     }
 
     /// Mark the current process session and fence every run left by a prior
-    /// process. Enabled roots receive one durable recovery job each.
+    /// process. Interrupted work keeps its job and retry chain; roots without
+    /// eligible work receive one durable recovery job.
     pub fn begin_scan_session(&mut self, session_id: &str, now_ms: i64) -> Result<ScanSession> {
         if session_id.is_empty() {
             return Err(StorageError::InvalidSchema);
@@ -742,19 +964,8 @@ impl Database {
                 transaction.query_row("SELECT EXISTS(SELECT 1 FROM scan_session)", [], |row| {
                     row.get(0)
                 })?;
-            transaction.execute(
-                "UPDATE scan_run
-                 SET state = 'interrupted', finished_at_ms = ?1,
-                     outcome = 'interrupted', error_code = 'restart'
-                 WHERE state = 'running'",
-                [now_ms],
-            )?;
-            transaction.execute(
-                "UPDATE scan_job
-                 SET state = 'interrupted', updated_at_ms = ?1, last_error_code = 'restart'
-                 WHERE state = 'running'",
-                [now_ms],
-            )?;
+            recover_interrupted_tx(transaction, now_ms, "restart")?;
+            resume_interrupted_jobs_tx(transaction, now_ms, "restart")?;
             transaction.execute(
                 "UPDATE scan_session
                  SET ended_at_ms = CASE
@@ -767,22 +978,8 @@ impl Database {
                  VALUES (?1, ?2, NULL)",
                 params![session_id, now_ms],
             )?;
-
-            let roots = if had_prior_session {
-                let mut statement = transaction
-                    .prepare("SELECT id FROM scan_root WHERE enabled = 1 ORDER BY rowid")?;
-                Some(
-                    statement
-                        .query_map([], |row| row.get::<_, String>(0))?
-                        .collect::<rusqlite::Result<Vec<_>>>()?,
-                )
-            } else {
-                None
-            };
-            if let Some(roots) = roots {
-                for root_id in roots {
-                    let _ = enqueue_scan_tx(transaction, &root_id, ScanKind::Recovery, now_ms)?;
-                }
+            if had_prior_session {
+                enqueue_recovery_jobs_tx(transaction, now_ms)?;
             }
             Ok(ScanSession {
                 id: session_id.to_owned(),
@@ -862,11 +1059,30 @@ impl Database {
             if !root.enabled {
                 return Ok(None);
             }
-            transaction.execute(
+            let next_generation = checked_next(root.generation)?;
+            let generation_changed = transaction.execute(
+                "UPDATE scan_root
+                 SET generation = ?1
+                 WHERE id = ?2 AND generation = ?3 AND enabled = 1",
+                params![next_generation, &root_id, root.generation],
+            )?;
+            if generation_changed != 1 {
+                return Err(StorageError::Conflict);
+            }
+            let root = ScanRootExecution {
+                generation: next_generation,
+                ..root
+            };
+            // The generation allocation and job claim are one transaction so
+            // a failed claim cannot consume a generation.
+            let job_changed = transaction.execute(
                 "UPDATE scan_job SET state = 'running', attempt = ?1,
                     updated_at_ms = ?2 WHERE id = ?3 AND state = 'queued'",
                 params![attempt, now_ms, &job_id],
             )?;
+            if job_changed != 1 {
+                return Err(StorageError::Conflict);
+            }
             let run_id = uuid::Uuid::now_v7().to_string();
             let lease_token = uuid::Uuid::now_v7().to_string();
             let retry_chain_id: String = transaction.query_row(
@@ -1054,44 +1270,58 @@ impl Database {
             {
                 return Err(StorageError::Conflict);
             }
-            let cancellation_requested = run.cancellation_requested || parse_flag(job_cancel)?;
+            // A worker's explicit cancellation is equivalent to a durable
+            // request. It therefore wins over a pending follow-up trigger.
+            let cancellation_requested = run.cancellation_requested
+                || parse_flag(job_cancel)?
+                || outcome == ScanRunOutcome::Cancelled;
+            let follow_up_requested = parse_flag(follow_up)?;
+            let invalidated_by_follow_up = follow_up_requested && !cancellation_requested;
             let effective_outcome = if cancellation_requested {
                 ScanRunOutcome::Cancelled
+            } else if invalidated_by_follow_up {
+                ScanRunOutcome::Interrupted
             } else {
                 outcome
             };
             let state = state_for_outcome(effective_outcome);
+            let error_code = if invalidated_by_follow_up {
+                Some("follow_up_requested")
+            } else {
+                error_for_outcome(effective_outcome)
+            };
             transaction.execute(
                 "UPDATE scan_run
-                 SET state = ?1, finished_at_ms = ?2, outcome = ?3, error_code = ?4
-                 WHERE id = ?5 AND state = 'running'",
+                 SET state = ?1, cancellation_requested = ?2, finished_at_ms = ?3,
+                     outcome = ?4, error_code = ?5
+                 WHERE id = ?6 AND state = 'running'",
                 params![
                     state.as_str(),
+                    i64::from(cancellation_requested),
                     now_ms,
                     effective_outcome.as_str(),
-                    error_for_outcome(effective_outcome),
+                    error_code,
                     run_id,
                 ],
             )?;
             transaction.execute(
                 "UPDATE scan_job
-                 SET state = ?1, updated_at_ms = ?2,
-                     last_error_code = ?3
-                 WHERE id = ?4 AND state = 'running'",
+                 SET state = ?1, cancellation_requested = ?2, updated_at_ms = ?3,
+                     last_error_code = ?4
+                 WHERE id = ?5 AND state = 'running'",
                 params![
                     state.as_str(),
+                    i64::from(cancellation_requested),
                     now_ms,
-                    error_for_outcome(effective_outcome),
-                    &run.scan_job_id
+                    error_code,
+                    &run.scan_job_id,
                 ],
             )?;
 
-            // A trigger received during traversal gets one fresh job after a
-            // successful/failed attempt. User cancellation never auto-retries.
-            if follow_up == 1
-                && !cancellation_requested
-                && effective_outcome != ScanRunOutcome::Cancelled
-            {
+            // A trigger received during traversal invalidates this attempt;
+            // its observations cannot become authoritative. User cancellation
+            // never auto-retries.
+            if invalidated_by_follow_up && effective_outcome != ScanRunOutcome::Cancelled {
                 let _ = enqueue_scan_tx(
                     transaction,
                     &run.scan_root_id,

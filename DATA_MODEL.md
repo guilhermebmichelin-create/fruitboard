@@ -408,7 +408,10 @@ model remain future slices. See the [durable execution evidence](docs/PHASE_2_DU
 `scan_session`
 
 - process session ID and start/end timestamps; starting a new session interrupts
-  prior running attempts and queues recovery for enabled roots
+  prior running attempts and requeues their existing retry chains with persisted
+  budgets/backoff. Enabled roots without eligible work may receive one recovery
+  job; cancelled and exhausted chains are not replaced implicitly. Exhaustion
+  uses terminal state and attempt budget, not a diagnostic error string.
 
 Run history is retained after root removal as detached operational evidence;
 the removed configuration is not recreated by an old job. Staging rows and

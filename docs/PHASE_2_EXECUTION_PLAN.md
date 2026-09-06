@@ -101,8 +101,13 @@ empty, stale/offline, error, populated, keyboard and narrow-layout states.
   running work in the same configuration transaction. Removal deletes only
   local tracked state per the retention policy, never source files.
 - On process restart, prior-session running leases become interrupted, their
-  staging is ineligible for apply, and enabled existing roots get a deduplicated
-  recovery scan. Do not resume an abandoned enumeration cursor as authoritative.
+  staging is ineligible for apply, and the same job/retry chain is requeued with
+  its persisted attempt budget and backoff. Enabled roots without eligible
+  interrupted or queued work may get one deduplicated recovery scan. Cancelled
+  outcomes take precedence over follow-up invalidation and are not implicitly
+  revived. Exhausted chains are suppressed from recovery by durable state and
+  attempt budget, regardless of diagnostic error code. Do not resume an
+  abandoned enumeration cursor as authoritative.
 - Retry transient errors with bounded exponential backoff; unavailable roots
   wait for explicit retry or a bounded reconnect/periodic trigger after the retry
   budget. User cancellation is not automatically retried. Surface safe codes and

@@ -1,4 +1,5 @@
 use super::*;
+use crate::execution::wall_clock_ms;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
@@ -293,7 +294,7 @@ fn backup_recovers_committed_state_after_original_corruption_without_overwriting
 #[test]
 fn recovery_fences_inflight_execution_before_publishing_the_destination() {
     let source_directory = TestDirectory::new();
-    let (backup, run_id, job_id) = {
+    let (backup, run_id, job_id, chain, generation) = {
         let mut database = Database::open(source_directory.path()).unwrap();
         let root = database
             .add_scan_root("Projects", "C:\\Music\\Projects")
@@ -307,18 +308,24 @@ fn recovery_fences_inflight_execution_before_publishing_the_destination() {
             .unwrap()
             .unwrap();
         let backup = database.create_backup().unwrap();
-        (backup, lease.run.id, lease.job.id)
+        (
+            backup,
+            lease.run.id,
+            lease.job.id,
+            lease.job.retry_chain_id,
+            lease.run.generation,
+        )
     };
     let destination = TestDirectory::new();
-    let recovered = Database::recover_to(&backup, destination.path()).unwrap();
+    let mut recovered = Database::recover_to(&backup, destination.path()).unwrap();
     assert_eq!(
         recovered.scan_run(&run_id).unwrap().state,
         ScanRunState::Interrupted
     );
-    assert_eq!(
-        recovered.scan_job(&job_id).unwrap().state,
-        ScanJobState::Interrupted
-    );
+    let interrupted = recovered.scan_job(&job_id).unwrap();
+    assert_eq!(interrupted.state, ScanJobState::Queued);
+    assert_eq!(interrupted.retry_chain_id, chain);
+    assert_eq!(interrupted.attempt, 1);
     assert!(
         recovered
             .list_scan_jobs()
@@ -326,6 +333,18 @@ fn recovery_fences_inflight_execution_before_publishing_the_destination() {
             .iter()
             .all(|job| job.state != ScanJobState::Running)
     );
+    let resume_at = interrupted.not_before_ms;
+    recovered
+        .begin_scan_session("destination-session", resume_at)
+        .unwrap();
+    let resumed = recovered
+        .lease_next_scan("destination-session", resume_at, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(resumed.job.id, job_id);
+    assert_eq!(resumed.job.retry_chain_id, chain);
+    assert_eq!(resumed.job.attempt, 2);
+    assert!(resumed.run.generation > generation);
 }
 
 #[test]
@@ -851,6 +870,12 @@ fn durable_scan_jobs_coalesce_and_schedule_one_follow_up() {
     assert!(second.coalesced);
     assert!(second.follow_up_requested);
     assert_eq!(first.job_id, second.job_id);
+    let third = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 22)
+        .unwrap();
+    assert!(third.coalesced);
+    assert!(third.follow_up_requested);
+    assert_eq!(third.job_id, first.job_id);
 
     assert_eq!(lease.job.attempt, 1);
     assert_eq!(
@@ -863,14 +888,645 @@ fn durable_scan_jobs_coalesce_and_schedule_one_follow_up() {
                 ScanRunOutcome::Completed,
             )
             .unwrap(),
-        ScanRunState::Completed
+        ScanRunState::Interrupted
     );
 
+    let finished_run = database.scan_run(&lease.run.id).unwrap();
+    assert_eq!(finished_run.state, ScanRunState::Interrupted);
+    assert_eq!(finished_run.outcome, Some(ScanRunOutcome::Interrupted));
+    assert_eq!(
+        finished_run.error_code.as_deref(),
+        Some("follow_up_requested")
+    );
     let jobs = database.list_scan_jobs().unwrap();
     assert_eq!(jobs.len(), 2);
-    assert_eq!(jobs[0].state, ScanJobState::Completed);
+    assert_eq!(jobs[0].state, ScanJobState::Interrupted);
+    assert!(jobs[0].follow_up_requested);
     assert_eq!(jobs[1].state, ScanJobState::Queued);
     assert_eq!(jobs[1].kind, ScanKind::Manual);
+    let follow_up = database
+        .lease_next_scan("session-1", jobs[1].not_before_ms, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(follow_up.job.id, jobs[1].id);
+    assert!(follow_up.run.generation > lease.run.generation);
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &follow_up.run.id,
+                "session-1",
+                &follow_up.run.lease_token,
+                jobs[1].not_before_ms + 1,
+                ScanRunOutcome::Completed,
+            )
+            .unwrap(),
+        ScanRunState::Completed
+    );
+}
+
+#[test]
+fn execution_finish_transition_matrix_covers_outcomes_followups_and_cancellation() {
+    #[derive(Clone, Copy)]
+    struct FinishCase {
+        name: &'static str,
+        outcome: ScanRunOutcome,
+        follow_up: bool,
+        durable_cancellation: bool,
+    }
+
+    // Cross every finish outcome with the two invalidation sources and the
+    // presence of a coalesced follow-up. The budget loop below runs this
+    // complete matrix once with remaining budget and once at the boundary.
+    let cases = [
+        FinishCase {
+            name: "completed_plain",
+            outcome: ScanRunOutcome::Completed,
+            follow_up: false,
+            durable_cancellation: false,
+        },
+        FinishCase {
+            name: "completed_follow_up",
+            outcome: ScanRunOutcome::Completed,
+            follow_up: true,
+            durable_cancellation: false,
+        },
+        FinishCase {
+            name: "failed_plain",
+            outcome: ScanRunOutcome::Failed,
+            follow_up: false,
+            durable_cancellation: false,
+        },
+        FinishCase {
+            name: "failed_follow_up",
+            outcome: ScanRunOutcome::Failed,
+            follow_up: true,
+            durable_cancellation: false,
+        },
+        FinishCase {
+            name: "cancelled_plain",
+            outcome: ScanRunOutcome::Cancelled,
+            follow_up: false,
+            durable_cancellation: false,
+        },
+        FinishCase {
+            name: "cancelled_follow_up",
+            outcome: ScanRunOutcome::Cancelled,
+            follow_up: true,
+            durable_cancellation: false,
+        },
+        FinishCase {
+            name: "interrupted_plain",
+            outcome: ScanRunOutcome::Interrupted,
+            follow_up: false,
+            durable_cancellation: false,
+        },
+        FinishCase {
+            name: "interrupted_follow_up",
+            outcome: ScanRunOutcome::Interrupted,
+            follow_up: true,
+            durable_cancellation: false,
+        },
+        FinishCase {
+            name: "durable_cancel_completed_plain",
+            outcome: ScanRunOutcome::Completed,
+            follow_up: false,
+            durable_cancellation: true,
+        },
+        FinishCase {
+            name: "durable_cancel_completed_follow_up",
+            outcome: ScanRunOutcome::Completed,
+            follow_up: true,
+            durable_cancellation: true,
+        },
+        FinishCase {
+            name: "durable_cancel_failed_plain",
+            outcome: ScanRunOutcome::Failed,
+            follow_up: false,
+            durable_cancellation: true,
+        },
+        FinishCase {
+            name: "durable_cancel_failed_follow_up",
+            outcome: ScanRunOutcome::Failed,
+            follow_up: true,
+            durable_cancellation: true,
+        },
+        FinishCase {
+            name: "durable_cancel_cancelled_plain",
+            outcome: ScanRunOutcome::Cancelled,
+            follow_up: false,
+            durable_cancellation: true,
+        },
+        FinishCase {
+            name: "durable_cancel_cancelled_follow_up",
+            outcome: ScanRunOutcome::Cancelled,
+            follow_up: true,
+            durable_cancellation: true,
+        },
+        FinishCase {
+            name: "durable_cancel_interrupted_plain",
+            outcome: ScanRunOutcome::Interrupted,
+            follow_up: false,
+            durable_cancellation: true,
+        },
+        FinishCase {
+            name: "durable_cancel_interrupted_follow_up",
+            outcome: ScanRunOutcome::Interrupted,
+            follow_up: true,
+            durable_cancellation: true,
+        },
+    ];
+
+    for case in cases {
+        for (budget_index, max_attempts) in [DEFAULT_SCAN_MAX_ATTEMPTS, 1].into_iter().enumerate() {
+            let directory = TestDirectory::new();
+            let mut database = Database::open(directory.path()).unwrap();
+            let root = database
+                .add_scan_root("Projects", "C:\\Music\\Projects")
+                .unwrap();
+            database
+                .begin_scan_session("finish-matrix-session", 1)
+                .unwrap();
+            let queued_at = 2;
+            let job_id = database
+                .enqueue_scan(&root.id, ScanKind::Manual, queued_at)
+                .unwrap()
+                .job_id;
+            if max_attempts != DEFAULT_SCAN_MAX_ATTEMPTS {
+                database
+                    .connection
+                    .execute(
+                        "UPDATE scan_job SET max_attempts = ?1 WHERE id = ?2",
+                        rusqlite::params![max_attempts, &job_id],
+                    )
+                    .unwrap();
+            }
+            let lease = database
+                .lease_next_scan("finish-matrix-session", 3, 100)
+                .unwrap()
+                .unwrap();
+            if case.follow_up {
+                assert!(
+                    database
+                        .enqueue_scan(&root.id, ScanKind::Periodic, 4)
+                        .unwrap()
+                        .coalesced,
+                    "{} budget {budget_index} must coalesce",
+                    case.name
+                );
+            }
+            if case.durable_cancellation {
+                database
+                    .request_scan_cancellation(&lease.run.id, 5)
+                    .unwrap();
+            }
+
+            let cancellation_wins =
+                case.durable_cancellation || case.outcome == ScanRunOutcome::Cancelled;
+            let follow_up_invalidates = case.follow_up && !cancellation_wins;
+            let expected_outcome = if cancellation_wins {
+                ScanRunOutcome::Cancelled
+            } else if follow_up_invalidates {
+                ScanRunOutcome::Interrupted
+            } else {
+                case.outcome
+            };
+            let expected_state = match expected_outcome {
+                ScanRunOutcome::Completed => ScanRunState::Completed,
+                ScanRunOutcome::Failed => ScanRunState::Failed,
+                ScanRunOutcome::Cancelled => ScanRunState::Cancelled,
+                ScanRunOutcome::Interrupted => ScanRunState::Interrupted,
+            };
+            let expected_job_state = match expected_state {
+                ScanRunState::Completed => ScanJobState::Completed,
+                ScanRunState::Failed => ScanJobState::Failed,
+                ScanRunState::Cancelled => ScanJobState::Cancelled,
+                ScanRunState::Interrupted => ScanJobState::Interrupted,
+                ScanRunState::Running => ScanJobState::Running,
+            };
+            assert_eq!(
+                database
+                    .finish_scan_run(
+                        &lease.run.id,
+                        "finish-matrix-session",
+                        &lease.run.lease_token,
+                        6,
+                        case.outcome,
+                    )
+                    .unwrap(),
+                expected_state,
+                "{} budget {budget_index}",
+                case.name
+            );
+
+            let run = database.scan_run(&lease.run.id).unwrap();
+            assert_eq!(run.state, expected_state);
+            assert_eq!(run.outcome, Some(expected_outcome));
+            assert_eq!(run.attempt, 1);
+            assert_eq!(run.retry_chain_id, lease.job.retry_chain_id);
+            assert_eq!(run.cancellation_requested, cancellation_wins);
+            let jobs = database.list_scan_jobs().unwrap();
+            let queued_jobs = jobs
+                .iter()
+                .filter(|job| job.state == ScanJobState::Queued)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                jobs.len(),
+                if follow_up_invalidates { 2 } else { 1 },
+                "{} budget {budget_index} total jobs",
+                case.name
+            );
+            assert_eq!(
+                queued_jobs.len(),
+                usize::from(follow_up_invalidates),
+                "{} budget {budget_index} queued jobs",
+                case.name
+            );
+            let original = database.scan_job(&job_id).unwrap();
+            assert_eq!(original.state, expected_job_state);
+            assert_eq!(original.retry_chain_id, lease.job.retry_chain_id);
+            assert_eq!(original.attempt, 1);
+            assert_eq!(original.not_before_ms, queued_at);
+            assert_eq!(original.cancellation_requested, cancellation_wins);
+
+            if follow_up_invalidates {
+                let follow_up = queued_jobs[0];
+                assert_ne!(follow_up.id, job_id);
+                assert_ne!(follow_up.retry_chain_id, lease.job.retry_chain_id);
+                assert_eq!(follow_up.attempt, 0);
+                assert_eq!(follow_up.not_before_ms, 6);
+                let resumed = database
+                    .lease_next_scan("finish-matrix-session", follow_up.not_before_ms, 100)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(resumed.job.id, follow_up.id);
+                assert_eq!(resumed.job.attempt, 1);
+                assert!(resumed.run.generation > lease.run.generation);
+                assert_eq!(
+                    database
+                        .finish_scan_run(
+                            &resumed.run.id,
+                            "finish-matrix-session",
+                            &resumed.run.lease_token,
+                            7,
+                            ScanRunOutcome::Completed,
+                        )
+                        .unwrap(),
+                    ScanRunState::Completed
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn worker_cancelled_outcome_suppresses_followup_on_restart_and_backup_recovery() {
+    let source_directory = TestDirectory::new();
+    let (backup, root_id, run_id, job_id, chain) = {
+        let mut database = Database::open(source_directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("session-1", 1).unwrap();
+        database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+        database
+            .enqueue_scan(&root.id, ScanKind::Periodic, 4)
+            .unwrap();
+        assert_eq!(
+            database
+                .finish_scan_run(
+                    &lease.run.id,
+                    "session-1",
+                    &lease.run.lease_token,
+                    5,
+                    ScanRunOutcome::Cancelled,
+                )
+                .unwrap(),
+            ScanRunState::Cancelled
+        );
+        let run = database.scan_run(&lease.run.id).unwrap();
+        assert!(run.cancellation_requested);
+        let job = database.scan_job(&lease.job.id).unwrap();
+        assert_eq!(job.state, ScanJobState::Cancelled);
+        assert!(job.cancellation_requested);
+        assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+        (
+            database.create_backup().unwrap(),
+            root.id,
+            run.id,
+            job.id,
+            job.retry_chain_id,
+        )
+    };
+
+    let mut restarted = Database::open(source_directory.path()).unwrap();
+    restarted.begin_scan_session("session-2", 6).unwrap();
+    assert_eq!(restarted.list_scan_jobs().unwrap().len(), 1);
+    assert_eq!(
+        restarted.scan_job(&job_id).unwrap().state,
+        ScanJobState::Cancelled
+    );
+    assert!(
+        restarted
+            .lease_next_scan("session-2", 6, 100)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        restarted.scan_run(&run_id).unwrap().state,
+        ScanRunState::Cancelled
+    );
+    let explicit = restarted
+        .enqueue_scan(&root_id, ScanKind::Manual, 7)
+        .unwrap();
+    assert!(!explicit.coalesced);
+    assert_ne!(explicit.job_id, job_id);
+    let explicit_lease = restarted
+        .lease_next_scan("session-2", 7, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(explicit_lease.job.id, explicit.job_id);
+    assert_eq!(explicit_lease.job.attempt, 1);
+    assert_ne!(explicit_lease.job.retry_chain_id, chain);
+
+    let destination = TestDirectory::new();
+    let mut recovered = Database::recover_to(&backup, destination.path()).unwrap();
+    recovered
+        .begin_scan_session("recovered-session", wall_clock_ms())
+        .unwrap();
+    assert_eq!(recovered.list_scan_jobs().unwrap().len(), 1);
+    assert!(
+        recovered
+            .lease_next_scan("recovered-session", wall_clock_ms(), 100)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        recovered.scan_run(&run_id).unwrap().state,
+        ScanRunState::Cancelled
+    );
+}
+
+#[test]
+fn exhausted_worker_failure_chain_is_not_recovered_by_diagnostic() {
+    let directory = TestDirectory::new();
+    let (root_id, job_id, run_id, chain) = {
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("session-1", 1).unwrap();
+        let job_id = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap()
+            .job_id;
+        database
+            .connection
+            .execute(
+                "UPDATE scan_job SET max_attempts = 1 WHERE id = ?1",
+                [&job_id],
+            )
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+        assert_eq!(lease.job.attempt, 1);
+        database
+            .finish_scan_run(
+                &lease.run.id,
+                "session-1",
+                &lease.run.lease_token,
+                4,
+                ScanRunOutcome::Failed,
+            )
+            .unwrap();
+        let job = database.scan_job(&job_id).unwrap();
+        assert_eq!(job.state, ScanJobState::Failed);
+        assert_eq!(job.attempt, 1);
+        assert_eq!(job.max_attempts, 1);
+        assert_eq!(job.last_error_code.as_deref(), Some("worker_failed"));
+        (root.id, job.id, lease.run.id, job.retry_chain_id)
+    };
+
+    let mut database = Database::open(directory.path()).unwrap();
+    database.begin_scan_session("session-2", 5).unwrap();
+    let jobs = database.list_scan_jobs().unwrap();
+    assert_eq!(jobs.len(), 1);
+    let exhausted = database.scan_job(&job_id).unwrap();
+    assert_eq!(exhausted.state, ScanJobState::Failed);
+    assert_eq!(exhausted.retry_chain_id, chain);
+    assert_eq!(exhausted.attempt, 1);
+    assert_eq!(exhausted.max_attempts, 1);
+    assert_eq!(exhausted.last_error_code.as_deref(), Some("worker_failed"));
+    assert!(
+        database
+            .lease_next_scan("session-2", 5, 100)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        database.scan_run(&run_id).unwrap().state,
+        ScanRunState::Failed
+    );
+    let explicit = database
+        .enqueue_scan(&root_id, ScanKind::Manual, 6)
+        .unwrap();
+    assert!(!explicit.coalesced);
+    assert_ne!(explicit.job_id, job_id);
+    let explicit_lease = database
+        .lease_next_scan("session-2", 6, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(explicit_lease.job.id, explicit.job_id);
+    assert_eq!(explicit_lease.job.attempt, 1);
+    assert_ne!(explicit_lease.job.retry_chain_id, chain);
+}
+
+#[test]
+fn execution_recovery_transition_matrix_covers_restart_and_backup() {
+    #[derive(Clone, Copy)]
+    enum RecoveryPath {
+        Restart,
+        Backup,
+    }
+
+    #[derive(Clone, Copy)]
+    struct RecoveryCase {
+        name: &'static str,
+        path: RecoveryPath,
+        max_attempts: i64,
+    }
+
+    // An active attempt is recovered through both durable boundaries, with a
+    // remaining budget and at the exhausted boundary. Recovery must preserve
+    // one chain and its current attempt rather than creating a fresh request.
+    let cases = [
+        RecoveryCase {
+            name: "restart_remaining_budget",
+            path: RecoveryPath::Restart,
+            max_attempts: DEFAULT_SCAN_MAX_ATTEMPTS,
+        },
+        RecoveryCase {
+            name: "restart_exhausted_budget",
+            path: RecoveryPath::Restart,
+            max_attempts: 1,
+        },
+        RecoveryCase {
+            name: "backup_remaining_budget",
+            path: RecoveryPath::Backup,
+            max_attempts: DEFAULT_SCAN_MAX_ATTEMPTS,
+        },
+        RecoveryCase {
+            name: "backup_exhausted_budget",
+            path: RecoveryPath::Backup,
+            max_attempts: 1,
+        },
+    ];
+
+    for case in cases {
+        let source_directory = TestDirectory::new();
+        let (backup, run_id, job_id, chain, first_generation) = {
+            let mut database = Database::open(source_directory.path()).unwrap();
+            let root = database
+                .add_scan_root("Projects", "C:\\Music\\Projects")
+                .unwrap();
+            database.begin_scan_session("source-session", 1).unwrap();
+            let job_id = database
+                .enqueue_scan(&root.id, ScanKind::Manual, 2)
+                .unwrap()
+                .job_id;
+            if case.max_attempts != DEFAULT_SCAN_MAX_ATTEMPTS {
+                database
+                    .connection
+                    .execute(
+                        "UPDATE scan_job SET max_attempts = ?1 WHERE id = ?2",
+                        rusqlite::params![case.max_attempts, &job_id],
+                    )
+                    .unwrap();
+            }
+            let lease = database
+                .lease_next_scan("source-session", 3, 100)
+                .unwrap()
+                .unwrap();
+            let backup = match case.path {
+                RecoveryPath::Restart => None,
+                RecoveryPath::Backup => Some(database.create_backup().unwrap()),
+            };
+            (
+                backup,
+                lease.run.id,
+                job_id,
+                lease.job.retry_chain_id,
+                lease.run.generation,
+            )
+        };
+
+        let destination_directory = match case.path {
+            RecoveryPath::Restart => None,
+            RecoveryPath::Backup => Some(TestDirectory::new()),
+        };
+        let (mut database, backup_before, backup_after) = match case.path {
+            RecoveryPath::Restart => (Database::open(source_directory.path()).unwrap(), None, None),
+            RecoveryPath::Backup => {
+                let before = wall_clock_ms();
+                let database = Database::recover_to(
+                    backup.as_ref().unwrap(),
+                    destination_directory.as_ref().unwrap().path(),
+                )
+                .unwrap();
+                let after = wall_clock_ms();
+                (database, Some(before), Some(after))
+            }
+        };
+        let session_now = match case.path {
+            RecoveryPath::Restart => 20,
+            RecoveryPath::Backup => wall_clock_ms(),
+        };
+        database
+            .begin_scan_session("recovery-matrix-session", session_now)
+            .unwrap();
+
+        let run = database.scan_run(&run_id).unwrap();
+        assert_eq!(
+            run.state,
+            ScanRunState::Interrupted,
+            "{} run state",
+            case.name
+        );
+        assert_eq!(run.outcome, Some(ScanRunOutcome::Interrupted));
+        assert_eq!(run.retry_chain_id, chain);
+        assert_eq!(run.attempt, 1);
+        let jobs = database.list_scan_jobs().unwrap();
+        let queued_jobs = jobs
+            .iter()
+            .filter(|job| job.state == ScanJobState::Queued)
+            .collect::<Vec<_>>();
+        let expected_requeued = case.max_attempts > 1;
+        assert_eq!(jobs.len(), 1, "{} total jobs", case.name);
+        assert_eq!(
+            queued_jobs.len(),
+            usize::from(expected_requeued),
+            "{} queued jobs",
+            case.name
+        );
+        let recovered_job = database.scan_job(&job_id).unwrap();
+        assert_eq!(recovered_job.retry_chain_id, chain);
+        assert_eq!(recovered_job.attempt, 1);
+        assert_eq!(recovered_job.max_attempts, case.max_attempts);
+
+        if expected_requeued {
+            assert_eq!(recovered_job.state, ScanJobState::Queued);
+            if let RecoveryPath::Restart = case.path {
+                assert_eq!(recovered_job.not_before_ms, session_now + 1_000);
+            }
+            if let (RecoveryPath::Backup, Some(before), Some(after)) =
+                (case.path, backup_before, backup_after)
+            {
+                assert!(recovered_job.not_before_ms >= before + 1_000);
+                assert!(recovered_job.not_before_ms <= after + 1_000);
+            }
+            assert!(
+                database
+                    .lease_next_scan(
+                        "recovery-matrix-session",
+                        recovered_job.not_before_ms - 1,
+                        100,
+                    )
+                    .unwrap()
+                    .is_none(),
+                "{} must wait for its persisted eligibility time",
+                case.name
+            );
+            let resumed = database
+                .lease_next_scan("recovery-matrix-session", recovered_job.not_before_ms, 100)
+                .unwrap()
+                .unwrap();
+            assert_eq!(resumed.job.id, job_id);
+            assert_eq!(resumed.job.retry_chain_id, chain);
+            assert_eq!(resumed.job.attempt, 2);
+            assert!(resumed.run.generation > first_generation);
+        } else {
+            assert_eq!(recovered_job.state, ScanJobState::Failed);
+            assert_eq!(
+                recovered_job.last_error_code.as_deref(),
+                Some("retry_exhausted")
+            );
+            assert!(
+                database
+                    .lease_next_scan("recovery-matrix-session", session_now, 100)
+                    .unwrap()
+                    .is_none(),
+                "{} must not create implicit work",
+                case.name
+            );
+        }
+    }
 }
 
 #[test]
@@ -951,6 +1607,40 @@ fn failed_attempt_can_be_explicitly_retried_with_a_fresh_run() {
     assert_ne!(first.run.id, second.run.id);
     assert_eq!(second.job.retry_chain_id, chain);
     assert_eq!(second.job.attempt, 2);
+    assert!(second.run.generation > first.run.generation);
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &second.run.id,
+                "session-1",
+                &second.run.lease_token,
+                7,
+                ScanRunOutcome::Completed,
+            )
+            .unwrap(),
+        ScanRunState::Completed
+    );
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 8)
+        .unwrap();
+    let third = database
+        .lease_next_scan("session-1", 9, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(third.job.attempt, 1);
+    assert!(third.run.generation > second.run.generation);
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &third.run.id,
+                "session-1",
+                &third.run.lease_token,
+                10,
+                ScanRunOutcome::Completed,
+            )
+            .unwrap(),
+        ScanRunState::Completed
+    );
 }
 
 #[test]
@@ -1058,7 +1748,7 @@ fn retry_budget_is_exhausted_without_resetting_after_reopen() {
 }
 
 #[test]
-fn restart_invalidates_old_session_and_enqueues_recovery() {
+fn restart_requeues_the_interrupted_attempt_without_resetting_its_chain() {
     let directory = TestDirectory::new();
     let root = {
         let mut database = Database::open(directory.path()).unwrap();
@@ -1066,7 +1756,7 @@ fn restart_invalidates_old_session_and_enqueues_recovery() {
             .add_scan_root("Projects", "C:\\Music\\Projects")
             .unwrap()
     };
-    let (run_id, token) = {
+    let (run_id, token, job_id, chain, first_generation) = {
         let mut database = Database::open(directory.path()).unwrap();
         database.begin_scan_session("session-a", 10).unwrap();
         let lease = database.lease_next_scan("session-a", 11, 100).unwrap();
@@ -1080,7 +1770,13 @@ fn restart_invalidates_old_session_and_enqueues_recovery() {
             .unwrap()
             .unwrap();
         assert_eq!(lease.job.id, job.job_id);
-        (lease.run.id, lease.run.lease_token)
+        (
+            lease.run.id,
+            lease.run.lease_token,
+            job.job_id,
+            lease.job.retry_chain_id,
+            lease.run.generation,
+        )
     };
 
     let mut database = Database::open(directory.path()).unwrap();
@@ -1093,12 +1789,307 @@ fn restart_invalidates_old_session_and_enqueues_recovery() {
         database.finish_scan_run(&run_id, "session-a", &token, 21, ScanRunOutcome::Completed,),
         Err(StorageError::Conflict)
     ));
+    let requeued = database.scan_job(&job_id).unwrap();
+    assert_eq!(requeued.state, ScanJobState::Queued);
+    assert_eq!(requeued.retry_chain_id, chain);
+    assert_eq!(requeued.attempt, 1);
+    assert_eq!(requeued.not_before_ms, 1_020);
     let recovery = database
-        .lease_next_scan("session-b", 22, 100)
+        .lease_next_scan("session-b", 1_020, 100)
         .unwrap()
         .unwrap();
-    assert_eq!(recovery.job.kind, ScanKind::Recovery);
+    assert_eq!(recovery.job.id, job_id);
+    assert_eq!(recovery.job.kind, ScanKind::Manual);
+    assert_eq!(recovery.job.retry_chain_id, chain);
+    assert_eq!(recovery.job.attempt, 2);
+    assert!(recovery.run.generation > first_generation);
     assert_eq!(recovery.root.id, root.id);
+}
+
+#[test]
+fn restart_adds_recovery_only_for_roots_without_eligible_work() {
+    let directory = TestDirectory::new();
+    let (active_root, active_job) = {
+        let mut database = Database::open(directory.path()).unwrap();
+        let active_root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        let _idle_root = database.add_scan_root("Loops", "C:\\Music\\Loops").unwrap();
+        database.begin_scan_session("session-1", 1).unwrap();
+        let active_job = database
+            .enqueue_scan(&active_root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+        assert_eq!(lease.root.id, active_root.id);
+        (active_root, active_job)
+    };
+
+    let mut database = Database::open(directory.path()).unwrap();
+    database.begin_scan_session("session-2", 20).unwrap();
+    let jobs = database.list_scan_jobs().unwrap();
+    assert_eq!(jobs.len(), 2);
+    let active = database.scan_job(&active_job.job_id).unwrap();
+    assert_eq!(active.state, ScanJobState::Queued);
+    assert_eq!(active.kind, ScanKind::Manual);
+    let recovery = jobs.iter().find(|job| job.id != active_job.job_id).unwrap();
+    assert_eq!(
+        recovery.scan_root_id,
+        database.list_scan_roots().unwrap()[1].id
+    );
+    assert_eq!(recovery.kind, ScanKind::Recovery);
+    assert_eq!(recovery.state, ScanJobState::Queued);
+    assert_eq!(active.scan_root_id, active_root.id);
+}
+
+#[test]
+fn repeated_active_restarts_exhaust_one_persisted_retry_chain() {
+    let directory = TestDirectory::new();
+    let (root_id, job_id, mut previous_run_id, mut previous_token, chain, mut previous_generation) = {
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("session-1", 1).unwrap();
+        let job = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+        (
+            root.id,
+            job.job_id,
+            lease.run.id,
+            lease.run.lease_token,
+            lease.job.retry_chain_id,
+            lease.run.generation,
+        )
+    };
+
+    let mut restart_at = 10;
+    for session_number in 2..=4 {
+        let session_id = format!("session-{session_number}");
+        let mut database = Database::open(directory.path()).unwrap();
+        database
+            .begin_scan_session(&session_id, restart_at)
+            .unwrap();
+        assert_eq!(
+            database.scan_run(&previous_run_id).unwrap().state,
+            ScanRunState::Interrupted
+        );
+        let queued = database.scan_job(&job_id).unwrap();
+        assert_eq!(queued.state, ScanJobState::Queued);
+        assert_eq!(queued.retry_chain_id, chain);
+        assert_eq!(queued.attempt, session_number as i64 - 1);
+        assert_eq!(queued.max_attempts, DEFAULT_SCAN_MAX_ATTEMPTS);
+        let lease_at = queued.not_before_ms;
+        let lease = database
+            .lease_next_scan(&session_id, lease_at, 100)
+            .unwrap()
+            .unwrap();
+        assert_eq!(lease.root.id, root_id);
+        assert_eq!(lease.job.id, job_id);
+        assert_eq!(lease.job.retry_chain_id, chain);
+        assert_eq!(lease.job.attempt, session_number as i64);
+        assert!(lease.run.generation > previous_generation);
+        previous_run_id = lease.run.id;
+        previous_token = lease.run.lease_token;
+        previous_generation = lease.run.generation;
+        restart_at = lease_at + 1;
+    }
+
+    let mut database = Database::open(directory.path()).unwrap();
+    database
+        .begin_scan_session("session-6", restart_at)
+        .unwrap();
+    assert_eq!(
+        database.scan_run(&previous_run_id).unwrap().state,
+        ScanRunState::Interrupted
+    );
+    let exhausted = database.scan_job(&job_id).unwrap();
+    assert_eq!(exhausted.state, ScanJobState::Failed);
+    assert_eq!(exhausted.attempt, DEFAULT_SCAN_MAX_ATTEMPTS);
+    assert_eq!(exhausted.retry_chain_id, chain);
+    assert_eq!(
+        exhausted.last_error_code.as_deref(),
+        Some("retry_exhausted")
+    );
+    assert!(
+        database
+            .lease_next_scan("session-6", restart_at, 100)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+    let terminal_before = database.scan_run(&previous_run_id).unwrap();
+    assert_eq!(
+        database
+            .request_scan_cancellation(&previous_run_id, restart_at + 1)
+            .unwrap(),
+        ScanRunState::Interrupted
+    );
+    assert_eq!(
+        database.scan_run(&previous_run_id).unwrap(),
+        terminal_before
+    );
+    assert!(matches!(
+        database.finish_scan_run(
+            &previous_run_id,
+            "session-4",
+            &previous_token,
+            restart_at + 2,
+            ScanRunOutcome::Completed,
+        ),
+        Err(StorageError::Conflict)
+    ));
+}
+
+#[test]
+fn pending_follow_up_survives_restart_and_invalidates_the_resumed_attempt() {
+    let directory = TestDirectory::new();
+    let (root_id, job_id, chain) = {
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("session-1", 1).unwrap();
+        let job = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+        database
+            .enqueue_scan(&root.id, ScanKind::Periodic, 4)
+            .unwrap();
+        (root.id, job.job_id, lease.job.retry_chain_id)
+    };
+
+    let mut database = Database::open(directory.path()).unwrap();
+    database.begin_scan_session("session-2", 20).unwrap();
+    let queued = database.scan_job(&job_id).unwrap();
+    assert_eq!(queued.state, ScanJobState::Queued);
+    assert!(queued.follow_up_requested);
+    assert_eq!(queued.retry_chain_id, chain);
+    let resumed = database
+        .lease_next_scan("session-2", queued.not_before_ms, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(resumed.root.id, root_id);
+    assert_eq!(resumed.job.id, job_id);
+    assert_eq!(resumed.job.attempt, 2);
+    assert!(resumed.job.follow_up_requested);
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &resumed.run.id,
+                "session-2",
+                &resumed.run.lease_token,
+                queued.not_before_ms + 1,
+                ScanRunOutcome::Completed,
+            )
+            .unwrap(),
+        ScanRunState::Interrupted
+    );
+    let jobs = database.list_scan_jobs().unwrap();
+    assert_eq!(jobs.len(), 2);
+    assert_eq!(jobs[0].state, ScanJobState::Interrupted);
+    assert_eq!(jobs[1].state, ScanJobState::Queued);
+    assert_eq!(jobs[1].kind, ScanKind::Manual);
+    assert_ne!(jobs[1].retry_chain_id, chain);
+}
+
+#[test]
+fn pending_follow_up_is_suppressed_by_cancellation_disable_and_removal() {
+    {
+        let directory = TestDirectory::new();
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("session-1", 1).unwrap();
+        database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+        database
+            .enqueue_scan(&root.id, ScanKind::Periodic, 4)
+            .unwrap();
+        database
+            .request_scan_cancellation(&lease.run.id, 5)
+            .unwrap();
+        assert_eq!(
+            database
+                .finish_scan_run(
+                    &lease.run.id,
+                    "session-1",
+                    &lease.run.lease_token,
+                    6,
+                    ScanRunOutcome::Completed,
+                )
+                .unwrap(),
+            ScanRunState::Cancelled
+        );
+        assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+    }
+    {
+        let directory = TestDirectory::new();
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("session-1", 1).unwrap();
+        database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+        database
+            .enqueue_scan(&root.id, ScanKind::Periodic, 4)
+            .unwrap();
+        database
+            .set_scan_root_enabled_at(&root.id, false, 5)
+            .unwrap();
+        assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+        assert_eq!(
+            database.scan_run(&lease.run.id).unwrap().state,
+            ScanRunState::Cancelled
+        );
+    }
+    {
+        let directory = TestDirectory::new();
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("session-1", 1).unwrap();
+        database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+        database
+            .enqueue_scan(&root.id, ScanKind::Periodic, 4)
+            .unwrap();
+        database.remove_scan_root_at(&root.id, 5).unwrap();
+        assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+        assert_eq!(
+            database.scan_run(&lease.run.id).unwrap().state,
+            ScanRunState::Cancelled
+        );
+    }
 }
 
 #[test]
@@ -1244,7 +2235,7 @@ fn disabling_and_removing_roots_invalidate_work_and_readding_gets_new_identity()
                 .configuration_revision,
             database.scan_root_execution(&root.id).unwrap().generation
         ),
-        (1, 1)
+        (1, 2)
     );
     assert_eq!(
         database.scan_run(&lease.run.id).unwrap().state,
@@ -1265,7 +2256,7 @@ fn disabling_and_removing_roots_invalidate_work_and_readding_gets_new_identity()
         .unwrap();
     assert!(enabled.enabled);
     let current = database.scan_root_execution(&root.id).unwrap();
-    assert_eq!((current.configuration_revision, current.generation), (2, 2));
+    assert_eq!((current.configuration_revision, current.generation), (2, 3));
 
     database.remove_scan_root_at(&root.id, 7).unwrap();
     assert!(matches!(
