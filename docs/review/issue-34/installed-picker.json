@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "4a5d04afa68175ae3f66e5c90a765c842009b319",
+  "observedDate": "2026-09-06",
+  "status": "passed",
+  "environment": {
+    "platform": "Windows AMD64",
+    "interactiveSession": true,
+    "node": "24.20.0",
+    "pnpm": "11.25.0",
+    "rust": "1.98.1",
+    "packageIdentity": "com.fruitboard.desktop.foundation-smoke",
+    "automation": "Windows UI Automation and native dialog control messages",
+    "forceRendererAccessibility": true
+  },
+  "package": {
+    "format": "NSIS current-user",
+    "installerSignature": "NotSigned",
+    "installerBytes": 2642244,
+    "spacesAndUnicodeInstallPath": true
+  },
+  "picker": {
+    "actualNativeDialogObserved": true,
+    "emptyStateCancellationReturnedToUsableUi": true,
+    "emptyStateCancellationDatabaseUnchanged": true,
+    "selectedSyntheticFolderWithSpacesAndUnicode": true,
+    "selectionMatchedUiAndStoredCanonicalPath": true,
+    "addedRootCount": 1,
+    "rootSurvivedApplicationRestart": true,
+    "populatedStateCancellationDatabaseUnchanged": true
+  },
+  "removal": {
+    "keepPreservedRootAndDatabase": true,
+    "confirmationRemovedConfiguration": true,
+    "finalRootCount": 0,
+    "sourceMarkerUnchangedThroughout": true
+  },
+  "cleanup": {
+    "gracefulApplicationClose": true,
+    "applicationUninstalled": true,
+    "databasePreservedByUninstall": true,
+    "databaseSchemaVersion": 2,
+    "databaseBytes": 28672,
+    "previousSyntheticStateMovedAndHashVerified": true,
+    "newSyntheticStateRetained": true,
+    "appProcessesRemaining": 0
+  },
+  "verification": {
+    "nodePolicyTestsPassed": 56,
+    "clientTestsPassed": 45,
+    "lockedPackageBuildPassed": true
+  },
+  "limitations": [
+    "One interactive local Windows session; not a clean-machine qualification.",
+    "Unsigned development smoke identity; no public signing or release claim.",
+    "Native automation exercised actual application controls and dialogs, not mocked IPC.",
+    "This run does not qualify scanner, DriveFS, non-NTFS identity, or parser behavior."
+  ]
+}
