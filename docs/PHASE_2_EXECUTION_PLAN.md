@@ -1,7 +1,7 @@
 # Phase 2 execution contracts and acceptance plan
 
 Status: **Proposed for review; not an implementation or measured performance claim.**
-Baseline: main `6e4bf58` (PR #56), 2026-09-06. This document makes the accepted
+Baseline: main `d1e3bdd` (PR #58), 2026-09-06. This document makes the accepted
 filesystem-only direction executable. Merge accepts the contracts; numerical
 targets below require explicit owner review. Do not silently relax safety gates
 to meet a target. ROADMAP remains the milestone sequence; this document owns
@@ -12,8 +12,8 @@ the detailed Phase 2 contracts and acceptance IDs referenced by issues.
 | State | Work | Evidence or next action |
 | --- | --- | --- |
 | Delivered | Phase 1 foundation, accepted; #34 native picker/root storage | PRs #20-32 and #44; installed picker evidence in `docs/review/issue-34/` via #54 |
-| Delivered | #35 persistent rename/enabled settings, inline onboarding, failure/focus fixes | PRs #55/#56; CI and regression tests; not scanner execution |
-| Evidence pending | #35 rendered desktop/narrow keyboard verification | Active evidence follow-up; preserve its work and link its merged evidence here |
+| Delivered | #35 persistent rename/enabled settings, inline onboarding, failure/focus fixes | PRs #55/#56/#58; CI and regression tests; not scanner execution |
+| Delivered | #35 rendered desktop/narrow keyboard verification | [Evidence](review/issue-35/README.md) and PR #58; fake-adapter rendering is labeled separately from installed-app evidence |
 | Decision pending | Inline Preferences onboarding instead of a separate first-run route | Implementation documented; request owner confirmation with #35 evidence |
 | Next | Agree #36/#38/#40 contracts, then implement bounded slices | This planning PR; no production scan until integrated restart/safety tests pass |
 | Blocked/unverified | DriveFS modes (#47), cross-volume/FAT32 identity (#48) | #42/#43 closed with partial findings, not blanket platform qualification |
