@@ -4,9 +4,10 @@ import {
   LibraryAdapterError,
   MAX_LIBRARY_PAGE_LIMIT,
   type LibraryPage,
+  type LibraryPageRequest,
   type LibraryScanAdapter,
   type PublishedFileLocation,
-  type ScanErrorCode,
+  type LibraryErrorCode,
   type ScanProgressCounters,
   type ScanStartResult,
   type ScanStatus,
@@ -28,18 +29,22 @@ export interface FakeLibraryScanAdapter extends LibraryScanAdapter {
     rootId: string,
     records?: readonly PublishedFileLocation[],
   ): void;
-  failScan(rootId: string, code?: ScanErrorCode): void;
+  failScan(
+    rootId: string,
+    code?: Exclude<LibraryErrorCode, "stale_cursor">,
+  ): void;
   interruptScan(rootId: string): void;
   setRootAvailability(
     rootId: string,
     availability: ScanRoot["availability"],
   ): void;
-  setPageError(code: ScanErrorCode | null): void;
+  setPageError(code: LibraryErrorCode | null): void;
   readonly calls: {
     readonly scanNow: readonly string[];
     readonly cancelScan: readonly string[];
     readonly retryScan: readonly string[];
     readonly pages: readonly number[];
+    readonly pageRequests: readonly LibraryPageRequest[];
   };
 }
 
@@ -92,7 +97,10 @@ export function createFakeLibraryScanAdapter(
   const roots = [...(options.roots ?? [])];
   let records = orderRecords(options.files ?? []);
   const pageLimit = clampPageLimit(options.pageLimit ?? LIBRARY_PAGE_LIMIT);
-  let pageErrorCode: ScanErrorCode | null = null;
+  let pageErrorCode: LibraryErrorCode | null = null;
+  let snapshotSequence = 1;
+  let snapshotId = `fake-snapshot-${snapshotSequence}`;
+  let jobSequence = 0;
   let runSequence = 0;
   const listeners = new Set<() => void>();
   const statusByRoot = new Map<string, ScanStatus>();
@@ -102,6 +110,7 @@ export function createFakeLibraryScanAdapter(
     cancelScan: [] as string[],
     retryScan: [] as string[],
     pages: [] as number[],
+    pageRequests: [] as LibraryPageRequest[],
   };
 
   for (const root of roots) {
@@ -114,6 +123,7 @@ export function createFakeLibraryScanAdapter(
         supplied ?? {
           root: { ...root },
           state: "idle",
+          jobId: null,
           runId: null,
           counters: makeCounters(),
           lastSuccessfulScanAt: null,
@@ -136,24 +146,27 @@ export function createFakeLibraryScanAdapter(
 
   const createQueuedRun = (rootId: string): ScanStartResult => {
     const current = getStatus(rootId);
-    if (current.state === "queued" && current.runId !== null) {
-      return { rootId, runId: current.runId, outcome: "already_queued" };
+    if (current.state === "queued" && current.jobId !== null) {
+      return { rootId, jobId: current.jobId, outcome: "already_queued" };
     }
-    if (current.state === "running" && current.runId !== null) {
-      return { rootId, runId: current.runId, outcome: "already_running" };
+    if (current.state === "running" && current.jobId !== null) {
+      return { rootId, jobId: current.jobId, outcome: "already_running" };
     }
-    if (!current.root.enabled || current.root.availability !== "available") {
+    if (!current.root.enabled || current.root.availability === "unavailable") {
       throw new LibraryAdapterError(
-        current.root.availability === "available" ? "conflict" : "unavailable",
+        current.root.availability === "unavailable"
+          ? "unavailable"
+          : "conflict",
       );
     }
 
-    runSequence += 1;
-    const runId = `fake-run-${runSequence}`;
+    jobSequence += 1;
+    const jobId = `fake-job-${jobSequence}`;
     statusByRoot.set(rootId, {
       ...current,
       state: "queued",
-      runId,
+      jobId,
+      runId: null,
       counters: makeCounters(),
       lastOutcomeAt: null,
       errorCode: null,
@@ -172,15 +185,18 @@ export function createFakeLibraryScanAdapter(
       progressTimers.set(rootId, timer);
     }
 
-    return { rootId, runId, outcome: "queued" };
+    return { rootId, jobId, outcome: "queued" };
   };
 
   const advanceRun = (rootId: string) => {
     const current = getStatus(rootId);
-    if (current.state !== "queued" || current.runId === null) return;
+    if (current.state !== "queued" || current.jobId === null) return;
+    runSequence += 1;
+    const runId = `fake-run-${runSequence}`;
     statusByRoot.set(rootId, {
       ...current,
       state: "running",
+      runId,
       counters: {
         filesObserved: 2,
         directoriesVisited: 1,
@@ -194,12 +210,17 @@ export function createFakeLibraryScanAdapter(
     async getLibraryPage(request): Promise<LibraryPage> {
       await Promise.resolve();
       calls.pages.push(request.limit);
+      calls.pageRequests.push({ ...request });
       if (pageErrorCode !== null) throw new LibraryAdapterError(pageErrorCode);
+      if (request.cursor !== null && request.snapshotId !== snapshotId) {
+        throw new LibraryAdapterError("stale_cursor");
+      }
       const limit = Math.min(clampPageLimit(request.limit), pageLimit);
       const start = readCursor(request.cursor);
       const pageRecords = records.slice(start, start + limit);
       const nextIndex = start + pageRecords.length;
       return {
+        snapshotId,
         records: pageRecords,
         nextCursor:
           nextIndex < records.length ? `fake-page-${nextIndex}` : null,
@@ -217,11 +238,11 @@ export function createFakeLibraryScanAdapter(
       return createQueuedRun(rootId);
     },
 
-    async cancelScan(runId): Promise<CancelScanResult> {
+    async cancelScan(jobId): Promise<CancelScanResult> {
       await Promise.resolve();
-      calls.cancelScan.push(runId);
+      calls.cancelScan.push(jobId);
       const entry = [...statusByRoot.entries()].find(
-        ([, status]) => status.runId === runId,
+        ([, status]) => status.jobId === jobId,
       );
       if (entry === undefined) throw new LibraryAdapterError("not_found");
       const [rootId, current] = entry;
@@ -236,21 +257,64 @@ export function createFakeLibraryScanAdapter(
           errorCode: "cancelled",
         });
         emit();
-        return { rootId, runId, outcome: "cancellation_requested" };
+        return {
+          rootId,
+          jobId,
+          runId: current.runId,
+          outcome:
+            current.state === "queued" ? "cancelled" : "cancellation_requested",
+        };
       }
       if (current.state === "cancelled") {
-        return { rootId, runId, outcome: "already_cancelled" };
+        return {
+          rootId,
+          jobId,
+          runId: current.runId,
+          outcome: "already_cancelled",
+        };
       }
       if (current.state === "completed" || current.state === "idle") {
-        return { rootId, runId, outcome: "already_completed" };
+        return {
+          rootId,
+          jobId,
+          runId: current.runId,
+          outcome: "already_completed",
+        };
       }
-      return { rootId, runId, outcome: "already_failed" };
+      return { rootId, jobId, runId: current.runId, outcome: "already_failed" };
     },
 
-    async retryScan(rootId) {
+    async retryScan(jobId) {
       await Promise.resolve();
-      calls.retryScan.push(rootId);
-      return createQueuedRun(rootId);
+      calls.retryScan.push(jobId);
+      const entry = [...statusByRoot.entries()].find(
+        ([, status]) => status.jobId === jobId,
+      );
+      if (entry === undefined) throw new LibraryAdapterError("not_found");
+      const [rootId, current] = entry;
+      if (current.state === "queued") {
+        return { rootId, jobId, outcome: "already_queued" };
+      }
+      if (current.state === "running") {
+        return { rootId, jobId, outcome: "already_running" };
+      }
+      if (
+        current.state !== "failed" &&
+        current.state !== "cancelled" &&
+        current.state !== "interrupted"
+      ) {
+        throw new LibraryAdapterError("conflict");
+      }
+      statusByRoot.set(rootId, {
+        ...current,
+        state: "queued",
+        runId: null,
+        counters: makeCounters(),
+        lastOutcomeAt: null,
+        errorCode: null,
+      });
+      emit();
+      return { rootId, jobId, outcome: "queued" };
     },
 
     subscribe(listener) {
@@ -273,6 +337,8 @@ export function createFakeLibraryScanAdapter(
       if (timer !== undefined) clearTimeout(timer);
       progressTimers.delete(rootId);
       if (nextRecords !== undefined) records = orderRecords(nextRecords);
+      snapshotSequence += 1;
+      snapshotId = `fake-snapshot-${snapshotSequence}`;
       statusByRoot.set(rootId, {
         ...current,
         state: "completed",

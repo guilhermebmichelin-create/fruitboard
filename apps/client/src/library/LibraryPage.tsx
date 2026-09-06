@@ -17,6 +17,7 @@ import {
   LIBRARY_PAGE_LIMIT,
   LibraryAdapterError,
   isScanAvailabilityUnavailable,
+  isScanAvailabilityUnknown,
   type LibraryPage as LibraryPageData,
   type LibraryScanAdapter,
   type PublishedFileLocation,
@@ -32,6 +33,11 @@ type PageState =
       readonly page: LibraryPageData;
       readonly refreshError: boolean;
     };
+
+type PagePosition = {
+  readonly cursor: string | null;
+  readonly snapshotId: string | null;
+};
 
 type StatusState =
   | { readonly kind: "loading" }
@@ -120,6 +126,20 @@ const statusNeedsPreviousResults = (status: ScanStatus): boolean =>
   status.state === "running" ||
   isScanAvailabilityUnavailable(status.root.availability);
 
+const isStaleCursorError = (error: unknown): boolean =>
+  error instanceof LibraryAdapterError && error.code === "stale_cursor";
+
+const adapterKeys = new WeakMap<object, number>();
+let nextAdapterKey = 0;
+
+const getAdapterKey = (adapter: LibraryScanAdapter): number => {
+  const existing = adapterKeys.get(adapter);
+  if (existing !== undefined) return existing;
+  nextAdapterKey += 1;
+  adapterKeys.set(adapter, nextAdapterKey);
+  return nextAdapterKey;
+};
+
 function LibraryIntegrationDisabled() {
   return (
     <section
@@ -149,7 +169,9 @@ export function LibraryPage({
   readonly adapter: LibraryScanAdapter | undefined;
 }) {
   if (adapter === undefined) return <LibraryIntegrationDisabled />;
-  return <ConnectedLibraryPage adapter={adapter} />;
+  return (
+    <ConnectedLibraryPage adapter={adapter} key={getAdapterKey(adapter)} />
+  );
 }
 
 function ConnectedLibraryPage({
@@ -157,18 +179,26 @@ function ConnectedLibraryPage({
 }: {
   readonly adapter: LibraryScanAdapter;
 }) {
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [cursorHistory, setCursorHistory] = useState<
-    readonly (string | null)[]
-  >([]);
+  const [pagePosition, setPagePosition] = useState<PagePosition>({
+    cursor: null,
+    snapshotId: null,
+  });
+  const [cursorHistory, setCursorHistory] = useState<readonly PagePosition[]>(
+    [],
+  );
   const [pageState, setPageState] = useState<PageState>({ kind: "loading" });
   const [statusState, setStatusState] = useState<StatusState>({
     kind: "loading",
   });
   const [pageAttempt, setPageAttempt] = useState(0);
   const [statusAttempt, setStatusAttempt] = useState(0);
+  const [paginationNotice, setPaginationNotice] = useState<string | null>(null);
   const [actionState, setActionState] = useState<ActionState>({ kind: "idle" });
   const mounted = useRef(true);
+  const pageRequestSequence = useRef(0);
+  const statusRequestSequence = useRef(0);
+  const actionSequence = useRef(0);
+
   const pendingPageFocus = useRef(false);
   const listHeadingReference = useRef<HTMLHeadingElement | null>(null);
   const scanButtonReferences = useRef(new Map<string, HTMLButtonElement>());
@@ -188,40 +218,69 @@ function ConnectedLibraryPage({
     };
   }, []);
 
+  const restartPagination = useCallback(() => {
+    pageRequestSequence.current += 1;
+    pendingPageFocus.current = true;
+    setPagePosition({ cursor: null, snapshotId: null });
+    setCursorHistory([]);
+    setPageState({ kind: "loading" });
+    setPaginationNotice(
+      "The committed Library snapshot changed. Pagination restarted at page 1.",
+    );
+    setPageAttempt((attempt) => attempt + 1);
+  }, []);
+
   const loadPage = useCallback(async () => {
+    const requestId = ++pageRequestSequence.current;
+    const requestPosition = pagePosition;
+    const isCurrentRequest = () =>
+      mounted.current && pageRequestSequence.current === requestId;
+
     try {
       const page = await adapter.getLibraryPage({
-        cursor,
+        cursor: requestPosition.cursor,
+        snapshotId: requestPosition.snapshotId,
         limit: LIBRARY_PAGE_LIMIT,
       });
-      if (mounted.current) {
-        setPageState({ kind: "ready", page, refreshError: false });
+      if (!isCurrentRequest()) return;
+      if (
+        requestPosition.cursor !== null &&
+        page.snapshotId !== requestPosition.snapshotId
+      ) {
+        restartPagination();
+        return;
       }
-    } catch {
-      if (mounted.current) {
-        setPageState((previous) =>
-          previous.kind === "ready"
-            ? { ...previous, refreshError: true }
-            : { kind: "error" },
-        );
+      setPageState({ kind: "ready", page, refreshError: false });
+    } catch (error) {
+      if (!isCurrentRequest()) return;
+      if (isStaleCursorError(error)) {
+        restartPagination();
+        return;
       }
+      setPageState((previous) =>
+        previous.kind === "ready"
+          ? { ...previous, refreshError: true }
+          : { kind: "error" },
+      );
     }
-  }, [adapter, cursor]);
+  }, [adapter, pagePosition, restartPagination]);
 
   const loadStatuses = useCallback(async () => {
+    const requestId = ++statusRequestSequence.current;
+    const isCurrentRequest = () =>
+      mounted.current && statusRequestSequence.current === requestId;
+
     try {
       const statuses = await adapter.listScanStatuses();
-      if (mounted.current) {
-        setStatusState({ kind: "ready", statuses, refreshError: false });
-      }
+      if (!isCurrentRequest()) return;
+      setStatusState({ kind: "ready", statuses, refreshError: false });
     } catch {
-      if (mounted.current) {
-        setStatusState((previous) =>
-          previous.kind === "ready"
-            ? { ...previous, refreshError: true }
-            : { kind: "error" },
-        );
-      }
+      if (!isCurrentRequest()) return;
+      setStatusState((previous) =>
+        previous.kind === "ready"
+          ? { ...previous, refreshError: true }
+          : { kind: "error" },
+      );
     }
   }, [adapter]);
 
@@ -240,11 +299,16 @@ function ConnectedLibraryPage({
   }, [loadStatuses, statusAttempt]);
 
   useEffect(() => {
+    let active = true;
     const unsubscribe = adapter.subscribe(() => {
+      if (!active) return;
       void loadPage();
       void loadStatuses();
     });
-    return unsubscribe;
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, [adapter, loadPage, loadStatuses]);
 
   useEffect(() => {
@@ -277,12 +341,23 @@ function ConnectedLibraryPage({
     );
   }, [statuses]);
 
-  const refreshAfterAction = useCallback(async () => {
-    await loadStatuses();
-    await loadPage();
-  }, [loadPage, loadStatuses]);
+  const refreshAfterAction = useCallback(
+    async (requestId: number) => {
+      const isCurrentAction = () =>
+        mounted.current && actionSequence.current === requestId;
+      if (!isCurrentAction()) return false;
+      await loadStatuses();
+      if (!isCurrentAction()) return false;
+      await loadPage();
+      return isCurrentAction();
+    },
+    [loadPage, loadStatuses],
+  );
 
   const runScan = async (status: ScanStatus, retry: boolean) => {
+    const requestId = ++actionSequence.current;
+    const isCurrentAction = () =>
+      mounted.current && actionSequence.current === requestId;
     const rootId = status.root.id;
     const name = rootControlName(status, duplicateDisplayNames);
     setActionState({
@@ -291,35 +366,39 @@ function ConnectedLibraryPage({
       message: retry ? `Retrying ${name}…` : `Queueing a scan for ${name}…`,
     });
     try {
-      if (retry) await adapter.retryScan(rootId);
+      if (retry && status.jobId !== null) await adapter.retryScan(status.jobId);
       else await adapter.scanNow(rootId);
-      await refreshAfterAction();
-      if (mounted.current) {
-        setActionState({ kind: "idle" });
-        focusLater(() => cancelButtonReferences.current.get(rootId) ?? null);
-      }
+      if (!isCurrentAction()) return;
+      if (!(await refreshAfterAction(requestId))) return;
+      setActionState({ kind: "idle" });
+      focusLater(() => cancelButtonReferences.current.get(rootId) ?? null);
     } catch (error) {
-      await refreshAfterAction();
-      if (mounted.current) {
-        const code =
-          error instanceof LibraryAdapterError ? error.code : "internal";
-        setActionState({
-          kind: "error",
-          rootId,
-          message: scanErrorMessages[code],
-        });
-        focusLater(
-          () =>
-            retryButtonReferences.current.get(rootId) ??
-            scanButtonReferences.current.get(rootId) ??
-            null,
-        );
-      }
+      if (!isCurrentAction()) return;
+      await refreshAfterAction(requestId);
+      if (!isCurrentAction()) return;
+      const code =
+        error instanceof LibraryAdapterError && error.code !== "stale_cursor"
+          ? error.code
+          : "internal";
+      setActionState({
+        kind: "error",
+        rootId,
+        message: scanErrorMessages[code],
+      });
+      focusLater(
+        () =>
+          retryButtonReferences.current.get(rootId) ??
+          scanButtonReferences.current.get(rootId) ??
+          null,
+      );
     }
   };
 
   const cancelScan = async (status: ScanStatus) => {
-    if (status.runId === null) return;
+    if (status.jobId === null) return;
+    const requestId = ++actionSequence.current;
+    const isCurrentAction = () =>
+      mounted.current && actionSequence.current === requestId;
     const rootId = status.root.id;
     const name = rootControlName(status, duplicateDisplayNames);
     setActionState({
@@ -328,47 +407,54 @@ function ConnectedLibraryPage({
       message: `Cancelling the scan for ${name}…`,
     });
     try {
-      await adapter.cancelScan(status.runId);
-      await refreshAfterAction();
-      if (mounted.current) {
-        setActionState({ kind: "idle" });
-        focusLater(
-          () =>
-            retryButtonReferences.current.get(rootId) ??
-            scanButtonReferences.current.get(rootId) ??
-            null,
-        );
-      }
+      await adapter.cancelScan(status.jobId);
+      if (!isCurrentAction()) return;
+      if (!(await refreshAfterAction(requestId))) return;
+      setActionState({ kind: "idle" });
+      focusLater(
+        () =>
+          retryButtonReferences.current.get(rootId) ??
+          scanButtonReferences.current.get(rootId) ??
+          null,
+      );
     } catch {
-      await refreshAfterAction();
-      if (mounted.current) {
-        setActionState({
-          kind: "error",
-          rootId,
-          message:
-            "The scan could not be cancelled safely. Refresh and try again.",
-        });
-        focusLater(() => cancelButtonReferences.current.get(rootId) ?? null);
-      }
+      if (!isCurrentAction()) return;
+      await refreshAfterAction(requestId);
+      if (!isCurrentAction()) return;
+      setActionState({
+        kind: "error",
+        rootId,
+        message:
+          "The scan could not be cancelled safely. Refresh and try again.",
+      });
+      focusLater(() => cancelButtonReferences.current.get(rootId) ?? null);
     }
   };
 
   const goToNextPage = () => {
     if (pageState.kind !== "ready" || pageState.page.nextCursor === null)
       return;
+    pageRequestSequence.current += 1;
     pendingPageFocus.current = true;
+    setPaginationNotice(null);
     setPageState({ kind: "loading" });
-    setCursorHistory((history) => [...history, cursor]);
-    setCursor(pageState.page.nextCursor);
+    setCursorHistory((history) => [...history, pagePosition]);
+    setPagePosition({
+      cursor: pageState.page.nextCursor,
+      snapshotId: pageState.page.snapshotId,
+    });
   };
 
   const goToPreviousPage = () => {
     if (cursorHistory.length === 0) return;
+    const previousPosition = cursorHistory[cursorHistory.length - 1];
+    if (previousPosition === undefined) return;
+    pageRequestSequence.current += 1;
     pendingPageFocus.current = true;
+    setPaginationNotice(null);
     setPageState({ kind: "loading" });
-    const previousCursor = cursorHistory[cursorHistory.length - 1] ?? null;
     setCursorHistory((history) => history.slice(0, -1));
-    setCursor(previousCursor);
+    setPagePosition(previousPosition);
   };
 
   if (pageState.kind === "loading" && statusState.kind === "loading") {
@@ -436,6 +522,7 @@ function ConnectedLibraryPage({
         actionState={actionState}
         duplicateDisplayNames={duplicateDisplayNames}
         onRetryStatus={() => {
+          statusRequestSequence.current += 1;
           setStatusState({ kind: "loading" });
           setStatusAttempt((attempt) => attempt + 1);
         }}
@@ -471,6 +558,8 @@ function ConnectedLibraryPage({
           <button
             className="library-button library-button--primary"
             onClick={() => {
+              pageRequestSequence.current += 1;
+              setPaginationNotice(null);
               setPageState({ kind: "loading" });
               setPageAttempt((attempt) => attempt + 1);
             }}
@@ -479,6 +568,12 @@ function ConnectedLibraryPage({
             Try again
           </button>
         </section>
+      )}
+
+      {paginationNotice !== null && (
+        <p aria-live="polite" className="library-inline-notice" role="status">
+          {paginationNotice}
+        </p>
       )}
 
       {pageState.kind === "ready" && pageState.refreshError && (
@@ -648,8 +743,8 @@ function ScanStatusPanel({
           <h2 id="scan-status-title">Scan status</h2>
         </div>
         <p>
-          Availability and last successful freshness are separate observations.
-          Incomplete work never publishes partial results.
+          Availability is the last stored adapter observation, not a live
+          reachability check. Incomplete work never publishes partial results.
         </p>
       </div>
 
@@ -759,7 +854,8 @@ function ScanStatusCard({
   const busy =
     actionState.kind === "working" && actionState.rootId === status.root.id;
   const canScan =
-    status.root.enabled && status.root.availability === "available";
+    status.root.enabled &&
+    !isScanAvailabilityUnavailable(status.root.availability);
   const isActive = status.state === "queued" || status.state === "running";
   const showRetry =
     terminalStates.has(status.state) ||
@@ -777,6 +873,11 @@ function ScanStatusCard({
           </span>
         </div>
         <p className="library-scan-item__path">{status.root.canonicalPath}</p>
+        <p className="library-scan-item__availability-note">
+          {isScanAvailabilityUnknown(status.root.availability)
+            ? "Reachability has not been checked recently; Scan now will verify access."
+            : "This availability is the last adapter observation, not a live check."}
+        </p>
         <dl className="library-scan-facts">
           <div>
             <dt>Root availability</dt>

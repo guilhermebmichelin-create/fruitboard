@@ -23,11 +23,15 @@ export interface PublishedFileLocation {
 }
 
 export interface LibraryPageRequest {
+  /** The committed dataset to continue, or null to read the latest snapshot. */
+  readonly snapshotId: string | null;
   readonly cursor: string | null;
   readonly limit: number;
 }
 
 export interface LibraryPage {
+  /** Opaque identity of the committed dataset used for this page. */
+  readonly snapshotId: string;
   readonly records: readonly PublishedFileLocation[];
   readonly nextCursor: string | null;
 }
@@ -51,6 +55,8 @@ export type ScanErrorCode =
   | "cancelled"
   | "internal";
 
+export type LibraryErrorCode = ScanErrorCode | "stale_cursor";
+
 export interface ScanProgressCounters {
   readonly filesObserved: number;
   readonly directoriesVisited: number;
@@ -60,6 +66,9 @@ export interface ScanProgressCounters {
 export interface ScanStatus {
   readonly root: ScanRoot;
   readonly state: ScanExecutionState;
+  /** A queued job exists before a worker leases a run. */
+  readonly jobId: string | null;
+  /** A run is allocated when the queued job is leased; it is null while queued. */
   readonly runId: string | null;
   readonly counters: ScanProgressCounters;
   readonly lastSuccessfulScanAt: string | null;
@@ -71,11 +80,12 @@ export type ScanStartOutcome = "queued" | "already_queued" | "already_running";
 
 export interface ScanStartResult {
   readonly rootId: string;
-  readonly runId: string;
+  readonly jobId: string;
   readonly outcome: ScanStartOutcome;
 }
 
 export type CancelScanOutcome =
+  | "cancelled"
   | "cancellation_requested"
   | "already_cancelled"
   | "already_completed"
@@ -84,7 +94,8 @@ export type CancelScanOutcome =
 
 export interface CancelScanResult {
   readonly rootId: string;
-  readonly runId: string;
+  readonly jobId: string;
+  readonly runId: string | null;
   readonly outcome: CancelScanOutcome;
 }
 
@@ -92,15 +103,15 @@ export interface LibraryScanAdapter {
   getLibraryPage(request: LibraryPageRequest): Promise<LibraryPage>;
   listScanStatuses(): Promise<readonly ScanStatus[]>;
   scanNow(rootId: string): Promise<ScanStartResult>;
-  cancelScan(runId: string): Promise<CancelScanResult>;
-  retryScan(rootId: string): Promise<ScanStartResult>;
+  cancelScan(jobId: string): Promise<CancelScanResult>;
+  retryScan(jobId: string): Promise<ScanStartResult>;
   subscribe(listener: () => void): () => void;
 }
 
 export class LibraryAdapterError extends Error {
-  readonly code: ScanErrorCode;
+  readonly code: LibraryErrorCode;
 
-  constructor(code: ScanErrorCode) {
+  constructor(code: LibraryErrorCode) {
     super(code);
     this.name = "LibraryAdapterError";
     this.code = code;
@@ -110,5 +121,11 @@ export class LibraryAdapterError extends Error {
 export function isScanAvailabilityUnavailable(
   availability: ScanRootAvailability,
 ): boolean {
-  return availability !== "available";
+  return availability === "unavailable";
+}
+
+export function isScanAvailabilityUnknown(
+  availability: ScanRootAvailability,
+): boolean {
+  return availability === "unknown";
 }

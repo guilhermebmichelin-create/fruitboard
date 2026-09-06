@@ -735,7 +735,9 @@
   .library-status-loading,
   .library-state-panel > p,
   .library-stale-banner p,
-  .library-inline-error {
+  .library-inline-error,
+  .library-inline-notice,
+  .library-scan-item__availability-note {
     color: var(--color-text-muted);
   }
 
@@ -822,7 +824,8 @@
   }
 
   .library-scan-item__path,
-  .library-scan-item__hint {
+  .library-scan-item__hint,
+  .library-scan-item__availability-note {
     overflow-wrap: anywhere;
     color: var(--color-text-muted);
     font-size: var(--font-size-small);
@@ -830,6 +833,10 @@
 
   .library-scan-item__path {
     margin-block-start: var(--space-1);
+  }
+
+  .library-scan-item__availability-note {
+    margin-block-start: var(--space-2);
   }
 
   .library-status-chip,
@@ -928,7 +935,8 @@
   .library-scan-outcome,
   .library-action-message,
   .library-status-error,
-  .library-inline-error {
+  .library-inline-error,
+  .library-inline-notice {
     display: flex;
     align-items: start;
     gap: var(--space-2);

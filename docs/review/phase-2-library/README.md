@@ -30,28 +30,32 @@ Scan now, Cancel, and Retry, and asserts focus transitions:
 
 ## Automated client evidence
 
-- `LibraryPage.test.tsx`: initial loading and empty states, bounded cursor
-  pagination, stable page navigation, duplicate roots, command transitions,
-  cancellation, retry, failed and interrupted scans, unavailable roots, and
-  page-read retry.
-- `LibraryPage.accessibility.test.tsx`: axe checks for populated, running,
-  cancelled, and unavailable states.
-- Latest client run: 10 test files and 70 tests passed; lint and TypeScript
+- `LibraryPage.test.tsx`: initial loading and empty states, combined bounded
+  snapshot pagination, stale-cursor restart, duplicate roots, job-based queue
+  and cancellation, retry, failed and interrupted scans, unavailable/unknown
+  availability, page-read retry, reverse-order page/status subscription
+  refreshes, adapter replacement, and unmount safety.
+- `LibraryPage.accessibility.test.tsx`: axe checks for populated, queued,
+  running, cancelled, retry, and unavailable states, plus keyboard activation
+  and focus recovery across queue/cancel/retry.
+- Latest client run: 10 test files and 79 tests passed; lint and TypeScript
   checks passed.
 - Existing shell accessibility tests continue to cover the production route
   with no adapter. It renders the explicit integration-pending state with no
   nonfunctional scan controls.
 
-The fake adapter keeps its committed records separate from its run state. A
-failed, interrupted, cancelled, or unavailable run never changes the records or
-turns them into newly missing locations.
+The fake adapter keeps its committed records and snapshot identity separate from
+its run state. A failed, interrupted, cancelled, or unavailable run never
+changes the records or turns them into newly missing locations. A queued fake
+job has a job ID and no run ID until `advanceRun` simulates leasing.
 
 ## Native integration checklist
 
 1. Have the #38 execution and #40 publication owners accept
-   [`CONTRACT_PROPOSAL.md`](CONTRACT_PROPOSAL.md), especially cursor ordering,
-   published DTO fields, progress counters, safe outcomes/codes, and the
-   separate freshness/availability semantics.
+   [`CONTRACT_PROPOSAL.md`](CONTRACT_PROPOSAL.md), especially combined
+   snapshot pagination, cursor restart semantics, job/run identity, published
+   DTO fields, progress counters, safe outcomes/codes, and separate
+   freshness/availability semantics.
 2. Add versioned native/platform methods and parsers in a coordinated change;
    this UI branch deliberately does not edit the shared `PlatformPort` or
    Tauri adapter.
