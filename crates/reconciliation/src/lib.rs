@@ -57,6 +57,13 @@ pub enum Change {
     Added(String),
     Modified(String),
     Replaced(String),
+    /// The path remains observable, but physical continuity is uncertain
+    /// because identity availability changed between observations.
+    IdentityUncertain {
+        path: String,
+        was_available: bool,
+        is_available: bool,
+    },
     Missing(String),
     Restored(String),
     /// Unambiguous same-run physical continuity evidence; histories stay per path.
@@ -134,11 +141,20 @@ pub fn reconcile(
                 if !before.present {
                     changes.push(Change::Restored(path.clone()));
                 }
+                let was_identity_available = before.metadata.identity.is_some();
+                let is_identity_available = after.metadata.identity.is_some();
+                if was_identity_available != is_identity_available {
+                    changes.push(Change::IdentityUncertain {
+                        path: path.clone(),
+                        was_available: was_identity_available,
+                        is_available: is_identity_available,
+                    });
+                }
+                let file_metadata_changed = before.metadata.size != after.metadata.size
+                    || before.metadata.modified_ns != after.metadata.modified_ns;
                 match (&before.metadata.identity, &after.metadata.identity) {
                     (Some(a), Some(b)) if a != b => changes.push(Change::Replaced(path.clone())),
-                    _ if before.metadata != after.metadata => {
-                        changes.push(Change::Modified(path.clone()))
-                    }
+                    _ if file_metadata_changed => changes.push(Change::Modified(path.clone())),
                     _ => {}
                 }
                 locations.push(Location {

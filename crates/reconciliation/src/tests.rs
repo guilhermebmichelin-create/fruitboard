@@ -84,6 +84,57 @@ fn stable_path_with_new_identity_is_replacement_even_with_identical_metadata() {
 }
 
 #[test]
+fn identity_lost_on_a_stable_path_is_continuity_uncertainty() {
+    let before = initial(&[seen("a.flp", Some(1), 1)]);
+    let plan = reconcile(&before, &[seen("a.flp", None, 1)], Outcome::Complete).unwrap();
+    assert_eq!(
+        plan.changes,
+        [Change::IdentityUncertain {
+            path: "a.flp".into(),
+            was_available: true,
+            is_available: false,
+        }]
+    );
+    assert_eq!(plan.locations[0].metadata.size, 1);
+    assert!(plan.locations[0].present);
+}
+
+#[test]
+fn identity_becoming_available_is_continuity_uncertainty() {
+    let before = initial(&[seen("a.flp", None, 1)]);
+    let plan = reconcile(&before, &[seen("a.flp", Some(1), 1)], Outcome::Complete).unwrap();
+    assert_eq!(
+        plan.changes,
+        [Change::IdentityUncertain {
+            path: "a.flp".into(),
+            was_available: false,
+            is_available: true,
+        }]
+    );
+    assert_eq!(
+        plan.locations[0].metadata.identity,
+        metadata(Some(1), 1).identity
+    );
+}
+
+#[test]
+fn identity_transition_with_metadata_change_reports_both_facts() {
+    let before = initial(&[seen("a.flp", Some(1), 1)]);
+    let plan = reconcile(&before, &[seen("a.flp", None, 2)], Outcome::Complete).unwrap();
+    assert_eq!(
+        plan.changes,
+        [
+            Change::IdentityUncertain {
+                path: "a.flp".into(),
+                was_available: true,
+                is_available: false,
+            },
+            Change::Modified("a.flp".into()),
+        ]
+    );
+}
+
+#[test]
 fn every_incomplete_outcome_rejects_positive_and_absence_changes() {
     let before = initial(&[seen("a.flp", Some(1), 1), seen("b.flp", Some(2), 1)]);
     let retained = before.clone();
@@ -242,6 +293,27 @@ fn duplicate_and_invalid_paths_reject_the_whole_run_without_path_diagnostics() {
 
 #[test]
 fn resource_limits_reject_without_partial_output() {
+    let at_record_limit: Vec<_> = (0..MAX_RECORDS)
+        .map(|index| seen(&format!("file-{index}.flp"), None, 1))
+        .collect();
+    assert_eq!(
+        reconcile(&[], &at_record_limit, Outcome::Complete)
+            .unwrap()
+            .locations
+            .len(),
+        MAX_RECORDS
+    );
+    let previous_half = initial(&at_record_limit[..MAX_RECORDS / 2]);
+    let mut observed_over_combined_limit = at_record_limit[MAX_RECORDS / 2..].to_vec();
+    observed_over_combined_limit.push(seen("file-extra.flp", None, 1));
+    assert_eq!(
+        reconcile(
+            &previous_half,
+            &observed_over_combined_limit,
+            Outcome::Complete
+        ),
+        Err(Rejected::ResourceLimit)
+    );
     let files = vec![seen("a.flp", None, 1); MAX_RECORDS + 1];
     assert_eq!(
         reconcile(&[], &files, Outcome::Complete),
@@ -253,6 +325,32 @@ fn resource_limits_reject_without_partial_output() {
             &[seen(&"x".repeat(MAX_PATH_BYTES + 1), None, 1)],
             Outcome::Complete
         ),
+        Err(Rejected::ResourceLimit)
+    );
+}
+
+#[test]
+fn aggregate_path_bytes_are_bounded_independently_of_record_count() {
+    let observations: Vec<_> = (0..130)
+        .map(|index| {
+            let path = format!("{}-{index:05}", "x".repeat(MAX_PATH_BYTES - 6));
+            seen(&path, None, 1)
+        })
+        .collect();
+    assert!(
+        observations
+            .iter()
+            .all(|observation| { observation.path.len() <= MAX_PATH_BYTES })
+    );
+    assert_eq!(
+        observations
+            .iter()
+            .map(|observation| observation.path.len())
+            .sum::<usize>(),
+        130 * MAX_PATH_BYTES
+    );
+    assert_eq!(
+        reconcile(&[], &observations, Outcome::Complete),
         Err(Rejected::ResourceLimit)
     );
 }

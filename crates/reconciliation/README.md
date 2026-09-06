@@ -11,8 +11,11 @@ An incomplete outcome rejects the entire proposal. A successful outcome can
 mark previously present paths missing, while retaining missing history. Qualified
 physical identity supplies conservative replacement and unambiguous same-run
 rename evidence. Hardlink aliases always retain separate presence records.
-Missing identity uses path continuity only. Equal size/mtime cannot prove equal
-content, and this library never opens content to make that claim.
+When identity changes from available to unavailable, or becomes available, the
+plan emits `IdentityUncertain` and treats size/mtime differences as separate
+`Modified` evidence. It never claims physical continuity from the path alone.
+Equal size/mtime cannot prove equal content, and this library never opens
+content to make that claim.
 
 The caller supplies normalized relative paths and qualified identity. Basic
 absolute/traversal/duplicate-path rejection is defensive; Windows normalization,
@@ -40,11 +43,12 @@ Run `cargo test -p fruitboard-reconciliation --locked` and
 `cargo clippy -p fruitboard-reconciliation --all-targets --locked -- -D warnings`.
 The portable CI job runs both, and workspace Windows tests include the crate.
 
-Thirteen deterministic tests cover unchanged-tree idempotence and order,
-add/modify, rename/replacement, all incomplete outcomes including cancellation
-and offline roots, missing/restored paths, restoration with replacement,
-hardlink alias survival, ambiguous alias churn, identity fallback, historical
-ID reuse, invalid/duplicate paths and resource limits. Fixtures are in-memory
-metadata; no FLP files or private folders are used. This is core evidence only,
-not installed-app, actual filesystem enumeration, crash recovery or benchmark
-evidence. #36 and #41 remain open until their broader acceptance is satisfied.
+Seventeen deterministic tests cover unchanged-tree idempotence and order,
+add/modify, rename/replacement, identity availability transitions, all
+incomplete outcomes including cancellation and offline roots, missing/restored
+paths, restoration with replacement, hardlink alias survival, ambiguous alias
+churn, identity fallback, historical ID reuse, invalid/duplicate paths, and
+record/path-byte boundaries. Fixtures are in-memory metadata; no FLP files or
+private folders are used. This is core evidence only, not installed-app, actual
+filesystem enumeration, crash recovery or benchmark evidence. #36 and #41
+remain open until their broader acceptance is satisfied.
