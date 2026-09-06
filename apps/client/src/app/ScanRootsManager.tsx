@@ -53,15 +53,9 @@ export function ScanRootsManager({
   }, []);
 
   const refresh = useCallback(async () => {
-    try {
-      const roots = await platform.listScanRoots();
-      if (mounted.current) {
-        setLoadState({ kind: "ready", roots });
-      }
-    } catch {
-      if (mounted.current) {
-        setLoadState({ kind: "error" });
-      }
+    const roots = await platform.listScanRoots();
+    if (mounted.current) {
+      setLoadState({ kind: "ready", roots });
     }
   }, [platform]);
 
@@ -84,6 +78,26 @@ export function ScanRootsManager({
       current = false;
     };
   }, [loadAttempt, platform]);
+
+  const refreshAfterMutation = async (notice: string) => {
+    try {
+      await refresh();
+    } catch {
+      if (mounted.current) {
+        // The mutation already succeeded: report the stale list honestly
+        // instead of claiming nothing changed.
+        setActionState({
+          kind: "error",
+          message:
+            "Saved, but the list could not be refreshed. Reopen Preferences to confirm.",
+        });
+      }
+      return;
+    }
+    if (mounted.current) {
+      setActionState({ kind: "notice", message: notice });
+    }
+  };
 
   const retry = () => {
     setActionState({ kind: "idle" });
@@ -117,15 +131,13 @@ export function ScanRootsManager({
     }
     try {
       await platform.addScanRoot(defaultDisplayName(picked), picked);
-      await refresh();
-      if (mounted.current) {
-        setActionState({ kind: "notice", message: "Folder added." });
-      }
     } catch (error) {
       if (mounted.current) {
         setActionState({ kind: "error", message: addFailureMessage(error) });
       }
+      return;
     }
+    await refreshAfterMutation("Folder added.");
   };
 
   const removeRoot = async (id: string) => {
@@ -133,19 +145,12 @@ export function ScanRootsManager({
     setActionState({ kind: "working", action: "Removing the folder…" });
     try {
       await platform.removeScanRoot(id);
-      await refresh();
-      if (mounted.current) {
-        setActionState({ kind: "notice", message: "Folder removed." });
-      }
     } catch (error) {
       if (
         error instanceof PlatformError &&
         (error.code === "not_found" || error.code === "conflict")
       ) {
-        await refresh();
-        if (mounted.current) {
-          setActionState({ kind: "idle" });
-        }
+        await refreshAfterMutation("Folder removed.");
         return;
       }
       if (mounted.current) {
@@ -154,7 +159,9 @@ export function ScanRootsManager({
           message: "Fruitboard could not remove that folder. Try again.",
         });
       }
+      return;
     }
+    await refreshAfterMutation("Folder removed.");
   };
 
   if (loadState.kind === "loading") {
