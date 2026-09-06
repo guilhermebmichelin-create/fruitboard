@@ -148,6 +148,9 @@ jobs:
         run: |
           cargo test -p fruitboard-storage --locked creates_latest_and_reopens_without_reseeding_settings
           cargo test -p fruitboard-storage --locked upgrades_every_supported_fixture_and_preserves_existing_rows
+          cargo test -p fruitboard-storage --locked durable_scan_jobs_coalesce_and_schedule_one_follow_up
+          cargo test -p fruitboard-storage --locked restart_invalidates_old_session_and_enqueues_recovery
+          cargo test -p fruitboard-storage --locked disabling_and_removing_roots_invalidate_work_and_readding_gets_new_identity
           cargo test -p fruitboard-storage --locked killed_migration_recovers_the_original_committed_database
           cargo test -p fruitboard-storage --locked backup_recovers_committed_state_after_original_corruption_without_overwriting_it
 

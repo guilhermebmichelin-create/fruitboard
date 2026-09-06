@@ -1,23 +1,28 @@
 # Data model
 
-Status: **Accepted logical baseline; Phase 1 implements local settings only**
+Status: **Accepted logical baseline; Phase 2 execution foundation is shipped**
 
-## Implemented Phase 1 subset
+## Implemented local foundation
 
 Issue #15 adds `crates/storage-sqlite`, using pinned `rusqlite` 0.40.2 with
 bundled SQLite 3.53.2. Native startup opens
 `app_local_data_dir()/storage/fruitboard.db`; Windows resolves this below the
 current user's local application data, outside roaming/Drive locations.
 
-The executable schema is version 1:
+The executable schema is version 3:
 
 | Table | Fields and constraints | Classification |
 | --- | --- | --- |
 | `schema_migration` | Positive version primary key, unique name, exact committed SQL | Device-local migration ledger |
 | `app_settings` | Singleton primary key fixed to 1; `startup_view` constrained to `home`, `library`, `board`, or `preferences` | Device-local preference |
+| `scan_root` | Stable root ID, display name, canonical path, enabled flag, availability and safe error; execution configuration revision and generation | Device-local root configuration |
+| `scan_session` | Process session ID and start/end timestamps | Device-local execution fence |
+| `scan_job` | One active queued/running job per root, retry chain/attempt budget, due time, follow-up and cancellation flags | Device-local durable queue |
+| `scan_run` | Run ID, root generation/revision, session ID, lease token/deadline, terminal outcome | Device-local leased attempt |
 
-Both tables are STRICT. The preference defaults to Home. Only their primary
-key/uniqueness indexes exist; this slice has no query requiring another index.
+All shipped tables are STRICT. The preference defaults to Home. The execution
+tables use partial and due-time indexes for one active job per root and bounded
+lease/queue recovery.
 The singleton key is infrastructure identity, not a domain entity UUID.
 There is no foreign-key relationship between these two tables; foreign-key
 enforcement is enabled on every connection and tested with temporary relational
@@ -41,8 +46,8 @@ Migrations are embedded from `crates/storage-sqlite/migrations/`. The runner
 checks the application ID, `user_version`, and the complete ordered ledger,
 then commits all pending SQL, seeds, ledger rows, and the version in one
 IMMEDIATE transaction. Changed history, unrelated databases, and newer schemas
-are refused. Only v0 (empty) and v1 exist; tests cover both and use a synthetic
-v2 to exercise upgrades and failures without shipping a speculative schema.
+are refused. Tests cover v0, v1 and v2 fixtures, including migration 003
+preserving roots/preferences and rollback after a later failure.
 
 Before upgrading an existing schema, the SQLite backup API creates a verified
 snapshot in `storage/backups/`. Backup failure prevents the upgrade. Completed
@@ -69,8 +74,9 @@ regressions verify refusal and preservation of each destination artifact; a
 real hot-journal fixture proves that stale pages can replace Library with Home
 if recovery ignores the companion. Process
 termination evidence is not a hardware power-loss qualification.
-Projects, workflows, parser snapshots, scanner/sync tables, tombstones, notes,
-and FTS remain deferred to their owning slices.
+Projects, workflows, parser snapshots, staging/publication, file locations,
+tombstones, notes, and FTS remain deferred to their owning slices. Migration 003
+does not make the reconciliation core a production scanner.
 
 ## Modeling principles
 
@@ -370,11 +376,11 @@ desktop master.
 
 ### Scan operations — device-local
 
-The [Phase 2 execution contracts](docs/PHASE_2_EXECUTION_PLAN.md) propose root
+The [Phase 2 execution contracts](docs/PHASE_2_EXECUTION_PLAN.md) define root
 configuration revisions, generation/lease validation, run-scoped staging,
-atomic publication and recovery semantics for #36/#38/#40. The entities below
-are the conceptual model, not a claim that those migrations already exist.
-Schema PRs must map the contracts to durable constraints and failure tests.
+atomic publication and recovery semantics for #36/#38/#40. Migration 003 ships
+the #38 execution portion of that model; staging, publication and the read
+model remain future slices. See the [durable execution evidence](docs/PHASE_2_DURABLE_EXECUTION.md).
 
 `scan_root`
 
@@ -382,19 +388,31 @@ Schema PRs must map the contracts to durable constraints and failure tests.
 - watch/reconciliation state, cloud hydration policy, last successful scan
 - root availability and last safe error code
 - #34 implements the stored subset (id, display name, canonical path,
-  enabled, availability, last error code) via migration 002; watch state,
-  hydration policy, and last-scan bookkeeping arrive with later slices
+  enabled, availability, last error code) via migration 002; migration 003
+  adds execution configuration revision and generation. Watch state, hydration
+  policy, and last-scan bookkeeping arrive with later slices.
 
 `scan_run`
 
-- `id`, `scan_root_id`, kind `initial|manual|periodic|recovery`
-- start/end, outcome, counters, generation number
+- `id`, `scan_job_id`, `scan_root_id`, generation and configuration revision
+- retry-chain ID and attempt, process session ID, opaque lease token/deadline
+- state/outcome, cancellation flag, start/finish timestamps and safe error code
 
 `scan_job`
 
-- `id`, root/location, kind, state, priority, attempt count, not-before time
-- expected fingerprint and correlation ID
-- unique active job key prevents event-storm duplication
+- `id`, root, kind, queued/running/terminal state, priority and not-before time
+- retry-chain ID, persisted attempt/max-attempt budget, follow-up and
+  cancellation flags, safe error code
+- partial unique active-root index prevents event-storm duplication
+
+`scan_session`
+
+- process session ID and start/end timestamps; starting a new session interrupts
+  prior running attempts and queues recovery for enabled roots
+
+Run history is retained after root removal as detached operational evidence;
+the removed configuration is not recreated by an old job. Staging rows and
+committed file/location data arrive with #40.
 
 Detailed logs are rolling structured files, not unbounded database rows.
 

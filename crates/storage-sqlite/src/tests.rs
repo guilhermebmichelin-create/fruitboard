@@ -25,20 +25,12 @@ impl Drop for TestDirectory {
 }
 
 fn upgraded_migrations(sql: &'static str) -> Vec<Migration> {
-    vec![
-        Migration {
-            name: MIGRATIONS[0].name,
-            sql: MIGRATIONS[0].sql,
-        },
-        Migration {
-            name: MIGRATIONS[1].name,
-            sql: MIGRATIONS[1].sql,
-        },
-        Migration {
-            name: "003_test_only",
-            sql,
-        },
-    ]
+    let mut migrations = MIGRATIONS.to_vec();
+    migrations.push(Migration {
+        name: "004_test_only",
+        sql,
+    });
+    migrations
 }
 
 #[test]
@@ -52,7 +44,7 @@ fn creates_latest_and_reopens_without_reseeding_settings() {
     let directory = TestDirectory::new();
     {
         let mut database = Database::open(directory.path()).unwrap();
-        assert_eq!(database.schema_version().unwrap(), 2);
+        assert_eq!(database.schema_version().unwrap(), 3);
         assert_eq!(database.startup_view().unwrap(), StartupView::Home);
         database.set_startup_view(StartupView::Library).unwrap();
     }
@@ -102,7 +94,7 @@ fn future_upgrade_creates_a_restorable_pre_migration_backup() {
     let database = Database::open_with_migrations(directory.path(), &migrations).unwrap();
     assert_eq!(
         migrations::version(&database.connection, &migrations).unwrap(),
-        3
+        4
     );
     let backups: Vec<_> = fs::read_dir(directory.path().join("storage/backups"))
         .unwrap()
@@ -111,7 +103,7 @@ fn future_upgrade_creates_a_restorable_pre_migration_backup() {
     assert_eq!(backups.len(), 1);
     let recovered_directory = TestDirectory::new();
     let recovered = Database::recover_to(&backups[0], recovered_directory.path()).unwrap();
-    assert_eq!(recovered.schema_version().unwrap(), 2);
+    assert_eq!(recovered.schema_version().unwrap(), 3);
     assert_eq!(recovered.startup_view().unwrap(), StartupView::Preferences);
 }
 
@@ -121,6 +113,9 @@ fn failed_migration_rolls_back_schema_data_and_ledger() {
     {
         let mut database = Database::open(directory.path()).unwrap();
         database.set_startup_view(StartupView::Library).unwrap();
+        database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
     }
     let before = fs::read(directory.database()).unwrap();
     let migrations = upgraded_migrations(
@@ -134,8 +129,9 @@ fn failed_migration_rolls_back_schema_data_and_ledger() {
     ));
     assert_eq!(fs::read(directory.database()).unwrap(), before);
     let database = Database::open(directory.path()).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 2);
+    assert_eq!(database.schema_version().unwrap(), 3);
     assert_eq!(database.startup_view().unwrap(), StartupView::Library);
+    assert_eq!(database.list_scan_roots().unwrap().len(), 1);
     let count: i64 = database
         .connection
         .query_row(
@@ -292,6 +288,44 @@ fn backup_recovers_committed_state_after_original_corruption_without_overwriting
     let reopened = Database::open(recovered_directory.path()).unwrap();
     assert_eq!(reopened.startup_view().unwrap(), StartupView::Library);
     assert!(backup.exists());
+}
+
+#[test]
+fn recovery_fences_inflight_execution_before_publishing_the_destination() {
+    let source_directory = TestDirectory::new();
+    let (backup, run_id, job_id) = {
+        let mut database = Database::open(source_directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("source-session", 1).unwrap();
+        database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("source-session", 3, 100)
+            .unwrap()
+            .unwrap();
+        let backup = database.create_backup().unwrap();
+        (backup, lease.run.id, lease.job.id)
+    };
+    let destination = TestDirectory::new();
+    let recovered = Database::recover_to(&backup, destination.path()).unwrap();
+    assert_eq!(
+        recovered.scan_run(&run_id).unwrap().state,
+        ScanRunState::Interrupted
+    );
+    assert_eq!(
+        recovered.scan_job(&job_id).unwrap().state,
+        ScanJobState::Interrupted
+    );
+    assert!(
+        recovered
+            .list_scan_jobs()
+            .unwrap()
+            .iter()
+            .all(|job| job.state != ScanJobState::Running)
+    );
 }
 
 #[test]
@@ -593,7 +627,7 @@ fn killed_migration_recovers_the_original_committed_database() {
             .exists()
     );
     let recovered = Database::open(directory.path()).unwrap();
-    assert_eq!(recovered.schema_version().unwrap(), 2);
+    assert_eq!(recovered.schema_version().unwrap(), 3);
     assert_eq!(recovered.startup_view().unwrap(), StartupView::Library);
     migrations::validate_integrity(&recovered.connection).unwrap();
     assert!(
@@ -731,7 +765,7 @@ fn upgrade_from_v1_preserves_preferences_and_starts_empty_roots() {
         fixture.set_startup_view(StartupView::Board).unwrap();
     }
     let database = Database::open(directory.path()).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 2);
+    assert_eq!(database.schema_version().unwrap(), 3);
     assert_eq!(database.startup_view().unwrap(), StartupView::Board);
     assert!(database.list_scan_roots().unwrap().is_empty());
 }
@@ -792,4 +826,483 @@ fn scan_root_settings_reject_unknown_ids_and_blank_names() {
     assert_eq!(unchanged.len(), 1);
     assert_eq!(unchanged[0].display_name, "Projects");
     assert!(unchanged[0].enabled);
+}
+
+#[test]
+fn durable_scan_jobs_coalesce_and_schedule_one_follow_up() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 10).unwrap();
+
+    let first = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 20)
+        .unwrap();
+    assert!(!first.coalesced);
+    let lease = database
+        .lease_next_scan("session-1", 21, 100)
+        .unwrap()
+        .unwrap();
+    let second = database
+        .enqueue_scan(&root.id, ScanKind::Periodic, 21)
+        .unwrap();
+    assert!(second.coalesced);
+    assert!(second.follow_up_requested);
+    assert_eq!(first.job_id, second.job_id);
+
+    assert_eq!(lease.job.attempt, 1);
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &lease.run.id,
+                "session-1",
+                &lease.run.lease_token,
+                23,
+                ScanRunOutcome::Completed,
+            )
+            .unwrap(),
+        ScanRunState::Completed
+    );
+
+    let jobs = database.list_scan_jobs().unwrap();
+    assert_eq!(jobs.len(), 2);
+    assert_eq!(jobs[0].state, ScanJobState::Completed);
+    assert_eq!(jobs[1].state, ScanJobState::Queued);
+    assert_eq!(jobs[1].kind, ScanKind::Manual);
+}
+
+#[test]
+fn durable_lease_policy_starts_with_one_global_worker() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let first = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    let second = database.add_scan_root("Loops", "C:\\Music\\Loops").unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    database
+        .enqueue_scan(&first.id, ScanKind::Manual, 2)
+        .unwrap();
+    database
+        .enqueue_scan(&second.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("session-1", 3, 100)
+        .unwrap()
+        .unwrap();
+    assert!(
+        database
+            .lease_next_scan("session-1", 4, 100)
+            .unwrap()
+            .is_none()
+    );
+    database
+        .finish_scan_run(
+            &lease.run.id,
+            "session-1",
+            &lease.run.lease_token,
+            5,
+            ScanRunOutcome::Completed,
+        )
+        .unwrap();
+    let next = database
+        .lease_next_scan("session-1", 6, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(next.root.id, second.id);
+}
+
+#[test]
+fn failed_attempt_can_be_explicitly_retried_with_a_fresh_run() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    let job_id = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap()
+        .job_id;
+    let first = database
+        .lease_next_scan("session-1", 3, 100)
+        .unwrap()
+        .unwrap();
+    let chain = first.job.retry_chain_id.clone();
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &first.run.id,
+                "session-1",
+                &first.run.lease_token,
+                4,
+                ScanRunOutcome::Failed,
+            )
+            .unwrap(),
+        ScanRunState::Failed
+    );
+    assert!(database.retry_failed_scan_job(&job_id, 5).unwrap());
+    let second = database
+        .lease_next_scan("session-1", 6, 100)
+        .unwrap()
+        .unwrap();
+    assert_ne!(first.run.id, second.run.id);
+    assert_eq!(second.job.retry_chain_id, chain);
+    assert_eq!(second.job.attempt, 2);
+}
+
+#[test]
+fn expired_and_restarted_workers_are_fenced_and_retry_attempts_persist() {
+    let directory = TestDirectory::new();
+    let root = {
+        let mut database = Database::open(directory.path()).unwrap();
+        database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap()
+    };
+    let (first_run_id, first_token, first_job_id) = {
+        let mut database = Database::open(directory.path()).unwrap();
+        database.begin_scan_session("session-1", 10).unwrap();
+        let job = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 11)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", 12, 3)
+            .unwrap()
+            .unwrap();
+        (lease.run.id, lease.run.lease_token, job.job_id)
+    };
+    {
+        let mut database = Database::open(directory.path()).unwrap();
+        assert_eq!(database.reap_expired_scan_leases(15).unwrap(), 1);
+        assert_eq!(
+            database.scan_run(&first_run_id).unwrap().state,
+            ScanRunState::Interrupted
+        );
+        assert!(matches!(
+            database.finish_scan_run(
+                &first_run_id,
+                "session-1",
+                &first_token,
+                16,
+                ScanRunOutcome::Completed,
+            ),
+            Err(StorageError::Conflict)
+        ));
+        assert_eq!(database.scan_job(&first_job_id).unwrap().attempt, 1);
+    }
+    {
+        let mut database = Database::open(directory.path()).unwrap();
+        database.begin_scan_session("session-2", 20).unwrap();
+        let lease = database
+            .lease_next_scan("session-2", 1_020, 3)
+            .unwrap()
+            .unwrap();
+        assert_eq!(lease.job.id, first_job_id);
+        assert_eq!(lease.job.attempt, 2);
+        assert_eq!(database.scan_job(&first_job_id).unwrap().attempt, 2);
+    }
+}
+
+#[test]
+fn retry_budget_is_exhausted_without_resetting_after_reopen() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    let job_id = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap()
+        .job_id;
+
+    let first = database
+        .lease_next_scan("session-1", 3, 1)
+        .unwrap()
+        .unwrap();
+    assert_eq!(first.job.attempt, 1);
+    database.reap_expired_scan_leases(4).unwrap();
+    let second = database
+        .lease_next_scan("session-1", 1_004, 1)
+        .unwrap()
+        .unwrap();
+    assert_eq!(second.job.attempt, 2);
+    database.reap_expired_scan_leases(1_005).unwrap();
+    let third = database
+        .lease_next_scan("session-1", 3_005, 1)
+        .unwrap()
+        .unwrap();
+    assert_eq!(third.job.attempt, 3);
+    database.reap_expired_scan_leases(3_006).unwrap();
+    let fourth = database
+        .lease_next_scan("session-1", 7_006, 1)
+        .unwrap()
+        .unwrap();
+    assert_eq!(fourth.job.attempt, 4);
+    database.reap_expired_scan_leases(7_007).unwrap();
+    assert_eq!(
+        database.scan_job(&job_id).unwrap().state,
+        ScanJobState::Failed
+    );
+    assert!(!database.retry_failed_scan_job(&job_id, 3_007).unwrap());
+    drop(database);
+
+    let database = Database::open(directory.path()).unwrap();
+    let job = database.scan_job(&job_id).unwrap();
+    assert_eq!(job.attempt, 4);
+    assert_eq!(job.max_attempts, DEFAULT_SCAN_MAX_ATTEMPTS);
+    assert_eq!(job.state, ScanJobState::Failed);
+}
+
+#[test]
+fn restart_invalidates_old_session_and_enqueues_recovery() {
+    let directory = TestDirectory::new();
+    let root = {
+        let mut database = Database::open(directory.path()).unwrap();
+        database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap()
+    };
+    let (run_id, token) = {
+        let mut database = Database::open(directory.path()).unwrap();
+        database.begin_scan_session("session-a", 10).unwrap();
+        let lease = database.lease_next_scan("session-a", 11, 100).unwrap();
+        // No job was explicitly queued, so the first session has no work.
+        assert!(lease.is_none());
+        let job = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 12)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-a", 13, 100)
+            .unwrap()
+            .unwrap();
+        assert_eq!(lease.job.id, job.job_id);
+        (lease.run.id, lease.run.lease_token)
+    };
+
+    let mut database = Database::open(directory.path()).unwrap();
+    database.begin_scan_session("session-b", 20).unwrap();
+    assert_eq!(
+        database.scan_run(&run_id).unwrap().state,
+        ScanRunState::Interrupted
+    );
+    assert!(matches!(
+        database.finish_scan_run(&run_id, "session-a", &token, 21, ScanRunOutcome::Completed,),
+        Err(StorageError::Conflict)
+    ));
+    let recovery = database
+        .lease_next_scan("session-b", 22, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(recovery.job.kind, ScanKind::Recovery);
+    assert_eq!(recovery.root.id, root.id);
+}
+
+#[test]
+fn expired_or_replaced_tokens_and_sessions_cannot_renew_or_finish() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("session-1", 3, 10)
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        database.renew_scan_lease(
+            &lease.run.id,
+            "other-session",
+            &lease.run.lease_token,
+            4,
+            10,
+        ),
+        Err(StorageError::Conflict)
+    ));
+    assert!(matches!(
+        database.renew_scan_lease(&lease.run.id, "session-1", "replaced-token", 4, 10,),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(
+        database
+            .renew_scan_lease(&lease.run.id, "session-1", &lease.run.lease_token, 4, 10,)
+            .unwrap(),
+        14
+    );
+    assert!(matches!(
+        database.finish_scan_run(
+            &lease.run.id,
+            "session-1",
+            "replaced-token",
+            5,
+            ScanRunOutcome::Completed,
+        ),
+        Err(StorageError::Conflict)
+    ));
+}
+
+#[test]
+fn cancellation_ordering_is_durable_and_late_cancel_cannot_roll_back() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let cancelled = database
+        .lease_next_scan("session-1", 3, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        database
+            .request_scan_cancellation(&cancelled.run.id, 4)
+            .unwrap(),
+        ScanRunState::Running
+    );
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &cancelled.run.id,
+                "session-1",
+                &cancelled.run.lease_token,
+                5,
+                ScanRunOutcome::Completed,
+            )
+            .unwrap(),
+        ScanRunState::Cancelled
+    );
+    assert_eq!(
+        database
+            .request_scan_cancellation(&cancelled.run.id, 6)
+            .unwrap(),
+        ScanRunState::Cancelled
+    );
+
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 7)
+        .unwrap();
+    let completed = database
+        .lease_next_scan("session-1", 8, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &completed.run.id,
+                "session-1",
+                &completed.run.lease_token,
+                9,
+                ScanRunOutcome::Completed,
+            )
+            .unwrap(),
+        ScanRunState::Completed
+    );
+    assert_eq!(
+        database
+            .request_scan_cancellation(&completed.run.id, 10)
+            .unwrap(),
+        ScanRunState::Completed
+    );
+}
+
+#[test]
+fn disabling_and_removing_roots_invalidate_work_and_readding_gets_new_identity() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    let initial = database.scan_root_execution(&root.id).unwrap();
+    assert_eq!((initial.configuration_revision, initial.generation), (0, 0));
+    database.begin_scan_session("session-1", 1).unwrap();
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("session-1", 3, 100)
+        .unwrap()
+        .unwrap();
+    let disabled = database
+        .set_scan_root_enabled_at(&root.id, false, 4)
+        .unwrap();
+    assert!(!disabled.enabled);
+    assert_eq!(
+        (
+            database
+                .scan_root_execution(&root.id)
+                .unwrap()
+                .configuration_revision,
+            database.scan_root_execution(&root.id).unwrap().generation
+        ),
+        (1, 1)
+    );
+    assert_eq!(
+        database.scan_run(&lease.run.id).unwrap().state,
+        ScanRunState::Cancelled
+    );
+    assert!(matches!(
+        database.finish_scan_run(
+            &lease.run.id,
+            "session-1",
+            &lease.run.lease_token,
+            5,
+            ScanRunOutcome::Completed,
+        ),
+        Err(StorageError::Conflict)
+    ));
+    let enabled = database
+        .set_scan_root_enabled_at(&root.id, true, 6)
+        .unwrap();
+    assert!(enabled.enabled);
+    let current = database.scan_root_execution(&root.id).unwrap();
+    assert_eq!((current.configuration_revision, current.generation), (2, 2));
+
+    database.remove_scan_root_at(&root.id, 7).unwrap();
+    assert!(matches!(
+        database.scan_root_execution(&root.id),
+        Err(StorageError::NotFound)
+    ));
+    let replacement = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    assert_ne!(replacement.id, root.id);
+    assert_eq!(
+        database
+            .scan_root_execution(&replacement.id)
+            .unwrap()
+            .generation,
+        0
+    );
+}
+
+#[test]
+fn migration_to_execution_schema_preserves_roots_preferences_and_defaults() {
+    let directory = TestDirectory::new();
+    {
+        let mut fixture =
+            Database::open_with_migrations(directory.path(), &MIGRATIONS[..2]).unwrap();
+        fixture.set_startup_view(StartupView::Board).unwrap();
+        fixture
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+    }
+    let database = Database::open(directory.path()).unwrap();
+    assert_eq!(database.schema_version().unwrap(), 3);
+    assert_eq!(database.startup_view().unwrap(), StartupView::Board);
+    let root = &database.list_scan_roots().unwrap()[0];
+    let execution = database.scan_root_execution(&root.id).unwrap();
+    assert_eq!(
+        (execution.configuration_revision, execution.generation),
+        (0, 0)
+    );
 }
