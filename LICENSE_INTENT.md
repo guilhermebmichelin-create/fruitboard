@@ -2,17 +2,21 @@
 
 Status: **Phase 0 decision; final product license not yet selected**
 
-Fruitboard is currently a private architecture-stage repository. No public
-distribution is approved, and the repository does not currently grant an open
-source license. A final `LICENSE` file must not be added by assumption.
+The owner intends to release Fruitboard publicly as open source after completion.
+The exact license and a public release have not yet been approved; the repository
+does not currently grant an open-source license. A final `LICENSE` file must not
+be added by assumption.
 
 ## Product-owner direction
 
-As of 2026-09-04, the product owner has **not** accepted GPL distribution for
-Fruitboard. PyFLP is GPL-3.0 and therefore remains blocked as an application
+The public open-source intention supersedes any assumption that Fruitboard must
+remain proprietary. It does not yet constitute selection of GPLv3 or another
+specific license. PyFLP is GPL-3.0 and remains blocked as an application
 dependency, bundled sidecar, installer artifact, or distributed component.
 Phase 1 may define and test the replaceable `FlpParser` interface, but it must
-not add PyFLP or package a production FLP parser.
+not add PyFLP or package a production FLP parser. The current plan evaluates a
+bounded independent Rust parser after the filesystem-only Scanner MVP, with
+PyFLP retained as a candidate; see ROADMAP.md and ADR-002.
 
 Research P0-A and P0-B/P0-G may evaluate PyFLP only under the documented
 research-fixture, privacy, and isolation rules. Research success does not grant

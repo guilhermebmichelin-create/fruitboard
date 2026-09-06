@@ -188,6 +188,41 @@ backup/recovery, and privacy tests. Keep WAL disabled unless a separately review
 change justifies enabling it. Keep Phase 3 intelligence and Phase 4 logical
 grouping outside Scanner MVP.
 
+## Parser selection before Phase 3
+
+Owner-approved direction: complete the filesystem-only Scanner MVP, then run a
+bounded Rust-parser research spike before selecting the production FLP parser.
+PyFLP is a candidate, not a required dependency. This research does not block
+Phase 2 root management, reconciliation, or its filesystem-only checkpoint.
+Schedule the spike as part of the next accepted milestone; do not create a full
+parser implementation as incidental scanner work.
+
+1. Define the initial field and supported-version matrix before coding. Start
+   with saved FL Studio version and base tempo, then channel names and sample
+   references. Use approved synthetic projects with known values, including
+   absent fields and projects differing in one controlled property.
+2. Build an independent, read-only Rust prototype behind the replaceable
+   `FlpParser` boundary. Document format-evidence and code provenance. Retain
+   process isolation, timeouts, bounded input/output, and per-file failure
+   handling; changing language does not remove those requirements.
+3. Test supported FL versions, truncated files, unknown events, malformed
+   lengths, and resource limits. Missing or unsupported values must be labeled,
+   not guessed. Preserve input bytes and never load embedded plugins or scripts.
+4. Record per-field correctness, unsupported cases, runtime/memory measurements,
+   packaging cost, and likely maintenance effort. Exclude arrangements,
+   plugin-state decoding, and duration estimation from the first spike.
+5. Review the results before expansion. Adopt the Rust candidate only if it
+   meets the agreed initial matrix at manageable maintenance cost. Otherwise
+   evaluate PyFLP against the same approved corpus and expected values under
+   the existing research rules. Neither parser's output is ground truth merely
+   because it agrees with the other.
+6. Record the production selection in ADR-002 and FLP_PARSER.md. Select on
+   reliability, packaging, and maintenance, rather than avoiding GPL alone.
+   Public open-source release is the owner's intent; the exact license remains
+   undecided. PyFLP production adoption still requires compatible licensing and
+   the technical gates; an independent Rust parser also needs compatibility,
+   packaging, and provenance review.
+
 ## Phase 3 proposed issues and PRs
 
 ### Epic: Phase 3 — FLP intelligence
