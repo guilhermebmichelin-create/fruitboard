@@ -72,6 +72,8 @@ test("desktop capability exposes only health, preference, and scan-root commands
     "allow-add-scan-root",
     "allow-remove-scan-root",
     "allow-pick-scan-root",
+    "allow-set-scan-root-display-name",
+    "allow-set-scan-root-enabled",
   ]);
   assert.match(permission, /commands\.allow = \["get_app_health"\]/);
   assert.match(
@@ -87,6 +89,8 @@ test("desktop capability exposes only health, preference, and scan-root commands
     "add_scan_root",
     "remove_scan_root",
     "pick_scan_root",
+    "set_scan_root_display_name",
+    "set_scan_root_enabled",
   ]) {
     assert.match(
       scanRootsPermission,
@@ -199,6 +203,8 @@ test("native command contract stays aligned across Rust and TypeScript", () => {
     "add_scan_root",
     "remove_scan_root",
     "pick_scan_root",
+    "set_scan_root_display_name",
+    "set_scan_root_enabled",
   ]) {
     assert.match(nativeHost, new RegExp(`commands\\.execute\\("${command}"`));
     assert.match(tauriAdapter, new RegExp(`"${command}"`));

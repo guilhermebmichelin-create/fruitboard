@@ -48,8 +48,8 @@ export function HomePage() {
             <AppIcon icon={ShieldCheck} />
             <h3>Local by default</h3>
             <p>
-              The desktop host exposes only health and startup preference
-              commands.
+              The desktop host exposes only health, startup preference, and
+              scan-root commands. Folders are listed, never scanned yet.
             </p>
           </article>
           <article className="foundation-card">

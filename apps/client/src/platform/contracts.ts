@@ -47,6 +47,8 @@ export interface PlatformPort {
   listScanRoots(): Promise<readonly ScanRoot[]>;
   addScanRoot(displayName: string, path: string): Promise<ScanRoot>;
   removeScanRoot(id: string): Promise<string>;
+  updateScanRootDisplayName(id: string, displayName: string): Promise<ScanRoot>;
+  setScanRootEnabled(id: string, enabled: boolean): Promise<ScanRoot>;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

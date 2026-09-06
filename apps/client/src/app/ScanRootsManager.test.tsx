@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PlatformError } from "../platform/contracts";
@@ -16,7 +16,7 @@ describe("ScanRootsManager", () => {
     expect(
       await screen.findByRole("heading", { level: 2, name: "Scan roots" }),
     ).toBeTruthy();
-    expect(screen.getByText("No folders yet. Add one to get started."));
+    expect(screen.getByText("No folders yet.", { exact: false }));
     expect(
       screen.getByText(/never deletes files/, { exact: false }),
     ).toBeTruthy();
@@ -47,7 +47,7 @@ describe("ScanRootsManager", () => {
     const calls = listScanRoots.mock.calls.length;
     await user.click(screen.getByRole("button", { name: "Add folder" }));
 
-    expect(screen.getByText("No folders yet. Add one to get started."));
+    expect(screen.getByText("No folders yet.", { exact: false }));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(listScanRoots.mock.calls.length).toBe(calls);
   });
@@ -157,8 +157,129 @@ describe("ScanRootsManager", () => {
 
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(
-      await screen.findByText("No folders yet. Add one to get started."),
+      await screen.findByText("No folders yet.", { exact: false }),
     ).toBeTruthy();
     expect(listScanRoots).toHaveBeenCalledTimes(2);
+  });
+
+  it("onboards with honest copy that never claims scanning", async () => {
+    render(<ScanRootsManager platform={createFakePlatform()} />);
+
+    expect(
+      await screen.findByText(/only listed for now/, { exact: false }),
+    ).toBeTruthy();
+    expect(screen.getByText("Turn folders off anytime without losing them."));
+    expect(screen.queryByText(/scan complete|scanning now/i)).toBeNull();
+  });
+
+  it("shows availability without implying a completed scan", async () => {
+    const user = userEvent.setup();
+    const platform =
+      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("button", { name: "Add folder" });
+    await user.click(screen.getByRole("button", { name: "Add folder" }));
+
+    expect(await screen.findByText("Available · Not scanned yet"));
+    expect(screen.queryByText(/ready/i)).toBeNull();
+  });
+
+  it("renames a root and keeps the new name after reload", async () => {
+    const user = userEvent.setup();
+    const platform =
+      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("button", { name: "Add folder" });
+    await user.click(screen.getByRole("button", { name: "Add folder" }));
+    await screen.findByText("Projects");
+
+    await user.click(screen.getByRole("button", { name: "Rename" }));
+    const input = screen.getByLabelText("Folder name");
+    if (!(input instanceof HTMLInputElement)) {
+      throw new Error("rename should use a native input");
+    }
+    expect(input.value).toBe("Projects");
+    await user.clear(input);
+    await user.type(input, "Released");
+    await user.click(screen.getByRole("button", { name: "Save name" }));
+
+    expect(await screen.findByText("Released")).toBeTruthy();
+    expect(await screen.findByText("Name saved.")).toBeTruthy();
+    expect(screen.queryByText("Projects")).toBeNull();
+  });
+
+  it("preserves the rename draft when saving fails", async () => {
+    const user = userEvent.setup();
+    const platform =
+      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    const updateScanRootDisplayName = vi
+      .spyOn(platform, "updateScanRootDisplayName")
+      .mockRejectedValue(new PlatformError("unavailable"));
+    render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("button", { name: "Add folder" });
+    await user.click(screen.getByRole("button", { name: "Add folder" }));
+    await screen.findByText("Projects");
+
+    await user.click(screen.getByRole("button", { name: "Rename" }));
+    const input = screen.getByLabelText("Folder name");
+    await user.clear(input);
+    await user.type(input, "Draft name");
+    await user.click(screen.getByRole("button", { name: "Save name" }));
+
+    expect(
+      (await screen.findByRole("alert")).textContent,
+    ).toContain("could not save that name");
+    const draft = screen.getByLabelText("Folder name");
+    if (!(draft instanceof HTMLInputElement)) {
+      throw new Error("rename should use a native input");
+    }
+    expect(draft.value).toBe("Draft name");
+    expect(updateScanRootDisplayName).toHaveBeenCalledOnce();
+  });
+
+  it("toggles a root off and on through the platform port", async () => {
+    const user = userEvent.setup();
+    const platform =
+      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("button", { name: "Add folder" });
+    await user.click(screen.getByRole("button", { name: "Add folder" }));
+    await screen.findByText("Projects");
+
+    const toggle = screen.getByRole("checkbox", { name: "Enabled" });
+    if (!(toggle instanceof HTMLInputElement)) {
+      throw new Error("enabled should use a native checkbox");
+    }
+    expect(toggle.checked).toBe(true);
+
+    await user.click(toggle);
+    expect(
+      await screen.findByRole("checkbox", { name: "Enabled" }),
+    ).toHaveProperty("checked", false);
+
+    await user.click(screen.getByRole("checkbox", { name: "Enabled" }));
+    expect(
+      await screen.findByRole("checkbox", { name: "Enabled" }),
+    ).toHaveProperty("checked", true);
+  });
+
+  it("moves focus to Add folder after a removal", async () => {
+    const user = userEvent.setup();
+    const platform =
+      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("button", { name: "Add folder" });
+    await user.click(screen.getByRole("button", { name: "Add folder" }));
+    await screen.findByText("Projects");
+
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Confirm remove" }));
+    await screen.findByText("Folder removed.");
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Add folder" }),
+      );
+    });
   });
 });
