@@ -256,11 +256,7 @@ export function ScanRootsManager({
           <h2 id="scan-roots-error-title">Folders unavailable</h2>
           <p>Your folders were not changed.</p>
         </div>
-        <button
-          className="preference-button"
-          onClick={retry}
-          type="button"
-        >
+        <button className="preference-button" onClick={retry} type="button">
           Try again
         </button>
       </section>
@@ -277,8 +273,8 @@ export function ScanRootsManager({
           <h2 id="scan-roots-title">Scan roots</h2>
         </div>
         <p>
-          Choose the folders Fruitboard may look inside. Nothing is scanned
-          yet; removing a folder only forgets it here and never deletes files.
+          Choose the folders Fruitboard may look inside. Nothing is scanned yet;
+          removing a folder only forgets it here and never deletes files.
         </p>
       </div>
 
@@ -324,9 +320,7 @@ export function ScanRootsManager({
                     <div className="scan-roots-item__actions">
                       <button
                         className="preference-button"
-                        disabled={
-                          busy || renameState.draft.trim() === ""
-                        }
+                        disabled={busy || renameState.draft.trim() === ""}
                         type="submit"
                       >
                         Save name

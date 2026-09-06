@@ -196,9 +196,9 @@ describe("scan-root platform commands", () => {
     await expect(
       platform.updateScanRootDisplayName("root-1", "   "),
     ).rejects.toMatchObject({ code: "invalid_request" });
-    await expect(
-      platform.setScanRootEnabled("", false),
-    ).rejects.toMatchObject({ code: "invalid_request" });
+    await expect(platform.setScanRootEnabled("", false)).rejects.toMatchObject({
+      code: "invalid_request",
+    });
     expect(invokeCommand).not.toHaveBeenCalled();
   });
 });

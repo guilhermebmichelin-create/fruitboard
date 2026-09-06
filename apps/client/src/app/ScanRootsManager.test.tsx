@@ -174,8 +174,9 @@ describe("ScanRootsManager", () => {
 
   it("shows availability without implying a completed scan", async () => {
     const user = userEvent.setup();
-    const platform =
-      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
     render(<ScanRootsManager platform={platform} />);
     await screen.findByRole("button", { name: "Add folder" });
     await user.click(screen.getByRole("button", { name: "Add folder" }));
@@ -186,8 +187,9 @@ describe("ScanRootsManager", () => {
 
   it("renames a root and keeps the new name after reload", async () => {
     const user = userEvent.setup();
-    const platform =
-      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
     render(<ScanRootsManager platform={platform} />);
     await screen.findByRole("button", { name: "Add folder" });
     await user.click(screen.getByRole("button", { name: "Add folder" }));
@@ -210,8 +212,9 @@ describe("ScanRootsManager", () => {
 
   it("preserves the rename draft when saving fails", async () => {
     const user = userEvent.setup();
-    const platform =
-      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
     const updateScanRootDisplayName = vi
       .spyOn(platform, "updateScanRootDisplayName")
       .mockRejectedValue(new PlatformError("unavailable"));
@@ -226,9 +229,9 @@ describe("ScanRootsManager", () => {
     await user.type(input, "Draft name");
     await user.click(screen.getByRole("button", { name: "Save name" }));
 
-    expect(
-      (await screen.findByRole("alert")).textContent,
-    ).toContain("could not save that name");
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "could not save that name",
+    );
     const draft = screen.getByLabelText("Folder name");
     if (!(draft instanceof HTMLInputElement)) {
       throw new Error("rename should use a native input");
@@ -239,8 +242,9 @@ describe("ScanRootsManager", () => {
 
   it("toggles a root off and on through the platform port", async () => {
     const user = userEvent.setup();
-    const platform =
-      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
     render(<ScanRootsManager platform={platform} />);
     await screen.findByRole("button", { name: "Add folder" });
     await user.click(screen.getByRole("button", { name: "Add folder" }));
@@ -265,8 +269,9 @@ describe("ScanRootsManager", () => {
 
   it("moves focus to Add folder after a removal", async () => {
     const user = userEvent.setup();
-    const platform =
-      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
     render(<ScanRootsManager platform={platform} />);
     await screen.findByRole("button", { name: "Add folder" });
     await user.click(screen.getByRole("button", { name: "Add folder" }));
