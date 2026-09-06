@@ -141,8 +141,11 @@ All six PR #44 checks and its
 [push-to-main CI](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/33998232108)
 passed. Spike partial results landed as PRs #45 (P0-D) and #46 (P0-E) with
 reproducible probes in `scripts/research-fs-probe.ps1`; remaining DriveFS,
-cross-volume, and FAT32 work is tracked by open follow-ups #47 and #48, and no
-Phase 2 application code has landed. A closed spike is not qualification
+cross-volume, and FAT32 work is tracked by open follow-ups #47 and #48.
+Application code has landed for #34 (root storage plus native picker) and #35
+(root settings with inline Preferences onboarding); the onboarding route from
+the original #35 scope is intentionally covered by that inline onboarding
+rather than a separate first-run route. A closed spike is not qualification
 evidence for the unverified environments.
 
 ### Execution order and acceptance boundaries

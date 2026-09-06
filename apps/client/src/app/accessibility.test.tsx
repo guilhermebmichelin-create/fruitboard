@@ -1,10 +1,12 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { RouterProvider } from "react-router/dom";
 import { describe, expect, it } from "vitest";
 import type { PlatformPort } from "../platform/contracts";
 import { createFakePlatform, pendingScanRootMethods } from "../platform/fake";
 import { createFruitboardMemoryRouter } from "./router";
+import { ScanRootsManager } from "./ScanRootsManager";
 import { StartupRouter } from "./StartupRouter";
 
 const readyPlatform = createFakePlatform();
@@ -98,5 +100,37 @@ describe("application shell accessibility", () => {
     );
     await screen.findByText("Startup preference unavailable");
     await expectNoAutomatedViolations(errorView.container);
+  });
+
+  it("has no automated violations across populated roots, rename, and disabled states", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatform();
+    await platform.addScanRoot("Projects", "C:\\Music\\Projects");
+    const view = render(<ScanRootsManager platform={platform} />);
+    await screen.findByText("Projects");
+    await expectNoAutomatedViolations(view.container);
+
+    await user.click(screen.getByRole("button", { name: "Rename Projects" }));
+    await screen.findByLabelText("Folder name");
+    await expectNoAutomatedViolations(view.container);
+    await user.keyboard("{Escape}");
+
+    await user.click(
+      screen.getByRole("checkbox", { name: "Projects enabled" }),
+    );
+    await screen.findByText("Projects");
+    await expectNoAutomatedViolations(view.container);
+    view.unmount();
+  });
+
+  it("has no automated violations in the roots load-error state", async () => {
+    const platform: PlatformPort = {
+      ...createFakePlatform(),
+      listScanRoots: () => Promise.reject(new Error("storage unavailable")),
+    };
+    const view = render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("alert");
+    await expectNoAutomatedViolations(view.container);
+    view.unmount();
   });
 });

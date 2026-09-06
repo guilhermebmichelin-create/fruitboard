@@ -296,6 +296,13 @@ flowchart LR
 1. A root is explicitly selected and stored with an enabled flag and scan
    policy. Canonical paths are device-local. Step 1 is implemented in #34
    (`pick_scan_root`, `list_scan_roots`, `add_scan_root`, `remove_scan_root`
+   through migration 002) and extended in #35 (`set_scan_root_display_name`,
+   `set_scan_root_enabled` with inline Preferences onboarding): the native
+   folder picker runs off the main thread,
+   cancellation yields a null selection, duplicates and ancestor/descendant
+   overlaps are rejected, unavailable paths are refused, and removal deletes
+   configuration only. Steps 2-7 remain later slices. Step 1 is implemented in #34
+   (`pick_scan_root`, `list_scan_roots`, `add_scan_root`, `remove_scan_root`
    through migration 002): the native folder picker runs off the main thread,
    cancellation yields a null selection, duplicates and ancestor/descendant
    overlaps are rejected, unavailable paths are refused, and removal deletes

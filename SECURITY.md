@@ -112,8 +112,9 @@ and terminated children are reaped. This demonstrates lifecycle containment,
 not a parser sandbox or permission to package Python/PyFLP.
 
 Issue #34 adds four scan-root permissions (list, add, remove, pick) plus the
-pinned dialog plugin registered in Rust only. The renderer never invokes
-plugin dialogs directly: folder selection passes through the typed
+pinned dialog plugin registered in Rust only. Issue #35 adds two settings
+permissions (rename, enable/disable) under the same typed-command boundary.
+The renderer never invokes plugin dialogs directly: folder selection passes through the typed
 `pick_scan_root` command, cancellation yields a null selection without
 mutation, and picked paths are canonicalized, validated, and redacted from
 diagnostics natively. Scan-root removal deletes configuration rows only and
