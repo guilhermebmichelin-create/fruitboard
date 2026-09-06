@@ -375,6 +375,9 @@ desktop master.
 - `id`, `device_id`, display name, absolute/canonical path, enabled
 - watch/reconciliation state, cloud hydration policy, last successful scan
 - root availability and last safe error code
+- #34 implements the stored subset (id, display name, canonical path,
+  enabled, availability, last error code) via migration 002; watch state,
+  hydration policy, and last-scan bookkeeping arrive with later slices
 
 `scan_run`
 

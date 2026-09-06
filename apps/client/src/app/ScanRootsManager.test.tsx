@@ -95,6 +95,49 @@ describe("ScanRootsManager", () => {
     expect(screen.queryByText("Projects")).toBeNull();
   });
 
+  it("reports a stale list honestly when refresh fails after adding", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
+    render(<ScanRootsManager platform={platform} />);
+
+    await screen.findByRole("button", { name: "Add folder" });
+    vi.spyOn(platform, "listScanRoots").mockRejectedValueOnce(
+      new Error("storage busy"),
+    );
+    await user.click(screen.getByRole("button", { name: "Add folder" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Saved, but the list could not be refreshed.",
+    );
+    expect(
+      (await platform.listScanRoots()).map((root) => root.displayName),
+    ).toEqual(["Projects"]);
+  });
+
+  it("reports a stale list honestly when refresh fails after removing", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
+    render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("button", { name: "Add folder" });
+    await user.click(screen.getByRole("button", { name: "Add folder" }));
+    await screen.findByText("Projects");
+
+    vi.spyOn(platform, "listScanRoots").mockRejectedValueOnce(
+      new Error("storage busy"),
+    );
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Confirm remove" }));
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Saved, but the list could not be refreshed.",
+    );
+    await expect(platform.listScanRoots()).resolves.toEqual([]);
+  });
+
   it("shows a retryable load error without changing folders", async () => {
     const user = userEvent.setup();
     const listScanRoots = vi

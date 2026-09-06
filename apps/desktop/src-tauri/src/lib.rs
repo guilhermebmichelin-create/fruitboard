@@ -152,10 +152,20 @@ fn canonical_scan_root(path: &str) -> Option<String> {
 
 /// Duplicate and ancestor/descendant roots are rejected so reconciliation
 /// stays unambiguous. Comparison is separator-aware and case-insensitive on
-/// Windows, where the filesystem preserves case but ignores it.
+/// Windows, where the filesystem preserves case but ignores it. Trailing
+/// separators are normalized so volume roots such as `C:\` cover their
+/// children in both insertion orders.
 fn roots_overlap(first: &str, second: &str) -> bool {
-    #[cfg(windows)]
-    let (first, second) = (first.to_lowercase(), second.to_lowercase());
+    fn normalize(path: &str) -> String {
+        let trimmed = path.trim_end_matches(['/', '\\']);
+        if trimmed.is_empty() {
+            return std::path::MAIN_SEPARATOR.to_string();
+        }
+        #[cfg(windows)]
+        return trimmed.to_lowercase();
+        #[cfg(not(windows))]
+        return trimmed.to_owned();
+    }
 
     fn covers(parent: &str, child: &str) -> bool {
         child == parent
@@ -163,6 +173,7 @@ fn roots_overlap(first: &str, second: &str) -> bool {
                 .strip_prefix(parent)
                 .is_some_and(|rest| rest.starts_with('/') || rest.starts_with('\\'))
     }
+    let (first, second) = (normalize(first), normalize(second));
     covers(&first, &second) || covers(&second, &first)
 }
 
@@ -408,18 +419,38 @@ fn remove_scan_root(
 }
 
 #[tauri::command]
-fn pick_scan_root(
+async fn pick_scan_root(
     request: Option<Value>,
     app: tauri::AppHandle,
-    state: tauri::State<'_, NativeFoundation>,
 ) -> CommandEnvelope<ScanRootSelection> {
-    handle_pick_scan_root(&state.commands, request, || {
-        app.dialog()
+    // Reject malformed callers before opening any UI.
+    let schema_valid = decode_request::<PickScanRootRequest>(request.clone())
+        .is_ok_and(|parsed| parsed.schema_version == COMMAND_SCHEMA_VERSION);
+    if !schema_valid {
+        let state = app.state::<NativeFoundation>();
+        return handle_pick_scan_root(&state.commands, request, || Option::<String>::None);
+    }
+    // The blocking folder dialog must never run on the main thread: async
+    // commands are polled off-thread, the picker itself is isolated on a
+    // dedicated blocking thread, and native state is borrowed from the owned
+    // app handle only after the final await.
+    let dialog_app = app.clone();
+    let picked = tauri::async_runtime::spawn_blocking(move || {
+        dialog_app
+            .dialog()
             .file()
             .blocking_pick_folder()
             .and_then(|picked| picked.simplified().into_path().ok())
             .map(|path| path.to_string_lossy().into_owned())
     })
+    .await;
+    let state = app.state::<NativeFoundation>();
+    match picked {
+        Ok(selection) => handle_pick_scan_root(&state.commands, request, || selection),
+        Err(_) => state.commands.execute("pick_scan_root", || {
+            Err::<ScanRootSelection, AppError>(AppError::command_panicked())
+        }),
+    }
 }
 
 fn install_safe_panic_hook() {
@@ -987,10 +1018,19 @@ mod tests {
         assert!(roots_overlap("/media/music/flp", "/media/music"));
         assert!(!roots_overlap("/media/music", "/media/music-backup"));
         assert!(!roots_overlap("/media/music", "/media/other"));
+        assert!(roots_overlap("/media/music/", "/media/music/flp"));
+        assert!(roots_overlap("/media/music", "/media/music/"));
+        assert!(roots_overlap(r"\\server\share", r"\\server\share\projects"));
+        assert!(roots_overlap(r"\\server\share\projects", r"\\server\share"));
+        assert!(!roots_overlap(r"\\server\share", r"\\server\other"));
         #[cfg(windows)]
         {
             assert!(roots_overlap("C:\\Music", "c:\\music\\flp"));
             assert!(roots_overlap("C:\\Music", "C:\\MUSIC"));
+            assert!(roots_overlap("C:\\", "C:\\Music"));
+            assert!(roots_overlap("C:\\Music", "C:\\"));
+            assert!(roots_overlap("C:\\Music\\", "C:\\Music\\flp"));
+            assert!(!roots_overlap("C:\\Music", "D:\\Music"));
         }
     }
 
