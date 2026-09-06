@@ -48,7 +48,8 @@ export const navigationItems: readonly NavigationItem[] = [
     path: "/preferences",
     label: "Preferences",
     title: "Preferences",
-    description: "Choose where your local workspace opens and manage scan roots.",
+    description:
+      "Choose where your local workspace opens and manage scan roots.",
     actionLabel: "Return home",
     actionPath: "/",
     icon: SlidersHorizontal,
