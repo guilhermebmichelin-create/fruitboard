@@ -97,8 +97,9 @@ describe("ScanRootsManager", () => {
 
   it("reports a stale list honestly when refresh fails after adding", async () => {
     const user = userEvent.setup();
-    const platform =
-      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
     render(<ScanRootsManager platform={platform} />);
 
     await screen.findByRole("button", { name: "Add folder" });
@@ -117,8 +118,9 @@ describe("ScanRootsManager", () => {
 
   it("reports a stale list honestly when refresh fails after removing", async () => {
     const user = userEvent.setup();
-    const platform =
-      createFakePlatformWithPickedDirectory("C:\\Music\\Projects");
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
     render(<ScanRootsManager platform={platform} />);
     await screen.findByRole("button", { name: "Add folder" });
     await user.click(screen.getByRole("button", { name: "Add folder" }));
