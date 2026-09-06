@@ -9,37 +9,82 @@
         "step": "Tab to first same-name root Rename",
         "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
         "overflow": false,
-        "viewport": [1280, 800]
+        "viewport": [
+          1280,
+          800
+        ]
       },
       {
         "step": "Tab to explicit Cancel",
         "focus": "Cancel",
         "overflow": false,
-        "viewport": [1280, 800]
+        "viewport": [
+          1280,
+          800
+        ]
       },
       {
         "step": "Cancel restores Rename",
         "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
         "overflow": false,
-        "viewport": [1280, 800]
+        "viewport": [
+          1280,
+          800
+        ]
       },
       {
         "step": "Escape restores Rename",
         "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
         "overflow": false,
-        "viewport": [1280, 800]
+        "viewport": [
+          1280,
+          800
+        ]
       },
       {
         "step": "Save restores renamed control",
         "focus": "Rename Released",
         "overflow": false,
-        "viewport": [1280, 800]
+        "viewport": [
+          1280,
+          800
+        ]
       },
       {
-        "step": "Keyboard removal confirmation",
-        "focus": "\n    \n    \n  \n\nSkip to main contentFFruitboardLocal workspaceHomeLibraryBoardPreferencesDesktop connectionConnectedv0.1.0-testFruitboard workspacePreferencesChoose where your local workspace opens and manage scan roots.Return homeLocal preferenceStartup viewChoose the page Fruitboard opens when the desktop app starts.Open Fruitboard onHomeLibraryBoardPreferencesHome is the default startup view.Save preferenceLocal foldersScan rootsChoose the folders Fruitboard may look inside. Nothing is scanned yet; removing a folder only forgets it here and never deletes files.ReleasedC:\\Synthetic\\Music\\ProjectsAvailability not rechecked · Not scanned yetEnabledRenameConfirm removeKeepProjectsD:\\Synthetic\\Archive\\ProjectsAvailability not rechecked · Not scanned yetEnabledRenameRemoveAdd folderName saved.",
+        "step": "Remove opens confirmation with Keep focused",
+        "focus": "Keep Released",
         "overflow": false,
-        "viewport": [1280, 800]
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Keep cancels and restores Remove focus",
+        "focus": "Remove Released",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Second confirmation keeps focus safe",
+        "focus": "Keep Released",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Removal restores Add folder focus",
+        "focus": "Add folder",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
       }
     ]
   },
@@ -53,37 +98,82 @@
         "step": "Tab to first same-name root Rename",
         "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
         "overflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
       },
       {
         "step": "Tab to explicit Cancel",
         "focus": "Cancel",
         "overflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
       },
       {
         "step": "Cancel restores Rename",
         "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
         "overflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
       },
       {
         "step": "Escape restores Rename",
         "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
         "overflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
       },
       {
         "step": "Save restores renamed control",
         "focus": "Rename Released",
         "overflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
       },
       {
-        "step": "Keyboard removal confirmation",
-        "focus": "\n    \n    \n  \n\nSkip to main contentFFruitboardLocal workspaceHomeLibraryBoardPreferencesDesktop connectionConnectedv0.1.0-testFruitboard workspacePreferencesChoose where your local workspace opens and manage scan roots.Return homeLocal preferenceStartup viewChoose the page Fruitboard opens when the desktop app starts.Open Fruitboard onHomeLibraryBoardPreferencesHome is the default startup view.Save preferenceLocal foldersScan rootsChoose the folders Fruitboard may look inside. Nothing is scanned yet; removing a folder only forgets it here and never deletes files.ReleasedC:\\Synthetic\\Music\\ProjectsAvailability not rechecked · Not scanned yetEnabledRenameConfirm removeKeepProjectsD:\\Synthetic\\Archive\\ProjectsAvailability not rechecked · Not scanned yetEnabledRenameRemoveAdd folderName saved.",
+        "step": "Remove opens confirmation with Keep focused",
+        "focus": "Keep Released",
         "overflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Keep cancels and restores Remove focus",
+        "focus": "Remove Released",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Second confirmation keeps focus safe",
+        "focus": "Keep Released",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Removal restores Add folder focus",
+        "focus": "Add folder",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
       }
     ]
   }

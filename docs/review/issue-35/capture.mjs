@@ -33,6 +33,14 @@ for (const [name, width, height] of [
   });
   await rename.waitFor();
   const steps = [];
+  async function assertFocus(locator, label) {
+    await locator.waitFor();
+    await page.waitForTimeout(50);
+    if (!(await locator.evaluate((el) => el === document.activeElement))) {
+      throw Error(`${label}: focus is not on the expected control`);
+    }
+  }
+
   async function state(step) {
     const value = await page.evaluate(() => ({
       focus:
@@ -103,11 +111,41 @@ for (const [name, width, height] of [
   await state("Save restores renamed control");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Enter");
-  await state("Keyboard removal confirmation");
+  const keepReleased = page.getByRole("button", {
+    name: "Keep Released",
+    exact: true,
+  });
+  await assertFocus(keepReleased, "Remove opens confirmation");
+  await state("Remove opens confirmation with Keep focused");
   await page.screenshot({
     path: `${out}/${name}-confirmation.png`,
     fullPage: true,
   });
+  await page.keyboard.press("Enter");
+  const removeReleased = page.getByRole("button", {
+    name: "Remove Released",
+    exact: true,
+  });
+  await assertFocus(removeReleased, "Keep cancels removal");
+  await state("Keep cancels and restores Remove focus");
+
+  await page.keyboard.press("Enter");
+  await assertFocus(keepReleased, "Second confirmation");
+  await state("Second confirmation keeps focus safe");
+  await page.keyboard.press("Shift+Tab");
+  const confirmReleased = page.getByRole("button", {
+    name: "Confirm removal of Released",
+    exact: true,
+  });
+  await assertFocus(confirmReleased, "Confirm removal is keyboard reachable");
+  await page.keyboard.press("Enter");
+  const addFolder = page.getByRole("button", {
+    name: "Add folder",
+    exact: true,
+  });
+  await page.getByText("Folder removed.").waitFor();
+  await assertFocus(addFolder, "Successful removal restores Add folder focus");
+  await state("Removal restores Add folder focus");
   evidence.push({
     adapter: "stateful fake; no native picker or SQLite",
     name,

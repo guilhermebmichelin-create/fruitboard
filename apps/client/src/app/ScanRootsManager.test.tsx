@@ -302,6 +302,59 @@ describe("ScanRootsManager", () => {
     });
   });
 
+  it("keeps same-name removal confirmation and cancellation in the keyboard flow", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatform();
+    const first = "C:\\Music\\Projects";
+    const second = "D:\\Archive\\Projects";
+    await platform.addScanRoot("Projects", first);
+    await platform.addScanRoot("Projects", second);
+    render(<ScanRootsManager platform={platform} />);
+
+    const firstRemove = await screen.findByRole("button", {
+      name: `Remove Projects (${first})`,
+    });
+    firstRemove.focus();
+    await user.keyboard("{Enter}");
+
+    const firstKeep = await screen.findByRole("button", {
+      name: `Keep Projects (${first})`,
+    });
+    await waitFor(() => expect(document.activeElement).toBe(firstKeep));
+
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: `Remove Projects (${first})` }),
+      ),
+    );
+    expect(screen.getByText(first)).toBeTruthy();
+    expect(screen.getByText(second)).toBeTruthy();
+
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: `Keep Projects (${first})` }),
+      ),
+    );
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", {
+        name: `Confirm removal of Projects (${first})`,
+      }),
+    );
+    await user.keyboard("{Enter}");
+
+    await screen.findByText("Folder removed.");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Add folder" }),
+      ),
+    );
+    expect(screen.queryByText(first)).toBeNull();
+    expect(screen.getByText(second)).toBeTruthy();
+  });
+
   it("reports a stale list when the toggle succeeds but refresh fails", async () => {
     const user = userEvent.setup();
     const platform = createFakePlatformWithPickedDirectory(

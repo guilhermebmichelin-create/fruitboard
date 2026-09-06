@@ -7,17 +7,19 @@ Connected label comes from the fake health response, not a native connection.
 
 ## Rendered and keyboard evidence
 
-| Viewport | Same-name controls | Explicit Cancel | Removal confirmation |
-| --- | --- | --- | --- |
-| Desktop 1280 x 800 | [Rename focus](desktop-keyboard.png) | [Cancel focus](desktop-cancel.png) | [Confirmation](desktop-confirmation.png) |
-| Narrow 390 x 844 | [Rename focus](narrow-keyboard.png) | [Cancel focus](narrow-cancel.png) | [Wrapped actions](narrow-confirmation.png) |
+| Viewport           | Same-name controls                   | Explicit Cancel                    | Removal confirmation                       |
+| ------------------ | ------------------------------------ | ---------------------------------- | ------------------------------------------ |
+| Desktop 1280 x 800 | [Rename focus](desktop-keyboard.png) | [Cancel focus](desktop-cancel.png) | [Confirmation](desktop-confirmation.png)   |
+| Narrow 390 x 844   | [Rename focus](narrow-keyboard.png)  | [Cancel focus](narrow-cancel.png)  | [Wrapped actions](narrow-confirmation.png) |
 
 Images are full-page captures at those CSS viewport widths; narrow images are
 longer than the viewport and fixed navigation appears at its captured position.
 [Keyboard trace](keyboard-trace.json) records real Tab/Enter/Escape events,
 focus assertions and horizontal overflow checks. The sequence reaches Rename
 by Tab, edits a draft, tabs to Cancel, verifies restored Rename focus, repeats
-with Escape, saves Released, verifies restored focus, then opens confirmation.
+with Escape, saves Released, verifies restored focus, opens confirmation with
+Keep focused, cancels back to the matching Remove control, and removes that
+same-name root through the keyboard before asserting Add folder focus.
 
 Rendered testing initially caught horizontal overflow in the narrow removal
 confirmation. Wrapping the action row fixes it; both sequences now pass without
@@ -40,5 +42,6 @@ these new rendered settings changes. No installed-app run was repeated here;
 no screenshot here proves native picker, SQLite, restart or Windows packaging.
 
 Inline Preferences onboarding remains the implemented proposal. Explicit owner
-acceptance of replacing the separate first-run route is still pending. These
-captures make the current settings UI reviewable; documenting it is not consent.
+acceptance of replacing the separate first-run route is tracked separately and
+is still pending. These captures make the current settings UI reviewable;
+documenting it is not consent.

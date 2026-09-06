@@ -54,6 +54,8 @@ export function ScanRootsManager({
   const addButtonReference = useRef<HTMLButtonElement | null>(null);
   const renameInputReference = useRef<HTMLInputElement | null>(null);
   const renameButtonReferences = useRef(new Map<string, HTMLButtonElement>());
+  const removeButtonReferences = useRef(new Map<string, HTMLButtonElement>());
+  const keepButtonReferences = useRef(new Map<string, HTMLButtonElement>());
 
   const focusLater = (target: () => HTMLElement | null) => {
     // Defer past the commit so focus lands on a live node, not one React is
@@ -176,6 +178,7 @@ export function ScanRootsManager({
         (error.code === "not_found" || error.code === "conflict")
       ) {
         await refreshAfterMutation("Folder removed.");
+        focusLater(() => addButtonReference.current);
         return;
       }
       if (mounted.current) {
@@ -427,6 +430,21 @@ export function ScanRootsManager({
                           disabled={busy}
                           onClick={() => {
                             setConfirmingRemoval(null);
+                            focusLater(
+                              () =>
+                                removeButtonReferences.current.get(root.id) ??
+                                null,
+                            );
+                          }}
+                          ref={(element) => {
+                            if (element) {
+                              keepButtonReferences.current.set(
+                                root.id,
+                                element,
+                              );
+                            } else {
+                              keepButtonReferences.current.delete(root.id);
+                            }
                           }}
                           type="button"
                         >
@@ -440,6 +458,20 @@ export function ScanRootsManager({
                         disabled={busy}
                         onClick={() => {
                           setConfirmingRemoval(root.id);
+                          focusLater(
+                            () =>
+                              keepButtonReferences.current.get(root.id) ?? null,
+                          );
+                        }}
+                        ref={(element) => {
+                          if (element) {
+                            removeButtonReferences.current.set(
+                              root.id,
+                              element,
+                            );
+                          } else {
+                            removeButtonReferences.current.delete(root.id);
+                          }
                         }}
                         type="button"
                       >
