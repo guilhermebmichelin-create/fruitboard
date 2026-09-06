@@ -12,6 +12,8 @@ pub enum StorageError {
     InvalidSchema,
     MigrationFailed,
     InvalidBackup,
+    Conflict,
+    NotFound,
     Database,
 }
 
@@ -27,6 +29,8 @@ impl fmt::Display for StorageError {
             Self::InvalidSchema => "storage_invalid_schema",
             Self::MigrationFailed => "storage_migration_failed",
             Self::InvalidBackup => "storage_invalid_backup",
+            Self::Conflict => "storage_conflict",
+            Self::NotFound => "storage_not_found",
             Self::Database => "storage_database_failed",
         })
     }

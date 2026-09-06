@@ -2,10 +2,16 @@ use crate::{Result, StorageError};
 use rusqlite::{Connection, TransactionBehavior};
 
 pub(crate) const APPLICATION_ID: i64 = 0x46524244;
-pub(crate) const MIGRATIONS: &[Migration] = &[Migration {
-    name: "001_local_settings",
-    sql: include_str!("../migrations/001_local_settings.sql"),
-}];
+pub(crate) const MIGRATIONS: &[Migration] = &[
+    Migration {
+        name: "001_local_settings",
+        sql: include_str!("../migrations/001_local_settings.sql"),
+    },
+    Migration {
+        name: "002_scan_roots",
+        sql: include_str!("../migrations/002_scan_roots.sql"),
+    },
+];
 
 pub(crate) struct Migration {
     pub(crate) name: &'static str,

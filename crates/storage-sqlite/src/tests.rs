@@ -31,7 +31,11 @@ fn upgraded_migrations(sql: &'static str) -> Vec<Migration> {
             sql: MIGRATIONS[0].sql,
         },
         Migration {
-            name: "002_test_only",
+            name: MIGRATIONS[1].name,
+            sql: MIGRATIONS[1].sql,
+        },
+        Migration {
+            name: "003_test_only",
             sql,
         },
     ]
@@ -48,7 +52,7 @@ fn creates_latest_and_reopens_without_reseeding_settings() {
     let directory = TestDirectory::new();
     {
         let mut database = Database::open(directory.path()).unwrap();
-        assert_eq!(database.schema_version().unwrap(), 1);
+        assert_eq!(database.schema_version().unwrap(), 2);
         assert_eq!(database.startup_view().unwrap(), StartupView::Home);
         database.set_startup_view(StartupView::Library).unwrap();
     }
@@ -59,7 +63,7 @@ fn creates_latest_and_reopens_without_reseeding_settings() {
 
 #[test]
 fn upgrades_every_supported_fixture_and_preserves_existing_rows() {
-    // Phase 1 ships only v1. v0 (empty) and v1 are the complete supported set.
+    // v0 (empty), v1 (settings), and v2 (scan roots) are the supported set.
     // Fixtures are generated from committed SQL, never private binary databases.
     for version in 0..=MIGRATIONS.len() {
         let directory = TestDirectory::new();
@@ -98,7 +102,7 @@ fn future_upgrade_creates_a_restorable_pre_migration_backup() {
     let database = Database::open_with_migrations(directory.path(), &migrations).unwrap();
     assert_eq!(
         migrations::version(&database.connection, &migrations).unwrap(),
-        2
+        3
     );
     let backups: Vec<_> = fs::read_dir(directory.path().join("storage/backups"))
         .unwrap()
@@ -107,7 +111,7 @@ fn future_upgrade_creates_a_restorable_pre_migration_backup() {
     assert_eq!(backups.len(), 1);
     let recovered_directory = TestDirectory::new();
     let recovered = Database::recover_to(&backups[0], recovered_directory.path()).unwrap();
-    assert_eq!(recovered.schema_version().unwrap(), 1);
+    assert_eq!(recovered.schema_version().unwrap(), 2);
     assert_eq!(recovered.startup_view().unwrap(), StartupView::Preferences);
 }
 
@@ -130,7 +134,7 @@ fn failed_migration_rolls_back_schema_data_and_ledger() {
     ));
     assert_eq!(fs::read(directory.database()).unwrap(), before);
     let database = Database::open(directory.path()).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 1);
+    assert_eq!(database.schema_version().unwrap(), 2);
     assert_eq!(database.startup_view().unwrap(), StartupView::Library);
     let count: i64 = database
         .connection
@@ -589,7 +593,7 @@ fn killed_migration_recovers_the_original_committed_database() {
             .exists()
     );
     let recovered = Database::open(directory.path()).unwrap();
-    assert_eq!(recovered.schema_version().unwrap(), 1);
+    assert_eq!(recovered.schema_version().unwrap(), 2);
     assert_eq!(recovered.startup_view().unwrap(), StartupView::Library);
     migrations::validate_integrity(&recovered.connection).unwrap();
     assert!(
@@ -598,4 +602,135 @@ fn killed_migration_recovers_the_original_committed_database() {
             .prepare("SELECT * FROM interrupted")
             .is_err()
     );
+}
+
+#[test]
+fn scan_roots_add_list_remove_and_persist_across_restart() {
+    let directory = TestDirectory::new();
+    let first_id;
+    let second_id;
+    {
+        let mut database = Database::open(directory.path()).unwrap();
+        assert!(database.list_scan_roots().unwrap().is_empty());
+
+        let first = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        let second = database
+            .add_scan_root("Loops", "D:\\Loops")
+            .unwrap();
+        assert_ne!(first.id, second.id);
+        for root in [&first, &second] {
+            assert!(root.enabled);
+            assert_eq!(root.availability, ScanRootAvailability::Available);
+            assert_eq!(root.last_error_code, None);
+        }
+        first_id = first.id.clone();
+        second_id = second.id.clone();
+
+        let listed = database.list_scan_roots().unwrap();
+        assert_eq!(
+            listed.iter().map(|root| root.id.clone()).collect::<Vec<_>>(),
+            vec![first_id.clone(), second_id.clone()]
+        );
+
+        database.remove_scan_root(&first_id).unwrap();
+        assert_eq!(database.list_scan_roots().unwrap().len(), 1);
+    }
+    let database = Database::open(directory.path()).unwrap();
+    let listed = database.list_scan_roots().unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].id, second_id);
+    assert_eq!(listed[0].display_name, "Loops");
+    assert_eq!(listed[0].canonical_path, "D:\\Loops");
+}
+
+#[test]
+fn scan_roots_reject_duplicates_blank_inputs_and_unknown_removals() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+
+    assert!(matches!(
+        database.add_scan_root("Again", "C:\\Music\\Projects"),
+        Err(StorageError::Conflict)
+    ));
+    assert!(database.list_scan_roots().unwrap().len() == 1);
+    for (name, path) in [("", "C:\\Other"), ("Name", ""), ("", "")] {
+        assert!(matches!(
+            database.add_scan_root(name, path),
+            Err(StorageError::InvalidSchema)
+        ));
+    }
+    assert!(matches!(
+        database.remove_scan_root("missing-root-id"),
+        Err(StorageError::NotFound)
+    ));
+    assert!(database.list_scan_roots().unwrap().len() == 1);
+}
+
+#[test]
+fn scan_root_schema_enforces_bounds_and_survives_backup_recovery() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    assert!(
+        database
+            .connection
+            .execute(
+                "INSERT INTO scan_root
+                 (id, display_name, canonical_path, enabled, availability, last_error_code)
+                 VALUES ('x', 'Bad', 'C:\\Bad', 2, 'available', NULL)",
+                []
+            )
+            .is_err()
+    );
+    assert!(
+        database
+            .connection
+            .execute(
+                "INSERT INTO scan_root
+                 (id, display_name, canonical_path, enabled, availability, last_error_code)
+                 VALUES ('y', 'Bad', 'C:\\Bad', 1, 'scanning', NULL)",
+                []
+            )
+            .is_err()
+    );
+    assert!(
+        database
+            .connection
+            .execute(
+                "INSERT INTO scan_root
+                 (id, display_name, canonical_path, enabled, availability, last_error_code)
+                 VALUES ('z', 'Bad', 'C:\\Music\\Projects', 1, 'available', NULL)",
+                []
+            )
+            .is_err()
+    );
+
+    let backup = database.create_backup().unwrap();
+    let recovered_directory = TestDirectory::new();
+    let recovered = Database::recover_to(&backup, recovered_directory.path()).unwrap();
+    let listed = recovered.list_scan_roots().unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].display_name, "Projects");
+    assert_eq!(listed[0].canonical_path, "C:\\Music\\Projects");
+}
+
+#[test]
+fn upgrade_from_v1_preserves_preferences_and_starts_empty_roots() {
+    let directory = TestDirectory::new();
+    {
+        let mut fixture =
+            Database::open_with_migrations(directory.path(), &MIGRATIONS[..1]).unwrap();
+        fixture.set_startup_view(StartupView::Board).unwrap();
+    }
+    let database = Database::open(directory.path()).unwrap();
+    assert_eq!(database.schema_version().unwrap(), 2);
+    assert_eq!(database.startup_view().unwrap(), StartupView::Board);
+    assert!(database.list_scan_roots().unwrap().is_empty());
 }
