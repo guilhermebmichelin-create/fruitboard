@@ -53,6 +53,31 @@ fn publish_empty_scan(database: &mut Database, lease: &LeasedScan, now_ms: i64) 
         .unwrap();
 }
 
+fn publish_observations(
+    database: &mut Database,
+    lease: &LeasedScan,
+    now_ms: i64,
+    observations: &[ScanObservation],
+) {
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            &lease.run.session_id,
+            &lease.run.lease_token,
+            now_ms,
+            observations,
+        )
+        .unwrap();
+    database
+        .publish_scan_run(
+            &lease.run.id,
+            &lease.run.session_id,
+            &lease.run.lease_token,
+            now_ms + 1,
+        )
+        .unwrap();
+}
+
 fn staged_observation(
     path: &str,
     byte_size: u64,
@@ -2510,6 +2535,287 @@ fn publication_marks_missing_and_restores_each_alias_without_collapsing_it() {
 }
 
 #[test]
+fn historical_missing_identity_is_not_reused_by_a_new_path() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database
+        .begin_scan_session("historical-session", 1)
+        .unwrap();
+
+    let first_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let first = database
+        .lease_next_scan("historical-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(first.job.id, first_job.job_id);
+    publish_observations(
+        &mut database,
+        &first,
+        4,
+        &[staged_observation("old.flp", 1, 1, Some("identity-x"))],
+    );
+    let old = database
+        .list_published_locations(&root.id)
+        .unwrap()
+        .into_iter()
+        .find(|location| location.normalized_path == "old.flp")
+        .unwrap();
+
+    let empty_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 6)
+        .unwrap();
+    let empty = database
+        .lease_next_scan("historical-session", 7, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(empty.job.id, empty_job.job_id);
+    publish_empty_scan(&mut database, &empty, 8);
+    assert_eq!(
+        database
+            .list_published_locations(&root.id)
+            .unwrap()
+            .iter()
+            .find(|location| location.normalized_path == "old.flp")
+            .unwrap()
+            .presence,
+        FilePresence::Missing
+    );
+
+    let replacement_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 10)
+        .unwrap();
+    let replacement = database
+        .lease_next_scan("historical-session", 11, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(replacement.job.id, replacement_job.job_id);
+    publish_observations(
+        &mut database,
+        &replacement,
+        12,
+        &[staged_observation("new.flp", 1, 1, Some("identity-x"))],
+    );
+
+    let locations = database.list_published_locations(&root.id).unwrap();
+    let new = locations
+        .iter()
+        .find(|location| location.normalized_path == "new.flp")
+        .unwrap();
+    assert_eq!(new.presence, FilePresence::Present);
+    assert_ne!(new.project_file_id, old.project_file_id);
+    assert_eq!(
+        locations
+            .iter()
+            .find(|location| location.normalized_path == "old.flp")
+            .unwrap()
+            .project_file_id,
+        old.project_file_id
+    );
+}
+
+#[test]
+fn same_scan_rename_replacement_and_surviving_aliases_are_order_independent() {
+    fn run_scan(observations: &[ScanObservation]) -> Vec<PublishedLocation> {
+        let directory = TestDirectory::new();
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database
+            .begin_scan_session("association-session", 1)
+            .unwrap();
+
+        let initial_job = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let initial = database
+            .lease_next_scan("association-session", 3, 100)
+            .unwrap()
+            .unwrap();
+        assert_eq!(initial.job.id, initial_job.job_id);
+        publish_observations(
+            &mut database,
+            &initial,
+            4,
+            &[
+                staged_observation("old.flp", 1, 1, Some("identity-x")),
+                staged_observation("survivor.flp", 1, 1, Some("identity-x")),
+                staged_observation("replace.flp", 1, 1, Some("identity-x")),
+            ],
+        );
+
+        let next_job = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 6)
+            .unwrap();
+        let next = database
+            .lease_next_scan("association-session", 7, 100)
+            .unwrap()
+            .unwrap();
+        assert_eq!(next.job.id, next_job.job_id);
+        publish_observations(&mut database, &next, 8, observations);
+        database.list_published_locations(&root.id).unwrap()
+    }
+
+    let ordered = [
+        staged_observation("moved.flp", 1, 1, Some("identity-x")),
+        staged_observation("replace.flp", 2, 2, Some("identity-y")),
+        staged_observation("survivor.flp", 1, 1, Some("identity-x")),
+    ];
+    let reversed = [ordered[2].clone(), ordered[1].clone(), ordered[0].clone()];
+    let first = run_scan(&ordered);
+    let second = run_scan(&reversed);
+
+    let project_for = |locations: &[PublishedLocation], path: &str| {
+        locations
+            .iter()
+            .find(|location| location.normalized_path == path)
+            .unwrap()
+            .project_file_id
+            .clone()
+    };
+    let old_project = project_for(&first, "old.flp");
+    assert_eq!(
+        first
+            .iter()
+            .find(|location| location.normalized_path == "old.flp")
+            .unwrap()
+            .presence,
+        FilePresence::Missing
+    );
+    assert_eq!(project_for(&first, "moved.flp"), old_project);
+    assert_eq!(project_for(&first, "survivor.flp"), old_project);
+    assert_ne!(project_for(&first, "replace.flp"), old_project);
+
+    let canonical = |locations: &[PublishedLocation]| {
+        let mut project_groups = Vec::<String>::new();
+        locations
+            .iter()
+            .map(|location| {
+                let group = project_groups
+                    .iter()
+                    .position(|id| id == &location.project_file_id)
+                    .unwrap_or_else(|| {
+                        project_groups.push(location.project_file_id.clone());
+                        project_groups.len() - 1
+                    });
+                (location.normalized_path.clone(), location.presence, group)
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(canonical(&first), canonical(&second));
+}
+
+#[test]
+fn library_query_is_bounded_cursored_and_snapshot_stable() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("library-session", 1).unwrap();
+    let first_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let first = database
+        .lease_next_scan("library-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(first.job.id, first_job.job_id);
+    publish_observations(
+        &mut database,
+        &first,
+        4,
+        &[
+            staged_observation("a.flp", 1, 1, None),
+            staged_observation("b.flp", 1, 1, None),
+            staged_observation("c.flp", 1, 1, None),
+        ],
+    );
+
+    let page_one = database
+        .query_library(&LibraryQuery {
+            scan_root_id: root.id.clone(),
+            page_size: 2,
+            cursor: None,
+            snapshot: None,
+        })
+        .unwrap();
+    assert_eq!(
+        page_one
+            .locations
+            .iter()
+            .map(|location| location.normalized_path.as_str())
+            .collect::<Vec<_>>(),
+        ["a.flp", "b.flp"]
+    );
+    assert!(page_one.has_more);
+    let cursor = page_one.next_cursor.clone().unwrap();
+
+    let page_two = database
+        .query_library(&LibraryQuery {
+            scan_root_id: root.id.clone(),
+            page_size: 2,
+            cursor: Some(cursor),
+            snapshot: Some(page_one.snapshot.clone()),
+        })
+        .unwrap();
+    assert_eq!(page_two.locations.len(), 1);
+    assert_eq!(page_two.locations[0].normalized_path, "c.flp");
+    assert!(!page_two.has_more);
+    assert!(page_two.next_cursor.is_some());
+
+    assert!(matches!(
+        database.query_library(&LibraryQuery {
+            scan_root_id: root.id.clone(),
+            page_size: MAX_LIBRARY_PAGE_SIZE + 1,
+            cursor: None,
+            snapshot: None,
+        }),
+        Err(StorageError::InvalidSchema)
+    ));
+    let mut stale_snapshot = page_one.snapshot.clone();
+    stale_snapshot.last_successful_at_ms = Some(999);
+    assert!(matches!(
+        database.query_library(&LibraryQuery {
+            scan_root_id: root.id.clone(),
+            page_size: 2,
+            cursor: None,
+            snapshot: Some(stale_snapshot),
+        }),
+        Err(StorageError::Conflict)
+    ));
+
+    let next_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 6)
+        .unwrap();
+    let next = database
+        .lease_next_scan("library-session", 7, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(next.job.id, next_job.job_id);
+    publish_observations(
+        &mut database,
+        &next,
+        8,
+        &[staged_observation("d.flp", 1, 1, None)],
+    );
+    assert!(matches!(
+        database.query_library(&LibraryQuery {
+            scan_root_id: root.id,
+            page_size: 2,
+            cursor: Some(page_one.next_cursor.unwrap()),
+            snapshot: Some(page_one.snapshot),
+        }),
+        Err(StorageError::Conflict)
+    ));
+}
+
+#[test]
 fn publication_rejects_stale_or_cancelled_runs_without_touching_committed_rows() {
     let directory = TestDirectory::new();
     let mut database = Database::open(directory.path()).unwrap();
@@ -2790,6 +3096,152 @@ fn recovery_discards_open_staging_and_root_removal_detaches_history() {
 }
 
 #[test]
+fn conflicting_duplicates_across_batches_invalidate_prior_staging() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("conflict-session", 1).unwrap();
+    let job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("conflict-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            "conflict-session",
+            &lease.run.lease_token,
+            4,
+            &[staged_observation("same.flp", 1, 1, Some("first"))],
+        )
+        .unwrap();
+
+    assert!(matches!(
+        database.stage_scan_observations(
+            &lease.run.id,
+            "conflict-session",
+            &lease.run.lease_token,
+            5,
+            &[staged_observation("same.flp", 2, 1, Some("second"))],
+        ),
+        Err(StorageError::StagingRejected)
+    ));
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().state,
+        ScanStageState::Discarded
+    );
+    assert_eq!(
+        database
+            .scan_run(&lease.run.id)
+            .unwrap()
+            .error_code
+            .as_deref(),
+        Some("staging_rejected")
+    );
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Failed
+    );
+    assert!(matches!(
+        database.publish_scan_run(&lease.run.id, "conflict-session", &lease.run.lease_token, 6,),
+        Err(StorageError::Conflict)
+    ));
+    assert!(
+        database
+            .list_published_locations(&root.id)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn retryable_staging_sql_failure_keeps_the_prior_stage_open() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database
+        .begin_scan_session("retryable-stage-session", 1)
+        .unwrap();
+    let job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("retryable-stage-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            "retryable-stage-session",
+            &lease.run.lease_token,
+            4,
+            &[staged_observation("first.flp", 1, 1, None)],
+        )
+        .unwrap();
+    database
+        .connection
+        .execute_batch(
+            "CREATE TRIGGER fail_stage_insert
+             BEFORE INSERT ON scan_stage_observation
+             BEGIN SELECT RAISE(ABORT, 'injected staging failure'); END;",
+        )
+        .unwrap();
+    assert!(matches!(
+        database.stage_scan_observations(
+            &lease.run.id,
+            "retryable-stage-session",
+            &lease.run.lease_token,
+            5,
+            &[staged_observation("second.flp", 1, 1, None)],
+        ),
+        Err(StorageError::Database)
+    ));
+    database
+        .connection
+        .execute_batch("DROP TRIGGER fail_stage_insert;")
+        .unwrap();
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().state,
+        ScanStageState::Open
+    );
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().record_count,
+        1
+    );
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            "retryable-stage-session",
+            &lease.run.lease_token,
+            6,
+            &[staged_observation("second.flp", 1, 1, None)],
+        )
+        .unwrap();
+    database
+        .publish_scan_run(
+            &lease.run.id,
+            "retryable-stage-session",
+            &lease.run.lease_token,
+            7,
+        )
+        .unwrap();
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Completed
+    );
+    assert_eq!(
+        database.list_published_locations(&root.id).unwrap().len(),
+        2
+    );
+}
+
+#[test]
 fn staging_batches_enforce_record_and_path_budgets_before_writing() {
     let directory = TestDirectory::new();
     let mut database = Database::open(directory.path()).unwrap();
@@ -2797,50 +3249,13 @@ fn staging_batches_enforce_record_and_path_budgets_before_writing() {
         .add_scan_root("Projects", "C:\\Music\\Projects")
         .unwrap();
     database.begin_scan_session("quota-session", 1).unwrap();
-    let _job = database
+    let job = database
         .enqueue_scan(&root.id, ScanKind::Manual, 2)
         .unwrap();
     let lease = database
         .lease_next_scan("quota-session", 3, 100)
         .unwrap()
         .unwrap();
-    let too_many: Vec<_> = (0..(MAX_STAGED_BATCH_RECORDS + 1))
-        .map(|index| staged_observation(&format!("file-{index}.flp"), 1, 1, None))
-        .collect();
-    assert!(matches!(
-        database.stage_scan_observations(
-            &lease.run.id,
-            "quota-session",
-            &lease.run.lease_token,
-            4,
-            &too_many,
-        ),
-        Err(StorageError::Conflict)
-    ));
-    assert!(matches!(
-        database.scan_staging(&lease.run.id),
-        Err(StorageError::NotFound)
-    ));
-
-    let mut too_wide = Vec::new();
-    for index in 0..66 {
-        let path = format!("{}-{index:02}", "x".repeat(32_000));
-        too_wide.push(staged_observation(&path, 1, 1, None));
-    }
-    assert!(matches!(
-        database.stage_scan_observations(
-            &lease.run.id,
-            "quota-session",
-            &lease.run.lease_token,
-            5,
-            &too_wide,
-        ),
-        Err(StorageError::Conflict)
-    ));
-    assert!(matches!(
-        database.scan_staging(&lease.run.id),
-        Err(StorageError::NotFound)
-    ));
 
     let mut next_index = 0usize;
     for batch in 0..(MAX_STAGED_RECORDS as usize / MAX_STAGED_BATCH_RECORDS) {
@@ -2885,6 +3300,7 @@ fn staging_batches_enforce_record_and_path_budgets_before_writing() {
         database.scan_staging(&lease.run.id).unwrap().record_count,
         MAX_STAGED_RECORDS
     );
+
     assert!(matches!(
         database.stage_scan_observations(
             &lease.run.id,
@@ -2893,14 +3309,84 @@ fn staging_batches_enforce_record_and_path_budgets_before_writing() {
             101,
             &[staged_observation("over-budget.flp", 1, 1, None)],
         ),
-        Err(StorageError::Conflict)
+        Err(StorageError::StagingRejected)
     ));
     assert_eq!(
-        database.scan_staging(&lease.run.id).unwrap().record_count,
-        MAX_STAGED_RECORDS
+        database.scan_staging(&lease.run.id).unwrap().state,
+        ScanStageState::Discarded
     );
     assert_eq!(
-        database.scan_job(&_job.job_id).unwrap().state,
-        ScanJobState::Running
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Failed
+    );
+    assert!(
+        database
+            .list_published_locations(&root.id)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn staging_path_budget_after_prior_batch_is_terminal() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database
+        .begin_scan_session("path-quota-session", 1)
+        .unwrap();
+    let job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("path-quota-session", 3, 100)
+        .unwrap()
+        .unwrap();
+
+    let prefix = "p".repeat(32_000);
+    let prior_batch: Vec<_> = (0..65)
+        .map(|index| staged_observation(&format!("{prefix}-{index}"), 1, 1, None))
+        .collect();
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            "path-quota-session",
+            &lease.run.lease_token,
+            4,
+            &prior_batch,
+        )
+        .unwrap();
+    assert!(database.scan_staging(&lease.run.id).unwrap().path_bytes < MAX_STAGED_PATH_BYTES);
+
+    assert!(matches!(
+        database.stage_scan_observations(
+            &lease.run.id,
+            "path-quota-session",
+            &lease.run.lease_token,
+            5,
+            &[staged_observation(
+                &format!("{prefix}-overflow"),
+                1,
+                1,
+                None
+            )],
+        ),
+        Err(StorageError::StagingRejected)
+    ));
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().state,
+        ScanStageState::Discarded
+    );
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Failed
+    );
+    assert!(
+        database
+            .list_published_locations(&root.id)
+            .unwrap()
+            .is_empty()
     );
 }

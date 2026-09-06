@@ -1,7 +1,7 @@
 use super::{Database, Result, StorageError};
 use rusqlite::{OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// A single worker batch is deliberately bounded. The eventual enumerator can
 /// stream many batches, while each transaction remains small and retryable.
@@ -10,6 +10,7 @@ pub const MAX_STAGED_RECORDS: i64 = 10_000;
 pub const MAX_STAGED_PATH_BYTES: i64 = 4 * 1024 * 1024;
 const MAX_OBSERVATION_PATH_BYTES: usize = 32 * 1024;
 const MAX_FILE_ID_BYTES: usize = 512;
+pub const MAX_LIBRARY_PAGE_SIZE: usize = 200;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -111,6 +112,45 @@ pub struct ScanRootPublication {
     pub last_successful_at_ms: Option<i64>,
 }
 
+/// Opaque-but-serializable position in the stable Library order. The client
+/// must keep the snapshot returned with the page and restart from the first
+/// page if a later query reports that it changed.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCursor {
+    pub normalized_path: String,
+    pub location_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibrarySnapshot {
+    pub last_successful_run_id: Option<String>,
+    pub last_successful_generation: Option<i64>,
+    pub last_successful_at_ms: Option<i64>,
+}
+
+/// Bounded read-only Library query. This is the storage-side contract for a
+/// typed IPC adapter; it is intentionally not a generic SQL or list API.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryQuery {
+    pub scan_root_id: String,
+    pub page_size: usize,
+    pub cursor: Option<LibraryCursor>,
+    pub snapshot: Option<LibrarySnapshot>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryPage {
+    pub scan_root_id: String,
+    pub locations: Vec<PublishedLocation>,
+    pub next_cursor: Option<LibraryCursor>,
+    pub snapshot: LibrarySnapshot,
+    pub has_more: bool,
+}
+
 #[derive(Clone, Debug)]
 struct PublicationContext {
     run_id: String,
@@ -136,8 +176,29 @@ struct StagedObservation {
 struct ExistingLocation {
     id: String,
     project_file_id: String,
+    normalized_path: String,
     volume_id: Option<i64>,
     filesystem_file_id: Option<String>,
+    presence: FilePresence,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct QualifiedIdentity {
+    volume_id: i64,
+    filesystem_file_id: String,
+}
+
+#[derive(Clone, Debug)]
+struct ProjectFileAssignment {
+    id: String,
+    is_new: bool,
+}
+
+#[derive(Clone, Debug)]
+struct PlannedObservation {
+    observation: StagedObservation,
+    location_id: Option<String>,
+    project_file: ProjectFileAssignment,
 }
 
 fn map_not_found(error: rusqlite::Error) -> StorageError {
@@ -427,12 +488,12 @@ fn select_staged_observations(
         .map_err(Into::into)
 }
 
-fn create_project_file(
+fn insert_project_file(
     transaction: &Transaction<'_>,
+    project_file_id: &str,
     observation: &StagedObservation,
     now_ms: i64,
-) -> Result<String> {
-    let id = uuid::Uuid::now_v7().to_string();
+) -> Result<()> {
     let (display_filename, extension) = filename_parts(&observation.relative_path);
     transaction.execute(
         "INSERT INTO project_file
@@ -440,7 +501,7 @@ fn create_project_file(
           created_at_ms, updated_at_ms)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
         params![
-            &id,
+            project_file_id,
             display_filename,
             extension,
             observation.byte_size,
@@ -448,7 +509,14 @@ fn create_project_file(
             now_ms,
         ],
     )?;
-    Ok(id)
+    Ok(())
+}
+
+fn new_project_file_assignment() -> ProjectFileAssignment {
+    ProjectFileAssignment {
+        id: uuid::Uuid::now_v7().to_string(),
+        is_new: true,
+    }
 }
 
 fn update_project_file(
@@ -493,97 +561,217 @@ fn filename_parts(path: &str) -> (String, String) {
     (display, extension)
 }
 
-fn select_location_by_path(
-    transaction: &Transaction<'_>,
-    root_id: &str,
-    normalized_path: &str,
-) -> Result<Option<ExistingLocation>> {
-    transaction
-        .query_row(
-            "SELECT id, project_file_id, byte_size, modified_at_ms,
-                    volume_id, filesystem_file_id
-             FROM file_location
-             WHERE scan_root_id = ?1 AND normalized_path = ?2",
-            params![root_id, normalized_path],
-            |row| {
-                Ok(ExistingLocation {
-                    id: row.get(0)?,
-                    project_file_id: row.get(1)?,
-                    volume_id: row.get(4)?,
-                    filesystem_file_id: row.get(5)?,
-                })
-            },
-        )
-        .optional()
-        .map_err(Into::into)
-}
-
-fn select_location_by_identity(
-    transaction: &Transaction<'_>,
-    root_id: &str,
+fn qualified_identity(
     volume_id: Option<i64>,
     filesystem_file_id: Option<&str>,
-) -> Result<Option<String>> {
-    let (Some(volume_id), Some(filesystem_file_id)) = (volume_id, filesystem_file_id) else {
-        return Ok(None);
-    };
-    transaction
-        .query_row(
-            "SELECT project_file_id
-             FROM file_location
-             WHERE scan_root_id = ?1 AND volume_id = ?2
-               AND filesystem_file_id = ?3
-             ORDER BY id
-             LIMIT 1",
-            params![root_id, volume_id, filesystem_file_id],
-            |row| row.get(0),
-        )
-        .optional()
+) -> Option<QualifiedIdentity> {
+    match (volume_id, filesystem_file_id) {
+        (Some(volume_id), Some(filesystem_file_id)) if !filesystem_file_id.is_empty() => {
+            Some(QualifiedIdentity {
+                volume_id,
+                filesystem_file_id: filesystem_file_id.to_owned(),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn select_root_locations(
+    transaction: &Transaction<'_>,
+    root_id: &str,
+) -> Result<Vec<ExistingLocation>> {
+    let mut statement = transaction.prepare(
+        "SELECT id, project_file_id, normalized_path, volume_id,
+                filesystem_file_id, presence
+         FROM file_location
+         WHERE scan_root_id = ?1
+         ORDER BY normalized_path, id",
+    )?;
+    statement
+        .query_map([root_id], |row| {
+            let presence = FilePresence::parse(&row.get::<_, String>(5)?).map_err(|_| {
+                rusqlite::Error::InvalidColumnType(
+                    5,
+                    "presence".into(),
+                    rusqlite::types::Type::Text,
+                )
+            })?;
+            Ok(ExistingLocation {
+                id: row.get(0)?,
+                project_file_id: row.get(1)?,
+                normalized_path: row.get(2)?,
+                volume_id: row.get(3)?,
+                filesystem_file_id: row.get(4)?,
+                presence,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(Into::into)
 }
 
-fn publish_observation(
+fn identities_differ(previous: &ExistingLocation, current: Option<&QualifiedIdentity>) -> bool {
+    matches!(
+        (
+            qualified_identity(
+                previous.volume_id,
+                previous.filesystem_file_id.as_deref()
+            ),
+            current
+        ),
+        (Some(previous), Some(current)) if previous != *current
+    )
+}
+
+/// Build all physical associations before mutating the committed dataset.
+///
+/// A qualified identity is reusable only when it has current evidence in this
+/// complete enumeration: either an already-present location is observed at the
+/// same path with the same identity, or an already-present location at an
+/// unobserved path supplies the unambiguous rename source. Missing locations
+/// are deliberately excluded from this lookup. Exact-path continuity remains
+/// separate so a missing path can be restored without making a different new
+/// path inherit its historical physical record.
+fn plan_observations(
     transaction: &Transaction<'_>,
-    context: &PublicationContext,
-    observation: &StagedObservation,
-    now_ms: i64,
-) -> Result<()> {
-    let existing =
-        select_location_by_path(transaction, &context.root_id, &observation.normalized_path)?;
-    let project_file_id = if let Some(location) = &existing {
-        let identity_changed = location.volume_id.is_some()
-            && observation.volume_id.is_some()
-            && location.filesystem_file_id.is_some()
-            && observation.filesystem_file_id.is_some()
-            && (location.volume_id != observation.volume_id
-                || location.filesystem_file_id != observation.filesystem_file_id);
-        if identity_changed {
-            match select_location_by_identity(
-                transaction,
-                &context.root_id,
+    root_id: &str,
+    observations: &[StagedObservation],
+) -> Result<Vec<PlannedObservation>> {
+    let previous = select_root_locations(transaction, root_id)?;
+    let previous_by_path: BTreeMap<_, _> = previous
+        .iter()
+        .map(|location| (location.normalized_path.as_str(), location))
+        .collect();
+    let observed_by_path: BTreeMap<_, _> = observations
+        .iter()
+        .map(|observation| (observation.normalized_path.as_str(), observation))
+        .collect();
+
+    let observed_identities: BTreeSet<_> = observations
+        .iter()
+        .filter_map(|observation| {
+            qualified_identity(
                 observation.volume_id,
                 observation.filesystem_file_id.as_deref(),
-            )? {
-                Some(project_file_id) => project_file_id,
-                None => create_project_file(transaction, observation, now_ms)?,
-            }
-        } else {
-            location.project_file_id.clone()
+            )
+        })
+        .collect();
+
+    // Candidates from the prior committed set are qualified by the complete
+    // current observation set. A prior present path observed with a different
+    // identity is a replacement, not evidence for the old identity.
+    let mut identity_candidates: BTreeMap<QualifiedIdentity, BTreeSet<String>> = BTreeMap::new();
+    for location in previous.iter().filter(|location| {
+        location.presence == FilePresence::Present
+            && location.volume_id.is_some()
+            && location.filesystem_file_id.is_some()
+    }) {
+        let identity =
+            qualified_identity(location.volume_id, location.filesystem_file_id.as_deref())
+                .ok_or(StorageError::Conflict)?;
+        let current_supports_identity = observed_by_path
+            .get(location.normalized_path.as_str())
+            .map(|observation| {
+                qualified_identity(
+                    observation.volume_id,
+                    observation.filesystem_file_id.as_deref(),
+                ) == Some(identity.clone())
+            })
+            .unwrap_or(true);
+        if current_supports_identity {
+            identity_candidates
+                .entry(identity)
+                .or_default()
+                .insert(location.project_file_id.clone());
         }
-    } else {
-        match select_location_by_identity(
-            transaction,
-            &context.root_id,
+    }
+
+    // Exact-path continuity is allowed for an existing row, including a
+    // missing row being restored. It is not used as a historical identity
+    // lookup for an unrelated path.
+    let mut path_continuity = Vec::with_capacity(observations.len());
+    let mut continuity_candidates: BTreeMap<QualifiedIdentity, BTreeSet<String>> = BTreeMap::new();
+    for observation in observations {
+        let current_identity = qualified_identity(
             observation.volume_id,
             observation.filesystem_file_id.as_deref(),
-        )? {
-            Some(project_file_id) => project_file_id,
-            None => create_project_file(transaction, observation, now_ms)?,
+        );
+        let continuity = previous_by_path
+            .get(observation.normalized_path.as_str())
+            .filter(|location| !identities_differ(location, current_identity.as_ref()))
+            .map(|location| location.project_file_id.clone());
+        if let (Some(identity), Some(project_file_id)) = (current_identity, continuity.as_ref()) {
+            continuity_candidates
+                .entry(identity)
+                .or_default()
+                .insert(project_file_id.clone());
         }
-    };
-    update_project_file(transaction, &project_file_id, observation, now_ms)?;
+        path_continuity.push(continuity);
+    }
 
-    if let Some(location) = existing {
+    let mut identity_assignments = BTreeMap::new();
+    for identity in observed_identities {
+        let mut candidates = identity_candidates.remove(&identity).unwrap_or_default();
+        if let Some(path_candidates) = continuity_candidates.remove(&identity) {
+            candidates.extend(path_candidates);
+        }
+        let assignment = if candidates.len() == 1 {
+            ProjectFileAssignment {
+                id: candidates.into_iter().next().expect("one candidate"),
+                is_new: false,
+            }
+        } else {
+            // No evidence, or conflicting evidence, means a conservative new
+            // physical record. Every current alias in this identity group then
+            // shares that one new record, independent of stage input order.
+            new_project_file_assignment()
+        };
+        identity_assignments.insert(identity, assignment);
+    }
+
+    let mut planned = Vec::with_capacity(observations.len());
+    for (index, observation) in observations.iter().enumerate() {
+        let identity = qualified_identity(
+            observation.volume_id,
+            observation.filesystem_file_id.as_deref(),
+        );
+        let project_file = if let Some(identity) = identity {
+            identity_assignments
+                .get(&identity)
+                .cloned()
+                .ok_or(StorageError::Conflict)?
+        } else if let Some(project_file_id) = &path_continuity[index] {
+            ProjectFileAssignment {
+                id: project_file_id.clone(),
+                is_new: false,
+            }
+        } else {
+            new_project_file_assignment()
+        };
+        planned.push(PlannedObservation {
+            observation: observation.clone(),
+            location_id: previous_by_path
+                .get(observation.normalized_path.as_str())
+                .map(|location| location.id.clone()),
+            project_file,
+        });
+    }
+    Ok(planned)
+}
+
+fn apply_planned_observation(
+    transaction: &Transaction<'_>,
+    context: &PublicationContext,
+    planned: &PlannedObservation,
+    now_ms: i64,
+) -> Result<()> {
+    update_project_file(
+        transaction,
+        &planned.project_file.id,
+        &planned.observation,
+        now_ms,
+    )?;
+
+    if let Some(location_id) = &planned.location_id {
         let changed = transaction.execute(
             "UPDATE file_location
              SET project_file_id = ?1, relative_path = ?2, byte_size = ?3,
@@ -592,15 +780,15 @@ fn publish_observation(
                  last_seen_at_ms = ?8, updated_at_ms = ?8
              WHERE id = ?9 AND scan_root_id = ?10",
             params![
-                &project_file_id,
-                &observation.relative_path,
-                observation.byte_size,
-                observation.modified_at_ms,
-                observation.volume_id,
-                observation.filesystem_file_id.as_deref(),
+                &planned.project_file.id,
+                &planned.observation.relative_path,
+                planned.observation.byte_size,
+                planned.observation.modified_at_ms,
+                planned.observation.volume_id,
+                planned.observation.filesystem_file_id.as_deref(),
                 &context.run_id,
                 now_ms,
-                &location.id,
+                location_id,
                 &context.root_id,
             ],
         )?;
@@ -619,14 +807,14 @@ fn publish_observation(
                      ?10, ?11, ?11, ?11)",
             params![
                 &location_id,
-                &project_file_id,
+                &planned.project_file.id,
                 &context.root_id,
-                &observation.normalized_path,
-                &observation.relative_path,
-                observation.byte_size,
-                observation.modified_at_ms,
-                observation.volume_id,
-                observation.filesystem_file_id.as_deref(),
+                &planned.observation.normalized_path,
+                &planned.observation.relative_path,
+                planned.observation.byte_size,
+                planned.observation.modified_at_ms,
+                planned.observation.volume_id,
+                planned.observation.filesystem_file_id.as_deref(),
                 &context.run_id,
                 now_ms,
             ],
@@ -675,11 +863,24 @@ pub(crate) fn publish_scan_run_tx(
         return Err(StorageError::Conflict);
     }
     let mut seen = BTreeSet::new();
-    for observation in &observations {
-        if !seen.insert(&observation.normalized_path) {
-            return Err(StorageError::Conflict);
+    if observations
+        .iter()
+        .any(|observation| !seen.insert(&observation.normalized_path))
+    {
+        return Err(StorageError::Conflict);
+    }
+    let planned = plan_observations(transaction, &context.root_id, &observations)?;
+    let mut inserted_project_files = BTreeSet::new();
+    for item in &planned {
+        if item.project_file.is_new && inserted_project_files.insert(&item.project_file.id) {
+            insert_project_file(
+                transaction,
+                &item.project_file.id,
+                &item.observation,
+                now_ms,
+            )?;
         }
-        publish_observation(transaction, &context, observation, now_ms)?;
+        apply_planned_observation(transaction, &context, item, now_ms)?;
     }
     transaction.execute(
         "UPDATE file_location
@@ -810,6 +1011,47 @@ pub(crate) fn discard_staging_for_run_tx(
     Ok(())
 }
 
+/// Terminal input errors cannot leave a partially staged authoritative run.
+/// This transition is committed together with stage cleanup. SQLite busy or
+/// other database failures do not enter here: their surrounding transaction
+/// rolls back and the caller may retry the same batch against the open stage.
+fn invalidate_terminal_staging_tx(
+    transaction: &Transaction<'_>,
+    context: &PublicationContext,
+    now_ms: i64,
+) -> Result<()> {
+    discard_staging_for_run_tx(transaction, &context.run_id, now_ms)?;
+    let run_changed = transaction.execute(
+        "UPDATE scan_run
+         SET state = 'failed', finished_at_ms = ?1, outcome = 'failed',
+             error_code = 'staging_rejected'
+         WHERE id = ?2 AND scan_job_id = ?3 AND state = 'running'
+           AND session_id = ?4 AND lease_token = ?5",
+        params![
+            now_ms,
+            &context.run_id,
+            &context.job_id,
+            &context.session_id,
+            &context.lease_token,
+        ],
+    )?;
+    if run_changed != 1 {
+        return Err(StorageError::Conflict);
+    }
+    let job_changed = transaction.execute(
+        "UPDATE scan_job
+         SET state = 'failed', updated_at_ms = ?1,
+             last_error_code = 'staging_rejected'
+         WHERE id = ?2 AND state = 'running'
+           AND cancellation_requested = 0 AND follow_up_requested = 0",
+        params![now_ms, &context.job_id],
+    )?;
+    if job_changed != 1 {
+        return Err(StorageError::Conflict);
+    }
+    Ok(())
+}
+
 pub(crate) fn discard_staging_for_job_tx(
     transaction: &Transaction<'_>,
     job_id: &str,
@@ -908,94 +1150,108 @@ impl Database {
         if run_id.is_empty() || session_id.is_empty() || lease_token.is_empty() {
             return Err(StorageError::InvalidSchema);
         }
-        if observations.len() > MAX_STAGED_BATCH_RECORDS {
-            return Err(StorageError::Conflict);
-        }
-        self.transaction(|transaction| {
+        let committed: Result<Result<ScanStaging>> = self.transaction(|transaction| {
             let context = validate_owner(transaction, run_id, session_id, lease_token, now_ms)?;
             let staging = ensure_open_staging(transaction, &context, now_ms)?;
-            let mut batch_paths = BTreeSet::new();
-            let mut new_count = 0_i64;
-            let mut new_path_bytes = 0_i64;
-            for observation in observations {
-                let path_bytes = observation_path_bytes(observation)?;
-                if !batch_paths.insert(&observation.normalized_path) {
-                    return Err(StorageError::Conflict);
+            let attempt: Result<ScanStaging> = (|| {
+                if observations.len() > MAX_STAGED_BATCH_RECORDS {
+                    return Err(StorageError::StagingRejected);
                 }
-                let byte_size =
-                    i64::try_from(observation.byte_size).map_err(|_| StorageError::Conflict)?;
-                let existing = transaction
-                    .query_row(
-                        "SELECT relative_path, byte_size, modified_at_ms, volume_id,
-                                filesystem_file_id
-                         FROM scan_stage_observation
-                         WHERE run_id = ?1 AND normalized_path = ?2",
-                        params![&context.run_id, &observation.normalized_path],
-                        |row| {
-                            Ok((
-                                row.get::<_, String>(0)?,
-                                row.get::<_, i64>(1)?,
-                                row.get::<_, i64>(2)?,
-                                row.get::<_, Option<i64>>(3)?,
-                                row.get::<_, Option<String>>(4)?,
-                            ))
-                        },
-                    )
-                    .optional()?;
-                if let Some(existing) = existing {
-                    if existing
-                        != (
-                            observation.relative_path.clone(),
+                let mut batch_paths = BTreeSet::new();
+                let mut new_count = 0_i64;
+                let mut new_path_bytes = 0_i64;
+                for observation in observations {
+                    let path_bytes = observation_path_bytes(observation)
+                        .map_err(|_| StorageError::StagingRejected)?;
+                    if !batch_paths.insert(&observation.normalized_path) {
+                        return Err(StorageError::StagingRejected);
+                    }
+                    let byte_size = i64::try_from(observation.byte_size)
+                        .map_err(|_| StorageError::StagingRejected)?;
+                    let existing = transaction
+                        .query_row(
+                            "SELECT relative_path, byte_size, modified_at_ms, volume_id,
+                                    filesystem_file_id
+                             FROM scan_stage_observation
+                             WHERE run_id = ?1 AND normalized_path = ?2",
+                            params![&context.run_id, &observation.normalized_path],
+                            |row| {
+                                Ok((
+                                    row.get::<_, String>(0)?,
+                                    row.get::<_, i64>(1)?,
+                                    row.get::<_, i64>(2)?,
+                                    row.get::<_, Option<i64>>(3)?,
+                                    row.get::<_, Option<String>>(4)?,
+                                ))
+                            },
+                        )
+                        .optional()?;
+                    if let Some(existing) = existing {
+                        if existing
+                            != (
+                                observation.relative_path.clone(),
+                                byte_size,
+                                observation.modified_at_ms,
+                                observation.volume_id,
+                                observation.filesystem_file_id.clone(),
+                            )
+                        {
+                            return Err(StorageError::StagingRejected);
+                        }
+                        continue;
+                    }
+                    new_count = new_count
+                        .checked_add(1)
+                        .ok_or(StorageError::StagingRejected)?;
+                    new_path_bytes = new_path_bytes
+                        .checked_add(path_bytes)
+                        .ok_or(StorageError::StagingRejected)?;
+                    transaction.execute(
+                        "INSERT INTO scan_stage_observation
+                         (run_id, normalized_path, relative_path, byte_size,
+                          modified_at_ms, volume_id, filesystem_file_id)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        params![
+                            &context.run_id,
+                            &observation.normalized_path,
+                            &observation.relative_path,
                             byte_size,
                             observation.modified_at_ms,
                             observation.volume_id,
-                            observation.filesystem_file_id.clone(),
-                        )
-                    {
-                        return Err(StorageError::Conflict);
-                    }
-                    continue;
+                            observation.filesystem_file_id.as_deref(),
+                        ],
+                    )?;
                 }
-                new_count = new_count.checked_add(1).ok_or(StorageError::Conflict)?;
-                new_path_bytes = new_path_bytes
-                    .checked_add(path_bytes)
-                    .ok_or(StorageError::Conflict)?;
+                if staging
+                    .record_count
+                    .checked_add(new_count)
+                    .is_none_or(|count| count > MAX_STAGED_RECORDS)
+                    || staging
+                        .path_bytes
+                        .checked_add(new_path_bytes)
+                        .is_none_or(|bytes| bytes > MAX_STAGED_PATH_BYTES)
+                {
+                    return Err(StorageError::StagingRejected);
+                }
                 transaction.execute(
-                    "INSERT INTO scan_stage_observation
-                     (run_id, normalized_path, relative_path, byte_size,
-                      modified_at_ms, volume_id, filesystem_file_id)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    params![
-                        &context.run_id,
-                        &observation.normalized_path,
-                        &observation.relative_path,
-                        byte_size,
-                        observation.modified_at_ms,
-                        observation.volume_id,
-                        observation.filesystem_file_id.as_deref(),
-                    ],
+                    "UPDATE scan_stage
+                     SET record_count = record_count + ?1,
+                         path_bytes = path_bytes + ?2, updated_at_ms = ?3
+                     WHERE run_id = ?4 AND state = 'open'",
+                    params![new_count, new_path_bytes, now_ms, &context.run_id],
                 )?;
+                select_staging(transaction, &context.run_id)
+            })();
+            match attempt {
+                Ok(staging) => Ok(Ok(staging)),
+                Err(StorageError::StagingRejected) => {
+                    invalidate_terminal_staging_tx(transaction, &context, now_ms)?;
+                    Ok(Err(StorageError::StagingRejected))
+                }
+                Err(error) => Err(error),
             }
-            if staging
-                .record_count
-                .checked_add(new_count)
-                .is_none_or(|count| count > MAX_STAGED_RECORDS)
-                || staging
-                    .path_bytes
-                    .checked_add(new_path_bytes)
-                    .is_none_or(|bytes| bytes > MAX_STAGED_PATH_BYTES)
-            {
-                return Err(StorageError::Conflict);
-            }
-            transaction.execute(
-                "UPDATE scan_stage
-                 SET record_count = record_count + ?1,
-                     path_bytes = path_bytes + ?2, updated_at_ms = ?3
-                 WHERE run_id = ?4 AND state = 'open'",
-                params![new_count, new_path_bytes, now_ms, &context.run_id],
-            )?;
-            select_staging(transaction, &context.run_id)
-        })
+        });
+        committed?
     }
 
     /// Publish all staged observations and complete the run in one SQLite
@@ -1022,7 +1278,89 @@ impl Database {
         result
     }
 
-    pub fn list_published_locations(&self, root_id: &str) -> Result<Vec<PublishedLocation>> {
+    /// Read a bounded, stable Library page. The client sends no SQL and must
+    /// echo `snapshot` on subsequent pages; a changed successful publication
+    /// returns `Conflict`, so the client can restart from the first page.
+    pub fn query_library(&self, query: &LibraryQuery) -> Result<LibraryPage> {
+        if query.scan_root_id.is_empty()
+            || query.page_size == 0
+            || query.page_size > MAX_LIBRARY_PAGE_SIZE
+        {
+            return Err(StorageError::InvalidSchema);
+        }
+        if query.cursor.as_ref().is_some_and(|cursor| {
+            cursor.normalized_path.is_empty() || cursor.location_id.is_empty()
+        }) {
+            return Err(StorageError::InvalidSchema);
+        }
+        let snapshot = self
+            .connection
+            .query_row(
+                "SELECT last_successful_run_id, last_successful_generation,
+                        last_successful_at_ms
+                 FROM scan_root WHERE id = ?1",
+                [&query.scan_root_id],
+                |row| {
+                    Ok(LibrarySnapshot {
+                        last_successful_run_id: row.get(0)?,
+                        last_successful_generation: row.get(1)?,
+                        last_successful_at_ms: row.get(2)?,
+                    })
+                },
+            )
+            .map_err(map_not_found)?;
+        if query
+            .snapshot
+            .as_ref()
+            .is_some_and(|expected| expected != &snapshot)
+        {
+            return Err(StorageError::Conflict);
+        }
+
+        let cursor_path = query
+            .cursor
+            .as_ref()
+            .map(|cursor| cursor.normalized_path.as_str());
+        let cursor_id = query
+            .cursor
+            .as_ref()
+            .map(|cursor| cursor.location_id.as_str());
+        let limit = i64::try_from(query.page_size + 1).map_err(|_| StorageError::Conflict)?;
+        let mut statement = self.connection.prepare(&format!(
+            "{LOCATION_COLUMNS}
+             WHERE scan_root_id = ?1
+               AND (?2 IS NULL OR normalized_path > ?2
+                    OR (normalized_path = ?2 AND id > ?3))
+             ORDER BY normalized_path, id
+             LIMIT ?4"
+        ))?;
+        let mut locations = statement
+            .query_map(
+                params![&query.scan_root_id, cursor_path, cursor_id, limit],
+                published_location_from_row,
+            )?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let has_more = locations.len() > query.page_size;
+        if has_more {
+            locations.pop();
+        }
+        let next_cursor = locations.last().map(|location| LibraryCursor {
+            normalized_path: location.normalized_path.clone(),
+            location_id: location.id.clone(),
+        });
+        Ok(LibraryPage {
+            scan_root_id: query.scan_root_id.clone(),
+            locations,
+            next_cursor,
+            snapshot,
+            has_more,
+        })
+    }
+
+    /// Unbounded storage-only fixture/maintenance read. Do not bind this
+    /// method to IPC; clients use `query_library` above.
+    #[cfg(test)]
+    pub(crate) fn list_published_locations(&self, root_id: &str) -> Result<Vec<PublishedLocation>> {
         let exists: i64 = self.connection.query_row(
             "SELECT count(*) FROM scan_root WHERE id = ?1",
             [root_id],
@@ -1041,8 +1379,10 @@ impl Database {
     }
 
     /// Detached locations are retained after a root is removed. They are
-    /// history only and cannot be selected by a newly added root.
-    pub fn list_detached_locations(&self) -> Result<Vec<PublishedLocation>> {
+    /// history only and cannot be selected by a newly added root. This
+    /// unbounded fixture/maintenance read is not an IPC surface.
+    #[cfg(test)]
+    pub(crate) fn list_detached_locations(&self) -> Result<Vec<PublishedLocation>> {
         let mut statement = self.connection.prepare(&format!(
             "{LOCATION_COLUMNS}
              WHERE scan_root_id IS NULL AND detached_scan_root_id IS NOT NULL

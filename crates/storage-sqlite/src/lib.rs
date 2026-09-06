@@ -13,9 +13,9 @@ pub use execution::{
 use files::{Location, check_path, private_directory, private_file};
 use migrations::{MIGRATIONS, Migration};
 pub use publication::{
-    FilePresence, MAX_STAGED_BATCH_RECORDS, MAX_STAGED_PATH_BYTES, MAX_STAGED_RECORDS,
-    PublishedLocation, ScanObservation, ScanPublication, ScanRootPublication, ScanStageState,
-    ScanStaging,
+    FilePresence, LibraryCursor, LibraryPage, LibraryQuery, LibrarySnapshot, MAX_LIBRARY_PAGE_SIZE,
+    MAX_STAGED_BATCH_RECORDS, MAX_STAGED_PATH_BYTES, MAX_STAGED_RECORDS, PublishedLocation,
+    ScanObservation, ScanPublication, ScanRootPublication, ScanStageState, ScanStaging,
 };
 use rusqlite::{
     Connection, OpenFlags, TransactionBehavior,

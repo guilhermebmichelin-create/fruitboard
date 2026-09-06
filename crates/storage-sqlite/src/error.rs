@@ -13,6 +13,9 @@ pub enum StorageError {
     MigrationFailed,
     InvalidBackup,
     Conflict,
+    /// The worker supplied terminally invalid staging input. The run has
+    /// already been durably failed and its stage discarded.
+    StagingRejected,
     NotFound,
     Database,
 }
@@ -30,6 +33,7 @@ impl fmt::Display for StorageError {
             Self::MigrationFailed => "storage_migration_failed",
             Self::InvalidBackup => "storage_invalid_backup",
             Self::Conflict => "storage_conflict",
+            Self::StagingRejected => "storage_staging_rejected",
             Self::NotFound => "storage_not_found",
             Self::Database => "storage_database_failed",
         })
