@@ -14,9 +14,15 @@ to PyFLP classes. The product must never edit FLP contents.
 ## Decision
 
 Define a replaceable `FlpParser` port and versioned, read-only JSON-lines
-protocol. The leading adapter is a supervised Python/PyFLP sidecar packaged as
-an architecture-specific Tauri external binary. Rust launches it, validates
+protocol. After the filesystem-only Scanner MVP, evaluate a bounded independent
+Rust parser before selecting the production adapter. Python/PyFLP remains a
+candidate if the Rust spike does not meet the initial metadata requirements.
+The selected parser remains an isolated process: Rust launches it, validates
 paths/results, enforces limits/timeouts, and persists immutable snapshots.
+
+This planning amendment authorizes research, not a complete Rust rewrite or
+production parser adoption. Follow the field matrix, safety checks, and decision
+criteria in [the roadmap](../../ROADMAP.md#parser-selection-before-phase-3).
 
 The sidecar may be adopted for distribution only after:
 
@@ -26,8 +32,9 @@ The sidecar may be adopted for distribution only after:
    GPL-3.0 obligations.
 
 Acceptance covers the replaceable parser boundary and proof-of-concept work,
-not permission to add, bundle, or distribute PyFLP. The product owner has not
-accepted GPL distribution. See [LICENSE_INTENT.md](../../LICENSE_INTENT.md).
+not permission to add, bundle, or distribute PyFLP. The product owner intends
+public open-source distribution, but has not selected the exact license.
+See [LICENSE_INTENT.md](../../LICENSE_INTENT.md).
 
 ## Alternatives
 
@@ -37,7 +44,8 @@ accepted GPL distribution. See [LICENSE_INTENT.md](../../LICENSE_INTENT.md).
   stdio.
 - Remote parser: violates offline/privacy goals by uploading FLPs.
 - Immediate Rust rewrite: high reverse-engineering cost before the required
-  metadata/reliability boundary is measured.
+  metadata/reliability boundary is measured. A bounded Rust research spike is
+  now the first evaluation step; a full rewrite remains unapproved.
 
 ## Consequences
 

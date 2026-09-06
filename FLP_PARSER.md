@@ -1,13 +1,21 @@
 # FLP parser architecture and feasibility
 
-Status: **Candidate design; PyFLP adoption is gated**
+Status: **Rust-first bounded evaluation planned; production parser unselected**
 
 ## Conclusion
 
-PyFLP is sufficiently capable to justify a focused proof-of-concept, but not
-sufficiently current or licensed to adopt without conditions. Keep it behind a
-versioned parser interface and package it as an isolated local process if the
-compatibility, distribution, and licensing gates pass.
+Complete the filesystem-only Scanner MVP, then evaluate an independent,
+read-only Rust parser for a small metadata subset before choosing a production
+parser. Start with saved FL version and base tempo, followed by channel names
+and sample references. Arrangements, plugin-state decoding, and duration are
+outside that first spike. Follow the agreed corpus, limits, and acceptance
+criteria in [ROADMAP.md](ROADMAP.md#parser-selection-before-phase-3).
+
+PyFLP remains a candidate, not a requirement. If the Rust spike falls short,
+evaluate PyFLP against the same known-value fixtures. Compare correctness,
+packaging, and maintenance before adoption; retain the versioned interface and
+isolated process for either implementation. The owner's intended public
+open-source release does not by itself select the exact license.
 
 PyFLP is unofficial. Its [PyPI package](https://pypi.org/project/pyflp/) is
 currently version 2.2.1, published June 5, 2023, marked Alpha, and licensed
@@ -114,7 +122,7 @@ small pool only if one worker cannot meet measured throughput.
 
 ## Packaging recommendation
 
-The leading package is an architecture-specific PyInstaller **one-directory**
+If Python/PyFLP is selected, its candidate package is a PyInstaller **one-directory**
 bundle registered as a Tauri external binary. One-directory avoids the unpack
 work and antivirus friction commonly associated with self-extracting one-file
 bundles; the PoC must validate that assumption on target machines.
@@ -134,16 +142,18 @@ to JavaScript.
 
 | Option | Advantages | Problems | Position |
 | --- | --- | --- | --- |
-| Packaged Python sidecar | Reuses PyFLP; process isolation; independent upgrade | Runtime size, signing/AV, GPL gate, old parser | Preferred candidate after gates |
+| Packaged Python sidecar | Reuses PyFLP; process isolation; independent upgrade | Runtime size, signing/AV, license and compatibility gates | Evaluate if bounded Rust spike falls short |
 | Require user Python | Small app download | Fragile setup, dependency conflicts, poor onboarding | Reject for product builds |
 | Embed CPython in Rust process | Potentially lower IPC overhead | Crash/failure and licensing boundary become tighter; complex packaging | Reject initially |
 | Local HTTP parser service | Familiar API | Port/lifecycle/auth surface with no product benefit | Reject; stdio is simpler |
-| Rewrite parser in Rust now | Single runtime and full control | Large reverse-engineering effort before feasibility is understood | Keep as strategic alternative |
+| Independent Rust parser | No Python runtime; direct control of supported fields | Format research and ongoing compatibility maintenance | Bounded spike first; full implementation requires evidence |
 | Remote parsing service | Central upgrades | Uploads private FLPs, breaks offline/privacy goals | Reject |
 
 ## Expected metadata reliability tiers
 
-These are hypotheses to test, not product promises.
+These are hypotheses to test, not product promises. PyFLP API references below
+describe candidate coverage, not a selected backend. The initial Rust spike
+tests only its agreed subset; the remaining fields stay deferred.
 
 | Metadata | Likely source | Initial status | Required validation |
 | --- | --- | --- | --- |
