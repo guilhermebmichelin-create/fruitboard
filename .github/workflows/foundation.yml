@@ -149,7 +149,14 @@ jobs:
           cargo test -p fruitboard-storage --locked creates_latest_and_reopens_without_reseeding_settings
           cargo test -p fruitboard-storage --locked upgrades_every_supported_fixture_and_preserves_existing_rows
           cargo test -p fruitboard-storage --locked durable_scan_jobs_coalesce_and_schedule_one_follow_up
-          cargo test -p fruitboard-storage --locked restart_invalidates_old_session_and_enqueues_recovery
+          cargo test -p fruitboard-storage --locked execution_finish_transition_matrix_covers_outcomes_followups_and_cancellation
+          cargo test -p fruitboard-storage --locked execution_recovery_transition_matrix_covers_restart_and_backup
+          cargo test -p fruitboard-storage --locked worker_cancelled_outcome_suppresses_followup_on_restart_and_backup_recovery
+          cargo test -p fruitboard-storage --locked exhausted_worker_failure_chain_is_not_recovered_by_diagnostic
+          cargo test -p fruitboard-storage --locked restart_requeues_the_interrupted_attempt_without_resetting_its_chain
+          cargo test -p fruitboard-storage --locked repeated_active_restarts_exhaust_one_persisted_retry_chain
+          cargo test -p fruitboard-storage --locked pending_follow_up_survives_restart_and_invalidates_the_resumed_attempt
+          cargo test -p fruitboard-storage --locked pending_follow_up_is_suppressed_by_cancellation_disable_and_removal
           cargo test -p fruitboard-storage --locked disabling_and_removing_roots_invalidate_work_and_readding_gets_new_identity
           cargo test -p fruitboard-storage --locked killed_migration_recovers_the_original_committed_database
           cargo test -p fruitboard-storage --locked backup_recovers_committed_state_after_original_corruption_without_overwriting_it
