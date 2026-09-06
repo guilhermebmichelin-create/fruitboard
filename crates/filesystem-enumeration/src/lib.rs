@@ -28,12 +28,14 @@ impl DisplayRelativePath {
     }
 }
 
-/// A root-relative, boundary-normalized locator.
+/// A root-relative locator serialized with the spelling returned by the
+/// directory handle.
 ///
-/// On Windows equality and ordering use ordinal case-insensitive comparison,
-/// matching the filesystem policy. The first observed case-preserving spelling
-/// is retained for serialization and display hand-off; callers must not use
-/// spelling alone as physical identity evidence.
+/// Serialization is deliberately case-preserving. Equality on this value is
+/// also exact: the Windows boundary owns case-equivalence, including
+/// per-directory case-sensitive mode, and performs duplicate detection before
+/// delivery. Downstream consumers must treat this string as an opaque locator
+/// and must not apply a second normalization rule.
 #[derive(Clone, Debug)]
 pub struct NormalizedLocator(String);
 
@@ -43,23 +45,23 @@ impl NormalizedLocator {
     }
 }
 
-impl PartialEq for NormalizedLocator {
-    fn eq(&self, other: &Self) -> bool {
-        compare_locator(&self.0, &other.0) == Ordering::Equal
-    }
-}
-
 impl Eq for NormalizedLocator {}
 
-impl PartialOrd for NormalizedLocator {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+impl PartialEq for NormalizedLocator {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
     }
 }
 
 impl Ord for NormalizedLocator {
     fn cmp(&self, other: &Self) -> Ordering {
-        compare_locator(&self.0, &other.0)
+        self.0.cmp(&other.0)
+    }
+}
+
+impl PartialOrd for NormalizedLocator {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -115,6 +117,9 @@ fn validate_component(value: &str) -> Result<(), PathError> {
     if value.contains(':') {
         return Err(PathError::AlternateDataStream);
     }
+    if value.contains(['/', '\\']) {
+        return Err(PathError::InvalidComponent);
+    }
     if value
         .chars()
         .any(|character| matches!(character, '*' | '?' | '<' | '>' | '"' | '|'))
@@ -127,8 +132,75 @@ fn validate_component(value: &str) -> Result<(), PathError> {
     Ok(())
 }
 
+/// Case behavior reported by an opened directory handle.
+///
+/// This is a directory property, not a global lowercase-normalization rule.
+/// The Windows implementation reads `FileCaseSensitiveInfo`; a fake port can
+/// provide the same decision deterministically.
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+pub enum DirectoryCaseSensitivity {
+    Sensitive,
+    #[default]
+    Insensitive,
+}
+
+#[derive(Clone, Debug)]
+struct LocatorKey(Vec<LocatorComponent>);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LocatorComponent {
+    value: String,
+    sensitivity: DirectoryCaseSensitivity,
+}
+
+impl PartialEq for LocatorKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for LocatorKey {}
+
+impl LocatorKey {
+    fn child(&self, value: &str, sensitivity: DirectoryCaseSensitivity) -> Self {
+        let mut components = self.0.clone();
+        components.push(LocatorComponent {
+            value: value.to_owned(),
+            sensitivity,
+        });
+        Self(components)
+    }
+}
+
+impl Ord for LocatorKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        for (left, right) in self.0.iter().zip(&other.0) {
+            let sensitivity = left.sensitivity.cmp(&right.sensitivity);
+            if sensitivity != Ordering::Equal {
+                return sensitivity;
+            }
+            let value = match left.sensitivity {
+                DirectoryCaseSensitivity::Sensitive => left.value.cmp(&right.value),
+                DirectoryCaseSensitivity::Insensitive => {
+                    compare_case_insensitive(&left.value, &right.value)
+                }
+            };
+            if value != Ordering::Equal {
+                return value;
+            }
+        }
+        self.0.len().cmp(&other.0.len())
+    }
+}
+
+impl PartialOrd for LocatorKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 #[cfg(windows)]
-fn compare_locator(left: &str, right: &str) -> Ordering {
+fn compare_case_insensitive(left: &str, right: &str) -> Ordering {
     use std::os::windows::ffi::OsStrExt;
 
     let left: Vec<u16> = OsStr::new(left).encode_wide().collect();
@@ -151,8 +223,36 @@ fn compare_locator(left: &str, right: &str) -> Ordering {
 }
 
 #[cfg(not(windows))]
-fn compare_locator(left: &str, right: &str) -> Ordering {
-    left.to_lowercase().cmp(&right.to_lowercase())
+fn compare_case_insensitive(left: &str, right: &str) -> Ordering {
+    // The production implementation is Windows-only. This keeps portable
+    // synthetic tests deterministic without changing the serialized spelling.
+    fn ascii_case_key(value: char) -> char {
+        if value.is_ascii_uppercase() {
+            char::from_u32(value as u32 + ('a' as u32 - 'A' as u32))
+                .expect("ASCII case mapping is a valid scalar")
+        } else {
+            value
+        }
+    }
+
+    let mut left_chars = left.chars();
+    let mut right_chars = right.chars();
+    loop {
+        match (left_chars.next(), right_chars.next()) {
+            (Some(left), Some(right)) if left.eq_ignore_ascii_case(&right) => continue,
+            (Some(left), Some(right)) => {
+                let ordering = ascii_case_key(left).cmp(&ascii_case_key(right));
+                if ordering == Ordering::Equal {
+                    left.cmp(&right)
+                } else {
+                    ordering
+                }
+            }
+            (None, None) => return Ordering::Equal,
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+        }
+    }
 }
 
 /// Physical identity qualified only for the researched local NTFS scope.
@@ -161,6 +261,21 @@ pub struct QualifiedIdentity {
     pub volume_serial: u64,
     pub file_id: u128,
     pub qualification: IdentityQualification,
+}
+
+/// Number of 100-nanosecond intervals between the Windows and Unix epochs.
+/// The conversion is kept at the source precision; storage may deliberately
+/// reduce precision later, but the enumeration boundary does not.
+pub const WINDOWS_EPOCH_OFFSET_100NS: i128 = 116_444_736_000_000_000;
+
+/// Convert a signed Windows FILETIME tick count to signed Unix nanoseconds.
+pub const fn windows_filetime_100ns_to_unix_ns(ticks: i64) -> i128 {
+    (ticks as i128 - WINDOWS_EPOCH_OFFSET_100NS) * 100
+}
+
+/// Preserve the opaque Windows 128-bit file-ID bytes in the agreed u128 DTO.
+pub const fn windows_file_id_to_u128(bytes: [u8; 16]) -> u128 {
+    u128::from_le_bytes(bytes)
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -217,25 +332,74 @@ pub enum PortError {
     ResourceLimit,
     Unsupported,
     ReparsePoint,
+    Changed,
     Other,
 }
 
-/// A streaming directory cursor. It returns names only; metadata is a separate
-/// call so disappearing-entry races can be isolated and tested.
+/// An opened directory capability. All operations are relative to the same
+/// opened directory handle; callers never turn an entry name back into an
+/// independently resolved path.
 pub trait DirectoryCursor {
     fn next_entry(&mut self) -> Result<Option<DirectoryEntry>, PortError>;
+    fn read_metadata(&mut self, entry: &DirectoryEntry) -> Result<FileMetadata, PortError>;
+    fn open_directory(&mut self, entry: &DirectoryEntry) -> Result<OpenedDirectory, PortError>;
+}
+
+/// A directory handle plus its metadata and case-mode decision.
+pub struct OpenedDirectory {
+    pub metadata: FileMetadata,
+    pub case_sensitivity: DirectoryCaseSensitivity,
+    pub cursor: Box<dyn DirectoryCursor>,
 }
 
 /// The only filesystem authority needed by the enumerator.
 pub trait FilesystemPort {
     fn inspect_root(&mut self, root: &Path) -> Result<RootMetadata, PortError>;
-    fn open_directory(&mut self, directory: &Path) -> Result<Box<dyn DirectoryCursor>, PortError>;
-    fn read_metadata(&mut self, path: &Path) -> Result<FileMetadata, PortError>;
+    fn open_root(&mut self, root: &Path) -> Result<OpenedDirectory, PortError>;
 }
 
 /// The storage/publication owner implements this with run-scoped staging.
 pub trait BatchSink {
     fn accept(&mut self, batch: ObservationBatch) -> Result<(), SinkError>;
+
+    /// Discard all batches accepted for the current run. The enumerator calls
+    /// this exactly once for every non-authoritative outcome.
+    fn discard(&mut self);
+}
+
+/// Provisional storage for one enumeration run. A complete run remains staged
+/// for the publication owner; every other outcome is invalidated by the
+/// run-scoped adapter before the report is returned.
+pub trait RunScopedStorage {
+    fn stage_batch(&mut self, run_id: &str, batch: ObservationBatch) -> Result<(), SinkError>;
+    fn invalidate_run(&mut self, run_id: &str);
+}
+
+/// Adapts the agreed run-ID staging/invalidation interface to the enumerator's
+/// bounded batch sink. It intentionally has no commit method: the storage
+/// publication transaction owns the final generation/lease/cancellation fence.
+pub struct RunScopedSinkAdapter<'a, S: ?Sized> {
+    storage: &'a mut S,
+    run_id: String,
+}
+
+impl<'a, S: ?Sized> RunScopedSinkAdapter<'a, S> {
+    pub fn new(storage: &'a mut S, run_id: impl Into<String>) -> Self {
+        Self {
+            storage,
+            run_id: run_id.into(),
+        }
+    }
+}
+
+impl<S: RunScopedStorage + ?Sized> BatchSink for RunScopedSinkAdapter<'_, S> {
+    fn accept(&mut self, batch: ObservationBatch) -> Result<(), SinkError> {
+        self.storage.stage_batch(&self.run_id, batch)
+    }
+
+    fn discard(&mut self) {
+        self.storage.invalidate_run(&self.run_id);
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -352,6 +516,8 @@ pub enum CoverageFailureKind {
     DirectoryNotFound,
     DirectoryDenied,
     DirectoryRead,
+    DirectoryChanged,
+    DirectoryIdentityUnavailable,
     EntryDisappeared,
     EntryDenied,
     MetadataRead,
@@ -512,16 +678,45 @@ where
         status: None,
     };
     let outcome = engine.run();
+    if !outcome.is_authoritative() {
+        engine.sink.discard();
+    }
     engine.report.outcome = outcome;
     engine.report.authoritative = outcome.is_authoritative();
     engine.emit_progress(true, Some(outcome));
     engine.report
 }
 
+/// Enumerate into a run-scoped staging sink.
+///
+/// The adapter invalidates the run before this function returns for every
+/// non-authoritative outcome, including cancellation, a rejected batch, root
+/// replacement, and a late final-root failure. A `Complete` report leaves
+/// accepted batches staged for the publication owner to fence and commit.
+pub fn enumerate_into_run<P, S, C, R>(
+    port: &mut P,
+    root: &Path,
+    limits: &EnumerationLimits,
+    cancellation: &C,
+    storage: &mut S,
+    run_id: impl Into<String>,
+    progress: &mut R,
+) -> EnumerationReport
+where
+    P: FilesystemPort,
+    S: RunScopedStorage + ?Sized,
+    C: Cancellation,
+    R: ProgressSink,
+{
+    let mut sink = RunScopedSinkAdapter::new(storage, run_id);
+    enumerate(port, root, limits, cancellation, &mut sink, progress)
+}
+
 struct DirectoryWork {
-    absolute: PathBuf,
     relative: PathBuf,
     path_bytes: usize,
+    locator_key: LocatorKey,
+    opened: OpenedDirectory,
 }
 
 struct Engine<'a, P, S, C, R> {
@@ -532,7 +727,7 @@ struct Engine<'a, P, S, C, R> {
     sink: &'a mut S,
     progress: &'a mut R,
     report: EnumerationReport,
-    seen: BTreeSet<NormalizedLocator>,
+    seen: BTreeSet<LocatorKey>,
     stack: Vec<DirectoryWork>,
     pending: Vec<Observation>,
     pending_bytes: usize,
@@ -576,10 +771,21 @@ where
             return outcome;
         }
         self.root_identity = initial_root.metadata.identity.clone();
+        let opened_root = match self.port.open_root(self.root) {
+            Ok(opened) => opened,
+            Err(error) => {
+                self.record_root_port_error(error);
+                return self.status.unwrap_or(Outcome::RootUnavailable);
+            }
+        };
+        if let Some(outcome) = self.validate_opened_root(&initial_root, &opened_root) {
+            return outcome;
+        }
         self.stack.push(DirectoryWork {
-            absolute: self.root.to_owned(),
             relative: PathBuf::new(),
             path_bytes: 0,
+            locator_key: LocatorKey(Vec::new()),
+            opened: opened_root,
         });
 
         while let Some(work) = self.stack.pop() {
@@ -591,20 +797,9 @@ where
                 self.status = Some(Outcome::ResourceLimit);
                 return Outcome::ResourceLimit;
             }
-            let is_root = work.relative.as_os_str().is_empty();
-            let mut cursor = match self.port.open_directory(&work.absolute) {
-                Ok(cursor) => cursor,
-                Err(error) => {
-                    self.record_directory_port_error(&work.relative, is_root, error);
-                    if error == PortError::ResourceLimit {
-                        return Outcome::ResourceLimit;
-                    }
-                    if is_root {
-                        return self.status.unwrap_or(Outcome::RootUnavailable);
-                    }
-                    continue;
-                }
-            };
+            let parent_case_sensitivity = work.opened.case_sensitivity;
+            let parent_locator_key = work.locator_key;
+            let mut cursor = work.opened.cursor;
             self.report.directories_visited += 1;
             loop {
                 if self.cancellation.is_cancelled() {
@@ -651,12 +846,16 @@ where
                         continue;
                     }
                 };
+                let entry_text = entry
+                    .name
+                    .to_str()
+                    .expect("validated directory entry name is Unicode");
+                let locator_key = parent_locator_key.child(entry_text, parent_case_sensitivity);
                 if !self.reserve_path_bytes(display_path.as_str().len()) {
                     self.status = Some(Outcome::ResourceLimit);
                     return Outcome::ResourceLimit;
                 }
-                let child_absolute = work.absolute.join(&entry.name);
-                let metadata = match self.port.read_metadata(&child_absolute) {
+                let metadata = match cursor.read_metadata(&entry) {
                     Ok(metadata) => metadata,
                     Err(error) => {
                         self.record_metadata_error(&display_path, error);
@@ -682,12 +881,26 @@ where
                             self.status = Some(Outcome::ResourceLimit);
                             return Outcome::ResourceLimit;
                         }
+                        let opened = match cursor.open_directory(&entry) {
+                            Ok(opened) => opened,
+                            Err(error) => {
+                                self.record_directory_open_error(&display_path, error);
+                                if error == PortError::ResourceLimit {
+                                    return Outcome::ResourceLimit;
+                                }
+                                continue;
+                            }
+                        };
+                        if !self.validate_opened_child(&display_path, &metadata, &opened) {
+                            continue;
+                        }
                         self.pending_path_bytes =
                             self.pending_path_bytes.saturating_add(pending_path_bytes);
                         self.stack.push(DirectoryWork {
-                            absolute: child_absolute,
                             relative: child_relative,
                             path_bytes: pending_path_bytes,
+                            locator_key,
+                            opened,
                         });
                     }
                     EntryKind::Other => {
@@ -702,7 +915,7 @@ where
                             self.status = Some(Outcome::ResourceLimit);
                             return Outcome::ResourceLimit;
                         }
-                        if !self.seen.insert(locator.clone()) {
+                        if !self.seen.insert(locator_key) {
                             self.add_failure(
                                 Some(display_path),
                                 CoverageFailureKind::DuplicateLocator,
@@ -802,6 +1015,75 @@ where
             return Some(Outcome::Partial);
         }
         None
+    }
+
+    fn validate_opened_root(
+        &mut self,
+        inspected: &RootMetadata,
+        opened: &OpenedDirectory,
+    ) -> Option<Outcome> {
+        if opened.metadata.reparse_point || opened.metadata.kind != EntryKind::Directory {
+            self.add_failure(
+                None,
+                CoverageFailureKind::RootChanged,
+                Outcome::RootUnavailable,
+            );
+            return Some(Outcome::RootUnavailable);
+        }
+        match (&inspected.metadata.identity, &opened.metadata.identity) {
+            (Some(before), Some(after)) if before == after => None,
+            (Some(_), Some(_)) => {
+                self.add_failure(
+                    None,
+                    CoverageFailureKind::RootChanged,
+                    Outcome::RootUnavailable,
+                );
+                Some(Outcome::RootUnavailable)
+            }
+            _ => {
+                self.add_failure(
+                    None,
+                    CoverageFailureKind::RootIdentityUnavailable,
+                    Outcome::Partial,
+                );
+                Some(Outcome::Partial)
+            }
+        }
+    }
+
+    fn validate_opened_child(
+        &mut self,
+        display_path: &DisplayRelativePath,
+        inspected: &FileMetadata,
+        opened: &OpenedDirectory,
+    ) -> bool {
+        if opened.metadata.reparse_point || opened.metadata.kind != EntryKind::Directory {
+            self.add_failure(
+                Some(display_path.clone()),
+                CoverageFailureKind::DirectoryChanged,
+                Outcome::Partial,
+            );
+            return false;
+        }
+        match (&inspected.identity, &opened.metadata.identity) {
+            (Some(before), Some(after)) if before == after => true,
+            (Some(_), Some(_)) => {
+                self.add_failure(
+                    Some(display_path.clone()),
+                    CoverageFailureKind::DirectoryChanged,
+                    Outcome::Partial,
+                );
+                false
+            }
+            _ => {
+                self.add_failure(
+                    Some(display_path.clone()),
+                    CoverageFailureKind::DirectoryIdentityUnavailable,
+                    Outcome::Partial,
+                );
+                false
+            }
+        }
     }
 
     fn validate_final_root(&mut self, root: &RootMetadata) -> Option<Outcome> {
@@ -942,6 +1224,11 @@ where
                 CoverageFailureKind::RootChanged,
                 Outcome::RootUnavailable,
             ),
+            PortError::Changed => self.add_failure(
+                None,
+                CoverageFailureKind::RootChanged,
+                Outcome::RootUnavailable,
+            ),
             PortError::Other => self.add_failure(
                 None,
                 CoverageFailureKind::RootChanged,
@@ -950,45 +1237,26 @@ where
         }
     }
 
-    fn record_directory_port_error(&mut self, relative: &Path, is_root: bool, error: PortError) {
-        let display = display_path_or_none(relative);
+    fn record_directory_open_error(&mut self, display: &DisplayRelativePath, error: PortError) {
         match error {
             PortError::AccessDenied => self.add_failure(
-                display,
-                if is_root {
-                    CoverageFailureKind::RootDenied
-                } else {
-                    CoverageFailureKind::DirectoryDenied
-                },
+                Some(display.clone()),
+                CoverageFailureKind::DirectoryDenied,
                 Outcome::Denied,
             ),
             PortError::NotFound => self.add_failure(
-                display,
-                if is_root {
-                    CoverageFailureKind::RootNotFound
-                } else {
-                    CoverageFailureKind::DirectoryNotFound
-                },
-                if is_root {
-                    Outcome::RootUnavailable
-                } else {
-                    Outcome::Partial
-                },
+                Some(display.clone()),
+                CoverageFailureKind::DirectoryNotFound,
+                Outcome::Partial,
             ),
             PortError::ResourceLimit => self.status = Some(Outcome::ResourceLimit),
-            PortError::ReparsePoint => {
-                if is_root {
-                    self.add_failure(
-                        None,
-                        CoverageFailureKind::RootChanged,
-                        Outcome::RootUnavailable,
-                    );
-                } else if let Some(display) = display {
-                    self.add_exclusion(display, ExclusionReason::ReparsePoint);
-                }
-            }
+            PortError::ReparsePoint | PortError::Changed => self.add_failure(
+                Some(display.clone()),
+                CoverageFailureKind::DirectoryChanged,
+                Outcome::Partial,
+            ),
             PortError::Unsupported | PortError::Other => self.add_failure(
-                display,
+                Some(display.clone()),
                 CoverageFailureKind::DirectoryRead,
                 Outcome::Partial,
             ),
@@ -1009,17 +1277,11 @@ where
                 Outcome::Partial,
             ),
             PortError::ResourceLimit => self.status = Some(Outcome::ResourceLimit),
-            PortError::ReparsePoint => {
-                if let Some(display) = display {
-                    self.add_exclusion(display, ExclusionReason::ReparsePoint);
-                } else {
-                    self.add_failure(
-                        None,
-                        CoverageFailureKind::RootChanged,
-                        Outcome::RootUnavailable,
-                    );
-                }
-            }
+            PortError::ReparsePoint | PortError::Changed => self.add_failure(
+                display,
+                CoverageFailureKind::DirectoryChanged,
+                Outcome::Partial,
+            ),
             PortError::Unsupported | PortError::Other => self.add_failure(
                 display,
                 CoverageFailureKind::DirectoryRead,
@@ -1044,6 +1306,11 @@ where
             PortError::ReparsePoint => {
                 self.add_exclusion(display.clone(), ExclusionReason::ReparsePoint)
             }
+            PortError::Changed => self.add_failure(
+                Some(display.clone()),
+                CoverageFailureKind::DirectoryChanged,
+                Outcome::Partial,
+            ),
             PortError::Unsupported | PortError::Other => self.add_failure(
                 Some(display.clone()),
                 CoverageFailureKind::MetadataRead,
@@ -1175,11 +1442,7 @@ impl FilesystemPort for WindowsFilesystemPort {
         Err(PortError::Unsupported)
     }
 
-    fn open_directory(&mut self, _directory: &Path) -> Result<Box<dyn DirectoryCursor>, PortError> {
-        Err(PortError::Unsupported)
-    }
-
-    fn read_metadata(&mut self, _path: &Path) -> Result<FileMetadata, PortError> {
+    fn open_root(&mut self, _root: &Path) -> Result<OpenedDirectory, PortError> {
         Err(PortError::Unsupported)
     }
 }
@@ -1188,37 +1451,117 @@ impl FilesystemPort for WindowsFilesystemPort {
 mod windows_port {
     use super::*;
     use std::ffi::c_void;
-    use std::fs;
-    use std::mem::size_of;
+    use std::mem::{MaybeUninit, size_of};
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
-    use std::os::windows::fs::MetadataExt;
     use std::ptr::{null, null_mut};
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::rc::Rc;
 
+    const FILE_LIST_DIRECTORY: u32 = 0x0001;
     const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
+    const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x0010;
     const FILE_ATTRIBUTE_OFFLINE: u32 = 0x1000;
     const FILE_ATTRIBUTE_RECALL_ON_OPEN: u32 = 0x0004_0000;
     const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS: u32 = 0x0040_0000;
     const FILE_READ_ATTRIBUTES: u32 = 0x0080;
+    const SYNCHRONIZE: u32 = 0x0010_0000;
     const FILE_SHARE_READ: u32 = 0x0000_0001;
     const FILE_SHARE_WRITE: u32 = 0x0000_0002;
     const FILE_SHARE_DELETE: u32 = 0x0000_0004;
     const OPEN_EXISTING: u32 = 3;
     const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
     const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+    const FILE_DIRECTORY_FILE: u32 = 0x0000_0001;
+    const FILE_SYNCHRONOUS_IO_NONALERT: u32 = 0x0000_0020;
+    const FILE_OPEN_REPARSE_POINT_OPTION: u32 = 0x0020_0000;
+    const FILE_NAMES_INFORMATION_CLASS: i32 = 12;
+    const FILE_BASIC_INFORMATION_CLASS: i32 = 0;
+    const FILE_STANDARD_INFORMATION_CLASS: i32 = 1;
+    const FILE_ATTRIBUTE_TAG_INFORMATION_CLASS: i32 = 9;
     const FILE_ID_INFO_CLASS: i32 = 18;
+    const FILE_CASE_SENSITIVE_INFORMATION_CLASS: i32 = 23;
+    const FILE_CS_FLAG_CASE_SENSITIVE_DIR: u32 = 0x0000_0001;
+    const DIRECTORY_BUFFER_BYTES: usize = 64 * 1024;
     const INVALID_HANDLE_VALUE: *mut c_void = -1isize as *mut c_void;
     const ERROR_FILE_NOT_FOUND: u32 = 2;
     const ERROR_PATH_NOT_FOUND: u32 = 3;
     const ERROR_ACCESS_DENIED: u32 = 5;
+    const ERROR_INVALID_FUNCTION: u32 = 1;
     const ERROR_INVALID_NAME: u32 = 123;
+    const ERROR_INVALID_PARAMETER: u32 = 87;
+    const ERROR_NOT_SUPPORTED: u32 = 50;
     const ERROR_SHARING_VIOLATION: u32 = 32;
     const DRIVE_FIXED: u32 = 3;
+    const STATUS_NO_MORE_FILES: u32 = 0x8000_0006;
+    const STATUS_BUFFER_OVERFLOW: u32 = 0x8000_0005;
+    const STATUS_OBJECT_NAME_NOT_FOUND: u32 = 0xC000_0034;
+    const STATUS_OBJECT_PATH_NOT_FOUND: u32 = 0xC000_003A;
+    const STATUS_OBJECT_NAME_INVALID: u32 = 0xC000_0033;
+    const STATUS_NOT_A_DIRECTORY: u32 = 0xC000_0103;
+    const STATUS_ACCESS_DENIED: u32 = 0xC000_0022;
+    const STATUS_SHARING_VIOLATION: u32 = 0xC000_0043;
 
     #[repr(C)]
+    #[derive(Clone, Copy)]
     struct FileIdInfo {
         volume_serial_number: u64,
         file_id: [u8; 16],
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct FileBasicInfo {
+        creation_time: i64,
+        last_access_time: i64,
+        last_write_time: i64,
+        change_time: i64,
+        file_attributes: u32,
+        reserved: u32,
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct FileStandardInfo {
+        allocation_size: i64,
+        end_of_file: i64,
+        number_of_links: u32,
+        delete_pending: u8,
+        directory: u8,
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct FileAttributeTagInfo {
+        file_attributes: u32,
+        reparse_tag: u32,
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct FileCaseSensitiveInfo {
+        flags: u32,
+    }
+
+    #[repr(C)]
+    struct UnicodeString {
+        length: u16,
+        maximum_length: u16,
+        buffer: *mut u16,
+    }
+
+    #[repr(C)]
+    struct ObjectAttributes {
+        length: u32,
+        root_directory: *mut c_void,
+        object_name: *mut UnicodeString,
+        attributes: u32,
+        security_descriptor: *mut c_void,
+        security_quality_of_service: *mut c_void,
+    }
+
+    #[repr(C)]
+    struct IoStatusBlock {
+        status: i32,
+        information: usize,
     }
 
     unsafe extern "system" {
@@ -1255,26 +1598,203 @@ mod windows_port {
             volume_path_name: *mut u16,
             buffer_length: u32,
         ) -> i32;
+        fn NtCreateFile(
+            file_handle: *mut *mut c_void,
+            desired_access: u32,
+            object_attributes: *mut ObjectAttributes,
+            io_status_block: *mut IoStatusBlock,
+            allocation_size: *mut i64,
+            file_attributes: u32,
+            share_access: u32,
+            create_disposition: u32,
+            create_options: u32,
+            ea_buffer: *mut c_void,
+            ea_length: u32,
+        ) -> i32;
+        fn NtQueryDirectoryFile(
+            file_handle: *mut c_void,
+            event: *mut c_void,
+            apc_routine: *mut c_void,
+            apc_context: *mut c_void,
+            io_status_block: *mut IoStatusBlock,
+            file_information: *mut c_void,
+            length: u32,
+            file_information_class: i32,
+            return_single_entry: u8,
+            file_name: *mut UnicodeString,
+            restart_scan: u8,
+        ) -> i32;
+    }
+
+    struct WindowsHandle(*mut c_void);
+
+    impl WindowsHandle {
+        fn raw(&self) -> *mut c_void {
+            self.0
+        }
+    }
+
+    impl Drop for WindowsHandle {
+        fn drop(&mut self) {
+            if self.0 != INVALID_HANDLE_VALUE && !self.0.is_null() {
+                unsafe {
+                    CloseHandle(self.0);
+                }
+            }
+        }
+    }
+
+    struct ValidationChain {
+        parent: Option<Rc<ValidationChain>>,
+        parent_handle: Rc<WindowsHandle>,
+        name: Vec<u16>,
+        identity: QualifiedIdentity,
     }
 
     pub(super) struct WindowsDirectoryCursor {
-        entries: fs::ReadDir,
+        handle: Rc<WindowsHandle>,
+        qualification: FilesystemQualification,
+        validation_chain: Option<Rc<ValidationChain>>,
+        restart_scan: bool,
+        buffer: [u8; DIRECTORY_BUFFER_BYTES],
     }
 
     impl DirectoryCursor for WindowsDirectoryCursor {
         fn next_entry(&mut self) -> Result<Option<DirectoryEntry>, PortError> {
-            match self.entries.next() {
-                Some(Ok(entry)) => Ok(Some(DirectoryEntry::new(entry.file_name()))),
-                Some(Err(error)) => Err(map_io_error(error)),
-                None => Ok(None),
+            loop {
+                self.validate_ancestors()?;
+                let mut status = IoStatusBlock {
+                    status: 0,
+                    information: 0,
+                };
+                let restart_scan = u8::from(!self.restart_scan);
+                let result = unsafe {
+                    NtQueryDirectoryFile(
+                        self.handle.raw(),
+                        null_mut(),
+                        null_mut(),
+                        null_mut(),
+                        &mut status,
+                        self.buffer.as_mut_ptr().cast::<c_void>(),
+                        self.buffer.len() as u32,
+                        FILE_NAMES_INFORMATION_CLASS,
+                        1,
+                        null_mut(),
+                        restart_scan,
+                    )
+                };
+                self.restart_scan = true;
+                match result as u32 {
+                    0 => {
+                        let information = status.information.min(self.buffer.len());
+                        let name = parse_file_names_information(&self.buffer, information)?;
+                        if name == OsStr::new(".") || name == OsStr::new("..") {
+                            continue;
+                        }
+                        return Ok(Some(DirectoryEntry::new(name)));
+                    }
+                    STATUS_BUFFER_OVERFLOW => {
+                        let information = status.information.min(self.buffer.len());
+                        let name = parse_file_names_information(&self.buffer, information)?;
+                        if name == OsStr::new(".") || name == OsStr::new("..") {
+                            continue;
+                        }
+                        return Ok(Some(DirectoryEntry::new(name)));
+                    }
+                    STATUS_NO_MORE_FILES => return Ok(None),
+                    _ => return Err(map_nt_status(result)),
+                }
             }
+        }
+
+        fn read_metadata(&mut self, entry: &DirectoryEntry) -> Result<FileMetadata, PortError> {
+            self.validate_ancestors()?;
+            let handle = open_relative(
+                &self.handle,
+                &entry.name,
+                FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                FILE_OPEN_REPARSE_POINT_OPTION | FILE_SYNCHRONOUS_IO_NONALERT,
+            )?;
+            read_handle_metadata(&handle, self.qualification)
+        }
+
+        fn open_directory(&mut self, entry: &DirectoryEntry) -> Result<OpenedDirectory, PortError> {
+            self.validate_ancestors()?;
+            let handle = open_relative(
+                &self.handle,
+                &entry.name,
+                FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT_OPTION | FILE_SYNCHRONOUS_IO_NONALERT,
+            )?;
+            let metadata = read_handle_metadata(&handle, self.qualification)?;
+            if metadata.reparse_point {
+                return Err(PortError::ReparsePoint);
+            }
+            if metadata.kind != EntryKind::Directory {
+                return Err(PortError::Other);
+            }
+            let identity = metadata.identity.clone().ok_or(PortError::Changed)?;
+            let handle = Rc::new(handle);
+            let validation_chain = Some(Rc::new(ValidationChain {
+                parent: self.validation_chain.clone(),
+                parent_handle: Rc::clone(&self.handle),
+                name: wide_name(&entry.name)?,
+                identity,
+            }));
+            let case_sensitivity = query_case_sensitivity(&handle)?;
+            let cursor = WindowsDirectoryCursor {
+                handle: Rc::clone(&handle),
+                qualification: self.qualification,
+                validation_chain,
+                restart_scan: false,
+                buffer: [0; DIRECTORY_BUFFER_BYTES],
+            };
+            Ok(OpenedDirectory {
+                metadata,
+                case_sensitivity,
+                cursor: Box::new(cursor),
+            })
+        }
+    }
+
+    impl WindowsDirectoryCursor {
+        fn root(handle: Rc<WindowsHandle>, qualification: FilesystemQualification) -> Self {
+            Self {
+                handle,
+                qualification,
+                validation_chain: None,
+                restart_scan: false,
+                buffer: [0; DIRECTORY_BUFFER_BYTES],
+            }
+        }
+
+        fn validate_ancestors(&self) -> Result<(), PortError> {
+            let mut chain = self.validation_chain.as_deref();
+            while let Some(link) = chain {
+                let handle = open_relative(
+                    &link.parent_handle,
+                    &OsString::from_wide(&link.name),
+                    FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                    FILE_OPEN_REPARSE_POINT_OPTION | FILE_SYNCHRONOUS_IO_NONALERT,
+                )?;
+                let metadata = read_handle_metadata(&handle, self.qualification)?;
+                if metadata.reparse_point || metadata.kind != EntryKind::Directory {
+                    return Err(PortError::Changed);
+                }
+                if metadata.identity.as_ref() != Some(&link.identity) {
+                    return Err(PortError::Changed);
+                }
+                chain = link.parent.as_deref();
+            }
+            Ok(())
         }
     }
 
     impl FilesystemPort for WindowsFilesystemPort {
         fn inspect_root(&mut self, root: &Path) -> Result<RootMetadata, PortError> {
             let qualification = filesystem_qualification(root)?;
-            let metadata = read_metadata(root, qualification)?;
+            let handle = open_path(root)?;
+            let metadata = read_handle_metadata(&handle, qualification)?;
             self.qualification = Some(qualification);
             Ok(RootMetadata {
                 metadata,
@@ -1282,76 +1802,32 @@ mod windows_port {
             })
         }
 
-        fn open_directory(
-            &mut self,
-            directory: &Path,
-        ) -> Result<Box<dyn DirectoryCursor>, PortError> {
-            let io_path = extended_path(directory);
-            let metadata = fs::symlink_metadata(&io_path).map_err(map_io_error)?;
-            if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        fn open_root(&mut self, root: &Path) -> Result<OpenedDirectory, PortError> {
+            let qualification = self.qualification.ok_or(PortError::Unsupported)?;
+            let handle = Rc::new(open_path(root)?);
+            let metadata = read_handle_metadata(&handle, qualification)?;
+            if metadata.reparse_point {
                 return Err(PortError::ReparsePoint);
             }
-            if !metadata.is_dir() {
+            if metadata.kind != EntryKind::Directory {
                 return Err(PortError::Other);
             }
-            let entries = fs::read_dir(io_path).map_err(map_io_error)?;
-            Ok(Box::new(WindowsDirectoryCursor { entries }))
-        }
-
-        fn read_metadata(&mut self, path: &Path) -> Result<FileMetadata, PortError> {
-            read_metadata(
-                path,
-                self.qualification
-                    .unwrap_or(FilesystemQualification::Unqualified),
-            )
+            let case_sensitivity = query_case_sensitivity(&handle)?;
+            let cursor = WindowsDirectoryCursor::root(Rc::clone(&handle), qualification);
+            Ok(OpenedDirectory {
+                metadata,
+                case_sensitivity,
+                cursor: Box::new(cursor),
+            })
         }
     }
 
-    fn read_metadata(
-        path: &Path,
-        qualification: FilesystemQualification,
-    ) -> Result<FileMetadata, PortError> {
-        let io_path = extended_path(path);
-        let metadata = fs::symlink_metadata(&io_path).map_err(map_io_error)?;
-        let attributes = metadata.file_attributes();
-        let reparse_point = attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0;
-        let recall_or_offline = attributes
-            & (FILE_ATTRIBUTE_OFFLINE
-                | FILE_ATTRIBUTE_RECALL_ON_OPEN
-                | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS)
-            != 0;
-        let kind = if metadata.is_dir() {
-            EntryKind::Directory
-        } else if metadata.is_file() {
-            EntryKind::File
-        } else {
-            EntryKind::Other
-        };
-        let modified_unix_ns = system_time_to_unix_ns(metadata.modified().map_err(map_io_error)?)?;
-        let identity = if qualification == FilesystemQualification::LocalNtfs
-            && !reparse_point
-            && !recall_or_offline
-        {
-            query_file_id(&io_path)?
-        } else {
-            None
-        };
-        Ok(FileMetadata {
-            kind,
-            byte_size: metadata.len(),
-            modified_unix_ns,
-            identity,
-            reparse_point,
-            recall_or_offline,
-        })
-    }
-
-    fn query_file_id(path: &Path) -> Result<Option<QualifiedIdentity>, PortError> {
-        let wide = wide_null(path);
+    fn open_path(path: &Path) -> Result<WindowsHandle, PortError> {
+        let wide = wide_null(&extended_path(path));
         let handle = unsafe {
             CreateFileW(
                 wide.as_ptr(),
-                FILE_READ_ATTRIBUTES,
+                FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                 null(),
                 OPEN_EXISTING,
@@ -1360,41 +1836,160 @@ mod windows_port {
             )
         };
         if handle == INVALID_HANDLE_VALUE {
-            let error = map_win_error(last_error());
-            return match error {
-                PortError::NotFound => Err(error),
-                PortError::AccessDenied | PortError::Other => Ok(None),
-                other => Err(other),
-            };
+            return Err(map_win_error(last_error()));
         }
-        let mut info = FileIdInfo {
-            volume_serial_number: 0,
-            file_id: [0; 16],
+        Ok(WindowsHandle(handle))
+    }
+
+    fn open_relative(
+        parent: &WindowsHandle,
+        name: &OsStr,
+        desired_access: u32,
+        create_options: u32,
+    ) -> Result<WindowsHandle, PortError> {
+        let mut name = wide_name(name)?;
+        let mut unicode_name = UnicodeString {
+            length: (name.len() * size_of::<u16>()) as u16,
+            maximum_length: (name.len() * size_of::<u16>()) as u16,
+            buffer: name.as_mut_ptr(),
         };
+        let mut attributes = ObjectAttributes {
+            length: size_of::<ObjectAttributes>() as u32,
+            root_directory: parent.raw(),
+            object_name: &mut unicode_name,
+            attributes: 0,
+            security_descriptor: null_mut(),
+            security_quality_of_service: null_mut(),
+        };
+        let mut io_status = IoStatusBlock {
+            status: 0,
+            information: 0,
+        };
+        let mut handle = null_mut();
+        let status = unsafe {
+            NtCreateFile(
+                &mut handle,
+                desired_access,
+                &mut attributes,
+                &mut io_status,
+                null_mut(),
+                0,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                OPEN_EXISTING,
+                create_options,
+                null_mut(),
+                0,
+            )
+        };
+        if status < 0 {
+            return Err(map_nt_status(status));
+        }
+        if handle.is_null() || handle == INVALID_HANDLE_VALUE {
+            return Err(PortError::Other);
+        }
+        Ok(WindowsHandle(handle))
+    }
+
+    fn wide_name(name: &OsStr) -> Result<Vec<u16>, PortError> {
+        let name: Vec<u16> = name.encode_wide().collect();
+        if name.is_empty() || name.len() > (u16::MAX as usize / size_of::<u16>()) {
+            return Err(PortError::Other);
+        }
+        Ok(name)
+    }
+
+    fn read_handle_metadata(
+        handle: &WindowsHandle,
+        qualification: FilesystemQualification,
+    ) -> Result<FileMetadata, PortError> {
+        let basic = query_handle_info::<FileBasicInfo>(handle, FILE_BASIC_INFORMATION_CLASS)?;
+        let standard =
+            query_handle_info::<FileStandardInfo>(handle, FILE_STANDARD_INFORMATION_CLASS)?;
+        let tag = query_handle_info::<FileAttributeTagInfo>(
+            handle,
+            FILE_ATTRIBUTE_TAG_INFORMATION_CLASS,
+        )?;
+        if standard.end_of_file < 0 {
+            return Err(PortError::Other);
+        }
+        let attributes = basic.file_attributes | tag.file_attributes;
+        let reparse_point = attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0;
+        let recall_or_offline = attributes
+            & (FILE_ATTRIBUTE_OFFLINE
+                | FILE_ATTRIBUTE_RECALL_ON_OPEN
+                | FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS)
+            != 0;
+        let kind = if standard.directory != 0 || attributes & FILE_ATTRIBUTE_DIRECTORY != 0 {
+            EntryKind::Directory
+        } else if attributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
+            EntryKind::File
+        } else {
+            EntryKind::Other
+        };
+        let modified_unix_ns = windows_filetime_100ns_to_unix_ns(basic.last_write_time);
+        let identity = if qualification == FilesystemQualification::LocalNtfs
+            && !reparse_point
+            && !recall_or_offline
+        {
+            query_file_id(handle)?
+        } else {
+            None
+        };
+        Ok(FileMetadata {
+            kind,
+            byte_size: standard.end_of_file as u64,
+            modified_unix_ns,
+            identity,
+            reparse_point,
+            recall_or_offline,
+        })
+    }
+
+    fn query_file_id(handle: &WindowsHandle) -> Result<Option<QualifiedIdentity>, PortError> {
+        match query_handle_info::<FileIdInfo>(handle, FILE_ID_INFO_CLASS) {
+            Ok(info) => Ok(Some(QualifiedIdentity {
+                volume_serial: info.volume_serial_number,
+                file_id: windows_file_id_to_u128(info.file_id),
+                qualification: IdentityQualification::LocalNtfs,
+            })),
+            Err(PortError::NotFound) => Err(PortError::NotFound),
+            Err(PortError::ResourceLimit) => Err(PortError::ResourceLimit),
+            Err(PortError::AccessDenied | PortError::Unsupported | PortError::Other) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn query_case_sensitivity(
+        handle: &WindowsHandle,
+    ) -> Result<DirectoryCaseSensitivity, PortError> {
+        let info = query_handle_info::<FileCaseSensitiveInfo>(
+            handle,
+            FILE_CASE_SENSITIVE_INFORMATION_CLASS,
+        )?;
+        if info.flags & FILE_CS_FLAG_CASE_SENSITIVE_DIR != 0 {
+            Ok(DirectoryCaseSensitivity::Sensitive)
+        } else {
+            Ok(DirectoryCaseSensitivity::Insensitive)
+        }
+    }
+
+    fn query_handle_info<T: Copy>(
+        handle: &WindowsHandle,
+        information_class: i32,
+    ) -> Result<T, PortError> {
+        let mut info = MaybeUninit::<T>::zeroed();
         let succeeded = unsafe {
             GetFileInformationByHandleEx(
-                handle,
-                FILE_ID_INFO_CLASS,
-                (&mut info as *mut FileIdInfo).cast::<c_void>(),
-                size_of::<FileIdInfo>() as u32,
+                handle.raw(),
+                information_class,
+                info.as_mut_ptr().cast::<c_void>(),
+                size_of::<T>() as u32,
             ) != 0
         };
-        let close_succeeded = unsafe { CloseHandle(handle) != 0 };
-        if !close_succeeded {
-            return Ok(None);
-        }
         if !succeeded {
-            return match map_win_error(last_error()) {
-                PortError::NotFound => Err(PortError::NotFound),
-                PortError::ResourceLimit => Err(PortError::ResourceLimit),
-                _ => Ok(None),
-            };
+            return Err(map_win_error(last_error()));
         }
-        Ok(Some(QualifiedIdentity {
-            volume_serial: info.volume_serial_number,
-            file_id: u128::from_le_bytes(info.file_id),
-            qualification: IdentityQualification::LocalNtfs,
-        }))
+        Ok(unsafe { info.assume_init() })
     }
 
     fn filesystem_qualification(path: &Path) -> Result<FilesystemQualification, PortError> {
@@ -1446,20 +2041,6 @@ mod windows_port {
         Ok(PathBuf::from(OsString::from_wide(&output[..nul])))
     }
 
-    fn system_time_to_unix_ns(value: SystemTime) -> Result<i128, PortError> {
-        match value.duration_since(UNIX_EPOCH) {
-            Ok(duration) => Ok((duration.as_secs() as i128)
-                .saturating_mul(1_000_000_000)
-                .saturating_add(duration.subsec_nanos() as i128)),
-            Err(error) => {
-                let duration = error.duration();
-                Ok(-((duration.as_secs() as i128)
-                    .saturating_mul(1_000_000_000)
-                    .saturating_add(duration.subsec_nanos() as i128)))
-            }
-        }
-    }
-
     fn extended_path(path: &Path) -> PathBuf {
         let text = path.to_string_lossy();
         if text.starts_with(r"\\?\") || text.starts_with(r"\\.\") {
@@ -1482,13 +2063,38 @@ mod windows_port {
         unsafe { GetLastError() }
     }
 
-    fn map_io_error(error: std::io::Error) -> PortError {
-        if let Some(code) = error.raw_os_error() {
-            return map_win_error(code as u32);
+    fn parse_file_names_information(
+        buffer: &[u8],
+        information: usize,
+    ) -> Result<OsString, PortError> {
+        const HEADER_BYTES: usize = 12;
+        if information < HEADER_BYTES || buffer.len() < HEADER_BYTES {
+            return Err(PortError::Other);
         }
-        match error.kind() {
-            std::io::ErrorKind::PermissionDenied => PortError::AccessDenied,
-            std::io::ErrorKind::NotFound => PortError::NotFound,
+        let name_length = u32::from_ne_bytes(buffer[8..12].try_into().unwrap()) as usize;
+        if name_length == 0 || !name_length.is_multiple_of(size_of::<u16>()) {
+            return Err(PortError::Other);
+        }
+        let end = HEADER_BYTES.saturating_add(name_length);
+        if end > information || end > buffer.len() {
+            return Err(PortError::Other);
+        }
+        let words = &buffer[HEADER_BYTES..end];
+        let words = words
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|bytes| u16::from_ne_bytes(*bytes))
+            .collect::<Vec<_>>();
+        Ok(OsString::from_wide(&words))
+    }
+
+    fn map_nt_status(status: i32) -> PortError {
+        match status as u32 {
+            STATUS_OBJECT_NAME_NOT_FOUND | STATUS_OBJECT_PATH_NOT_FOUND => PortError::NotFound,
+            STATUS_OBJECT_NAME_INVALID => PortError::NotFound,
+            STATUS_NOT_A_DIRECTORY => PortError::Other,
+            STATUS_ACCESS_DENIED | STATUS_SHARING_VIOLATION => PortError::AccessDenied,
             _ => PortError::Other,
         }
     }
@@ -1497,6 +2103,9 @@ mod windows_port {
         match error {
             ERROR_FILE_NOT_FOUND | ERROR_PATH_NOT_FOUND | ERROR_INVALID_NAME => PortError::NotFound,
             ERROR_ACCESS_DENIED | ERROR_SHARING_VIOLATION => PortError::AccessDenied,
+            ERROR_INVALID_FUNCTION | ERROR_INVALID_PARAMETER | ERROR_NOT_SUPPORTED => {
+                PortError::Unsupported
+            }
             _ => PortError::Other,
         }
     }

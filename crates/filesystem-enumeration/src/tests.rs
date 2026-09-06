@@ -1,11 +1,14 @@
 use super::*;
-use std::collections::{BTreeMap, VecDeque};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 #[derive(Default)]
 struct RecordingSink {
     batches: Vec<ObservationBatch>,
     error: Option<SinkError>,
+    discarded: bool,
 }
 
 impl BatchSink for RecordingSink {
@@ -15,6 +18,36 @@ impl BatchSink for RecordingSink {
         }
         self.batches.push(batch);
         Ok(())
+    }
+
+    fn discard(&mut self) {
+        self.batches.clear();
+        self.discarded = true;
+    }
+}
+
+#[derive(Default)]
+struct RecordingRunStorage {
+    staged: BTreeMap<String, Vec<ObservationBatch>>,
+    invalidated: Vec<String>,
+    error: Option<SinkError>,
+}
+
+impl RunScopedStorage for RecordingRunStorage {
+    fn stage_batch(&mut self, run_id: &str, batch: ObservationBatch) -> Result<(), SinkError> {
+        if let Some(error) = self.error {
+            return Err(error);
+        }
+        self.staged
+            .entry(run_id.to_owned())
+            .or_default()
+            .push(batch);
+        Ok(())
+    }
+
+    fn invalidate_run(&mut self, run_id: &str) {
+        self.staged.remove(run_id);
+        self.invalidated.push(run_id.to_owned());
     }
 }
 
@@ -30,37 +63,152 @@ impl ProgressSink for RecordingProgress {
 }
 
 struct FakeCursor {
+    state: Rc<RefCell<FakeState>>,
+    key: String,
+    links: Vec<FakeLink>,
     entries: VecDeque<Result<DirectoryEntry, PortError>>,
+}
+
+#[derive(Clone)]
+struct FakeLink {
+    key: String,
+    generation: u64,
 }
 
 impl DirectoryCursor for FakeCursor {
     fn next_entry(&mut self) -> Result<Option<DirectoryEntry>, PortError> {
+        {
+            let mut state = self.state.borrow_mut();
+            if state.replace_before_next_entry.remove(&self.key) {
+                replace_with_junction(&mut state, &self.key);
+            }
+        }
+        self.ensure_current()?;
         self.entries.pop_front().transpose()
+    }
+
+    fn read_metadata(&mut self, entry: &DirectoryEntry) -> Result<FileMetadata, PortError> {
+        self.ensure_current()?;
+        let key = child_key(&self.key, &entry.name);
+        let state = self.state.borrow_mut();
+        if let Some((cancel_key, token)) = &state.cancel_on_metadata
+            && cancel_key == &key
+        {
+            token.cancel();
+        }
+        state
+            .metadata
+            .get(&key)
+            .cloned()
+            .unwrap_or(Err(PortError::NotFound))
+    }
+
+    fn open_directory(&mut self, entry: &DirectoryEntry) -> Result<OpenedDirectory, PortError> {
+        self.ensure_current()?;
+        let key = child_key(&self.key, &entry.name);
+        let mut state = self.state.borrow_mut();
+        if state.replace_before_open.remove(&key) {
+            replace_with_junction(&mut state, &key);
+            return Err(PortError::ReparsePoint);
+        }
+        let metadata = state
+            .metadata
+            .get(&key)
+            .cloned()
+            .unwrap_or(Err(PortError::NotFound))?;
+        if metadata.reparse_point || state.reparse.contains(&key) {
+            return Err(PortError::ReparsePoint);
+        }
+        if metadata.kind != EntryKind::Directory {
+            return Err(PortError::Other);
+        }
+        let entries = state
+            .directories
+            .get(&key)
+            .cloned()
+            .ok_or(PortError::NotFound)?;
+        state.opened.push(key.clone());
+        let generation = state.generations.get(&key).copied().unwrap_or(0);
+        let mut links = self.links.clone();
+        links.push(FakeLink {
+            key: key.clone(),
+            generation,
+        });
+        let case_sensitivity = state
+            .case_sensitivity
+            .get(&key)
+            .copied()
+            .unwrap_or_default();
+        let cursor = FakeCursor {
+            state: Rc::clone(&self.state),
+            key,
+            links,
+            entries: entries.into_iter().collect(),
+        };
+        Ok(OpenedDirectory {
+            metadata,
+            case_sensitivity,
+            cursor: Box::new(cursor),
+        })
+    }
+}
+
+impl FakeCursor {
+    fn ensure_current(&self) -> Result<(), PortError> {
+        let state = self.state.borrow();
+        if self.links.iter().any(|link| {
+            state.reparse.contains(&link.key)
+                || state.generations.get(&link.key).copied().unwrap_or(0) != link.generation
+        }) {
+            Err(PortError::Changed)
+        } else {
+            Ok(())
+        }
     }
 }
 
 struct FakePort {
-    root: PathBuf,
+    state: Rc<RefCell<FakeState>>,
+}
+
+struct FakeState {
     root_results: VecDeque<Result<RootMetadata, PortError>>,
     directories: BTreeMap<String, Vec<Result<DirectoryEntry, PortError>>>,
     metadata: BTreeMap<String, Result<FileMetadata, PortError>>,
+    case_sensitivity: BTreeMap<String, DirectoryCaseSensitivity>,
+    generations: BTreeMap<String, u64>,
+    reparse: BTreeSet<String>,
+    replace_before_open: BTreeSet<String>,
+    replace_before_next_entry: BTreeSet<String>,
+    replace_root_before_open: bool,
+    opened: Vec<String>,
+    outside_accesses: usize,
     cancel_on_open: Option<CancellationToken>,
     cancel_on_metadata: Option<(String, CancellationToken)>,
 }
 
 impl FakePort {
-    fn new(root: &Path) -> Self {
+    fn new(_root: &Path) -> Self {
         let root_metadata = RootMetadata {
             metadata: directory_metadata(900),
             qualification: FilesystemQualification::LocalNtfs,
         };
         Self {
-            root: root.to_owned(),
-            root_results: VecDeque::from([Ok(root_metadata)]),
-            directories: BTreeMap::new(),
-            metadata: BTreeMap::new(),
-            cancel_on_open: None,
-            cancel_on_metadata: None,
+            state: Rc::new(RefCell::new(FakeState {
+                root_results: VecDeque::from([Ok(root_metadata)]),
+                directories: BTreeMap::new(),
+                metadata: BTreeMap::new(),
+                case_sensitivity: BTreeMap::new(),
+                generations: BTreeMap::new(),
+                reparse: BTreeSet::new(),
+                replace_before_open: BTreeSet::new(),
+                replace_before_next_entry: BTreeSet::new(),
+                replace_root_before_open: false,
+                opened: Vec::new(),
+                outside_accesses: 0,
+                cancel_on_open: None,
+                cancel_on_metadata: None,
+            })),
         }
     }
 
@@ -71,64 +219,135 @@ impl FakePort {
         }
     }
 
-    fn key(&self, path: &Path) -> String {
-        let relative = path
-            .strip_prefix(&self.root)
-            .unwrap_or(path)
-            .to_string_lossy();
-        if relative.is_empty() {
-            ".".to_owned()
-        } else {
-            relative.replace('\\', "/")
-        }
-    }
-
     fn add_directory(&mut self, relative: &str, entries: Vec<Result<DirectoryEntry, PortError>>) {
-        self.directories.insert(relative.to_owned(), entries);
+        self.state
+            .borrow_mut()
+            .directories
+            .insert(relative.to_owned(), entries);
     }
 
     fn add_file(&mut self, relative: &str, metadata: Result<FileMetadata, PortError>) {
-        self.metadata.insert(relative.to_owned(), metadata);
+        self.state
+            .borrow_mut()
+            .metadata
+            .insert(relative.to_owned(), metadata);
     }
 
     fn add_root_result(&mut self, result: Result<RootMetadata, PortError>) {
-        self.root_results.push_back(result);
+        self.state.borrow_mut().root_results.push_back(result);
+    }
+
+    fn set_root_results(&mut self, results: Vec<Result<RootMetadata, PortError>>) {
+        self.state.borrow_mut().root_results = results.into_iter().collect();
+    }
+
+    fn deny_directory(&mut self, relative: &str) {
+        self.state
+            .borrow_mut()
+            .directories
+            .insert(relative.to_owned(), vec![Err(PortError::AccessDenied)]);
+    }
+
+    fn cancel_on_open(&mut self, token: CancellationToken) {
+        self.state.borrow_mut().cancel_on_open = Some(token);
+    }
+
+    fn replace_before_open(&mut self, relative: &str) {
+        self.state
+            .borrow_mut()
+            .replace_before_open
+            .insert(relative.to_owned());
+    }
+
+    fn replace_before_next_entry(&mut self, relative: &str) {
+        self.state
+            .borrow_mut()
+            .replace_before_next_entry
+            .insert(relative.to_owned());
+    }
+
+    fn replace_root_before_open(&mut self) {
+        self.state.borrow_mut().replace_root_before_open = true;
+    }
+
+    fn set_case_sensitivity(&mut self, relative: &str, sensitivity: DirectoryCaseSensitivity) {
+        self.state
+            .borrow_mut()
+            .case_sensitivity
+            .insert(relative.to_owned(), sensitivity);
+    }
+
+    fn outside_accesses(&self) -> usize {
+        self.state.borrow().outside_accesses
+    }
+
+    fn opened(&self) -> Vec<String> {
+        self.state.borrow().opened.clone()
     }
 }
 
 impl FilesystemPort for FakePort {
     fn inspect_root(&mut self, _root: &Path) -> Result<RootMetadata, PortError> {
-        self.root_results
+        self.state
+            .borrow_mut()
+            .root_results
             .pop_front()
             .unwrap_or_else(|| Ok(self.root_metadata()))
     }
 
-    fn open_directory(&mut self, directory: &Path) -> Result<Box<dyn DirectoryCursor>, PortError> {
-        if let Some(token) = &self.cancel_on_open {
+    fn open_root(&mut self, _root: &Path) -> Result<OpenedDirectory, PortError> {
+        let mut state = self.state.borrow_mut();
+        if state.replace_root_before_open {
+            state.replace_root_before_open = false;
+            replace_with_junction(&mut state, ".");
+            return Err(PortError::ReparsePoint);
+        }
+        if let Some(token) = &state.cancel_on_open {
             token.cancel();
         }
-        let entries = self
+        if state.reparse.contains(".") {
+            return Err(PortError::ReparsePoint);
+        }
+        let entries = state
             .directories
-            .get(&self.key(directory))
+            .get(".")
             .cloned()
             .ok_or(PortError::NotFound)?;
-        Ok(Box::new(FakeCursor {
-            entries: entries.into_iter().collect(),
-        }))
-    }
-
-    fn read_metadata(&mut self, path: &Path) -> Result<FileMetadata, PortError> {
-        let key = self.key(path);
-        if let Some((cancel_key, token)) = &self.cancel_on_metadata
-            && cancel_key == &key
-        {
-            token.cancel();
-        }
-        self.metadata
+        let key = ".".to_owned();
+        let generation = state.generations.get(&key).copied().unwrap_or(0);
+        let case_sensitivity = state
+            .case_sensitivity
             .get(&key)
-            .cloned()
-            .ok_or(PortError::NotFound)?
+            .copied()
+            .unwrap_or_default();
+        let metadata = self.root_metadata().metadata;
+        let cursor = FakeCursor {
+            state: Rc::clone(&self.state),
+            key: key.clone(),
+            links: vec![FakeLink { key, generation }],
+            entries: entries.into_iter().collect(),
+        };
+        Ok(OpenedDirectory {
+            metadata,
+            case_sensitivity,
+            cursor: Box::new(cursor),
+        })
     }
+}
+
+fn child_key(parent: &str, name: &std::ffi::OsStr) -> String {
+    let name = name.to_string_lossy();
+    if parent == "." {
+        name.into_owned()
+    } else {
+        format!("{parent}/{name}")
+    }
+}
+
+fn replace_with_junction(state: &mut FakeState, key: &str) {
+    let generation = state.generations.entry(key.to_owned()).or_default();
+    *generation = generation.saturating_add(1);
+    state.reparse.insert(key.to_owned());
 }
 
 fn identity(value: u128) -> QualifiedIdentity {
@@ -320,6 +539,7 @@ fn resource_limit_is_non_authoritative_and_never_implies_missing() {
     assert_eq!(report.outcome, Outcome::ResourceLimit);
     assert!(!report.authoritative);
     assert!(report.batches_delivered <= 1);
+    assert!(sink.discarded);
 }
 
 #[test]
@@ -341,6 +561,8 @@ fn pending_directory_work_is_bounded() {
             ..directory_metadata(2)
         }),
     );
+    port.add_directory("one", Vec::new());
+    port.add_directory("two", Vec::new());
     let mut configured = limits();
     configured.max_pending_directories = 1;
     let mut sink = RecordingSink::default();
@@ -370,8 +592,7 @@ fn denied_directory_is_a_coverage_failure_not_a_policy_exclusion() {
             ..directory_metadata(2)
         }),
     );
-    port.directories
-        .insert("denied".to_owned(), vec![Err(PortError::AccessDenied)]);
+    port.deny_directory("denied");
     let mut sink = RecordingSink::default();
 
     let report = enumerate(
@@ -453,7 +674,7 @@ fn cursor_failure_is_isolated_but_completion_is_not_authoritative() {
 fn cancellation_is_cooperative_and_drops_the_pending_batch() {
     let (mut port, root) = simple_port();
     let token = CancellationToken::new();
-    port.cancel_on_open = Some(token.clone());
+    port.cancel_on_open(token.clone());
     let mut sink = RecordingSink::default();
     let mut progress = RecordingProgress::default();
 
@@ -469,6 +690,7 @@ fn cancellation_is_cooperative_and_drops_the_pending_batch() {
     assert_eq!(report.outcome, Outcome::Cancelled);
     assert!(!report.authoritative);
     assert!(sink.batches.is_empty());
+    assert!(sink.discarded);
     assert!(progress
         .updates
         .last()
@@ -589,7 +811,7 @@ fn root_loss_after_traversal_is_not_complete() {
 fn unsupported_filesystem_is_explicitly_non_authoritative() {
     let root = root_path();
     let mut port = FakePort::new(&root);
-    port.root_results = VecDeque::from([Ok(RootMetadata {
+    port.set_root_results(vec![Ok(RootMetadata {
         metadata: directory_metadata(900),
         qualification: FilesystemQualification::Unqualified,
     })]);
@@ -614,6 +836,7 @@ fn sink_failure_is_non_authoritative() {
     let mut sink = RecordingSink {
         batches: Vec::new(),
         error: Some(SinkError::Unavailable),
+        discarded: false,
     };
 
     let report = enumerate(
@@ -627,6 +850,228 @@ fn sink_failure_is_non_authoritative() {
 
     assert_eq!(report.outcome, Outcome::SinkFailed);
     assert!(!report.authoritative);
+    assert!(sink.discarded);
+}
+
+#[test]
+fn run_scoped_storage_invalidates_provisional_batches_on_failure() {
+    let (mut port, root) = simple_port();
+    let mut configured = limits();
+    configured.max_entries = 1;
+    configured.max_batch_records = 1;
+    let mut storage = RecordingRunStorage::default();
+
+    let report = enumerate_into_run(
+        &mut port,
+        &root,
+        &configured,
+        &NeverCancelled,
+        &mut storage,
+        "run-resource-limit",
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::ResourceLimit);
+    assert!(!report.authoritative);
+    assert!(!storage.staged.contains_key("run-resource-limit"));
+    assert_eq!(storage.invalidated, vec!["run-resource-limit"]);
+}
+
+#[test]
+fn run_scoped_storage_retains_a_successful_empty_root_for_publication() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.add_directory(".", Vec::new());
+    let mut storage = RecordingRunStorage::default();
+
+    let report = enumerate_into_run(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut storage,
+        "run-empty",
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::Complete);
+    assert!(report.authoritative);
+    assert!(storage.invalidated.is_empty());
+    assert!(!storage.staged.contains_key("run-empty"));
+}
+
+#[test]
+fn case_sensitive_directory_keeps_case_distinct_serialized_locators() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.add_directory(".", vec![file_entry("case-tree")]);
+    port.add_file("case-tree", Ok(directory_metadata(2)));
+    port.add_directory("case-tree", vec![file_entry("A.flp"), file_entry("a.flp")]);
+    port.add_file("case-tree/A.flp", Ok(file_metadata(3, 1)));
+    port.add_file("case-tree/a.flp", Ok(file_metadata(4, 2)));
+    port.set_case_sensitivity("case-tree", DirectoryCaseSensitivity::Sensitive);
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::Complete);
+    assert!(report.authoritative);
+    let observations = sink
+        .batches
+        .iter()
+        .flat_map(|batch| batch.records.iter())
+        .collect::<Vec<_>>();
+    let separator = if cfg!(windows) { "\\" } else { "/" };
+    assert_eq!(
+        observations
+            .iter()
+            .map(|observation| observation.locator.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        vec![
+            format!("case-tree{separator}A.flp"),
+            format!("case-tree{separator}a.flp")
+        ]
+    );
+}
+
+#[test]
+fn windows_timestamp_and_identity_conversions_keep_boundary_precision() {
+    assert_eq!(
+        windows_filetime_100ns_to_unix_ns(WINDOWS_EPOCH_OFFSET_100NS as i64),
+        0
+    );
+    assert_eq!(
+        windows_filetime_100ns_to_unix_ns(WINDOWS_EPOCH_OFFSET_100NS as i64 - 1),
+        -100
+    );
+    assert_eq!(
+        windows_filetime_100ns_to_unix_ns(WINDOWS_EPOCH_OFFSET_100NS as i64 + 1),
+        100
+    );
+    assert_eq!(
+        windows_filetime_100ns_to_unix_ns(i64::MIN),
+        (i64::MIN as i128 - WINDOWS_EPOCH_OFFSET_100NS) * 100
+    );
+    assert_eq!(
+        windows_filetime_100ns_to_unix_ns(i64::MAX),
+        (i64::MAX as i128 - WINDOWS_EPOCH_OFFSET_100NS) * 100
+    );
+
+    assert_eq!(windows_file_id_to_u128([0; 16]), 0);
+    assert_eq!(
+        windows_file_id_to_u128([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        1
+    );
+    assert_eq!(
+        windows_file_id_to_u128([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]),
+        1u128 << 120
+    );
+    assert_eq!(windows_file_id_to_u128([u8::MAX; 16]), u128::MAX);
+}
+
+#[test]
+fn root_replacement_between_inspection_and_open_is_refused_before_traversal() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.add_directory(".", vec![file_entry("outside.flp")]);
+    port.add_file("outside.flp", Ok(file_metadata(4, 1)));
+    port.replace_root_before_open();
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::RootUnavailable);
+    assert!(!report.authoritative);
+    assert_eq!(report.observations_discovered, 0);
+    assert!(sink.batches.is_empty());
+    assert!(port.opened().is_empty());
+    assert_eq!(port.outside_accesses(), 0);
+    assert!(
+        report
+            .coverage_failures
+            .iter()
+            .any(|failure| failure.kind == CoverageFailureKind::RootChanged)
+    );
+}
+
+#[test]
+fn child_replacement_between_metadata_and_open_is_refused_before_cursor_escape() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.add_directory(".", vec![file_entry("ancestor")]);
+    port.add_file("ancestor", Ok(directory_metadata(2)));
+    port.add_directory("ancestor", vec![file_entry("outside.flp")]);
+    port.add_file("ancestor/outside.flp", Ok(file_metadata(4, 1)));
+    port.replace_before_open("ancestor");
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::Partial);
+    assert!(!report.authoritative);
+    assert_eq!(report.observations_discovered, 0);
+    assert!(port.opened().is_empty());
+    assert_eq!(port.outside_accesses(), 0);
+    assert!(
+        report
+            .coverage_failures
+            .iter()
+            .any(|failure| failure.kind == CoverageFailureKind::DirectoryChanged)
+    );
+}
+
+#[test]
+fn ancestor_replacement_invalidates_bound_cursor_before_next_entry() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.add_directory(".", vec![file_entry("ancestor")]);
+    port.add_file("ancestor", Ok(directory_metadata(2)));
+    port.add_directory("ancestor", vec![file_entry("outside.flp")]);
+    port.add_file("ancestor/outside.flp", Ok(file_metadata(4, 1)));
+    port.replace_before_next_entry("ancestor");
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::Partial);
+    assert!(!report.authoritative);
+    assert_eq!(report.observations_discovered, 0);
+    assert_eq!(port.opened(), vec!["ancestor"]);
+    assert_eq!(port.outside_accesses(), 0);
+    assert!(
+        report
+            .coverage_failures
+            .iter()
+            .any(|failure| failure.kind == CoverageFailureKind::DirectoryChanged)
+    );
 }
 
 #[test]
