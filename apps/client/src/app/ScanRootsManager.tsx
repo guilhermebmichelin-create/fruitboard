@@ -264,6 +264,12 @@ export function ScanRootsManager({
   }
 
   const busy = actionState.kind === "working";
+  const controlName = (root: ScanRoot) =>
+    loadState.roots.some(
+      (other) => other.id !== root.id && other.displayName === root.displayName,
+    )
+      ? `${root.displayName} (${root.canonicalPath})`
+      : root.displayName;
 
   return (
     <section aria-labelledby="scan-roots-title" className="preferences-card">
@@ -370,7 +376,7 @@ export function ScanRootsManager({
               <div className="scan-roots-item__settings">
                 <label className="scan-roots-toggle">
                   <input
-                    aria-label={`${root.displayName} enabled`}
+                    aria-label={`${controlName(root)} enabled`}
                     checked={root.enabled}
                     disabled={busy}
                     onChange={() => void toggleEnabled(root)}
@@ -381,7 +387,7 @@ export function ScanRootsManager({
                 {renameState.kind !== "editing" && (
                   <div className="scan-roots-item__actions">
                     <button
-                      aria-label={`Rename ${root.displayName}`}
+                      aria-label={`Rename ${controlName(root)}`}
                       className="preference-button preference-button--secondary"
                       disabled={busy}
                       onClick={() => {
@@ -407,7 +413,7 @@ export function ScanRootsManager({
                     {confirmingRemoval === root.id ? (
                       <>
                         <button
-                          aria-label={`Confirm removal of ${root.displayName}`}
+                          aria-label={`Confirm removal of ${controlName(root)}`}
                           className="preference-button"
                           disabled={busy}
                           onClick={() => void removeRoot(root.id)}
@@ -416,7 +422,7 @@ export function ScanRootsManager({
                           Confirm remove
                         </button>
                         <button
-                          aria-label={`Keep ${root.displayName}`}
+                          aria-label={`Keep ${controlName(root)}`}
                           className="preference-button preference-button--secondary"
                           disabled={busy}
                           onClick={() => {
@@ -429,7 +435,7 @@ export function ScanRootsManager({
                       </>
                     ) : (
                       <button
-                        aria-label={`Remove ${root.displayName}`}
+                        aria-label={`Remove ${controlName(root)}`}
                         className="preference-button preference-button--secondary"
                         disabled={busy}
                         onClick={() => {

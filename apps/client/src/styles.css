@@ -639,6 +639,7 @@
 
   .scan-roots-item__actions {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-3);
   }
 
@@ -649,6 +650,7 @@
 
   .scan-roots-item__settings {
     display: grid;
+    min-inline-size: 0;
     gap: var(--space-3);
     justify-items: end;
   }
