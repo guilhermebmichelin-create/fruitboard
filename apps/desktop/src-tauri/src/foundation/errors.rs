@@ -34,6 +34,8 @@ pub(crate) enum DiagnosticCode {
     RequestSchemaValidationFailed,
     StorageBusy,
     StorageFailed,
+    ScanRootConflict,
+    UnknownScanRoot,
     #[allow(
         dead_code,
         reason = "reserved for adapters added after the command foundation"
@@ -48,6 +50,8 @@ impl DiagnosticCode {
             Self::RequestSchemaValidationFailed => "request_schema_validation_failed",
             Self::StorageBusy => "storage_busy",
             Self::StorageFailed => "storage_failed",
+            Self::ScanRootConflict => "scan_root_conflict",
+            Self::UnknownScanRoot => "unknown_scan_root",
             Self::UnexpectedFailure => "unexpected_failure",
         }
     }

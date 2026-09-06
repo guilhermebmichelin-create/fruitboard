@@ -7,6 +7,10 @@
   "permissions": [
     "allow-get-app-health",
     "allow-get-startup-view",
-    "allow-set-startup-view"
+    "allow-set-startup-view",
+    "allow-list-scan-roots",
+    "allow-add-scan-root",
+    "allow-remove-scan-root",
+    "allow-pick-scan-root"
   ]
 }

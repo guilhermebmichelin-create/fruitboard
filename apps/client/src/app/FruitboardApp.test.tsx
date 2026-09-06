@@ -4,7 +4,11 @@ import { createMemoryRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { describe, expect, it, vi } from "vitest";
 import type { PlatformPort } from "../platform/contracts";
-import { createFailingPlatform, createFakePlatform } from "../platform/fake";
+import {
+  createFailingPlatform,
+  createFakePlatform,
+  pendingScanRootMethods,
+} from "../platform/fake";
 import { createFruitboardMemoryRouter, createRoutes } from "./router";
 
 const readyPlatform = createFakePlatform({
@@ -17,6 +21,7 @@ const loadingPlatform: PlatformPort = {
   getAppHealth: () => new Promise(() => undefined),
   getStartupView: () => new Promise(() => undefined),
   setStartupView: () => new Promise(() => undefined),
+  ...pendingScanRootMethods,
 };
 
 const errorPlatform = createFailingPlatform();

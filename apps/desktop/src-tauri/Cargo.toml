@@ -22,5 +22,6 @@ regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri.workspace = true
+tauri-plugin-dialog = { workspace = true }
 tauri-plugin-shell = { workspace = true, optional = true }
 uuid.workspace = true

@@ -232,6 +232,85 @@ impl Database {
             Ok(())
         })
     }
+
+    pub fn list_scan_roots(&self) -> Result<Vec<ScanRoot>> {
+        let mut statement = self.connection.prepare(
+            "SELECT id, display_name, canonical_path, enabled, availability, last_error_code
+             FROM scan_root ORDER BY rowid",
+        )?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        rows.into_iter()
+            .map(
+                |(id, display_name, canonical_path, enabled, availability, last_error_code)| {
+                    Ok(ScanRoot {
+                        id,
+                        display_name,
+                        canonical_path,
+                        enabled: enabled == 1,
+                        availability: ScanRootAvailability::parse(&availability)?,
+                        last_error_code,
+                    })
+                },
+            )
+            .collect()
+    }
+
+    pub fn add_scan_root(&mut self, display_name: &str, canonical_path: &str) -> Result<ScanRoot> {
+        if display_name.is_empty() || canonical_path.is_empty() {
+            return Err(StorageError::InvalidSchema);
+        }
+        self.transaction(|transaction| {
+            let duplicates: i64 = transaction.query_row(
+                "SELECT count(*) FROM scan_root WHERE canonical_path = ?1",
+                [canonical_path],
+                |row| row.get(0),
+            )?;
+            if duplicates != 0 {
+                return Err(StorageError::Conflict);
+            }
+            let root = ScanRoot {
+                id: uuid::Uuid::now_v7().to_string(),
+                display_name: display_name.to_owned(),
+                canonical_path: canonical_path.to_owned(),
+                enabled: true,
+                availability: ScanRootAvailability::Available,
+                last_error_code: None,
+            };
+            transaction.execute(
+                "INSERT INTO scan_root
+                 (id, display_name, canonical_path, enabled, availability, last_error_code)
+                 VALUES (?1, ?2, ?3, 1, ?4, NULL)",
+                rusqlite::params![
+                    &root.id,
+                    &root.display_name,
+                    &root.canonical_path,
+                    root.availability.as_str()
+                ],
+            )?;
+            Ok(root)
+        })
+    }
+
+    pub fn remove_scan_root(&mut self, id: &str) -> Result<()> {
+        self.transaction(|transaction| {
+            let removed = transaction.execute("DELETE FROM scan_root WHERE id = ?1", [id])?;
+            if removed != 1 {
+                return Err(StorageError::NotFound);
+            }
+            Ok(())
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -261,6 +340,43 @@ impl StartupView {
             Self::Preferences => "preferences",
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScanRootAvailability {
+    Available,
+    Unavailable,
+    Unknown,
+}
+
+impl ScanRootAvailability {
+    fn parse(value: &str) -> Result<Self> {
+        match value {
+            "available" => Ok(Self::Available),
+            "unavailable" => Ok(Self::Unavailable),
+            "unknown" => Ok(Self::Unknown),
+            _ => Err(StorageError::InvalidSchema),
+        }
+    }
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Available => "available",
+            Self::Unavailable => "unavailable",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanRoot {
+    pub id: String,
+    pub display_name: String,
+    pub canonical_path: String,
+    pub enabled: bool,
+    pub availability: ScanRootAvailability,
+    pub last_error_code: Option<String>,
 }
 
 #[cfg(test)]

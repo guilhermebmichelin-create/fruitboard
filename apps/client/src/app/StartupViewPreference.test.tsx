@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { PlatformPort } from "../platform/contracts";
-import { createFakePlatform } from "../platform/fake";
+import { createFakePlatform, failingScanRootMethods } from "../platform/fake";
 import { StartupViewPreference } from "./StartupViewPreference";
 
 describe("StartupViewPreference", () => {
@@ -59,6 +59,7 @@ describe("StartupViewPreference", () => {
       getAppHealth: vi.fn(),
       getStartupView,
       setStartupView: vi.fn(),
+      ...failingScanRootMethods(new Error("startup preference unavailable")),
     };
     render(<StartupViewPreference platform={platform} />);
 
@@ -87,6 +88,7 @@ describe("StartupViewPreference", () => {
       getStartupView: () => Promise.resolve({ startupView: "home" }),
       setStartupView: () =>
         Promise.reject(new Error("Bearer private diagnostic")),
+      ...failingScanRootMethods(new Error("Bearer private diagnostic")),
     };
     render(<StartupViewPreference platform={platform} />);
     const select = await screen.findByRole("combobox");

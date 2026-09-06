@@ -11,12 +11,13 @@ use foundation::{
     AppError, COMMAND_SCHEMA_VERSION, Clock, CommandEnvelope, CommandRuntime, DiagnosticCode,
     ErrorCode, IdGenerator, SystemClock, SystemIdGenerator, default_log_sink,
 };
-use fruitboard_storage::{Database, StartupView, StorageError};
+use fruitboard_storage::{Database, ScanRoot, StartupView, StorageError};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
+use tauri_plugin_dialog::DialogExt;
 
 const SAFE_NATIVE_PANIC_MESSAGE: &str = "Fruitboard contained an unexpected native failure.";
 
@@ -48,14 +49,12 @@ struct StartupViewPreference {
 }
 
 struct PreferencesService {
-    database: Mutex<Database>,
+    database: Arc<Mutex<Database>>,
 }
 
 impl PreferencesService {
-    fn new(database: Database) -> Self {
-        Self {
-            database: Mutex::new(database),
-        }
+    fn new(database: Arc<Mutex<Database>>) -> Self {
+        Self { database }
     }
 
     fn get_startup_view(&self) -> Result<StartupViewPreference, AppError> {
@@ -76,9 +75,101 @@ impl PreferencesService {
     }
 }
 
+struct ScanRootsService {
+    database: Arc<Mutex<Database>>,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScanRootSelection {
+    selected_path: Option<String>,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScanRootRemoved {
+    id: String,
+}
+
+impl ScanRootsService {
+    fn new(database: Arc<Mutex<Database>>) -> Self {
+        Self { database }
+    }
+
+    fn list_scan_roots(&self) -> Result<Vec<ScanRoot>, AppError> {
+        let database = self.database.lock().map_err(|_| storage_failed())?;
+        database.list_scan_roots().map_err(map_storage_error)
+    }
+
+    fn add_scan_root(&self, display_name: String, path: String) -> Result<ScanRoot, AppError> {
+        let display_name = display_name.trim().to_owned();
+        if display_name.is_empty() {
+            return Err(invalid_request());
+        }
+        let canonical = canonical_scan_root(&path).ok_or_else(invalid_request)?;
+        let mut database = self.database.lock().map_err(|_| storage_failed())?;
+        for existing in database.list_scan_roots().map_err(map_storage_error)? {
+            if roots_overlap(&existing.canonical_path, &canonical) {
+                return Err(AppError::new(
+                    ErrorCode::Conflict,
+                    DiagnosticCode::ScanRootConflict,
+                ));
+            }
+        }
+        database
+            .add_scan_root(&display_name, &canonical)
+            .map_err(map_storage_error)
+    }
+
+    fn remove_scan_root(&self, id: String) -> Result<ScanRootRemoved, AppError> {
+        if id.is_empty() {
+            return Err(invalid_request());
+        }
+        let mut database = self.database.lock().map_err(|_| storage_failed())?;
+        database.remove_scan_root(&id).map_err(map_storage_error)?;
+        Ok(ScanRootRemoved { id })
+    }
+}
+
+/// Resolve a renderer-supplied path to the canonical directory form stored for
+/// scan roots. Canonicalization resolves aliases and reparse points, so two
+/// alias paths map to one stored root and are rejected as duplicates.
+/// Returns None for missing paths, non-directories, and oversized input.
+fn canonical_scan_root(path: &str) -> Option<String> {
+    if path.is_empty() || path.len() > 32_767 {
+        return None;
+    }
+    let canonical = std::fs::canonicalize(path).ok()?;
+    if !canonical.is_dir() {
+        return None;
+    }
+    let text = canonical.to_string_lossy().into_owned();
+    if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
+        return Some(format!(r"\\{unc}"));
+    }
+    Some(text.strip_prefix(r"\\?\").unwrap_or(&text).to_owned())
+}
+
+/// Duplicate and ancestor/descendant roots are rejected so reconciliation
+/// stays unambiguous. Comparison is separator-aware and case-insensitive on
+/// Windows, where the filesystem preserves case but ignores it.
+fn roots_overlap(first: &str, second: &str) -> bool {
+    #[cfg(windows)]
+    let (first, second) = (first.to_lowercase(), second.to_lowercase());
+
+    fn covers(parent: &str, child: &str) -> bool {
+        child == parent
+            || child
+                .strip_prefix(parent)
+                .is_some_and(|rest| rest.starts_with('/') || rest.starts_with('\\'))
+    }
+    covers(&first, &second) || covers(&second, &first)
+}
+
 struct NativeFoundation {
     commands: CommandRuntime,
     preferences: PreferencesService,
+    scan_roots: ScanRootsService,
 }
 
 impl NativeFoundation {
@@ -89,10 +180,12 @@ impl NativeFoundation {
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
         let ids: Arc<dyn IdGenerator> = Arc::new(SystemIdGenerator);
         let logs = default_log_sink(log_directory, clock.clone());
+        let database = Arc::new(Mutex::new(Database::open(data_directory)?));
 
         Ok(Self {
             commands: CommandRuntime::new(clock, ids, logs),
-            preferences: PreferencesService::new(Database::open(data_directory)?),
+            preferences: PreferencesService::new(database.clone()),
+            scan_roots: ScanRootsService::new(database),
         })
     }
 }
@@ -114,6 +207,12 @@ fn storage_failed() -> AppError {
 fn map_storage_error(error: StorageError) -> AppError {
     match error {
         StorageError::Busy => AppError::new(ErrorCode::Unavailable, DiagnosticCode::StorageBusy),
+        StorageError::Conflict => {
+            AppError::new(ErrorCode::Conflict, DiagnosticCode::ScanRootConflict)
+        }
+        StorageError::NotFound => {
+            AppError::new(ErrorCode::NotFound, DiagnosticCode::UnknownScanRoot)
+        }
         _ => storage_failed(),
     }
 }
@@ -197,6 +296,132 @@ fn set_startup_view(
     handle_set_startup_view(&state.commands, &state.preferences, request)
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct ListScanRootsRequest {
+    schema_version: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct AddScanRootRequest {
+    schema_version: u64,
+    display_name: String,
+    path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct RemoveScanRootRequest {
+    schema_version: u64,
+    id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct PickScanRootRequest {
+    schema_version: u64,
+}
+
+fn handle_list_scan_roots(
+    commands: &CommandRuntime,
+    scan_roots: &ScanRootsService,
+    request: Option<Value>,
+) -> CommandEnvelope<Vec<ScanRoot>> {
+    commands.execute("list_scan_roots", move || {
+        let request: ListScanRootsRequest = decode_request(request)?;
+        if request.schema_version != COMMAND_SCHEMA_VERSION {
+            return Err(invalid_request());
+        }
+        scan_roots.list_scan_roots()
+    })
+}
+
+fn handle_add_scan_root(
+    commands: &CommandRuntime,
+    scan_roots: &ScanRootsService,
+    request: Option<Value>,
+) -> CommandEnvelope<ScanRoot> {
+    commands.execute("add_scan_root", move || {
+        let request: AddScanRootRequest = decode_request(request)?;
+        if request.schema_version != COMMAND_SCHEMA_VERSION {
+            return Err(invalid_request());
+        }
+        scan_roots.add_scan_root(request.display_name, request.path)
+    })
+}
+
+fn handle_remove_scan_root(
+    commands: &CommandRuntime,
+    scan_roots: &ScanRootsService,
+    request: Option<Value>,
+) -> CommandEnvelope<ScanRootRemoved> {
+    commands.execute("remove_scan_root", move || {
+        let request: RemoveScanRootRequest = decode_request(request)?;
+        if request.schema_version != COMMAND_SCHEMA_VERSION {
+            return Err(invalid_request());
+        }
+        scan_roots.remove_scan_root(request.id)
+    })
+}
+
+fn handle_pick_scan_root(
+    commands: &CommandRuntime,
+    request: Option<Value>,
+    select_folder: impl FnOnce() -> Option<String>,
+) -> CommandEnvelope<ScanRootSelection> {
+    commands.execute("pick_scan_root", move || {
+        let request: PickScanRootRequest = decode_request(request)?;
+        if request.schema_version != COMMAND_SCHEMA_VERSION {
+            return Err(invalid_request());
+        }
+        // Cancellation is an ordinary no-change outcome: a closed dialog
+        // yields a null selection, never an error and never a mutation.
+        Ok(ScanRootSelection {
+            selected_path: select_folder(),
+        })
+    })
+}
+
+#[tauri::command]
+fn list_scan_roots(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<Vec<ScanRoot>> {
+    handle_list_scan_roots(&state.commands, &state.scan_roots, request)
+}
+
+#[tauri::command]
+fn add_scan_root(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<ScanRoot> {
+    handle_add_scan_root(&state.commands, &state.scan_roots, request)
+}
+
+#[tauri::command]
+fn remove_scan_root(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<ScanRootRemoved> {
+    handle_remove_scan_root(&state.commands, &state.scan_roots, request)
+}
+
+#[tauri::command]
+fn pick_scan_root(
+    request: Option<Value>,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<ScanRootSelection> {
+    handle_pick_scan_root(&state.commands, request, || {
+        app.dialog()
+            .file()
+            .blocking_pick_folder()
+            .and_then(|picked| picked.simplified().into_path().ok())
+            .map(|path| path.to_string_lossy().into_owned())
+    })
+}
+
 fn install_safe_panic_hook() {
     static INSTALL: std::sync::Once = std::sync::Once::new();
 
@@ -214,6 +439,7 @@ pub fn run() -> tauri::Result<()> {
     let builder = tauri::Builder::default();
     #[cfg(feature = "packaging-smoke")]
     let builder = builder.plugin(tauri_plugin_shell::init());
+    let builder = builder.plugin(tauri_plugin_dialog::init());
 
     builder
         .setup(|app| {
@@ -261,7 +487,11 @@ pub fn run() -> tauri::Result<()> {
         .invoke_handler(tauri::generate_handler![
             get_app_health,
             get_startup_view,
-            set_startup_view
+            set_startup_view,
+            list_scan_roots,
+            add_scan_root,
+            remove_scan_root,
+            pick_scan_root
         ])
         .run(tauri::generate_context!())
 }
@@ -300,6 +530,18 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    fn test_preferences(directory: &TestDirectory) -> PreferencesService {
+        PreferencesService::new(Arc::new(Mutex::new(
+            Database::open(directory.path()).expect("test database should open"),
+        )))
+    }
+
+    fn test_scan_roots(directory: &TestDirectory) -> ScanRootsService {
+        ScanRootsService::new(Arc::new(Mutex::new(
+            Database::open(directory.path()).expect("test database should open"),
+        )))
     }
 
     fn test_runtime() -> (CommandRuntime, Arc<RecordingLogSink>) {
@@ -409,9 +651,7 @@ mod tests {
         let directory = TestDirectory::new();
 
         {
-            let preferences = PreferencesService::new(
-                Database::open(directory.path()).expect("test database should open"),
-            );
+            let preferences = test_preferences(&directory);
             let (runtime, logs) = test_runtime();
             let response = handle_set_startup_view(
                 &runtime,
@@ -434,9 +674,9 @@ mod tests {
             assert_eq!(logs.events()[0].operation, "set_startup_view");
         }
 
-        let preferences = PreferencesService::new(
+        let preferences = PreferencesService::new(Arc::new(Mutex::new(
             Database::open(directory.path()).expect("test database should reopen"),
-        );
+        )));
         let (runtime, logs) = test_runtime();
         let response = handle_get_startup_view(
             &runtime,
@@ -459,9 +699,7 @@ mod tests {
     #[test]
     fn malformed_preference_requests_fail_closed_without_mutating_storage() {
         let directory = TestDirectory::new();
-        let preferences = PreferencesService::new(
-            Database::open(directory.path()).expect("test database should open"),
-        );
+        let preferences = test_preferences(&directory);
         let malformed_set_requests = [
             None,
             Some(Value::Null),
@@ -528,6 +766,20 @@ mod tests {
         assert_eq!(busy.user().code, ErrorCode::Unavailable);
         assert_eq!(busy.diagnostic().diagnostic_code.as_str(), "storage_busy");
 
+        let conflict = map_storage_error(StorageError::Conflict);
+        assert_eq!(conflict.user().code, ErrorCode::Conflict);
+        assert_eq!(
+            conflict.diagnostic().diagnostic_code.as_str(),
+            "scan_root_conflict"
+        );
+
+        let missing = map_storage_error(StorageError::NotFound);
+        assert_eq!(missing.user().code, ErrorCode::NotFound);
+        assert_eq!(
+            missing.diagnostic().diagnostic_code.as_str(),
+            "unknown_scan_root"
+        );
+
         for error in [
             StorageError::Io,
             StorageError::InvalidSchema,
@@ -540,5 +792,246 @@ mod tests {
                 "storage_failed"
             );
         }
+    }
+
+    fn test_root_directory(directory: &TestDirectory, name: &str) -> PathBuf {
+        let path = directory.path().join(name);
+        fs::create_dir(&path).expect("test scan root directory should exist");
+        path
+    }
+
+    fn add_root_request(display_name: &str, path: &std::path::Path) -> Option<Value> {
+        Some(json!({
+            "schemaVersion": COMMAND_SCHEMA_VERSION,
+            "displayName": display_name,
+            "path": path.to_string_lossy(),
+        }))
+    }
+
+    #[test]
+    fn scan_root_commands_round_trip_and_persist_across_restart() {
+        let directory = TestDirectory::new();
+        let root_path = test_root_directory(&directory, "music");
+        let root_id;
+
+        {
+            let scan_roots = test_scan_roots(&directory);
+            let (runtime, logs) = test_runtime();
+            let response =
+                handle_add_scan_root(&runtime, &scan_roots, add_root_request("Music", &root_path));
+            let serialized = serde_json::to_value(response).expect("add response should serialize");
+            assert_eq!(serialized["status"], "ok");
+            assert_eq!(serialized["data"]["displayName"], "Music");
+            assert_eq!(logs.events()[0].operation, "add_scan_root");
+            root_id = serialized["data"]["id"]
+                .as_str()
+                .expect("added root should have an id")
+                .to_owned();
+
+            let (runtime, _) = test_runtime();
+            let listed = handle_list_scan_roots(
+                &runtime,
+                &scan_roots,
+                Some(json!({ "schemaVersion": COMMAND_SCHEMA_VERSION })),
+            );
+            let serialized = serde_json::to_value(listed).expect("list response should serialize");
+            assert_eq!(serialized["data"].as_array().expect("roots").len(), 1);
+        }
+
+        let scan_roots = ScanRootsService::new(Arc::new(Mutex::new(
+            Database::open(directory.path()).expect("test database should reopen"),
+        )));
+        let (runtime, _) = test_runtime();
+        let response = handle_remove_scan_root(
+            &runtime,
+            &scan_roots,
+            Some(json!({
+                "schemaVersion": COMMAND_SCHEMA_VERSION,
+                "id": root_id,
+            })),
+        );
+        let serialized = serde_json::to_value(response).expect("remove response should serialize");
+        assert_eq!(serialized["status"], "ok");
+        assert_eq!(serialized["data"]["id"], root_id);
+
+        let (runtime, _) = test_runtime();
+        let listed = handle_list_scan_roots(
+            &runtime,
+            &scan_roots,
+            Some(json!({ "schemaVersion": COMMAND_SCHEMA_VERSION })),
+        );
+        assert_eq!(
+            serde_json::to_value(listed).expect("list response should serialize")["data"]
+                .as_array()
+                .expect("roots")
+                .len(),
+            0
+        );
+        // Removal drops configuration only; the source directory survives.
+        assert!(root_path.is_dir());
+    }
+
+    #[test]
+    fn scan_root_duplicates_overlaps_and_unknown_paths_fail_closed() {
+        let directory = TestDirectory::new();
+        let root_path = test_root_directory(&directory, "music");
+        let child_path = root_path.join("sub");
+        fs::create_dir(&child_path).expect("test child directory should exist");
+        let scan_roots = test_scan_roots(&directory);
+        let (runtime, _) = test_runtime();
+        handle_add_scan_root(&runtime, &scan_roots, add_root_request("Music", &root_path));
+
+        let duplicate = handle_add_scan_root(
+            &test_runtime().0,
+            &scan_roots,
+            add_root_request("Music again", &root_path),
+        );
+        let serialized = serde_json::to_value(duplicate).expect("duplicate error should serialize");
+        assert_eq!(serialized["status"], "error");
+        assert_eq!(serialized["error"]["code"], "conflict");
+
+        let child = handle_add_scan_root(
+            &test_runtime().0,
+            &scan_roots,
+            add_root_request("Child", &child_path),
+        );
+        assert_eq!(
+            serde_json::to_value(child).expect("overlap error should serialize")["error"]["code"],
+            "conflict"
+        );
+
+        let missing = handle_add_scan_root(
+            &test_runtime().0,
+            &scan_roots,
+            add_root_request("Missing", &directory.path().join("absent")),
+        );
+        let serialized = serde_json::to_value(missing).expect("missing error should serialize");
+        assert_eq!(serialized["error"]["code"], "invalid_request");
+        assert!(!serialized.to_string().contains("absent"));
+
+        let file_path = directory.path().join("file.flp");
+        fs::write(&file_path, b"placeholder").expect("test file should exist");
+        let not_directory = handle_add_scan_root(
+            &test_runtime().0,
+            &scan_roots,
+            add_root_request("File", &file_path),
+        );
+        assert_eq!(
+            serde_json::to_value(not_directory).expect("file error should serialize")["error"]["code"],
+            "invalid_request"
+        );
+
+        let unnamed = handle_add_scan_root(
+            &test_runtime().0,
+            &scan_roots,
+            add_root_request("   ", &root_path),
+        );
+        assert_eq!(
+            serde_json::to_value(unnamed).expect("name error should serialize")["error"]["code"],
+            "invalid_request"
+        );
+
+        let unknown = handle_remove_scan_root(
+            &test_runtime().0,
+            &scan_roots,
+            Some(json!({
+                "schemaVersion": COMMAND_SCHEMA_VERSION,
+                "id": "missing-root-id",
+            })),
+        );
+        assert_eq!(
+            serde_json::to_value(unknown).expect("unknown error should serialize")["error"]["code"],
+            "not_found"
+        );
+
+        let malformed = [
+            None,
+            Some(Value::Null),
+            Some(json!({ "schemaVersion": COMMAND_SCHEMA_VERSION })),
+            Some(json!({
+                "schemaVersion": COMMAND_SCHEMA_VERSION,
+                "displayName": "Music",
+                "path": root_path.to_string_lossy(),
+                "extra": true,
+            })),
+        ];
+        for request in malformed {
+            let (runtime, logs) = test_runtime();
+            let response = handle_add_scan_root(&runtime, &scan_roots, request);
+            assert_eq!(
+                serde_json::to_value(response).expect("error should serialize")["error"]["code"],
+                "invalid_request"
+            );
+            assert_eq!(logs.events()[0].operation, "add_scan_root");
+        }
+
+        let (runtime, _) = test_runtime();
+        let listed = handle_list_scan_roots(
+            &runtime,
+            &scan_roots,
+            Some(json!({ "schemaVersion": COMMAND_SCHEMA_VERSION })),
+        );
+        assert_eq!(
+            serde_json::to_value(listed).expect("list should serialize")["data"]
+                .as_array()
+                .expect("roots")
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn roots_overlap_compares_separator_aware_paths() {
+        assert!(roots_overlap("/media/music", "/media/music"));
+        assert!(roots_overlap("/media/music", "/media/music/flp"));
+        assert!(roots_overlap("/media/music/flp", "/media/music"));
+        assert!(!roots_overlap("/media/music", "/media/music-backup"));
+        assert!(!roots_overlap("/media/music", "/media/other"));
+        #[cfg(windows)]
+        {
+            assert!(roots_overlap("C:\\Music", "c:\\music\\flp"));
+            assert!(roots_overlap("C:\\Music", "C:\\MUSIC"));
+        }
+    }
+
+    #[test]
+    fn pick_cancellation_returns_null_without_mutation_or_dialog_error() {
+        let directory = TestDirectory::new();
+        let scan_roots = test_scan_roots(&directory);
+
+        let (runtime, logs) = test_runtime();
+        let cancelled = handle_pick_scan_root(
+            &runtime,
+            Some(json!({ "schemaVersion": COMMAND_SCHEMA_VERSION })),
+            || Option::<String>::None,
+        );
+        let serialized = serde_json::to_value(cancelled).expect("cancel response should serialize");
+        assert_eq!(serialized["status"], "ok");
+        assert_eq!(serialized["data"]["selectedPath"], Value::Null);
+        assert_eq!(logs.events()[0].operation, "pick_scan_root");
+        assert!(scan_roots.list_scan_roots().unwrap().is_empty());
+
+        let (runtime, _) = test_runtime();
+        let picked = handle_pick_scan_root(
+            &runtime,
+            Some(json!({ "schemaVersion": COMMAND_SCHEMA_VERSION })),
+            || Some("C:\\Music".to_owned()),
+        );
+        assert_eq!(
+            serde_json::to_value(picked).expect("pick response should serialize")["data"]["selectedPath"],
+            "C:\\Music"
+        );
+
+        let called = std::cell::Cell::new(false);
+        let (runtime, _) = test_runtime();
+        let rejected = handle_pick_scan_root(&runtime, Some(json!({ "schemaVersion": 0 })), || {
+            called.set(true);
+            Option::<String>::None
+        });
+        assert_eq!(
+            serde_json::to_value(rejected).expect("error should serialize")["error"]["code"],
+            "invalid_request"
+        );
+        assert!(!called.get());
     }
 }
