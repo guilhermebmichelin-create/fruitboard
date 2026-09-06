@@ -187,13 +187,14 @@ test("the Phase 1 shell does not introduce PWA or scanner authority", () => {
   assert.doesNotMatch(navigation, /(?:scanner|service worker)/i);
 });
 
-test("Cargo workspace contains only the Phase 1 native packages", () => {
+test("Cargo workspace includes the isolated filesystem reconciliation core", () => {
   const cargoManifest = readRootFile("Cargo.toml");
 
   for (const member of [
     "apps/desktop/src-tauri",
     "crates/foundation-sidecar-smoke",
     "crates/storage-sqlite",
+    "crates/reconciliation",
   ]) {
     assert.match(cargoManifest, new RegExp(`"${member}"`));
   }

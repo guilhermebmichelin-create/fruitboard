@@ -119,6 +119,8 @@ jobs:
           cargo fmt --all --check
           cargo clippy -p fruitboard-storage --all-targets --locked -- -D warnings
           cargo test -p fruitboard-storage --locked
+          cargo clippy -p fruitboard-reconciliation --all-targets --locked -- -D warnings
+          cargo test -p fruitboard-reconciliation --locked
 
   migration:
     name: migration

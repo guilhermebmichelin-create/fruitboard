@@ -890,6 +890,10 @@ name = "fruitboard-foundation-sidecar-smoke"
 version = "0.1.0"
 
 [[package]]
+name = "fruitboard-reconciliation"
+version = "0.1.0"
+
+[[package]]
 name = "fruitboard-storage"
 version = "0.1.0"
 dependencies = [
