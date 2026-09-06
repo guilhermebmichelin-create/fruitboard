@@ -39,6 +39,13 @@ test("hardlink aliases keep per-path presence records", () => {
     model,
     /keep one location row[\s\S]*each: availability is tracked per path/,
   );
+  // The identity tuple must not be a location uniqueness constraint, or the
+  // second alias cannot be stored.
+  assert.doesNotMatch(
+    model,
+    /unique\s*\(`device_id`, `volume_id`, `filesystem_file_id`\)/,
+  );
+  assert.match(model, /non-unique/);
 });
 
 test("the research probe is disposable, path-free, and self-cleaning", () => {
@@ -50,6 +57,10 @@ test("the research probe is disposable, path-free, and self-cleaning", () => {
   assert.match(probe, /ValidateSet\("Identity", "Watcher", "All"\)/);
   assert.match(probe, /Remove-Item -LiteralPath \$root -Recurse -Force/);
   assert.match(probe, /all assertions passed/);
+  // Creation-phase events are drained before the append phase so creation
+  // Changed events cannot satisfy the append assertion.
+  assert.match(probe, /Drain creation-phase events/);
+  assert.match(probe, /append-phase/);
 });
 
 test("unverified environments stay tracked as open work", () => {

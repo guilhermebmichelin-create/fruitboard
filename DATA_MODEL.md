@@ -193,11 +193,13 @@ nullable `deleted_at_ms` unless explicitly immutable.
 - `presence` check `present|missing|offline|unknown`
 - `cloud_presence` check `local|placeholder|partial|unknown`
 - `last_seen_scan_run_id`, `last_seen_at_ms`
-- unique `(device_id, normalized_path)` and, when trustworthy, unique
-  `(device_id, volume_id, filesystem_file_id)`
+- unique `(device_id, normalized_path)`; filesystem identity is a non-unique
+  lookup, never a location uniqueness constraint, so two paths may share one
+  underlying file
 - hardlink aliases share one filesystem identity but keep one location row
-  each: availability is tracked per path, and the identity uniqueness links
-  aliases to one underlying file without collapsing them
+  each: availability is tracked per path, and a non-unique
+  `(device_id, volume_id, filesystem_file_id)` index links aliases to one
+  underlying file without collapsing them
 
 `file_relationship`
 

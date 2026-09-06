@@ -50,8 +50,8 @@ operation on one synthetic file:
    presence record per path and deduplicate at the file-identity level, never
    by collapsing locations. When one alias disappears, the surviving path
    stays available under the same identity. This matches DATA_MODEL.md, where
-   `file_location` is unique per normalized path while the
-   `(device_id, volume_id, filesystem_file_id)` uniqueness links aliases to
+   `file_location` is unique per normalized path while a non-unique
+   `(device_id, volume_id, filesystem_file_id)` index links aliases to
    one underlying file. Required regression before #36/#38/#40: two aliases
    exist, one disappears, the other remains available.
 5. Copies are new files, even with identical content; content hashing stays a
