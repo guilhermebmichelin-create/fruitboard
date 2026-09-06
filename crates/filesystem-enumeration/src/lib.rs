@@ -771,6 +771,9 @@ where
             return outcome;
         }
         self.root_identity = initial_root.metadata.identity.clone();
+        if self.cancellation.is_cancelled() {
+            return Outcome::Cancelled;
+        }
         let opened_root = match self.port.open_root(self.root) {
             Ok(opened) => opened,
             Err(error) => {
@@ -855,6 +858,9 @@ where
                     self.status = Some(Outcome::ResourceLimit);
                     return Outcome::ResourceLimit;
                 }
+                if self.cancellation.is_cancelled() {
+                    return Outcome::Cancelled;
+                }
                 let metadata = match cursor.read_metadata(&entry) {
                     Ok(metadata) => metadata,
                     Err(error) => {
@@ -880,6 +886,9 @@ where
                         {
                             self.status = Some(Outcome::ResourceLimit);
                             return Outcome::ResourceLimit;
+                        }
+                        if self.cancellation.is_cancelled() {
+                            return Outcome::Cancelled;
                         }
                         let opened = match cursor.open_directory(&entry) {
                             Ok(opened) => opened,
@@ -1459,6 +1468,7 @@ mod windows_port {
     const FILE_LIST_DIRECTORY: u32 = 0x0001;
     const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0400;
     const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x0010;
+    const FILE_ATTRIBUTE_DEVICE: u32 = 0x0040;
     const FILE_ATTRIBUTE_OFFLINE: u32 = 0x1000;
     const FILE_ATTRIBUTE_RECALL_ON_OPEN: u32 = 0x0004_0000;
     const FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS: u32 = 0x0040_0000;
@@ -1921,7 +1931,7 @@ mod windows_port {
             != 0;
         let kind = if standard.directory != 0 || attributes & FILE_ATTRIBUTE_DIRECTORY != 0 {
             EntryKind::Directory
-        } else if attributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
+        } else if attributes & FILE_ATTRIBUTE_DEVICE == 0 {
             EntryKind::File
         } else {
             EntryKind::Other
