@@ -66,13 +66,29 @@ export function ScanRootsManager({
   }, [platform]);
 
   useEffect(() => {
-    setLoadState({ kind: "loading" });
-    void refresh();
-  }, [loadAttempt, refresh]);
+    let current = true;
+    void platform.listScanRoots().then(
+      (roots) => {
+        if (current) {
+          setLoadState({ kind: "ready", roots });
+        }
+      },
+      () => {
+        if (current) {
+          setLoadState({ kind: "error" });
+        }
+      },
+    );
+
+    return () => {
+      current = false;
+    };
+  }, [loadAttempt, platform]);
 
   const retry = () => {
     setActionState({ kind: "idle" });
     setConfirmingRemoval(null);
+    setLoadState({ kind: "loading" });
     setLoadAttempt((attempt) => attempt + 1);
   };
 

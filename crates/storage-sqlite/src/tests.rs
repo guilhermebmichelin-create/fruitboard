@@ -616,9 +616,7 @@ fn scan_roots_add_list_remove_and_persist_across_restart() {
         let first = database
             .add_scan_root("Projects", "C:\\Music\\Projects")
             .unwrap();
-        let second = database
-            .add_scan_root("Loops", "D:\\Loops")
-            .unwrap();
+        let second = database.add_scan_root("Loops", "D:\\Loops").unwrap();
         assert_ne!(first.id, second.id);
         for root in [&first, &second] {
             assert!(root.enabled);
@@ -630,7 +628,10 @@ fn scan_roots_add_list_remove_and_persist_across_restart() {
 
         let listed = database.list_scan_roots().unwrap();
         assert_eq!(
-            listed.iter().map(|root| root.id.clone()).collect::<Vec<_>>(),
+            listed
+                .iter()
+                .map(|root| root.id.clone())
+                .collect::<Vec<_>>(),
             vec![first_id.clone(), second_id.clone()]
         );
 

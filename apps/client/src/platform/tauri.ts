@@ -8,7 +8,6 @@ import {
   PlatformError,
   unwrapCommandEnvelope,
   type PlatformPort,
-  type ScanRoot,
   type StartupView,
 } from "./contracts";
 

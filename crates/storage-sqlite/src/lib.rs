@@ -250,8 +250,7 @@ impl Database {
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        rows
-            .into_iter()
+        rows.into_iter()
             .map(
                 |(id, display_name, canonical_path, enabled, availability, last_error_code)| {
                     Ok(ScanRoot {
@@ -305,8 +304,7 @@ impl Database {
 
     pub fn remove_scan_root(&mut self, id: &str) -> Result<()> {
         self.transaction(|transaction| {
-            let removed =
-                transaction.execute("DELETE FROM scan_root WHERE id = ?1", [id])?;
+            let removed = transaction.execute("DELETE FROM scan_root WHERE id = ?1", [id])?;
             if removed != 1 {
                 return Err(StorageError::NotFound);
             }

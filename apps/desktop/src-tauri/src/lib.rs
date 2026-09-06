@@ -101,17 +101,13 @@ impl ScanRootsService {
         database.list_scan_roots().map_err(map_storage_error)
     }
 
-    fn add_scan_root(
-        &self,
-        display_name: String,
-        path: String,
-    ) -> Result<ScanRoot, AppError> {
+    fn add_scan_root(&self, display_name: String, path: String) -> Result<ScanRoot, AppError> {
         let display_name = display_name.trim().to_owned();
         if display_name.is_empty() {
             return Err(invalid_request());
         }
         let canonical = canonical_scan_root(&path).ok_or_else(invalid_request)?;
-        let database = self.database.lock().map_err(|_| storage_failed())?;
+        let mut database = self.database.lock().map_err(|_| storage_failed())?;
         for existing in database.list_scan_roots().map_err(map_storage_error)? {
             if roots_overlap(&existing.canonical_path, &canonical) {
                 return Err(AppError::new(
@@ -129,10 +125,8 @@ impl ScanRootsService {
         if id.is_empty() {
             return Err(invalid_request());
         }
-        let database = self.database.lock().map_err(|_| storage_failed())?;
-        database
-            .remove_scan_root(&id)
-            .map_err(map_storage_error)?;
+        let mut database = self.database.lock().map_err(|_| storage_failed())?;
+        database.remove_scan_root(&id).map_err(map_storage_error)?;
         Ok(ScanRootRemoved { id })
     }
 }
@@ -153,11 +147,7 @@ fn canonical_scan_root(path: &str) -> Option<String> {
     if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
         return Some(format!(r"\\{unc}"));
     }
-    Some(
-        text.strip_prefix(r"\\?\")
-            .unwrap_or(&text)
-            .to_owned(),
-    )
+    Some(text.strip_prefix(r"\\?\").unwrap_or(&text).to_owned())
 }
 
 /// Duplicate and ancestor/descendant roots are rejected so reconciliation
@@ -827,13 +817,9 @@ mod tests {
         {
             let scan_roots = test_scan_roots(&directory);
             let (runtime, logs) = test_runtime();
-            let response = handle_add_scan_root(
-                &runtime,
-                &scan_roots,
-                add_root_request("Music", &root_path),
-            );
-            let serialized =
-                serde_json::to_value(response).expect("add response should serialize");
+            let response =
+                handle_add_scan_root(&runtime, &scan_roots, add_root_request("Music", &root_path));
+            let serialized = serde_json::to_value(response).expect("add response should serialize");
             assert_eq!(serialized["status"], "ok");
             assert_eq!(serialized["data"]["displayName"], "Music");
             assert_eq!(logs.events()[0].operation, "add_scan_root");
@@ -848,8 +834,7 @@ mod tests {
                 &scan_roots,
                 Some(json!({ "schemaVersion": COMMAND_SCHEMA_VERSION })),
             );
-            let serialized =
-                serde_json::to_value(listed).expect("list response should serialize");
+            let serialized = serde_json::to_value(listed).expect("list response should serialize");
             assert_eq!(serialized["data"].as_array().expect("roots").len(), 1);
         }
 
@@ -865,8 +850,7 @@ mod tests {
                 "id": root_id,
             })),
         );
-        let serialized =
-            serde_json::to_value(response).expect("remove response should serialize");
+        let serialized = serde_json::to_value(response).expect("remove response should serialize");
         assert_eq!(serialized["status"], "ok");
         assert_eq!(serialized["data"]["id"], root_id);
 
@@ -902,8 +886,7 @@ mod tests {
             &scan_roots,
             add_root_request("Music again", &root_path),
         );
-        let serialized =
-            serde_json::to_value(duplicate).expect("duplicate error should serialize");
+        let serialized = serde_json::to_value(duplicate).expect("duplicate error should serialize");
         assert_eq!(serialized["status"], "error");
         assert_eq!(serialized["error"]["code"], "conflict");
 
@@ -913,8 +896,7 @@ mod tests {
             add_root_request("Child", &child_path),
         );
         assert_eq!(
-            serde_json::to_value(child).expect("overlap error should serialize")["error"]
-                ["code"],
+            serde_json::to_value(child).expect("overlap error should serialize")["error"]["code"],
             "conflict"
         );
 
@@ -923,8 +905,7 @@ mod tests {
             &scan_roots,
             add_root_request("Missing", &directory.path().join("absent")),
         );
-        let serialized =
-            serde_json::to_value(missing).expect("missing error should serialize");
+        let serialized = serde_json::to_value(missing).expect("missing error should serialize");
         assert_eq!(serialized["error"]["code"], "invalid_request");
         assert!(!serialized.to_string().contains("absent"));
 
@@ -936,8 +917,7 @@ mod tests {
             add_root_request("File", &file_path),
         );
         assert_eq!(
-            serde_json::to_value(not_directory).expect("file error should serialize")["error"]
-                ["code"],
+            serde_json::to_value(not_directory).expect("file error should serialize")["error"]["code"],
             "invalid_request"
         );
 
@@ -947,8 +927,7 @@ mod tests {
             add_root_request("   ", &root_path),
         );
         assert_eq!(
-            serde_json::to_value(unnamed).expect("name error should serialize")["error"]
-                ["code"],
+            serde_json::to_value(unnamed).expect("name error should serialize")["error"]["code"],
             "invalid_request"
         );
 
@@ -961,8 +940,7 @@ mod tests {
             })),
         );
         assert_eq!(
-            serde_json::to_value(unknown).expect("unknown error should serialize")["error"]
-                ["code"],
+            serde_json::to_value(unknown).expect("unknown error should serialize")["error"]["code"],
             "not_found"
         );
 
@@ -981,8 +959,7 @@ mod tests {
             let (runtime, logs) = test_runtime();
             let response = handle_add_scan_root(&runtime, &scan_roots, request);
             assert_eq!(
-                serde_json::to_value(response).expect("error should serialize")["error"]
-                    ["code"],
+                serde_json::to_value(response).expect("error should serialize")["error"]["code"],
                 "invalid_request"
             );
             assert_eq!(logs.events()[0].operation, "add_scan_root");
@@ -1028,8 +1005,7 @@ mod tests {
             Some(json!({ "schemaVersion": COMMAND_SCHEMA_VERSION })),
             || Option::<String>::None,
         );
-        let serialized =
-            serde_json::to_value(cancelled).expect("cancel response should serialize");
+        let serialized = serde_json::to_value(cancelled).expect("cancel response should serialize");
         assert_eq!(serialized["status"], "ok");
         assert_eq!(serialized["data"]["selectedPath"], Value::Null);
         assert_eq!(logs.events()[0].operation, "pick_scan_root");
@@ -1042,24 +1018,18 @@ mod tests {
             || Some("C:\\Music".to_owned()),
         );
         assert_eq!(
-            serde_json::to_value(picked).expect("pick response should serialize")["data"]
-                ["selectedPath"],
+            serde_json::to_value(picked).expect("pick response should serialize")["data"]["selectedPath"],
             "C:\\Music"
         );
 
         let called = std::cell::Cell::new(false);
         let (runtime, _) = test_runtime();
-        let rejected = handle_pick_scan_root(
-            &runtime,
-            Some(json!({ "schemaVersion": 0 })),
-            || {
-                called.set(true);
-                Option::<String>::None
-            },
-        );
+        let rejected = handle_pick_scan_root(&runtime, Some(json!({ "schemaVersion": 0 })), || {
+            called.set(true);
+            Option::<String>::None
+        });
         assert_eq!(
-            serde_json::to_value(rejected).expect("error should serialize")["error"]
-                ["code"],
+            serde_json::to_value(rejected).expect("error should serialize")["error"]["code"],
             "invalid_request"
         );
         assert!(!called.get());

@@ -29,6 +29,7 @@ describe("ScanRootsManager", () => {
     );
     render(<ScanRootsManager platform={platform} />);
 
+    await screen.findByRole("button", { name: "Add folder" });
     await user.click(screen.getByRole("button", { name: "Add folder" }));
 
     expect(await screen.findByText("Projects")).toBeTruthy();
@@ -60,6 +61,7 @@ describe("ScanRootsManager", () => {
       .mockRejectedValue(conflict);
     render(<ScanRootsManager platform={platform} />);
 
+    await screen.findByRole("button", { name: "Add folder" });
     await user.click(screen.getByRole("button", { name: "Add folder" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain(
@@ -74,6 +76,7 @@ describe("ScanRootsManager", () => {
       "C:\\Music\\Projects",
     );
     render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("button", { name: "Add folder" });
     await user.click(screen.getByRole("button", { name: "Add folder" }));
     await screen.findByText("Projects");
 

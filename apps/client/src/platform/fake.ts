@@ -84,7 +84,7 @@ export const pendingScanRootMethods: ScanRootMethods = {
   removeScanRoot: () => new Promise<string>(() => undefined),
 };
 
-export const failingScanRootMethods = (error: unknown): ScanRootMethods => ({
+export const failingScanRootMethods = (error: Error): ScanRootMethods => ({
   pickScanRootDirectory: () => Promise.reject(error),
   listScanRoots: () => Promise.reject(error),
   addScanRoot: () => Promise.reject(error),
