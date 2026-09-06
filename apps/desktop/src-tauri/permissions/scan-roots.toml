@@ -1,0 +1,21 @@
+"$schema" = "../gen/schemas/schema.json"
+
+[[permission]]
+identifier = "allow-list-scan-roots"
+description = "Allows the local main window to list configured scan roots."
+commands.allow = ["list_scan_roots"]
+
+[[permission]]
+identifier = "allow-add-scan-root"
+description = "Allows the local main window to store one validated scan-root directory."
+commands.allow = ["add_scan_root"]
+
+[[permission]]
+identifier = "allow-remove-scan-root"
+description = "Allows the local main window to remove scan-root configuration without touching source files."
+commands.allow = ["remove_scan_root"]
+
+[[permission]]
+identifier = "allow-pick-scan-root"
+description = "Allows the local main window to open the native folder picker and read its single-directory result."
+commands.allow = ["pick_scan_root"]
