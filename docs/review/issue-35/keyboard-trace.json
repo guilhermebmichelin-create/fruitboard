@@ -1,0 +1,180 @@
+[
+  {
+    "adapter": "stateful fake; no native picker or SQLite",
+    "name": "desktop",
+    "width": 1280,
+    "height": 800,
+    "steps": [
+      {
+        "step": "Tab to first same-name root Rename",
+        "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Tab to explicit Cancel",
+        "focus": "Cancel",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Cancel restores Rename",
+        "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Escape restores Rename",
+        "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Save restores renamed control",
+        "focus": "Rename Released",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Remove opens confirmation with Keep focused",
+        "focus": "Keep Released",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Keep cancels and restores Remove focus",
+        "focus": "Remove Released",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Second confirmation keeps focus safe",
+        "focus": "Keep Released",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      },
+      {
+        "step": "Removal restores Add folder focus",
+        "focus": "Add folder",
+        "overflow": false,
+        "viewport": [
+          1280,
+          800
+        ]
+      }
+    ]
+  },
+  {
+    "adapter": "stateful fake; no native picker or SQLite",
+    "name": "narrow",
+    "width": 390,
+    "height": 844,
+    "steps": [
+      {
+        "step": "Tab to first same-name root Rename",
+        "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Tab to explicit Cancel",
+        "focus": "Cancel",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Cancel restores Rename",
+        "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Escape restores Rename",
+        "focus": "Rename Projects (C:\\Synthetic\\Music\\Projects)",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Save restores renamed control",
+        "focus": "Rename Released",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Remove opens confirmation with Keep focused",
+        "focus": "Keep Released",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Keep cancels and restores Remove focus",
+        "focus": "Remove Released",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Second confirmation keeps focus safe",
+        "focus": "Keep Released",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      },
+      {
+        "step": "Removal restores Add folder focus",
+        "focus": "Add folder",
+        "overflow": false,
+        "viewport": [
+          390,
+          844
+        ]
+      }
+    ]
+  }
+]

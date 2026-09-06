@@ -302,6 +302,59 @@ describe("ScanRootsManager", () => {
     });
   });
 
+  it("keeps same-name removal confirmation and cancellation in the keyboard flow", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatform();
+    const first = "C:\\Music\\Projects";
+    const second = "D:\\Archive\\Projects";
+    await platform.addScanRoot("Projects", first);
+    await platform.addScanRoot("Projects", second);
+    render(<ScanRootsManager platform={platform} />);
+
+    const firstRemove = await screen.findByRole("button", {
+      name: `Remove Projects (${first})`,
+    });
+    firstRemove.focus();
+    await user.keyboard("{Enter}");
+
+    const firstKeep = await screen.findByRole("button", {
+      name: `Keep Projects (${first})`,
+    });
+    await waitFor(() => expect(document.activeElement).toBe(firstKeep));
+
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: `Remove Projects (${first})` }),
+      ),
+    );
+    expect(screen.getByText(first)).toBeTruthy();
+    expect(screen.getByText(second)).toBeTruthy();
+
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: `Keep Projects (${first})` }),
+      ),
+    );
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", {
+        name: `Confirm removal of Projects (${first})`,
+      }),
+    );
+    await user.keyboard("{Enter}");
+
+    await screen.findByText("Folder removed.");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Add folder" }),
+      ),
+    );
+    expect(screen.queryByText(first)).toBeNull();
+    expect(screen.getByText(second)).toBeTruthy();
+  });
+
   it("reports a stale list when the toggle succeeds but refresh fails", async () => {
     const user = userEvent.setup();
     const platform = createFakePlatformWithPickedDirectory(
@@ -384,6 +437,67 @@ describe("ScanRootsManager", () => {
         screen.getByRole("button", { name: "Rename Released" }),
       );
     });
+  });
+
+  it("restores Rename focus after explicit Cancel without saving the draft", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatform();
+    await platform.addScanRoot("Projects", "C:\\Music\\Projects");
+    const update = vi.spyOn(platform, "updateScanRootDisplayName");
+    render(<ScanRootsManager platform={platform} />);
+    await user.click(
+      await screen.findByRole("button", { name: "Rename Projects" }),
+    );
+    await user.type(screen.getByLabelText("Folder name"), " draft");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Rename Projects" }),
+      ),
+    );
+    expect(screen.queryByLabelText("Folder name")).toBeNull();
+    expect(update).not.toHaveBeenCalled();
+    expect((await platform.listScanRoots())[0]?.displayName).toBe("Projects");
+  });
+
+  it("distinguishes same-name roots and removes only the selected path", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatform();
+    const first = "C:\\Music\\Projects";
+    const second = "D:\\Archive\\Projects";
+    await platform.addScanRoot("Projects", first);
+    await platform.addScanRoot("Projects", second);
+    render(<ScanRootsManager platform={platform} />);
+    for (const path of [first, second]) {
+      expect(
+        await screen.findByRole("button", {
+          name: `Rename Projects (${path})`,
+        }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("checkbox", { name: `Projects (${path}) enabled` }),
+      ).toBeTruthy();
+      expect(
+        screen.getByRole("button", { name: `Remove Projects (${path})` }),
+      ).toBeTruthy();
+    }
+    await user.click(
+      screen.getByRole("button", { name: `Remove Projects (${second})` }),
+    );
+    expect(
+      screen.getByRole("button", { name: `Keep Projects (${second})` }),
+    ).toBeTruthy();
+    await user.click(
+      screen.getByRole("button", {
+        name: `Confirm removal of Projects (${second})`,
+      }),
+    );
+    await screen.findByText("Folder removed.");
+    expect(screen.queryByText(second)).toBeNull();
+    expect(screen.getByText(first)).toBeTruthy();
+    expect(await platform.listScanRoots()).toEqual([
+      expect.objectContaining({ canonicalPath: first }),
+    ]);
   });
 
   it("gives repeated root controls distinguishable names", async () => {

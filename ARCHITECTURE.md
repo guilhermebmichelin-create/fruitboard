@@ -301,11 +301,6 @@ flowchart LR
    folder picker runs off the main thread,
    cancellation yields a null selection, duplicates and ancestor/descendant
    overlaps are rejected, unavailable paths are refused, and removal deletes
-   configuration only. Steps 2-7 remain later slices. Step 1 is implemented in #34
-   (`pick_scan_root`, `list_scan_roots`, `add_scan_root`, `remove_scan_root`
-   through migration 002): the native folder picker runs off the main thread,
-   cancellation yields a null selection, duplicates and ancestor/descendant
-   overlaps are rejected, unavailable paths are refused, and removal deletes
    configuration only. Steps 2-7 remain later slices.
 2. Initial reconciliation enumerates `.flp` files asynchronously in bounded
    batches. It records a scan generation and marks files seen.
