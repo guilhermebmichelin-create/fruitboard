@@ -34,6 +34,41 @@ fn upgraded_migrations(sql: &'static str) -> Vec<Migration> {
     migrations
 }
 
+fn publish_empty_scan(database: &mut Database, lease: &LeasedScan, now_ms: i64) {
+    database
+        .begin_scan_staging(
+            &lease.run.id,
+            &lease.run.session_id,
+            &lease.run.lease_token,
+            now_ms,
+        )
+        .unwrap();
+    database
+        .publish_scan_run(
+            &lease.run.id,
+            &lease.run.session_id,
+            &lease.run.lease_token,
+            now_ms,
+        )
+        .unwrap();
+}
+
+fn staged_observation(
+    path: &str,
+    byte_size: u64,
+    modified_at_ms: i64,
+    identity: Option<&str>,
+) -> ScanObservation {
+    ScanObservation {
+        normalized_path: path.to_owned(),
+        relative_path: path.to_owned(),
+        byte_size,
+        modified_at_ms,
+        volume_id: identity.map(|_| 1),
+        filesystem_file_id: identity.map(str::to_owned),
+    }
+}
+
 #[test]
 fn embedded_runtime_passes_the_shared_policy() {
     println!("Embedded SQLite runtime: {}", sqlite_version());
@@ -45,7 +80,7 @@ fn creates_latest_and_reopens_without_reseeding_settings() {
     let directory = TestDirectory::new();
     {
         let mut database = Database::open(directory.path()).unwrap();
-        assert_eq!(database.schema_version().unwrap(), 3);
+        assert_eq!(database.schema_version().unwrap(), 4);
         assert_eq!(database.startup_view().unwrap(), StartupView::Home);
         database.set_startup_view(StartupView::Library).unwrap();
     }
@@ -95,7 +130,7 @@ fn future_upgrade_creates_a_restorable_pre_migration_backup() {
     let database = Database::open_with_migrations(directory.path(), &migrations).unwrap();
     assert_eq!(
         migrations::version(&database.connection, &migrations).unwrap(),
-        4
+        5
     );
     let backups: Vec<_> = fs::read_dir(directory.path().join("storage/backups"))
         .unwrap()
@@ -104,7 +139,7 @@ fn future_upgrade_creates_a_restorable_pre_migration_backup() {
     assert_eq!(backups.len(), 1);
     let recovered_directory = TestDirectory::new();
     let recovered = Database::recover_to(&backups[0], recovered_directory.path()).unwrap();
-    assert_eq!(recovered.schema_version().unwrap(), 3);
+    assert_eq!(recovered.schema_version().unwrap(), 4);
     assert_eq!(recovered.startup_view().unwrap(), StartupView::Preferences);
 }
 
@@ -130,7 +165,7 @@ fn failed_migration_rolls_back_schema_data_and_ledger() {
     ));
     assert_eq!(fs::read(directory.database()).unwrap(), before);
     let database = Database::open(directory.path()).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 3);
+    assert_eq!(database.schema_version().unwrap(), 4);
     assert_eq!(database.startup_view().unwrap(), StartupView::Library);
     assert_eq!(database.list_scan_roots().unwrap().len(), 1);
     let count: i64 = database
@@ -646,7 +681,7 @@ fn killed_migration_recovers_the_original_committed_database() {
             .exists()
     );
     let recovered = Database::open(directory.path()).unwrap();
-    assert_eq!(recovered.schema_version().unwrap(), 3);
+    assert_eq!(recovered.schema_version().unwrap(), 4);
     assert_eq!(recovered.startup_view().unwrap(), StartupView::Library);
     migrations::validate_integrity(&recovered.connection).unwrap();
     assert!(
@@ -784,7 +819,7 @@ fn upgrade_from_v1_preserves_preferences_and_starts_empty_roots() {
         fixture.set_startup_view(StartupView::Board).unwrap();
     }
     let database = Database::open(directory.path()).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 3);
+    assert_eq!(database.schema_version().unwrap(), 4);
     assert_eq!(database.startup_view().unwrap(), StartupView::Board);
     assert!(database.list_scan_roots().unwrap().is_empty());
 }
@@ -910,16 +945,9 @@ fn durable_scan_jobs_coalesce_and_schedule_one_follow_up() {
         .unwrap();
     assert_eq!(follow_up.job.id, jobs[1].id);
     assert!(follow_up.run.generation > lease.run.generation);
+    publish_empty_scan(&mut database, &follow_up, jobs[1].not_before_ms + 1);
     assert_eq!(
-        database
-            .finish_scan_run(
-                &follow_up.run.id,
-                "session-1",
-                &follow_up.run.lease_token,
-                jobs[1].not_before_ms + 1,
-                ScanRunOutcome::Completed,
-            )
-            .unwrap(),
+        database.scan_run(&follow_up.run.id).unwrap().state,
         ScanRunState::Completed
     );
 }
@@ -1104,15 +1132,20 @@ fn execution_finish_transition_matrix_covers_outcomes_followups_and_cancellation
                 ScanRunState::Running => ScanJobState::Running,
             };
             assert_eq!(
-                database
-                    .finish_scan_run(
-                        &lease.run.id,
-                        "finish-matrix-session",
-                        &lease.run.lease_token,
-                        6,
-                        case.outcome,
-                    )
-                    .unwrap(),
+                if expected_outcome == ScanRunOutcome::Completed {
+                    publish_empty_scan(&mut database, &lease, 6);
+                    ScanRunState::Completed
+                } else {
+                    database
+                        .finish_scan_run(
+                            &lease.run.id,
+                            "finish-matrix-session",
+                            &lease.run.lease_token,
+                            6,
+                            case.outcome,
+                        )
+                        .unwrap()
+                },
                 expected_state,
                 "{} budget {budget_index}",
                 case.name
@@ -1161,16 +1194,9 @@ fn execution_finish_transition_matrix_covers_outcomes_followups_and_cancellation
                 assert_eq!(resumed.job.id, follow_up.id);
                 assert_eq!(resumed.job.attempt, 1);
                 assert!(resumed.run.generation > lease.run.generation);
+                publish_empty_scan(&mut database, &resumed, 7);
                 assert_eq!(
-                    database
-                        .finish_scan_run(
-                            &resumed.run.id,
-                            "finish-matrix-session",
-                            &resumed.run.lease_token,
-                            7,
-                            ScanRunOutcome::Completed,
-                        )
-                        .unwrap(),
+                    database.scan_run(&resumed.run.id).unwrap().state,
                     ScanRunState::Completed
                 );
             }
@@ -1554,15 +1580,7 @@ fn durable_lease_policy_starts_with_one_global_worker() {
             .unwrap()
             .is_none()
     );
-    database
-        .finish_scan_run(
-            &lease.run.id,
-            "session-1",
-            &lease.run.lease_token,
-            5,
-            ScanRunOutcome::Completed,
-        )
-        .unwrap();
+    publish_empty_scan(&mut database, &lease, 5);
     let next = database
         .lease_next_scan("session-1", 6, 100)
         .unwrap()
@@ -1608,16 +1626,9 @@ fn failed_attempt_can_be_explicitly_retried_with_a_fresh_run() {
     assert_eq!(second.job.retry_chain_id, chain);
     assert_eq!(second.job.attempt, 2);
     assert!(second.run.generation > first.run.generation);
+    publish_empty_scan(&mut database, &second, 7);
     assert_eq!(
-        database
-            .finish_scan_run(
-                &second.run.id,
-                "session-1",
-                &second.run.lease_token,
-                7,
-                ScanRunOutcome::Completed,
-            )
-            .unwrap(),
+        database.scan_run(&second.run.id).unwrap().state,
         ScanRunState::Completed
     );
     database
@@ -1629,16 +1640,9 @@ fn failed_attempt_can_be_explicitly_retried_with_a_fresh_run() {
         .unwrap();
     assert_eq!(third.job.attempt, 1);
     assert!(third.run.generation > second.run.generation);
+    publish_empty_scan(&mut database, &third, 10);
     assert_eq!(
-        database
-            .finish_scan_run(
-                &third.run.id,
-                "session-1",
-                &third.run.lease_token,
-                10,
-                ScanRunOutcome::Completed,
-            )
-            .unwrap(),
+        database.scan_run(&third.run.id).unwrap().state,
         ScanRunState::Completed
     );
 }
@@ -2186,16 +2190,9 @@ fn cancellation_ordering_is_durable_and_late_cancel_cannot_roll_back() {
         .lease_next_scan("session-1", 8, 100)
         .unwrap()
         .unwrap();
+    publish_empty_scan(&mut database, &completed, 9);
     assert_eq!(
-        database
-            .finish_scan_run(
-                &completed.run.id,
-                "session-1",
-                &completed.run.lease_token,
-                9,
-                ScanRunOutcome::Completed,
-            )
-            .unwrap(),
+        database.scan_run(&completed.run.id).unwrap().state,
         ScanRunState::Completed
     );
     assert_eq!(
@@ -2288,12 +2285,622 @@ fn migration_to_execution_schema_preserves_roots_preferences_and_defaults() {
             .unwrap();
     }
     let database = Database::open(directory.path()).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 3);
+    assert_eq!(database.schema_version().unwrap(), 4);
     assert_eq!(database.startup_view().unwrap(), StartupView::Board);
     let root = &database.list_scan_roots().unwrap()[0];
     let execution = database.scan_root_execution(&root.id).unwrap();
     assert_eq!(
         (execution.configuration_revision, execution.generation),
         (0, 0)
+    );
+}
+
+#[test]
+fn staging_is_invisible_until_atomic_publication_and_tracks_aliases() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database
+        .begin_scan_session("publication-session", 1)
+        .unwrap();
+    let job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("publication-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        database.finish_scan_run(
+            &lease.run.id,
+            "publication-session",
+            &lease.run.lease_token,
+            4,
+            ScanRunOutcome::Completed,
+        ),
+        Err(StorageError::Conflict)
+    ));
+    let observations = [
+        staged_observation("a.flp", 10, 20, Some("file-1")),
+        staged_observation("b.flp", 10, 20, Some("file-1")),
+    ];
+    let staging = database
+        .stage_scan_observations(
+            &lease.run.id,
+            "publication-session",
+            &lease.run.lease_token,
+            4,
+            &observations,
+        )
+        .unwrap();
+    assert_eq!(staging.state, ScanStageState::Open);
+    assert_eq!(staging.record_count, 2);
+    assert!(
+        database
+            .list_published_locations(&root.id)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        database.scan_run(&lease.run.id).unwrap().state,
+        ScanRunState::Running
+    );
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Running
+    );
+
+    let publication = database
+        .publish_scan_run(
+            &lease.run.id,
+            "publication-session",
+            &lease.run.lease_token,
+            5,
+        )
+        .unwrap();
+    assert_eq!(publication.location_count, 2);
+    assert_eq!(
+        database.scan_run(&lease.run.id).unwrap().state,
+        ScanRunState::Completed
+    );
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Completed
+    );
+    let locations = database.list_published_locations(&root.id).unwrap();
+    assert_eq!(locations.len(), 2);
+    let marker = database.scan_root_publication(&root.id).unwrap();
+    assert!(
+        locations
+            .iter()
+            .all(|location| location.presence == FilePresence::Present)
+    );
+    assert_eq!(locations[0].project_file_id, locations[1].project_file_id);
+    assert_eq!(
+        marker.last_successful_run_id.as_deref(),
+        Some(lease.run.id.as_str())
+    );
+    assert_eq!(
+        marker.last_successful_generation,
+        Some(lease.run.generation)
+    );
+    assert_eq!(marker.last_successful_at_ms, Some(5));
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().state,
+        ScanStageState::Published
+    );
+}
+
+#[test]
+fn publication_marks_missing_and_restores_each_alias_without_collapsing_it() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("presence-session", 1).unwrap();
+
+    let _first_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let first = database
+        .lease_next_scan("presence-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    let initial = [
+        staged_observation("a.flp", 10, 20, Some("same")),
+        staged_observation("b.flp", 10, 20, Some("same")),
+    ];
+    database
+        .stage_scan_observations(
+            &first.run.id,
+            "presence-session",
+            &first.run.lease_token,
+            4,
+            &initial,
+        )
+        .unwrap();
+    database
+        .publish_scan_run(&first.run.id, "presence-session", &first.run.lease_token, 5)
+        .unwrap();
+    let initial_locations = database.list_published_locations(&root.id).unwrap();
+    let shared_file = initial_locations[0].project_file_id.clone();
+
+    let second_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 6)
+        .unwrap();
+    let second = database
+        .lease_next_scan("presence-session", 7, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(second.job.id, second_job.job_id);
+    database
+        .stage_scan_observations(
+            &second.run.id,
+            "presence-session",
+            &second.run.lease_token,
+            8,
+            &[staged_observation("b.flp", 10, 20, Some("same"))],
+        )
+        .unwrap();
+    database
+        .publish_scan_run(
+            &second.run.id,
+            "presence-session",
+            &second.run.lease_token,
+            9,
+        )
+        .unwrap();
+    let missing = database.list_published_locations(&root.id).unwrap();
+    assert_eq!(missing.len(), 2);
+    let a = missing
+        .iter()
+        .find(|location| location.normalized_path == "a.flp")
+        .unwrap();
+    let b = missing
+        .iter()
+        .find(|location| location.normalized_path == "b.flp")
+        .unwrap();
+    assert_eq!(a.presence, FilePresence::Missing);
+    assert_eq!(b.presence, FilePresence::Present);
+    assert_eq!(b.project_file_id, shared_file);
+
+    let third_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 10)
+        .unwrap();
+    let third = database
+        .lease_next_scan("presence-session", 11, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(third.job.id, third_job.job_id);
+    let restored = [
+        staged_observation("a.flp", 10, 20, Some("same")),
+        staged_observation("b.flp", 10, 20, Some("same")),
+    ];
+    database
+        .stage_scan_observations(
+            &third.run.id,
+            "presence-session",
+            &third.run.lease_token,
+            12,
+            &restored,
+        )
+        .unwrap();
+    database
+        .publish_scan_run(
+            &third.run.id,
+            "presence-session",
+            &third.run.lease_token,
+            13,
+        )
+        .unwrap();
+    let restored_locations = database.list_published_locations(&root.id).unwrap();
+    assert!(
+        restored_locations
+            .iter()
+            .all(|location| location.presence == FilePresence::Present)
+    );
+    assert!(
+        restored_locations
+            .iter()
+            .all(|location| location.project_file_id == shared_file)
+    );
+}
+
+#[test]
+fn publication_rejects_stale_or_cancelled_runs_without_touching_committed_rows() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("fence-session", 1).unwrap();
+    let job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("fence-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            "fence-session",
+            &lease.run.lease_token,
+            4,
+            &[staged_observation("stale.flp", 1, 1, None)],
+        )
+        .unwrap();
+    assert!(matches!(
+        database.publish_scan_run(&lease.run.id, "fence-session", "stale-token", 5),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().state,
+        ScanStageState::Open
+    );
+    database
+        .request_scan_cancellation(&lease.run.id, 5)
+        .unwrap();
+    assert!(matches!(
+        database.publish_scan_run(&lease.run.id, "fence-session", &lease.run.lease_token, 6),
+        Err(StorageError::Conflict)
+    ));
+    assert!(
+        database
+            .list_published_locations(&root.id)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().state,
+        ScanStageState::Discarded
+    );
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Running
+    );
+
+    let next = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 7)
+        .unwrap();
+    assert!(next.coalesced);
+    database.cancel_scan_job(&job.job_id, 8).unwrap();
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Running
+    );
+}
+
+#[test]
+fn publication_rolls_back_visible_rows_and_ledger_on_apply_failure() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("rollback-session", 1).unwrap();
+    let first_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let first = database
+        .lease_next_scan("rollback-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .stage_scan_observations(
+            &first.run.id,
+            "rollback-session",
+            &first.run.lease_token,
+            4,
+            &[staged_observation("old.flp", 1, 1, None)],
+        )
+        .unwrap();
+    database
+        .publish_scan_run(&first.run.id, "rollback-session", &first.run.lease_token, 5)
+        .unwrap();
+    let committed_before = database.list_published_locations(&root.id).unwrap();
+    let marker_before = database.scan_root_publication(&root.id).unwrap();
+
+    let second_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 6)
+        .unwrap();
+    let second = database
+        .lease_next_scan("rollback-session", 7, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .stage_scan_observations(
+            &second.run.id,
+            "rollback-session",
+            &second.run.lease_token,
+            8,
+            &[staged_observation("new.flp", 2, 2, None)],
+        )
+        .unwrap();
+    database
+        .connection
+        .execute_batch(
+            "CREATE TRIGGER fail_publication_project_file
+             BEFORE INSERT ON project_file
+             BEGIN SELECT RAISE(ABORT, 'injected publication failure'); END;",
+        )
+        .unwrap();
+    assert!(matches!(
+        database.publish_scan_run(
+            &second.run.id,
+            "rollback-session",
+            &second.run.lease_token,
+            9,
+        ),
+        Err(StorageError::Database)
+    ));
+    database
+        .connection
+        .execute_batch("DROP TRIGGER fail_publication_project_file;")
+        .unwrap();
+    assert_eq!(
+        database.list_published_locations(&root.id).unwrap(),
+        committed_before
+    );
+    assert_eq!(
+        database.scan_root_publication(&root.id).unwrap(),
+        marker_before
+    );
+    assert_eq!(
+        database.scan_run(&second.run.id).unwrap().state,
+        ScanRunState::Running
+    );
+    assert_eq!(
+        database.scan_job(&second_job.job_id).unwrap().state,
+        ScanJobState::Running
+    );
+    assert_eq!(
+        database.scan_staging(&second.run.id).unwrap().state,
+        ScanStageState::Open
+    );
+    database
+        .publish_scan_run(
+            &second.run.id,
+            "rollback-session",
+            &second.run.lease_token,
+            10,
+        )
+        .unwrap();
+    let committed_after = database.list_published_locations(&root.id).unwrap();
+    assert_eq!(committed_after.len(), 2);
+    assert!(
+        committed_after
+            .iter()
+            .any(|location| location.normalized_path == "old.flp")
+    );
+    assert!(
+        committed_after
+            .iter()
+            .any(|location| location.normalized_path == "new.flp")
+    );
+    assert_eq!(
+        database.scan_job(&first_job.job_id).unwrap().state,
+        ScanJobState::Completed
+    );
+}
+
+#[test]
+fn recovery_discards_open_staging_and_root_removal_detaches_history() {
+    let source_directory = TestDirectory::new();
+    let (backup, root_id, run_id) = {
+        let mut database = Database::open(source_directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("recovery-session", 1).unwrap();
+        let _job = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("recovery-session", 3, 100)
+            .unwrap()
+            .unwrap();
+        database
+            .stage_scan_observations(
+                &lease.run.id,
+                "recovery-session",
+                &lease.run.lease_token,
+                4,
+                &[staged_observation("history.flp", 1, 1, Some("history"))],
+            )
+            .unwrap();
+        let backup = database.create_backup().unwrap();
+        (backup, root.id, lease.run.id)
+    };
+    let recovered_directory = TestDirectory::new();
+    let mut recovered = Database::recover_to(&backup, recovered_directory.path()).unwrap();
+    assert_eq!(
+        recovered.scan_staging(&run_id).unwrap().state,
+        ScanStageState::Discarded
+    );
+    assert_eq!(
+        recovered.scan_run(&run_id).unwrap().state,
+        ScanRunState::Interrupted
+    );
+    assert!(
+        recovered
+            .list_published_locations(&root_id)
+            .unwrap()
+            .is_empty()
+    );
+
+    let root = recovered.list_scan_roots().unwrap().remove(0);
+    recovered.begin_scan_session("detach-session", 20).unwrap();
+    let job = recovered
+        .enqueue_scan(&root.id, ScanKind::Manual, 21)
+        .unwrap();
+    let queued = recovered.scan_job(&job.job_id).unwrap();
+    let lease = recovered
+        .lease_next_scan("detach-session", queued.not_before_ms, 100)
+        .unwrap()
+        .unwrap();
+    let staged_at = queued.not_before_ms + 1;
+    recovered
+        .stage_scan_observations(
+            &lease.run.id,
+            "detach-session",
+            &lease.run.lease_token,
+            staged_at,
+            &[staged_observation("history.flp", 1, 1, Some("history"))],
+        )
+        .unwrap();
+    recovered
+        .publish_scan_run(
+            &lease.run.id,
+            "detach-session",
+            &lease.run.lease_token,
+            staged_at + 1,
+        )
+        .unwrap();
+    recovered
+        .remove_scan_root_at(&root.id, staged_at + 2)
+        .unwrap();
+    let detached = recovered.list_detached_locations().unwrap();
+    assert_eq!(detached.len(), 1);
+    assert_eq!(detached[0].scan_root_id, None);
+    assert_eq!(
+        detached[0].detached_scan_root_id.as_deref(),
+        Some(root.id.as_str())
+    );
+    assert_eq!(detached[0].presence, FilePresence::Present);
+    assert_eq!(
+        recovered.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Completed
+    );
+
+    let replacement = recovered
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    assert_ne!(replacement.id, root.id);
+    assert!(
+        recovered
+            .list_published_locations(&replacement.id)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(recovered.list_detached_locations().unwrap().len(), 1);
+}
+
+#[test]
+fn staging_batches_enforce_record_and_path_budgets_before_writing() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("quota-session", 1).unwrap();
+    let _job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("quota-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    let too_many: Vec<_> = (0..(MAX_STAGED_BATCH_RECORDS + 1))
+        .map(|index| staged_observation(&format!("file-{index}.flp"), 1, 1, None))
+        .collect();
+    assert!(matches!(
+        database.stage_scan_observations(
+            &lease.run.id,
+            "quota-session",
+            &lease.run.lease_token,
+            4,
+            &too_many,
+        ),
+        Err(StorageError::Conflict)
+    ));
+    assert!(matches!(
+        database.scan_staging(&lease.run.id),
+        Err(StorageError::NotFound)
+    ));
+
+    let mut too_wide = Vec::new();
+    for index in 0..66 {
+        let path = format!("{}-{index:02}", "x".repeat(32_000));
+        too_wide.push(staged_observation(&path, 1, 1, None));
+    }
+    assert!(matches!(
+        database.stage_scan_observations(
+            &lease.run.id,
+            "quota-session",
+            &lease.run.lease_token,
+            5,
+            &too_wide,
+        ),
+        Err(StorageError::Conflict)
+    ));
+    assert!(matches!(
+        database.scan_staging(&lease.run.id),
+        Err(StorageError::NotFound)
+    ));
+
+    let mut next_index = 0usize;
+    for batch in 0..(MAX_STAGED_RECORDS as usize / MAX_STAGED_BATCH_RECORDS) {
+        let observations: Vec<_> = (0..MAX_STAGED_BATCH_RECORDS)
+            .map(|offset| {
+                let index = next_index + offset;
+                staged_observation(&format!("bounded-{batch}-{index}.flp"), 1, 1, None)
+            })
+            .collect();
+        database
+            .stage_scan_observations(
+                &lease.run.id,
+                "quota-session",
+                &lease.run.lease_token,
+                6 + batch as i64,
+                &observations,
+            )
+            .unwrap();
+        next_index += MAX_STAGED_BATCH_RECORDS;
+    }
+    let remainder = MAX_STAGED_RECORDS as usize % MAX_STAGED_BATCH_RECORDS;
+    let observations: Vec<_> = (0..remainder)
+        .map(|offset| {
+            staged_observation(
+                &format!("bounded-remainder-{}.flp", next_index + offset),
+                1,
+                1,
+                None,
+            )
+        })
+        .collect();
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            "quota-session",
+            &lease.run.lease_token,
+            100,
+            &observations,
+        )
+        .unwrap();
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().record_count,
+        MAX_STAGED_RECORDS
+    );
+    assert!(matches!(
+        database.stage_scan_observations(
+            &lease.run.id,
+            "quota-session",
+            &lease.run.lease_token,
+            101,
+            &[staged_observation("over-budget.flp", 1, 1, None)],
+        ),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().record_count,
+        MAX_STAGED_RECORDS
+    );
+    assert_eq!(
+        database.scan_job(&_job.job_id).unwrap().state,
+        ScanJobState::Running
     );
 }

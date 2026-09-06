@@ -13,9 +13,9 @@ gates, and a Windows packaging smoke. It still has no scanner, parser, project
 workflow, sync, or PWA. Phase 2 proceeds under epic #33: scan-root storage with
 a native folder picker (#34), root settings with inline Preferences onboarding
 (#35), the bounded reconciliation reference core (#36), and the durable
-execution foundation (#38) have landed. Filesystem traversal,
-staging/publication, watcher, production scanning, and parser work remain
-ahead.
+execution foundation (#38) and the fenced staging/publication storage boundary
+for #40 have landed. Filesystem traversal, watcher integration, the Library
+journey, production scanning, and parser work remain ahead.
 
 Tracking starts at
 [Phase 2 epic #33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)

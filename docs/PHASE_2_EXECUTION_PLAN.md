@@ -3,7 +3,7 @@
 Status: **Accepted for implementation; not an implementation or measured
 performance claim.** Owner checkpoint: 2026-09-06 accepted the shared contracts
 and proposed starting budgets below. Inline Preferences onboarding remains a
-separate pending decision. Baseline: main `7870377` (PR #60), 2026-09-06. This
+separate pending decision. Baseline: main `82bc651` (PR #61), 2026-09-06. This
 document makes the accepted filesystem-only direction executable. Do not
 silently relax safety gates to meet a target. ROADMAP remains the milestone
 sequence; this document owns the detailed Phase 2 contracts and acceptance IDs
@@ -17,9 +17,10 @@ referenced by issues.
 | Delivered | #35 persistent rename/enabled settings, inline onboarding, failure/focus fixes | PRs #55/#56/#58; CI and regression tests; not scanner execution |
 | Delivered | #35 rendered desktop/narrow keyboard verification | [Evidence](review/issue-35/README.md) and PR #58; fake-adapter rendering is labeled separately from installed-app evidence |
 | Delivered | #36 bounded reconciliation reference core | PR #59 and `crates/reconciliation/README.md`; deterministic in-memory foundation only, not filesystem enumeration or production scanning |
-| Delivered | #38 durable scan execution foundation | PR #60 and [durable execution evidence](PHASE_2_DURABLE_EXECUTION.md); migrations, jobs, runs, leases and recovery fencing only |
+| Delivered | #38 durable scan execution foundation | PRs #60/#61 and [durable execution evidence](PHASE_2_DURABLE_EXECUTION.md); migrations, jobs, runs, leases and recovery fencing only |
 | Decision pending | Inline Preferences onboarding instead of a separate first-run route | Implementation documented; owner review remains separate from the accepted scanner contracts |
-| Next | Implement #40 staging/publication and integrate bounded #36 enumeration | Keep production scanning hidden until incomplete-run, restart and atomic-publication tests pass |
+| In progress | #40 durable staging/publication storage slice | [Publication evidence](PHASE_2_DURABLE_PUBLICATION.md); migration 004 and typed storage APIs; traversal, Library UI and production scanning remain open |
+| Next | Integrate bounded #36 enumeration and the minimal Library journey | Keep production scanning hidden until incomplete-run, restart and atomic-publication tests pass |
 | Blocked/unverified | DriveFS modes (#47), cross-volume/FAT32 identity (#48) | #42/#43 closed with partial findings, not blanket platform qualification |
 | Deferred | Parsing (#39), logical grouping, Kanban, playback, sync, PWA | Phase 2 is filesystem-only; bounded independent Rust-parser spike follows accepted MVP |
 

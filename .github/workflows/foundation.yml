@@ -158,6 +158,12 @@ jobs:
           cargo test -p fruitboard-storage --locked pending_follow_up_survives_restart_and_invalidates_the_resumed_attempt
           cargo test -p fruitboard-storage --locked pending_follow_up_is_suppressed_by_cancellation_disable_and_removal
           cargo test -p fruitboard-storage --locked disabling_and_removing_roots_invalidate_work_and_readding_gets_new_identity
+          cargo test -p fruitboard-storage --locked staging_is_invisible_until_atomic_publication_and_tracks_aliases
+          cargo test -p fruitboard-storage --locked publication_marks_missing_and_restores_each_alias_without_collapsing_it
+          cargo test -p fruitboard-storage --locked publication_rejects_stale_or_cancelled_runs_without_touching_committed_rows
+          cargo test -p fruitboard-storage --locked publication_rolls_back_visible_rows_and_ledger_on_apply_failure
+          cargo test -p fruitboard-storage --locked recovery_discards_open_staging_and_root_removal_detaches_history
+          cargo test -p fruitboard-storage --locked staging_batches_enforce_record_and_path_budgets_before_writing
           cargo test -p fruitboard-storage --locked killed_migration_recovers_the_original_committed_database
           cargo test -p fruitboard-storage --locked backup_recovers_committed_state_after_original_corruption_without_overwriting_it
 
