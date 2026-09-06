@@ -4,7 +4,7 @@ This isolated Rust library proposes per-path changes from normalized metadata
 observations for one root. It has no dependencies, filesystem I/O, parser,
 SQLite connection, watcher, renderer command or production scan entry point.
 It implements the deterministic decision slice of the
-[scanner contract proposal](https://github.com/guilhermebmichelin-create/fruitboard/pull/57),
+[accepted scanner contracts](https://github.com/guilhermebmichelin-create/fruitboard/blob/main/docs/PHASE_2_EXECUTION_PLAN.md),
 not the integrated scanner.
 
 An incomplete outcome rejects the entire proposal. A successful outcome can
