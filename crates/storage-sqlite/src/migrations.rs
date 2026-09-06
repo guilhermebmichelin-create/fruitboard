@@ -11,8 +11,13 @@ pub(crate) const MIGRATIONS: &[Migration] = &[
         name: "002_scan_roots",
         sql: include_str!("../migrations/002_scan_roots.sql"),
     },
+    Migration {
+        name: "003_scan_execution",
+        sql: include_str!("../migrations/003_scan_execution.sql"),
+    },
 ];
 
+#[derive(Clone, Copy)]
 pub(crate) struct Migration {
     pub(crate) name: &'static str,
     pub(crate) sql: &'static str,

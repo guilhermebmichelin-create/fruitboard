@@ -1,9 +1,14 @@
 //! Native-only SQLite ownership. No connection, SQL executor, or path is sent to IPC.
 mod error;
+mod execution;
 mod files;
 mod migrations;
 
 pub use error::{Result, StorageError};
+pub use execution::{
+    DEFAULT_SCAN_MAX_ATTEMPTS, EnqueueResult, LeasedScan, ScanJob, ScanJobState, ScanKind,
+    ScanRootExecution, ScanRun, ScanRunOutcome, ScanRunState, ScanSession,
+};
 use files::{Location, check_path, private_directory, private_file};
 use migrations::{MIGRATIONS, Migration};
 use rusqlite::{
@@ -193,6 +198,7 @@ impl Database {
             migrations::apply(&mut connection, MIGRATIONS)
                 .map_err(|_| StorageError::MigrationFailed)?;
         }
+        execution::invalidate_inflight_after_recovery(&mut connection, execution::wall_clock_ms())?;
         drop(connection);
         std::fs::rename(&pending, location.database())?;
         let connection = connect(&location.database(), false)?;
@@ -326,16 +332,6 @@ impl Database {
         Self::scan_root_from_tuple(row)
     }
 
-    pub fn remove_scan_root(&mut self, id: &str) -> Result<()> {
-        self.transaction(|transaction| {
-            let removed = transaction.execute("DELETE FROM scan_root WHERE id = ?1", [id])?;
-            if removed != 1 {
-                return Err(StorageError::NotFound);
-            }
-            Ok(())
-        })
-    }
-
     pub fn set_scan_root_display_name(&mut self, id: &str, display_name: &str) -> Result<ScanRoot> {
         if display_name.is_empty() {
             return Err(StorageError::InvalidSchema);
@@ -344,19 +340,6 @@ impl Database {
             let changed = transaction.execute(
                 "UPDATE scan_root SET display_name = ?1 WHERE id = ?2",
                 rusqlite::params![display_name, id],
-            )?;
-            if changed != 1 {
-                return Err(StorageError::NotFound);
-            }
-            Self::select_scan_root(transaction, id)
-        })
-    }
-
-    pub fn set_scan_root_enabled(&mut self, id: &str, enabled: bool) -> Result<ScanRoot> {
-        self.transaction(|transaction| {
-            let changed = transaction.execute(
-                "UPDATE scan_root SET enabled = ?1 WHERE id = ?2",
-                rusqlite::params![i64::from(enabled), id],
             )?;
             if changed != 1 {
                 return Err(StorageError::NotFound);
