@@ -80,16 +80,22 @@ describe("ScanRootsManager", () => {
     await user.click(screen.getByRole("button", { name: "Add folder" }));
     await screen.findByText("Projects");
 
-    await user.click(screen.getByRole("button", { name: "Remove" }));
-    expect(screen.getByRole("button", { name: "Confirm remove" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Remove Projects" }));
+    expect(
+      screen.getByRole("button", { name: "Confirm removal of Projects" }),
+    ).toBeTruthy();
     expect(screen.queryByText("Projects")).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "Keep" }));
-    expect(screen.queryByRole("button", { name: "Confirm remove" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Keep Projects" }));
+    expect(
+      screen.queryByRole("button", { name: "Confirm removal of Projects" }),
+    ).toBeNull();
     expect(screen.getByText("Projects")).toBeTruthy();
 
-    await user.click(screen.getByRole("button", { name: "Remove" }));
-    await user.click(screen.getByRole("button", { name: "Confirm remove" }));
+    await user.click(screen.getByRole("button", { name: "Remove Projects" }));
+    await user.click(
+      screen.getByRole("button", { name: "Confirm removal of Projects" }),
+    );
 
     expect(await screen.findByText("Folder removed.")).toBeTruthy();
     expect(screen.queryByText("Projects")).toBeNull();
@@ -129,8 +135,10 @@ describe("ScanRootsManager", () => {
     vi.spyOn(platform, "listScanRoots").mockRejectedValueOnce(
       new Error("storage busy"),
     );
-    await user.click(screen.getByRole("button", { name: "Remove" }));
-    await user.click(screen.getByRole("button", { name: "Confirm remove" }));
+    await user.click(screen.getByRole("button", { name: "Remove Projects" }));
+    await user.click(
+      screen.getByRole("button", { name: "Confirm removal of Projects" }),
+    );
 
     expect((await screen.findByRole("alert")).textContent).toContain(
       "Saved, but the list could not be refreshed.",
@@ -181,7 +189,9 @@ describe("ScanRootsManager", () => {
     await screen.findByRole("button", { name: "Add folder" });
     await user.click(screen.getByRole("button", { name: "Add folder" }));
 
-    expect(await screen.findByText("Available · Not scanned yet"));
+    expect(
+      await screen.findByText("Availability not rechecked · Not scanned yet"),
+    ).toBeTruthy();
     expect(screen.queryByText(/ready/i)).toBeNull();
   });
 
@@ -195,7 +205,7 @@ describe("ScanRootsManager", () => {
     await user.click(screen.getByRole("button", { name: "Add folder" }));
     await screen.findByText("Projects");
 
-    await user.click(screen.getByRole("button", { name: "Rename" }));
+    await user.click(screen.getByRole("button", { name: "Rename Projects" }));
     const input = screen.getByLabelText("Folder name");
     if (!(input instanceof HTMLInputElement)) {
       throw new Error("rename should use a native input");
@@ -223,7 +233,7 @@ describe("ScanRootsManager", () => {
     await user.click(screen.getByRole("button", { name: "Add folder" }));
     await screen.findByText("Projects");
 
-    await user.click(screen.getByRole("button", { name: "Rename" }));
+    await user.click(screen.getByRole("button", { name: "Rename Projects" }));
     const input = screen.getByLabelText("Folder name");
     await user.clear(input);
     await user.type(input, "Draft name");
@@ -250,7 +260,7 @@ describe("ScanRootsManager", () => {
     await user.click(screen.getByRole("button", { name: "Add folder" }));
     await screen.findByText("Projects");
 
-    const toggle = screen.getByRole("checkbox", { name: "Enabled" });
+    const toggle = screen.getByRole("checkbox", { name: "Projects enabled" });
     if (!(toggle instanceof HTMLInputElement)) {
       throw new Error("enabled should use a native checkbox");
     }
@@ -258,12 +268,14 @@ describe("ScanRootsManager", () => {
 
     await user.click(toggle);
     expect(
-      await screen.findByRole("checkbox", { name: "Enabled" }),
+      await screen.findByRole("checkbox", { name: "Projects enabled" }),
     ).toHaveProperty("checked", false);
 
-    await user.click(screen.getByRole("checkbox", { name: "Enabled" }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Projects enabled" }),
+    );
     expect(
-      await screen.findByRole("checkbox", { name: "Enabled" }),
+      await screen.findByRole("checkbox", { name: "Projects enabled" }),
     ).toHaveProperty("checked", true);
   });
 
@@ -277,8 +289,10 @@ describe("ScanRootsManager", () => {
     await user.click(screen.getByRole("button", { name: "Add folder" }));
     await screen.findByText("Projects");
 
-    await user.click(screen.getByRole("button", { name: "Remove" }));
-    await user.click(screen.getByRole("button", { name: "Confirm remove" }));
+    await user.click(screen.getByRole("button", { name: "Remove Projects" }));
+    await user.click(
+      screen.getByRole("button", { name: "Confirm removal of Projects" }),
+    );
     await screen.findByText("Folder removed.");
 
     await waitFor(() => {
@@ -286,5 +300,148 @@ describe("ScanRootsManager", () => {
         screen.getByRole("button", { name: "Add folder" }),
       );
     });
+  });
+
+  it("reports a stale list when the toggle succeeds but refresh fails", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
+    render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("button", { name: "Add folder" });
+    await user.click(screen.getByRole("button", { name: "Add folder" }));
+    await screen.findByText("Projects");
+
+    vi.spyOn(platform, "listScanRoots").mockRejectedValueOnce(
+      new Error("storage busy"),
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "Projects enabled" }),
+    );
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Saved, but the list could not be refreshed.",
+    );
+    await expect(platform.listScanRoots()).resolves.toEqual([
+      expect.objectContaining({ displayName: "Projects", enabled: false }),
+    ]);
+  });
+
+  it("reports a toggle mutation failure without changing the checkbox", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
+    vi.spyOn(platform, "setScanRootEnabled").mockRejectedValue(
+      new PlatformError("unavailable"),
+    );
+    render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("button", { name: "Add folder" });
+    await user.click(screen.getByRole("button", { name: "Add folder" }));
+    await screen.findByText("Projects");
+
+    await user.click(
+      screen.getByRole("checkbox", { name: "Projects enabled" }),
+    );
+
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "could not save that setting",
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Projects enabled" }),
+    ).toHaveProperty("checked", true);
+  });
+
+  it("focuses the editor on Rename and restores focus on save and cancel", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
+    render(<ScanRootsManager platform={platform} />);
+    await screen.findByRole("button", { name: "Add folder" });
+    await user.click(screen.getByRole("button", { name: "Add folder" }));
+    await screen.findByText("Projects");
+
+    await user.click(screen.getByRole("button", { name: "Rename Projects" }));
+    const input = await screen.findByLabelText("Folder name");
+    expect(document.activeElement).toBe(input);
+
+    await user.clear(input);
+    await user.type(input, "Released");
+    await user.click(screen.getByRole("button", { name: "Save name" }));
+    await screen.findByText("Released");
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Rename Released" }),
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: "Rename Released" }));
+    await screen.findByLabelText("Folder name");
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Rename Released" }),
+      );
+    });
+  });
+
+  it("gives repeated root controls distinguishable names", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatform();
+    await platform.addScanRoot("Projects", "C:\\Music\\Projects");
+    await platform.addScanRoot("Loops", "C:\\Music\\Loops");
+    render(<ScanRootsManager platform={platform} />);
+
+    expect(
+      await screen.findByRole("button", { name: "Remove Projects" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove Loops" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Rename Projects" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("checkbox", { name: "Loops enabled" }),
+    ).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Remove Loops" }));
+    await user.click(
+      screen.getByRole("button", { name: "Confirm removal of Loops" }),
+    );
+    expect(await screen.findByText("Folder removed.")).toBeTruthy();
+    expect(screen.queryByText("Loops")).toBeNull();
+    expect(screen.getByText("Projects")).toBeTruthy();
+  });
+
+  it("completes the add flow by keyboard alone", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatformWithPickedDirectory(
+      "C:\\Music\\Projects",
+    );
+    render(<ScanRootsManager platform={platform} />);
+
+    await user.tab();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Add folder" }),
+    );
+    await user.keyboard("{Enter}");
+    expect(await screen.findByText("Projects")).toBeTruthy();
+    expect(await screen.findByText("Folder added.")).toBeTruthy();
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Add folder" }),
+    );
+
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Remove Projects" }),
+    );
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Rename Projects" }),
+    );
+    await user.tab({ shift: true });
+    expect(document.activeElement).toBe(
+      screen.getByRole("checkbox", { name: "Projects enabled" }),
+    );
   });
 });

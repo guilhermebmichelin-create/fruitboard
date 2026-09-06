@@ -3,7 +3,6 @@ import {
   PlatformError,
   type PlatformPort,
   type ScanRoot,
-  type ScanRootAvailability,
 } from "../platform/contracts";
 
 type LoadState =
@@ -25,12 +24,6 @@ const defaultDisplayName = (path: string): string => {
   const segments = path.split(/[\\/]/).filter((segment) => segment !== "");
   const last = segments[segments.length - 1];
   return last === undefined || last === "" ? "Scan root" : last;
-};
-
-const availabilityLabels: Readonly<Record<ScanRootAvailability, string>> = {
-  available: "Available",
-  unavailable: "Unavailable",
-  unknown: "Unknown",
 };
 
 const addFailureMessage = (error: unknown): string => {
@@ -59,6 +52,18 @@ export function ScanRootsManager({
   });
   const mounted = useRef(true);
   const addButtonReference = useRef<HTMLButtonElement | null>(null);
+  const renameInputReference = useRef<HTMLInputElement | null>(null);
+  const renameButtonReferences = useRef(new Map<string, HTMLButtonElement>());
+
+  const focusLater = (target: () => HTMLElement | null) => {
+    // Defer past the commit so focus lands on a live node, not one React is
+    // about to replace.
+    window.setTimeout(() => {
+      if (mounted.current) {
+        target()?.focus();
+      }
+    }, 0);
+  };
 
   useEffect(() => {
     mounted.current = true;
@@ -102,7 +107,7 @@ export function ScanRootsManager({
     setLoadAttempt((attempt) => attempt + 1);
   };
 
-  const refreshAfterMutation = async (notice: string) => {
+  const refreshAfterMutation = async (notice: string | null) => {
     try {
       await refresh();
     } catch {
@@ -118,7 +123,11 @@ export function ScanRootsManager({
       return;
     }
     if (mounted.current) {
-      setActionState({ kind: "notice", message: notice });
+      setActionState(
+        notice === null
+          ? { kind: "idle" }
+          : { kind: "notice", message: notice },
+      );
     }
   };
 
@@ -178,15 +187,7 @@ export function ScanRootsManager({
       return;
     }
     await refreshAfterMutation("Folder removed.");
-    if (mounted.current) {
-      // Defer past the commit so focus lands on the live button, not a
-      // node React is about to replace.
-      window.setTimeout(() => {
-        if (mounted.current) {
-          addButtonReference.current?.focus();
-        }
-      }, 0);
-    }
+    focusLater(() => addButtonReference.current);
   };
 
   const saveRename = async (id: string, draft: string) => {
@@ -211,16 +212,13 @@ export function ScanRootsManager({
       setRenameState({ kind: "closed" });
     }
     await refreshAfterMutation("Name saved.");
+    focusLater(() => renameButtonReferences.current.get(id) ?? null);
   };
 
   const toggleEnabled = async (root: ScanRoot) => {
     setActionState({ kind: "working", action: "Saving the setting…" });
     try {
       await platform.setScanRootEnabled(root.id, !root.enabled);
-      await refresh();
-      if (mounted.current) {
-        setActionState({ kind: "idle" });
-      }
     } catch {
       if (mounted.current) {
         setActionState({
@@ -228,7 +226,9 @@ export function ScanRootsManager({
           message: "Fruitboard could not save that setting. Try again.",
         });
       }
+      return;
     }
+    await refreshAfterMutation(null);
   };
 
   if (loadState.kind === "loading") {
@@ -315,6 +315,18 @@ export function ScanRootsManager({
                           draft: event.target.value,
                         });
                       }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          setRenameState({ kind: "closed" });
+                          setActionState({ kind: "idle" });
+                          focusLater(
+                            () =>
+                              renameButtonReferences.current.get(root.id) ??
+                              null,
+                          );
+                        }
+                      }}
+                      ref={renameInputReference}
                       value={renameState.draft}
                     />
                     <div className="scan-roots-item__actions">
@@ -331,6 +343,11 @@ export function ScanRootsManager({
                         onClick={() => {
                           setRenameState({ kind: "closed" });
                           setActionState({ kind: "idle" });
+                          focusLater(
+                            () =>
+                              renameButtonReferences.current.get(root.id) ??
+                              null,
+                          );
                         }}
                         type="button"
                       >
@@ -345,7 +362,7 @@ export function ScanRootsManager({
                       {root.canonicalPath}
                     </span>
                     <span className="scan-roots-item__status">
-                      {availabilityLabels[root.availability]} · Not scanned yet
+                      Availability not rechecked · Not scanned yet
                     </span>
                   </>
                 )}
@@ -353,6 +370,7 @@ export function ScanRootsManager({
               <div className="scan-roots-item__settings">
                 <label className="scan-roots-toggle">
                   <input
+                    aria-label={`${root.displayName} enabled`}
                     checked={root.enabled}
                     disabled={busy}
                     onChange={() => void toggleEnabled(root)}
@@ -363,6 +381,7 @@ export function ScanRootsManager({
                 {renameState.kind !== "editing" && (
                   <div className="scan-roots-item__actions">
                     <button
+                      aria-label={`Rename ${root.displayName}`}
                       className="preference-button preference-button--secondary"
                       disabled={busy}
                       onClick={() => {
@@ -372,6 +391,14 @@ export function ScanRootsManager({
                           draft: root.displayName,
                         });
                         setActionState({ kind: "idle" });
+                        focusLater(() => renameInputReference.current);
+                      }}
+                      ref={(element) => {
+                        if (element) {
+                          renameButtonReferences.current.set(root.id, element);
+                        } else {
+                          renameButtonReferences.current.delete(root.id);
+                        }
                       }}
                       type="button"
                     >
@@ -380,6 +407,7 @@ export function ScanRootsManager({
                     {confirmingRemoval === root.id ? (
                       <>
                         <button
+                          aria-label={`Confirm removal of ${root.displayName}`}
                           className="preference-button"
                           disabled={busy}
                           onClick={() => void removeRoot(root.id)}
@@ -388,6 +416,7 @@ export function ScanRootsManager({
                           Confirm remove
                         </button>
                         <button
+                          aria-label={`Keep ${root.displayName}`}
                           className="preference-button preference-button--secondary"
                           disabled={busy}
                           onClick={() => {
@@ -400,6 +429,7 @@ export function ScanRootsManager({
                       </>
                     ) : (
                       <button
+                        aria-label={`Remove ${root.displayName}`}
                         className="preference-button preference-button--secondary"
                         disabled={busy}
                         onClick={() => {
