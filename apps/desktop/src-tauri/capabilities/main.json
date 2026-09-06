@@ -11,7 +11,6 @@
     "allow-list-scan-roots",
     "allow-add-scan-root",
     "allow-remove-scan-root",
-    "allow-pick-scan-root",
-    "dialog:allow-open"
+    "allow-pick-scan-root"
   ]
 }

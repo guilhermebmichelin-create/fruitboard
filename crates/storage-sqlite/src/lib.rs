@@ -293,9 +293,9 @@ impl Database {
                  (id, display_name, canonical_path, enabled, availability, last_error_code)
                  VALUES (?1, ?2, ?3, 1, ?4, NULL)",
                 rusqlite::params![
-                    root.id,
-                    root.display_name,
-                    root.canonical_path,
+                    &root.id,
+                    &root.display_name,
+                    &root.canonical_path,
                     root.availability.as_str()
                 ],
             )?;
