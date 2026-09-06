@@ -306,10 +306,13 @@ flowchart LR
    batches. It records a scan generation and marks files seen.
 3. A native recursive watcher supplies low-latency invalidations. Events are
    normalized and debounced per path; they are never accepted as complete truth.
-4. The scheduler waits until size and mtime settle, then creates a parse job only
-   when the cheap fingerprint changed.
-5. Parser results are validated, stored as an immutable snapshot, and promoted
-   to current only in one transaction.
+4. In the filesystem-only Phase 2 path, the scheduler runs metadata-only
+   reconciliation. It creates no parse job and reads no FLP content.
+5. Qualified observations are staged and published to the Library atomically
+   under the [Phase 2 execution contracts](docs/PHASE_2_EXECUTION_PLAN.md).
+   A future, separately gated parser pipeline waits for size/mtime to settle,
+   validates parser results and promotes immutable metadata snapshots in one
+   transaction; that future pipeline is not required for Scanner MVP.
 6. Startup, resume from sleep, watcher overflow/error, root reconnection, and a
    low-frequency idle schedule trigger reconciliation.
 7. A file becomes `missing` only after a successful reconciliation of an
