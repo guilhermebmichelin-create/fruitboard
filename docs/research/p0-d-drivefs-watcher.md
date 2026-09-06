@@ -34,8 +34,10 @@ Single-threaded scripted load against a synthetic tree, default buffer:
   write-close); no loss, no merging.
 - A rename arrived as one atomic Renamed event carrying old and new names.
 - A delete arrived as one Deleted event.
-- 10 rapid appends to one file produced 10 Changed events: the API does not
-  coalesce, so debouncing per path remains the scanner's job.
+- After draining creation-phase events, 10 spaced appends to one file produced
+  further Changed events on this host: appends are observed as their own phase
+  rather than hidden inside creation traffic. Exact per-write counts are not
+  guaranteed across machines, so debouncing per path remains the scanner's job.
 
 Overflow attempt: 500 file creations with a 4 KiB buffer still delivered all
 500 Created events with no Error event — one generating thread cannot outpace

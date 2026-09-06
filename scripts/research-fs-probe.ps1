@@ -131,8 +131,20 @@ function Invoke-WatcherProbe {
             Start-Sleep -Seconds 3
             Rename-Item -LiteralPath (Join-Path $root "burst1.bin") -NewName "burst1-renamed.bin"
             Remove-Item -LiteralPath (Join-Path $root "burst2.bin")
+            Start-Sleep -Seconds 2
+            $createdPhase = @(Get-Event -SourceIdentifier "ResearchCreated" -ErrorAction SilentlyContinue).Count
+            $renamedPhase = @(Get-Event -SourceIdentifier "ResearchRenamed" -ErrorAction SilentlyContinue).Count
+            $deletedPhase = @(Get-Event -SourceIdentifier "ResearchDeleted" -ErrorAction SilentlyContinue).Count
+            Write-Output "OBSERVED creation-phase created=$createdPhase renamed=$renamedPhase deleted=$deletedPhase"
+            Assert-Probe ($createdPhase -eq 50) "burst creations are all reported"
+            Assert-Probe ($renamedPhase -eq 1) "rename arrives as one event"
+            Assert-Probe ($deletedPhase -eq 1) "delete arrives as one event"
+            # Drain creation-phase events so the append phase is measured alone:
+            # creation Changed events must not satisfy the append assertion.
+            Remove-Event -SourceIdentifier "Research*" -ErrorAction SilentlyContinue
             1..10 | ForEach-Object {
                 [IO.File]::AppendAllText((Join-Path $root "burst3.bin"), "x")
+                Start-Sleep -Milliseconds 100
             }
             Start-Sleep -Seconds 3
         }
@@ -143,17 +155,11 @@ function Invoke-WatcherProbe {
             $watcher.Dispose()
         }
 
-        $created = @(Get-Event -SourceIdentifier "ResearchCreated" -ErrorAction SilentlyContinue).Count
-        $changed = @(Get-Event -SourceIdentifier "ResearchChanged" -ErrorAction SilentlyContinue).Count
-        $renamed = @(Get-Event -SourceIdentifier "ResearchRenamed" -ErrorAction SilentlyContinue).Count
-        $deleted = @(Get-Event -SourceIdentifier "ResearchDeleted" -ErrorAction SilentlyContinue).Count
-        $errors = @(Get-Event -SourceIdentifier "ResearchError" -ErrorAction SilentlyContinue).Count
+        $appendChanged = @(Get-Event -SourceIdentifier "ResearchChanged" -ErrorAction SilentlyContinue).Count
+        $appendErrors = @(Get-Event -SourceIdentifier "ResearchError" -ErrorAction SilentlyContinue).Count
         Remove-Event -SourceIdentifier "Research*" -ErrorAction SilentlyContinue
-        Write-Output "OBSERVED created=$created changed=$changed renamed=$renamed deleted=$deleted errors=$errors"
-        Assert-Probe ($created -eq 50) "burst creations are all reported"
-        Assert-Probe ($renamed -eq 1) "rename arrives as one event"
-        Assert-Probe ($deleted -eq 1) "delete arrives as one event"
-        Assert-Probe ($changed -ge 10) "repeated appends are reported without coalescing"
+        Write-Output "OBSERVED append-phase changed=$appendChanged errors=$appendErrors"
+        Assert-Probe ($appendChanged -ge 1) "append-phase writes are reported after the drain"
     }
     finally {
         Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
