@@ -98,13 +98,11 @@ test("the packaging workflow is bounded, read-only, and secret-free", () => {
   assert.match(workflow, /^permissions:\n  contents: read$/m);
   assert.match(workflow, /^  windows-packaging-smoke:$/m);
   assert.match(workflow, /pnpm\.cmd smoke:windows:foundation:hosted/);
-  // Every packaged input must trigger the smoke: the storage crate owns the
-  // preserved database and the shared UI package owns the rendered shell.
-  assert.match(workflow, /^\s+- "crates\/\*\*"$/m);
-  assert.match(workflow, /^\s+- "packages\/\*\*"$/m);
-  // The extracted probe helper and its runners share one scripts filter so no
-  // probe change can bypass packaging verification.
-  assert.match(workflow, /^\s+- "scripts\/\*\*"$/m);
+  // The smoke is a required status check, so it must report on every pull
+  // request: the trigger stays unfiltered. Every packaged input still
+  // triggers the smoke, and docs-only pull requests get an honest packaging
+  // result instead of a permanently missing required check.
+  assert.doesNotMatch(workflow, /^\s+paths:$/m);
   assert.doesNotMatch(
     workflow,
     /pull_request_target|\bsecrets[.:]|upload-artifact|release|publish/i,
