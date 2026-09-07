@@ -10,6 +10,15 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: deps
+    # @types/node must track the pinned Node 24.20.0 runtime (DEVELOPMENT.md
+    # toolchain policy); TypeScript 7 is postponed until typescript-eslint
+    # supports it and the Phase 2 checkpoint has passed (owner decision,
+    # 2026-09-07).
+    ignore:
+      - dependency-name: "@types/node"
+        versions: [">=25"]
+      - dependency-name: "typescript"
+        versions: [">=7"]
   - package-ecosystem: cargo
     directory: /
     schedule:

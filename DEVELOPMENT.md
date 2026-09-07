@@ -64,37 +64,34 @@ returned HTTP 403. The product owner declined GitHub Pro and accepted a manual
 governance exception for the private GitHub Free repository. That exception was
 based on private-repository plan limits and is **superseded on 2026-09-07**: the
 repository is now public, where branch protection and rulesets are available on
-the current plan. Until the owner approves and implements the proposal below,
-the manual practices remain in effect: the maintainer must still use issues,
-feature branches, PR checklists, test evidence, and all available CI; avoid
-direct development, force-pushes, and deletion of `main`; and request external
-review when an eligible reviewer is available. The stable checks described below
-run on every PR, but GitHub does not yet enforce them as required checks.
-Enabling enforcement is a proposal only and has not been applied.
+the current plan, and the owner approved and enabled enforced branch protection
+on 2026-09-07 (see below). The manual practices remain as working discipline on
+top of the enforced rules: issues, feature branches, PR checklists, test
+evidence, and external review when an eligible reviewer is available.
 
-### Proposed enforced branch protection (pending owner approval)
+### Enforced branch protection
 
-Status: **Proposal pending owner approval. Nothing in this section is
-implemented; the settings below have not been configured on GitHub.** With the
-repository public since 2026-09-07, GitHub branch protection/rulesets are
-available on the current plan, so the 2026-09-04 manual-governance exception no
-longer reflects a platform limitation. Proposed configuration for `main`:
+Status: **Enabled on 2026-09-07 by owner decision.** GitHub enforces the
+configuration below on `main`:
 
-- Require pull requests before merging; no direct pushes to `main`.
+- Require pull requests before merging; no direct pushes to `main`, including
+  by the administrator (enforcement applies to admins).
 - Require the status checks `docs-policy`, `client`, `rust-portable`,
-  `migration`, `windows-foundation`, `security`, and
-  `windows-packaging-smoke` to pass with branches up to date before merge.
+  `migration`, `windows-foundation`, `security`, `windows-packaging-smoke`,
+  `enumeration-windows`, `filesystem-watcher-windows`, and
+  `scan-execution-windows` to pass with branches up to date before merge.
 - Require squash merges for one-concept PRs, matching the existing
-  branch/commit convention.
-- Disallow force pushes and branch deletion on `main`; keep linear history.
+  branch/commit convention, and keep linear history.
+- Disallow force pushes and branch deletion on `main`.
 - Merge authority remains with the repository owner only (the existing
   CODEOWNERS maintainer); the owner performs every merge manually and no
-  automation merges on their behalf.
-- Optionally require resolved review conversations and stale-approval
-  dismissal, as already described above.
+  automation merges on their behalf. No approving reviews are required: this
+  is a single-maintainer repository whose owner authors and merges their own
+  PRs, so a self-approval requirement would be unsatisfiable. Resolved
+  conversation and stale-approval enforcement stays off for the same reason.
 
-This proposal does not change CI workflows, job names, or their commands; it
-only proposes that GitHub enforce the checks that already run.
+This configuration does not change CI workflows, job names, or their commands;
+it enforces the checks that already run.
 
 Use labels by type (`epic`, `feature`, `bug`, `spike`, `docs`, `security`), area
 (`desktop`, `scanner`, `parser`, `database`, `client`, `pwa`, `sync`), and phase.
@@ -428,9 +425,9 @@ cannot persist project data, local databases, logs, or personal paths.
 GitHub dependency review, CodeQL, and GitHub secret protection were unavailable
 on the private GitHub Free plan when this baseline was adopted. The repository
 became public on 2026-09-07, so these GitHub-native products are now available
-on the current plan. Enabling them is part of the [pending branch-protection
-proposal](#proposed-enforced-branch-protection-pending-owner-approval) and has
-not been done yet; until then, the baseline continues to use executable privacy
+on the current plan; enabling them remains a separate, deliberate step (tracked
+by the [enforced branch protection](#enforced-branch-protection) rollout). Until
+they are enabled, the baseline continues to use executable privacy
 regressions, `pnpm audit`, RustSec, and weekly Dependabot updates for pnpm,
 Cargo, and GitHub Actions, and never represents an unavailable or skipped
 integration as a passing security check.
