@@ -1,0 +1,9 @@
+[package]
+name = "fruitboard-filesystem-watcher"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+windows-sys.workspace = true

@@ -2,6 +2,7 @@
 members = [
   "apps/desktop/src-tauri",
   "crates/foundation-sidecar-smoke",
+  "crates/filesystem-watcher",
   "crates/storage-sqlite",
   "crates/reconciliation",
   "crates/filesystem-enumeration",
@@ -23,3 +24,10 @@ tauri-build = { version = "=2.6.3", features = [] }
 tauri-plugin-shell = { version = "=2.3.6" }
 tauri-plugin-dialog = { version = "=2.7.3", default-features = false }
 uuid = { version = "=1.26.0", features = ["v7"] }
+windows-sys = { version = "=0.60.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Threading",
+] }
