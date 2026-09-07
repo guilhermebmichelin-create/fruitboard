@@ -1,0 +1,923 @@
+{
+  "schema": "fruitboard/benchmark-report/1",
+  "role": "P2-11 measured scanner benchmark report (scripts/benchmark-scan.md protocol)",
+  "capturedAtIso": "2026-09-07T21:20:54.778Z",
+  "machine": {
+    "platform": "win32",
+    "release": "10.0.26200",
+    "arch": "x64",
+    "machine": "x86_64"
+  },
+  "cpu": {
+    "model": "Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz",
+    "cores": 12
+  },
+  "memoryTotalBytes": 17041244160,
+  "powerMode": "Alto desempenho",
+  "fixtureVolume": {
+    "totalBytes": 510630293504,
+    "freeBytes": 110495002624
+  },
+  "fixture": {
+    "sizeLabel": "custom-9995",
+    "seed": "0",
+    "manifestSha256": "a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a",
+    "counts": {
+      "flpFiles": 9995,
+      "otherFiles": 4,
+      "aliasLocations": 5,
+      "leafDirectories": 1000,
+      "directories": 1025,
+      "emptyDirectories": 10,
+      "hardlinkGroups": 5
+    },
+    "hardlinkSupport": "created"
+  },
+  "build": {
+    "captured": true,
+    "prebuilt": false,
+    "command": "cargo build --release -p fruitboard-scan-execution --example benchmark --locked",
+    "toolchain": "pinned via rust-toolchain.toml (1.98.1)",
+    "buildMs": 314,
+    "commit": "2a8bdcf"
+  },
+  "measurement": {
+    "status": "measured",
+    "warmUpRuns": 1,
+    "measuredIterations": 10,
+    "statistics": [
+      "median",
+      "max",
+      "nearest-rank-p95"
+    ],
+    "firstRunReportedSeparately": true,
+    "sampleIntervalMs": 100,
+    "cancelAfterMs": 250,
+    "settleMs": 300
+  },
+  "warmUp": {
+    "label": "warmup",
+    "exitCode": 0,
+    "totalMs": 12329,
+    "scanMs": 11886,
+    "status": "Published",
+    "authoritative": true,
+    "outcome": "Complete",
+    "locationCount": 10000,
+    "generation": 1,
+    "changesComputed": true,
+    "errorCode": null,
+    "failureMessage": null,
+    "memory": {
+      "idleMb": 5.9,
+      "peakMb": 58.9,
+      "incrementalMb": 53,
+      "sampleCount": 114,
+      "idleWindowSamples": 2
+    },
+    "lines": [
+      {
+        "phase": "ready",
+        "elapsed_ms": 21,
+        "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+        "session_id": "01a07dbe-dbb2-73d2-8f6f-290e45be3fc3",
+        "worker_config": "default"
+      },
+      {
+        "phase": "scan_started",
+        "elapsed_ms": 321
+      },
+      {
+        "phase": "scan_finished",
+        "elapsed_ms": 12207,
+        "scan_ms": 11886,
+        "status": "Published",
+        "authoritative": true,
+        "outcome": "Complete",
+        "run_id": "01a07dbe-dce8-7060-91cb-2697feea3e9a",
+        "job_id": "01a07dbe-dce4-70e1-9e17-f758c18d809c",
+        "error_code": null,
+        "location_count": 10000,
+        "generation": 1,
+        "changes_computed": true,
+        "changes_added": 10000,
+        "changes_modified": 0,
+        "changes_replaced": 0,
+        "changes_identity_uncertain": 0,
+        "changes_missing": 0,
+        "changes_restored": 0,
+        "changes_renames": 0
+      }
+    ]
+  },
+  "iterations": [
+    {
+      "label": "iteration-1",
+      "exitCode": 0,
+      "totalMs": 33255,
+      "scanMs": 32876,
+      "status": "Published",
+      "authoritative": true,
+      "outcome": "Complete",
+      "locationCount": 10000,
+      "generation": 2,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.5,
+        "peakMb": 58.8,
+        "incrementalMb": 53.3,
+        "sampleCount": 237,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 8,
+          "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+          "session_id": "01a07dbf-0bcd-72e3-9acf-ee7abbd3645a",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 308
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 33184,
+          "scan_ms": 32876,
+          "status": "Published",
+          "authoritative": true,
+          "outcome": "Complete",
+          "run_id": "01a07dbf-0cfe-7ec3-899e-9f4019d67e96",
+          "job_id": "01a07dbf-0bce-77b3-bf8a-db39312b9938",
+          "error_code": null,
+          "location_count": 10000,
+          "generation": 2,
+          "changes_computed": false
+        }
+      ]
+    },
+    {
+      "label": "iteration-2",
+      "exitCode": 0,
+      "totalMs": 13084,
+      "scanMs": 12710,
+      "status": "Published",
+      "authoritative": true,
+      "outcome": "Complete",
+      "locationCount": 10000,
+      "generation": 3,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.5,
+        "peakMb": 58.7,
+        "incrementalMb": 53.2,
+        "sampleCount": 117,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 10,
+          "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+          "session_id": "01a07dbf-8dba-7ee0-9ac7-935038b45fe6",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 310
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 13020,
+          "scan_ms": 12710,
+          "status": "Published",
+          "authoritative": true,
+          "outcome": "Complete",
+          "run_id": "01a07dbf-8ef1-7be3-83af-57ac5c9f47f1",
+          "job_id": "01a07dbf-8dbb-77b2-ae21-23c14f160d2e",
+          "error_code": null,
+          "location_count": 10000,
+          "generation": 3,
+          "changes_computed": false
+        }
+      ]
+    },
+    {
+      "label": "iteration-3",
+      "exitCode": 0,
+      "totalMs": 23862,
+      "scanMs": 23528,
+      "status": "Published",
+      "authoritative": true,
+      "outcome": "Complete",
+      "locationCount": 10000,
+      "generation": 4,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.5,
+        "peakMb": 58.7,
+        "incrementalMb": 53.2,
+        "sampleCount": 215,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 10,
+          "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+          "session_id": "01a07dbf-c0d1-7a93-a1f7-0f440c73bee6",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 310
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 23838,
+          "scan_ms": 23528,
+          "status": "Published",
+          "authoritative": true,
+          "outcome": "Complete",
+          "run_id": "01a07dbf-c205-7db2-b846-b796ff5fa480",
+          "job_id": "01a07dbf-c0d3-7d63-993b-954f43d2aa1f",
+          "error_code": null,
+          "location_count": 10000,
+          "generation": 4,
+          "changes_computed": false
+        }
+      ]
+    },
+    {
+      "label": "iteration-4",
+      "exitCode": 0,
+      "totalMs": 31725,
+      "scanMs": 31304,
+      "status": "Published",
+      "authoritative": true,
+      "outcome": "Complete",
+      "locationCount": 10000,
+      "generation": 5,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.5,
+        "peakMb": 58.7,
+        "incrementalMb": 53.3,
+        "sampleCount": 267,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 10,
+          "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+          "session_id": "01a07dc0-1e0d-7dd0-ac67-563da56c49b1",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 310
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 31614,
+          "scan_ms": 31304,
+          "status": "Published",
+          "authoritative": true,
+          "outcome": "Complete",
+          "run_id": "01a07dc0-1f41-7d40-911c-37c5fa43a276",
+          "job_id": "01a07dc0-1e0f-72b0-8f8f-71db81a79564",
+          "error_code": null,
+          "location_count": 10000,
+          "generation": 5,
+          "changes_computed": false
+        }
+      ]
+    },
+    {
+      "label": "iteration-5",
+      "exitCode": 0,
+      "totalMs": 13171,
+      "scanMs": 12833,
+      "status": "Published",
+      "authoritative": true,
+      "outcome": "Complete",
+      "locationCount": 10000,
+      "generation": 6,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.5,
+        "peakMb": 58.7,
+        "incrementalMb": 53.3,
+        "sampleCount": 121,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 9,
+          "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+          "session_id": "01a07dc0-99fa-7b81-8a29-78a58e275e6f",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 309
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 13142,
+          "scan_ms": 12833,
+          "status": "Published",
+          "authoritative": true,
+          "outcome": "Complete",
+          "run_id": "01a07dc0-9b2c-71a0-b73b-15bbc4573db0",
+          "job_id": "01a07dc0-99fc-75b0-b566-8ecfa6b0c3a4",
+          "error_code": null,
+          "location_count": 10000,
+          "generation": 6,
+          "changes_computed": false
+        }
+      ]
+    },
+    {
+      "label": "iteration-6",
+      "exitCode": 0,
+      "totalMs": 12023,
+      "scanMs": 11686,
+      "status": "Published",
+      "authoritative": true,
+      "outcome": "Complete",
+      "locationCount": 10000,
+      "generation": 7,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.5,
+        "peakMb": 58.7,
+        "incrementalMb": 53.2,
+        "sampleCount": 111,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 9,
+          "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+          "session_id": "01a07dc0-cd67-7842-a25e-e433fec584a2",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 310
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 11996,
+          "scan_ms": 11686,
+          "status": "Published",
+          "authoritative": true,
+          "outcome": "Complete",
+          "run_id": "01a07dc0-ce9a-7f92-8bbe-ec1d30ac9410",
+          "job_id": "01a07dc0-cd69-7261-9670-c797157a2a9e",
+          "error_code": null,
+          "location_count": 10000,
+          "generation": 7,
+          "changes_computed": false
+        }
+      ]
+    },
+    {
+      "label": "iteration-7",
+      "exitCode": 0,
+      "totalMs": 12646,
+      "scanMs": 12294,
+      "status": "Published",
+      "authoritative": true,
+      "outcome": "Complete",
+      "locationCount": 10000,
+      "generation": 8,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.5,
+        "peakMb": 58.7,
+        "incrementalMb": 53.2,
+        "sampleCount": 113,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 9,
+          "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+          "session_id": "01a07dc0-fc5f-7441-b773-5284c952e471",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 309
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 12603,
+          "scan_ms": 12294,
+          "status": "Published",
+          "authoritative": true,
+          "outcome": "Complete",
+          "run_id": "01a07dc0-fd91-7401-8ca8-17cddf4d4577",
+          "job_id": "01a07dc0-fc60-78b1-91ea-97888ed04ea7",
+          "error_code": null,
+          "location_count": 10000,
+          "generation": 8,
+          "changes_computed": false
+        }
+      ]
+    },
+    {
+      "label": "iteration-8",
+      "exitCode": 0,
+      "totalMs": 13270,
+      "scanMs": 12924,
+      "status": "Published",
+      "authoritative": true,
+      "outcome": "Complete",
+      "locationCount": 10000,
+      "generation": 9,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.5,
+        "peakMb": 58.7,
+        "incrementalMb": 53.2,
+        "sampleCount": 121,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 8,
+          "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+          "session_id": "01a07dc1-2dd1-7f22-8058-6f77cdaa11e2",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 308
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 13232,
+          "scan_ms": 12924,
+          "status": "Published",
+          "authoritative": true,
+          "outcome": "Complete",
+          "run_id": "01a07dc1-2f03-7e43-8983-07e91b8b85d4",
+          "job_id": "01a07dc1-2dd2-7951-84fb-c3394850823b",
+          "error_code": null,
+          "location_count": 10000,
+          "generation": 9,
+          "changes_computed": false
+        }
+      ]
+    },
+    {
+      "label": "iteration-9",
+      "exitCode": 0,
+      "totalMs": 13282,
+      "scanMs": 12918,
+      "status": "Published",
+      "authoritative": true,
+      "outcome": "Complete",
+      "locationCount": 10000,
+      "generation": 10,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.5,
+        "peakMb": 58.7,
+        "incrementalMb": 53.3,
+        "sampleCount": 121,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 15,
+          "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+          "session_id": "01a07dc1-61b2-7020-b9fe-923e6ebd9bbe",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 315
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 13233,
+          "scan_ms": 12918,
+          "status": "Published",
+          "authoritative": true,
+          "outcome": "Complete",
+          "run_id": "01a07dc1-62ed-7991-809d-078fb55ddbc1",
+          "job_id": "01a07dc1-61b9-7a43-99fa-c0e3e1e9537f",
+          "error_code": null,
+          "location_count": 10000,
+          "generation": 10,
+          "changes_computed": false
+        }
+      ]
+    },
+    {
+      "label": "iteration-10",
+      "exitCode": 0,
+      "totalMs": 12322,
+      "scanMs": 11911,
+      "status": "Published",
+      "authoritative": true,
+      "outcome": "Complete",
+      "locationCount": 10000,
+      "generation": 11,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.5,
+        "peakMb": 58.8,
+        "incrementalMb": 53.3,
+        "sampleCount": 112,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 8,
+          "root_id": "01a07dbe-dbb5-72e1-9dde-a4558e8ef0fc",
+          "session_id": "01a07dc1-957e-74d0-8242-662546d37246",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 308
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 12219,
+          "scan_ms": 11911,
+          "status": "Published",
+          "authoritative": true,
+          "outcome": "Complete",
+          "run_id": "01a07dc1-96af-7000-90fa-a7b806153f95",
+          "job_id": "01a07dc1-957f-7eb3-8e87-6f6f6eafb619",
+          "error_code": null,
+          "location_count": 10000,
+          "generation": 11,
+          "changes_computed": false
+        }
+      ]
+    }
+  ],
+  "statistics": {
+    "medianMs": 12875.5,
+    "maxMs": 32876,
+    "nearestRankP95Ms": 32876,
+    "sampleCount": 10
+  },
+  "cancellation": [
+    {
+      "label": "cancel-1",
+      "exitCode": 0,
+      "totalMs": 627,
+      "scanMs": 256,
+      "status": "Cancelled",
+      "authoritative": false,
+      "outcome": "Cancelled",
+      "locationCount": null,
+      "generation": null,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.9,
+        "peakMb": 12.4,
+        "incrementalMb": 6.4,
+        "sampleCount": 4,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 22,
+          "root_id": "01a07dc1-c5b2-7382-b992-aea6f8add1f0",
+          "session_id": "01a07dc1-c5ae-7302-b6e5-d4344d1e0e80",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 323
+        },
+        {
+          "phase": "cancellation_requested",
+          "elapsed_ms": 573
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 579,
+          "scan_ms": 256,
+          "status": "Cancelled",
+          "authoritative": false,
+          "outcome": "Cancelled",
+          "run_id": "01a07dc1-c6e6-7723-9996-6f2fcac99549",
+          "job_id": "01a07dc1-c6e1-70f2-b279-f336c7938534",
+          "error_code": null,
+          "location_count": null,
+          "changes_computed": false
+        }
+      ],
+      "cancellationRequestedMs": 573,
+      "stopLatencyMs": 6
+    },
+    {
+      "label": "cancel-2",
+      "exitCode": 0,
+      "totalMs": 647,
+      "scanMs": 259,
+      "status": "Cancelled",
+      "authoritative": false,
+      "outcome": "Cancelled",
+      "locationCount": null,
+      "generation": null,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 6,
+        "peakMb": 12.3,
+        "incrementalMb": 6.4,
+        "sampleCount": 4,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 23,
+          "root_id": "01a07dc1-c824-7c11-a41e-15ce3e8daffa",
+          "session_id": "01a07dc1-c820-7381-9b5d-51154621c886",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 323
+        },
+        {
+          "phase": "cancellation_requested",
+          "elapsed_ms": 574
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 582,
+          "scan_ms": 259,
+          "status": "Cancelled",
+          "authoritative": false,
+          "outcome": "Cancelled",
+          "run_id": "01a07dc1-c95b-76f0-80dd-ada7b3fbf78e",
+          "job_id": "01a07dc1-c955-77e3-bba6-c9fc7bc12e92",
+          "error_code": null,
+          "location_count": null,
+          "changes_computed": false
+        }
+      ],
+      "cancellationRequestedMs": 574,
+      "stopLatencyMs": 8
+    },
+    {
+      "label": "cancel-3",
+      "exitCode": 0,
+      "totalMs": 647,
+      "scanMs": 257,
+      "status": "Cancelled",
+      "authoritative": false,
+      "outcome": "Cancelled",
+      "locationCount": null,
+      "generation": null,
+      "changesComputed": false,
+      "errorCode": null,
+      "failureMessage": null,
+      "memory": {
+        "idleMb": 5.9,
+        "peakMb": 12.4,
+        "incrementalMb": 6.4,
+        "sampleCount": 4,
+        "idleWindowSamples": 2
+      },
+      "lines": [
+        {
+          "phase": "ready",
+          "elapsed_ms": 22,
+          "root_id": "01a07dc1-cab1-7182-bc06-7327fc19c9b9",
+          "session_id": "01a07dc1-caad-75a3-95e3-cdf16c90063b",
+          "worker_config": "default"
+        },
+        {
+          "phase": "scan_started",
+          "elapsed_ms": 322
+        },
+        {
+          "phase": "cancellation_requested",
+          "elapsed_ms": 573
+        },
+        {
+          "phase": "scan_finished",
+          "elapsed_ms": 579,
+          "scan_ms": 257,
+          "status": "Cancelled",
+          "authoritative": false,
+          "outcome": "Cancelled",
+          "run_id": "01a07dc1-cbe7-79e2-ae49-da35c99beab4",
+          "job_id": "01a07dc1-cbe1-7741-9c3e-8106ea8a33b3",
+          "error_code": null,
+          "location_count": null,
+          "changes_computed": false
+        }
+      ],
+      "cancellationRequestedMs": 573,
+      "stopLatencyMs": 6
+    }
+  ],
+  "cancellationStatistics": {
+    "medianMs": 6,
+    "maxMs": 8,
+    "nearestRankP95Ms": 8,
+    "sampleCount": 3
+  },
+  "memory": {
+    "samplingIntervalMs": 100,
+    "warmUp": {
+      "idleMb": 5.9,
+      "peakMb": 58.9,
+      "incrementalMb": 53,
+      "sampleCount": 114,
+      "idleWindowSamples": 2
+    },
+    "iterations": [
+      {
+        "label": "iteration-1",
+        "memory": {
+          "idleMb": 5.5,
+          "peakMb": 58.8,
+          "incrementalMb": 53.3,
+          "sampleCount": 237,
+          "idleWindowSamples": 2
+        }
+      },
+      {
+        "label": "iteration-2",
+        "memory": {
+          "idleMb": 5.5,
+          "peakMb": 58.7,
+          "incrementalMb": 53.2,
+          "sampleCount": 117,
+          "idleWindowSamples": 2
+        }
+      },
+      {
+        "label": "iteration-3",
+        "memory": {
+          "idleMb": 5.5,
+          "peakMb": 58.7,
+          "incrementalMb": 53.2,
+          "sampleCount": 215,
+          "idleWindowSamples": 2
+        }
+      },
+      {
+        "label": "iteration-4",
+        "memory": {
+          "idleMb": 5.5,
+          "peakMb": 58.7,
+          "incrementalMb": 53.3,
+          "sampleCount": 267,
+          "idleWindowSamples": 2
+        }
+      },
+      {
+        "label": "iteration-5",
+        "memory": {
+          "idleMb": 5.5,
+          "peakMb": 58.7,
+          "incrementalMb": 53.3,
+          "sampleCount": 121,
+          "idleWindowSamples": 2
+        }
+      },
+      {
+        "label": "iteration-6",
+        "memory": {
+          "idleMb": 5.5,
+          "peakMb": 58.7,
+          "incrementalMb": 53.2,
+          "sampleCount": 111,
+          "idleWindowSamples": 2
+        }
+      },
+      {
+        "label": "iteration-7",
+        "memory": {
+          "idleMb": 5.5,
+          "peakMb": 58.7,
+          "incrementalMb": 53.2,
+          "sampleCount": 113,
+          "idleWindowSamples": 2
+        }
+      },
+      {
+        "label": "iteration-8",
+        "memory": {
+          "idleMb": 5.5,
+          "peakMb": 58.7,
+          "incrementalMb": 53.2,
+          "sampleCount": 121,
+          "idleWindowSamples": 2
+        }
+      },
+      {
+        "label": "iteration-9",
+        "memory": {
+          "idleMb": 5.5,
+          "peakMb": 58.7,
+          "incrementalMb": 53.3,
+          "sampleCount": 121,
+          "idleWindowSamples": 2
+        }
+      },
+      {
+        "label": "iteration-10",
+        "memory": {
+          "idleMb": 5.5,
+          "peakMb": 58.8,
+          "incrementalMb": 53.3,
+          "sampleCount": 112,
+          "idleWindowSamples": 2
+        }
+      }
+    ]
+  },
+  "budgets": [
+    {
+      "id": "first-discovery",
+      "area": "NTFS scan latency",
+      "metric": "baseline first discovery",
+      "unit": "ms",
+      "target": 30000,
+      "measured": 11886,
+      "pass": true,
+      "note": null
+    },
+    {
+      "id": "warm-p95",
+      "area": "NTFS scan latency",
+      "metric": "unchanged warm reconciliation p95",
+      "unit": "ms",
+      "target": 10000,
+      "measured": 32876,
+      "pass": false,
+      "note": null
+    },
+    {
+      "id": "cancel-stop",
+      "area": "Cancellation",
+      "metric": "cooperative worker stop p95 (UI ack budget does not bind the worker)",
+      "unit": "ms",
+      "target": 1000,
+      "measured": 8,
+      "pass": true,
+      "note": "UI acknowledgement budget (<=250 ms) does not bind the worker; stop latency reported honestly"
+    },
+    {
+      "id": "working-memory",
+      "area": "Working memory",
+      "metric": "incremental private memory (measured on the baseline set, not the 100k set)",
+      "unit": "MiB",
+      "target": 128,
+      "measured": 53.3,
+      "pass": true,
+      "note": "measured on the baseline (10,000-location) set; the accepted 100,000-entry qualification set cannot complete under the 10,000-record staging quota (see findings)"
+    }
+  ],
+  "notes": []
+}
