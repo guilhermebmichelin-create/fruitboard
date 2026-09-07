@@ -164,6 +164,14 @@ jobs:
           cargo test -p fruitboard-storage --locked publication_rolls_back_visible_rows_and_ledger_on_apply_failure
           cargo test -p fruitboard-storage --locked recovery_discards_open_staging_and_root_removal_detaches_history
           cargo test -p fruitboard-storage --locked staging_batches_enforce_record_and_path_budgets_before_writing
+          cargo test -p fruitboard-storage --locked migration_rejects_legacy_timestamp_that_cannot_be_converted
+          cargo test -p fruitboard-storage --locked integration_locator_keys_preserve_case_renames_and_case_sensitive_aliases
+          cargo test -p fruitboard-storage --locked integration_identity_timestamp_and_numeric_bounds_are_checked
+          cargo test -p fruitboard-storage --locked integration_canonical_decimal_and_locator_key_shape_are_enforced
+          cargo test -p fruitboard-storage --locked integration_library_pages_are_root_scoped_and_snapshot_bound
+          cargo test -p fruitboard-storage --locked integration_staging_is_never_visible_to_library_reads
+          cargo test -p fruitboard-storage --locked integration_cancellation_uses_job_before_lease_and_run_after_lease
+          cargo test -p fruitboard-storage --locked migration_quarantines_legacy_keys_and_first_v1_scan_retains_projects
           cargo test -p fruitboard-storage --locked killed_migration_recovers_the_original_committed_database
           cargo test -p fruitboard-storage --locked backup_recovers_committed_state_after_original_corruption_without_overwriting_it
 

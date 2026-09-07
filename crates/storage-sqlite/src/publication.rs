@@ -3,13 +3,98 @@ use rusqlite::{OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod serde_decimal {
+    use serde::{Deserialize, Deserializer, Serializer, de::Error};
+
+    /// Canonical unsigned decimal (§2.1 of the integration contract): "0" or a
+    /// non-zero digit followed by digits. Rejects leading zeros, signs,
+    /// whitespace, and non-decimal input before any range check.
+    fn is_canonical_unsigned(value: &str) -> bool {
+        !value.is_empty()
+            && (value == "0" || !value.starts_with('0'))
+            && value.bytes().all(|byte| byte.is_ascii_digit())
+    }
+
+    /// Canonical signed decimal: an optional leading '-' over a canonical
+    /// unsigned magnitude. "-0" and "+" are never canonical.
+    fn is_canonical_signed(value: &str) -> bool {
+        if let Some(magnitude) = value.strip_prefix('-') {
+            magnitude != "0" && is_canonical_unsigned(magnitude)
+        } else {
+            is_canonical_unsigned(value)
+        }
+    }
+
+    pub mod u64_string {
+        use super::*;
+
+        pub fn serialize<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            serializer.serialize_str(&value.to_string())
+        }
+
+        pub fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let value = String::deserialize(deserializer)?;
+            if !is_canonical_unsigned(&value) {
+                return Err(D::Error::custom(
+                    "byte_size must be a canonical decimal string",
+                ));
+            }
+            value
+                .parse::<u64>()
+                .map_err(|_| D::Error::custom("byte_size is outside u64 range"))
+        }
+    }
+
+    pub mod i64_string {
+        use super::*;
+
+        pub fn serialize<S>(value: &i64, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            serializer.serialize_str(&value.to_string())
+        }
+    }
+
+    pub mod i128_string {
+        use super::*;
+
+        pub fn serialize<S>(value: &i128, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            serializer.serialize_str(&value.to_string())
+        }
+
+        pub fn deserialize<'de, D>(deserializer: D) -> Result<i128, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let value = String::deserialize(deserializer)?;
+            if !is_canonical_signed(&value) {
+                return Err(D::Error::custom(
+                    "modified_at_ns must be a canonical decimal string",
+                ));
+            }
+            value
+                .parse::<i128>()
+                .map_err(|_| D::Error::custom("modified_at_ns is outside i128 range"))
+        }
+    }
+}
+
 /// A single worker batch is deliberately bounded. The eventual enumerator can
 /// stream many batches, while each transaction remains small and retryable.
 pub const MAX_STAGED_BATCH_RECORDS: usize = 512;
 pub const MAX_STAGED_RECORDS: i64 = 10_000;
 pub const MAX_STAGED_PATH_BYTES: i64 = 4 * 1024 * 1024;
 const MAX_OBSERVATION_PATH_BYTES: usize = 32 * 1024;
-const MAX_FILE_ID_BYTES: usize = 512;
 pub const MAX_LIBRARY_PAGE_SIZE: usize = 200;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -48,15 +133,56 @@ impl ScanStageState {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EncodedIdentity {
+    /// Canonical unsigned decimal encoding of a Rust `u64` volume serial.
+    pub volume_serial: String,
+    /// Canonical unsigned decimal encoding of a Rust `u128` file ID.
+    pub file_id: String,
+}
+
+impl<'de> Deserialize<'de> for EncodedIdentity {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct RawIdentity {
+            volume_serial: String,
+            file_id: String,
+        }
+        let raw = RawIdentity::deserialize(deserializer)?;
+        // Fixed safe error: never echo the offending value.
+        if canonical_u64(&raw.volume_serial) && canonical_u128(&raw.file_id) {
+            Ok(EncodedIdentity {
+                volume_serial: raw.volume_serial,
+                file_id: raw.file_id,
+            })
+        } else {
+            Err(serde::de::Error::custom(
+                "identity must be a canonical u64/u128 decimal pair",
+            ))
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanObservation {
-    pub normalized_path: String,
+    /// Boundary-owned comparison key: `LocatorKeyV1` (§1.1 of the integration
+    /// contract). It is not a display path and is never derived by lowercasing
+    /// `relative_path` in this crate.
+    pub locator_key: String,
     pub relative_path: String,
+    #[serde(with = "serde_decimal::u64_string")]
     pub byte_size: u64,
-    pub modified_at_ms: i64,
-    pub volume_id: Option<i64>,
-    pub filesystem_file_id: Option<String>,
+    /// The filesystem boundary supplies i128; staging performs a checked
+    /// conversion to SQLite's signed 64-bit nanosecond representation.
+    #[serde(with = "serde_decimal::i128_string")]
+    pub modified_at_ns: i128,
+    pub identity: Option<EncodedIdentity>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -82,12 +208,13 @@ pub struct PublishedLocation {
     pub project_file_id: String,
     pub scan_root_id: Option<String>,
     pub detached_scan_root_id: Option<String>,
-    pub normalized_path: String,
+    pub locator_key: String,
     pub relative_path: String,
+    #[serde(with = "serde_decimal::u64_string")]
     pub byte_size: u64,
-    pub modified_at_ms: i64,
-    pub volume_id: Option<i64>,
-    pub filesystem_file_id: Option<String>,
+    #[serde(with = "serde_decimal::i64_string")]
+    pub modified_at_ns: i64,
+    pub identity: Option<EncodedIdentity>,
     pub presence: FilePresence,
     pub last_seen_scan_run_id: Option<String>,
     pub last_seen_at_ms: Option<i64>,
@@ -112,13 +239,15 @@ pub struct ScanRootPublication {
     pub last_successful_at_ms: Option<i64>,
 }
 
-/// Opaque-but-serializable position in the stable Library order. The client
-/// must keep the snapshot returned with the page and restart from the first
-/// page if a later query reports that it changed.
+/// Snapshot-bound position in the stable, root-scoped Library order. The IPC
+/// adapter serializes this as an opaque cursor string. A cursor expires when
+/// its committed root snapshot changes; clients restart with `cursor: null`.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryCursor {
-    pub normalized_path: String,
+    pub scan_root_id: String,
+    pub snapshot: LibrarySnapshot,
+    pub locator_key: String,
     pub location_id: String,
 }
 
@@ -130,8 +259,10 @@ pub struct LibrarySnapshot {
     pub last_successful_at_ms: Option<i64>,
 }
 
-/// Bounded read-only Library query. This is the storage-side contract for a
-/// typed IPC adapter; it is intentionally not a generic SQL or list API.
+/// Bounded read-only Library query. Pagination is deliberately per root: a
+/// global page would need a cross-root snapshot that this slice does not own.
+/// This is the storage-side contract for a typed IPC adapter; it is
+/// intentionally not a generic SQL or list API.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryQuery {
@@ -164,28 +295,26 @@ struct PublicationContext {
 
 #[derive(Clone, Debug)]
 struct StagedObservation {
-    normalized_path: String,
+    locator_key: String,
     relative_path: String,
     byte_size: i64,
-    modified_at_ms: i64,
-    volume_id: Option<i64>,
-    filesystem_file_id: Option<String>,
+    modified_at_ns: i64,
+    identity: Option<EncodedIdentity>,
 }
 
 #[derive(Clone, Debug)]
 struct ExistingLocation {
     id: String,
     project_file_id: String,
-    normalized_path: String,
-    volume_id: Option<i64>,
-    filesystem_file_id: Option<String>,
+    locator_key: String,
+    identity: Option<EncodedIdentity>,
     presence: FilePresence,
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct QualifiedIdentity {
-    volume_id: i64,
-    filesystem_file_id: String,
+    volume_serial: String,
+    file_id: String,
 }
 
 #[derive(Clone, Debug)]
@@ -212,58 +341,165 @@ fn map_u64(value: i64) -> Result<u64> {
     u64::try_from(value).map_err(|_| StorageError::InvalidSchema)
 }
 
+fn canonical_u64(value: &str) -> bool {
+    !value.is_empty()
+        && (value == "0" || !value.starts_with('0'))
+        && value.bytes().all(|byte| byte.is_ascii_digit())
+        && value.parse::<u64>().is_ok()
+}
+
+fn canonical_u128(value: &str) -> bool {
+    !value.is_empty()
+        && (value == "0" || !value.starts_with('0'))
+        && value.bytes().all(|byte| byte.is_ascii_digit())
+        && value.parse::<u128>().is_ok()
+}
+
+fn validate_identity(identity: &EncodedIdentity) -> Result<()> {
+    if canonical_u64(&identity.volume_serial) && canonical_u128(&identity.file_id) {
+        Ok(())
+    } else {
+        Err(StorageError::Conflict)
+    }
+}
+
+fn identity_from_columns(
+    volume_serial: Option<String>,
+    file_id: Option<String>,
+) -> Result<Option<EncodedIdentity>> {
+    match (volume_serial, file_id) {
+        (None, None) => Ok(None),
+        (Some(volume_serial), Some(file_id)) => {
+            let identity = EncodedIdentity {
+                volume_serial,
+                file_id,
+            };
+            validate_identity(&identity)?;
+            Ok(Some(identity))
+        }
+        _ => Err(StorageError::InvalidSchema),
+    }
+}
+
+fn sqlite_invalid_column(column: usize, name: &str) -> rusqlite::Error {
+    rusqlite::Error::InvalidColumnType(column, name.into(), rusqlite::types::Type::Text)
+}
+
+/// Version prefix of the storage integration contract's locator key (§1.1).
+pub const LOCATOR_KEY_V1_PREFIX: &str = "v1:";
+
+/// Every '%' must open exactly two hexadecimal digits. Storage accepts either
+/// hex case on read; the enumerator emits uppercase per §1.1.
+fn valid_pct_encoding(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = bytes.get(index + 1).is_some_and(u8::is_ascii_hexdigit);
+            let low = bytes.get(index + 2).is_some_and(u8::is_ascii_hexdigit);
+            if !high || !low {
+                return false;
+            }
+            index += 3;
+        } else {
+            index += 1;
+        }
+    }
+    true
+}
+
+/// Syntactic validation for `LocatorKeyV1` (§1.1 of the integration contract).
+///
+/// Storage treats a valid key as opaque bytes afterwards: no folding,
+/// lowercasing, or NOCASE comparison happens here. Structural validation
+/// exists so a raw display path or an unversioned v4 path fails fast with
+/// `staging_rejected` instead of silently aliasing an unrelated location.
+fn is_valid_locator_key_v1(key: &str) -> bool {
+    if key.len() > MAX_OBSERVATION_PATH_BYTES || !key.is_ascii() || key.contains('\0') {
+        return false;
+    }
+    let Some(body) = key.strip_prefix(LOCATOR_KEY_V1_PREFIX) else {
+        return false;
+    };
+    if body.is_empty() {
+        return false;
+    }
+    body.split('/').all(|segment| {
+        let Some((mode, encoded)) = segment.split_once(':') else {
+            return false;
+        };
+        (mode == "i" || mode == "s")
+            && !encoded.is_empty()
+            && encoded.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~' | b'%')
+            })
+            && valid_pct_encoding(encoded)
+    })
+}
+
 fn observation_path_bytes(observation: &ScanObservation) -> Result<i64> {
-    if observation.normalized_path.is_empty()
+    if !is_valid_locator_key_v1(&observation.locator_key)
         || observation.relative_path.is_empty()
-        || observation.normalized_path.len() > MAX_OBSERVATION_PATH_BYTES
         || observation.relative_path.len() > MAX_OBSERVATION_PATH_BYTES
-        || observation.normalized_path.contains(['\0', ':'])
         || observation.relative_path.contains(['\0', ':'])
-        || observation.normalized_path.starts_with(['/', '\\'])
         || observation.relative_path.starts_with(['/', '\\'])
-        || observation
-            .normalized_path
-            .split(['/', '\\'])
-            .any(|part| matches!(part, "" | "." | ".."))
         || observation
             .relative_path
             .split(['/', '\\'])
             .any(|part| matches!(part, "" | "." | ".."))
         || observation
-            .filesystem_file_id
-            .as_deref()
-            .is_some_and(|id| id.is_empty() || id.len() > MAX_FILE_ID_BYTES || id.contains('\0'))
-        || observation.volume_id.is_some_and(|id| id < 0)
+            .identity
+            .as_ref()
+            .is_some_and(|identity| validate_identity(identity).is_err())
     {
         return Err(StorageError::Conflict);
     }
     let bytes = observation
-        .normalized_path
+        .locator_key
         .len()
         .checked_add(observation.relative_path.len())
         .ok_or(StorageError::Conflict)?;
     i64::try_from(bytes).map_err(|_| StorageError::Conflict)
 }
 
+fn valid_snapshot(snapshot: &LibrarySnapshot) -> bool {
+    snapshot
+        .last_successful_run_id
+        .as_deref()
+        .is_none_or(|value| !value.is_empty() && !value.contains('\0'))
+        && snapshot
+            .last_successful_generation
+            .is_none_or(|generation| generation >= 0)
+}
+
+fn valid_cursor(cursor: &LibraryCursor) -> bool {
+    !cursor.scan_root_id.is_empty()
+        && !cursor.scan_root_id.contains('\0')
+        && is_valid_locator_key_v1(&cursor.locator_key)
+        && !cursor.location_id.is_empty()
+        && !cursor.location_id.contains('\0')
+        && valid_snapshot(&cursor.snapshot)
+}
+
 fn staged_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<StagedObservation> {
+    let identity = identity_from_columns(row.get(4)?, row.get(5)?)
+        .map_err(|_| sqlite_invalid_column(4, "encoded_identity"))?;
     Ok(StagedObservation {
-        normalized_path: row.get(0)?,
+        locator_key: row.get(0)?,
         relative_path: row.get(1)?,
         byte_size: row.get(2)?,
-        modified_at_ms: row.get(3)?,
-        volume_id: row.get(4)?,
-        filesystem_file_id: row.get(5)?,
+        modified_at_ns: row.get(3)?,
+        identity,
     })
 }
 
 fn staged_observation_path_bytes(observation: &StagedObservation) -> Result<i64> {
     observation_path_bytes(&ScanObservation {
-        normalized_path: observation.normalized_path.clone(),
+        locator_key: observation.locator_key.clone(),
         relative_path: observation.relative_path.clone(),
         byte_size: map_u64(observation.byte_size)?,
-        modified_at_ms: observation.modified_at_ms,
-        volume_id: observation.volume_id,
-        filesystem_file_id: observation.filesystem_file_id.clone(),
+        modified_at_ns: i128::from(observation.modified_at_ns),
+        identity: observation.identity.clone(),
     })
 }
 
@@ -476,11 +712,11 @@ fn select_staged_observations(
     run_id: &str,
 ) -> Result<Vec<StagedObservation>> {
     let mut statement = transaction.prepare(
-        "SELECT normalized_path, relative_path, byte_size, modified_at_ms,
-                volume_id, filesystem_file_id
+        "SELECT locator_key, relative_path, byte_size, modified_at_ns,
+                identity_volume_serial, identity_file_id
          FROM scan_stage_observation
          WHERE run_id = ?1
-         ORDER BY normalized_path, id",
+         ORDER BY locator_key COLLATE BINARY, id",
     )?;
     statement
         .query_map([run_id], staged_from_row)?
@@ -498,14 +734,15 @@ fn insert_project_file(
     transaction.execute(
         "INSERT INTO project_file
          (id, display_filename, extension, byte_size, modified_at_ms,
-          created_at_ms, updated_at_ms)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+          modified_at_ns, created_at_ms, updated_at_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
         params![
             project_file_id,
             display_filename,
             extension,
             observation.byte_size,
-            observation.modified_at_ms,
+            legacy_modified_at_ms(observation.modified_at_ns),
+            observation.modified_at_ns,
             now_ms,
         ],
     )?;
@@ -529,13 +766,14 @@ fn update_project_file(
     let changed = transaction.execute(
         "UPDATE project_file
          SET display_filename = ?1, extension = ?2, byte_size = ?3,
-             modified_at_ms = ?4, updated_at_ms = ?5
-         WHERE id = ?6",
+              modified_at_ms = ?4, modified_at_ns = ?5, updated_at_ms = ?6
+         WHERE id = ?7",
         params![
             display_filename,
             extension,
             observation.byte_size,
-            observation.modified_at_ms,
+            legacy_modified_at_ms(observation.modified_at_ns),
+            observation.modified_at_ns,
             now_ms,
             project_file_id,
         ],
@@ -561,19 +799,21 @@ fn filename_parts(path: &str) -> (String, String) {
     (display, extension)
 }
 
-fn qualified_identity(
-    volume_id: Option<i64>,
-    filesystem_file_id: Option<&str>,
-) -> Option<QualifiedIdentity> {
-    match (volume_id, filesystem_file_id) {
-        (Some(volume_id), Some(filesystem_file_id)) if !filesystem_file_id.is_empty() => {
-            Some(QualifiedIdentity {
-                volume_id,
-                filesystem_file_id: filesystem_file_id.to_owned(),
-            })
-        }
-        _ => None,
-    }
+fn legacy_modified_at_ms(modified_at_ns: i64) -> i64 {
+    modified_at_ns / 1_000_000
+}
+
+fn legacy_volume_id(identity: Option<&EncodedIdentity>) -> Option<i64> {
+    identity
+        .and_then(|identity| identity.volume_serial.parse::<u64>().ok())
+        .and_then(|value| i64::try_from(value).ok())
+}
+
+fn qualified_identity(identity: Option<&EncodedIdentity>) -> Option<QualifiedIdentity> {
+    identity.map(|identity| QualifiedIdentity {
+        volume_serial: identity.volume_serial.clone(),
+        file_id: identity.file_id.clone(),
+    })
 }
 
 fn select_root_locations(
@@ -581,11 +821,11 @@ fn select_root_locations(
     root_id: &str,
 ) -> Result<Vec<ExistingLocation>> {
     let mut statement = transaction.prepare(
-        "SELECT id, project_file_id, normalized_path, volume_id,
-                filesystem_file_id, presence
+        "SELECT id, project_file_id, locator_key, identity_volume_serial,
+                identity_file_id, presence
          FROM file_location
          WHERE scan_root_id = ?1
-         ORDER BY normalized_path, id",
+         ORDER BY locator_key COLLATE BINARY, id",
     )?;
     statement
         .query_map([root_id], |row| {
@@ -596,12 +836,13 @@ fn select_root_locations(
                     rusqlite::types::Type::Text,
                 )
             })?;
+            let identity = identity_from_columns(row.get(3)?, row.get(4)?)
+                .map_err(|_| sqlite_invalid_column(3, "encoded_identity"))?;
             Ok(ExistingLocation {
                 id: row.get(0)?,
                 project_file_id: row.get(1)?,
-                normalized_path: row.get(2)?,
-                volume_id: row.get(3)?,
-                filesystem_file_id: row.get(4)?,
+                locator_key: row.get(2)?,
+                identity,
                 presence,
             })
         })?
@@ -612,10 +853,7 @@ fn select_root_locations(
 fn identities_differ(previous: &ExistingLocation, current: Option<&QualifiedIdentity>) -> bool {
     matches!(
         (
-            qualified_identity(
-                previous.volume_id,
-                previous.filesystem_file_id.as_deref()
-            ),
+            qualified_identity(previous.identity.as_ref()),
             current
         ),
         (Some(previous), Some(current)) if previous != *current
@@ -639,21 +877,16 @@ fn plan_observations(
     let previous = select_root_locations(transaction, root_id)?;
     let previous_by_path: BTreeMap<_, _> = previous
         .iter()
-        .map(|location| (location.normalized_path.as_str(), location))
+        .map(|location| (location.locator_key.as_str(), location))
         .collect();
     let observed_by_path: BTreeMap<_, _> = observations
         .iter()
-        .map(|observation| (observation.normalized_path.as_str(), observation))
+        .map(|observation| (observation.locator_key.as_str(), observation))
         .collect();
 
     let observed_identities: BTreeSet<_> = observations
         .iter()
-        .filter_map(|observation| {
-            qualified_identity(
-                observation.volume_id,
-                observation.filesystem_file_id.as_deref(),
-            )
-        })
+        .filter_map(|observation| qualified_identity(observation.identity.as_ref()))
         .collect();
 
     // Candidates from the prior committed set are qualified by the complete
@@ -661,20 +894,14 @@ fn plan_observations(
     // identity is a replacement, not evidence for the old identity.
     let mut identity_candidates: BTreeMap<QualifiedIdentity, BTreeSet<String>> = BTreeMap::new();
     for location in previous.iter().filter(|location| {
-        location.presence == FilePresence::Present
-            && location.volume_id.is_some()
-            && location.filesystem_file_id.is_some()
+        location.presence == FilePresence::Present && location.identity.is_some()
     }) {
         let identity =
-            qualified_identity(location.volume_id, location.filesystem_file_id.as_deref())
-                .ok_or(StorageError::Conflict)?;
+            qualified_identity(location.identity.as_ref()).ok_or(StorageError::Conflict)?;
         let current_supports_identity = observed_by_path
-            .get(location.normalized_path.as_str())
+            .get(location.locator_key.as_str())
             .map(|observation| {
-                qualified_identity(
-                    observation.volume_id,
-                    observation.filesystem_file_id.as_deref(),
-                ) == Some(identity.clone())
+                qualified_identity(observation.identity.as_ref()) == Some(identity.clone())
             })
             .unwrap_or(true);
         if current_supports_identity {
@@ -691,12 +918,9 @@ fn plan_observations(
     let mut path_continuity = Vec::with_capacity(observations.len());
     let mut continuity_candidates: BTreeMap<QualifiedIdentity, BTreeSet<String>> = BTreeMap::new();
     for observation in observations {
-        let current_identity = qualified_identity(
-            observation.volume_id,
-            observation.filesystem_file_id.as_deref(),
-        );
+        let current_identity = qualified_identity(observation.identity.as_ref());
         let continuity = previous_by_path
-            .get(observation.normalized_path.as_str())
+            .get(observation.locator_key.as_str())
             .filter(|location| !identities_differ(location, current_identity.as_ref()))
             .map(|location| location.project_file_id.clone());
         if let (Some(identity), Some(project_file_id)) = (current_identity, continuity.as_ref()) {
@@ -730,10 +954,7 @@ fn plan_observations(
 
     let mut planned = Vec::with_capacity(observations.len());
     for (index, observation) in observations.iter().enumerate() {
-        let identity = qualified_identity(
-            observation.volume_id,
-            observation.filesystem_file_id.as_deref(),
-        );
+        let identity = qualified_identity(observation.identity.as_ref());
         let project_file = if let Some(identity) = identity {
             identity_assignments
                 .get(&identity)
@@ -750,7 +971,7 @@ fn plan_observations(
         planned.push(PlannedObservation {
             observation: observation.clone(),
             location_id: previous_by_path
-                .get(observation.normalized_path.as_str())
+                .get(observation.locator_key.as_str())
                 .map(|location| location.id.clone()),
             project_file,
         });
@@ -775,17 +996,36 @@ fn apply_planned_observation(
         let changed = transaction.execute(
             "UPDATE file_location
              SET project_file_id = ?1, relative_path = ?2, byte_size = ?3,
-                 modified_at_ms = ?4, volume_id = ?5, filesystem_file_id = ?6,
-                 presence = 'present', last_seen_scan_run_id = ?7,
-                 last_seen_at_ms = ?8, updated_at_ms = ?8
-             WHERE id = ?9 AND scan_root_id = ?10",
+                 normalized_path = ?4, locator_key = ?4,
+                 modified_at_ms = ?5, modified_at_ns = ?6,
+                 volume_id = ?7, filesystem_file_id = ?8,
+                 identity_volume_serial = ?9, identity_file_id = ?10,
+                 presence = 'present', last_seen_scan_run_id = ?11,
+                 last_seen_at_ms = ?12, updated_at_ms = ?12
+             WHERE id = ?13 AND scan_root_id = ?14",
             params![
                 &planned.project_file.id,
                 &planned.observation.relative_path,
                 planned.observation.byte_size,
-                planned.observation.modified_at_ms,
-                planned.observation.volume_id,
-                planned.observation.filesystem_file_id.as_deref(),
+                &planned.observation.locator_key,
+                legacy_modified_at_ms(planned.observation.modified_at_ns),
+                planned.observation.modified_at_ns,
+                legacy_volume_id(planned.observation.identity.as_ref()),
+                planned
+                    .observation
+                    .identity
+                    .as_ref()
+                    .map(|identity| identity.file_id.as_str()),
+                planned
+                    .observation
+                    .identity
+                    .as_ref()
+                    .map(|identity| identity.volume_serial.as_str()),
+                planned
+                    .observation
+                    .identity
+                    .as_ref()
+                    .map(|identity| identity.file_id.as_str()),
                 &context.run_id,
                 now_ms,
                 location_id,
@@ -800,21 +1040,37 @@ fn apply_planned_observation(
         transaction.execute(
             "INSERT INTO file_location
              (id, project_file_id, scan_root_id, detached_scan_root_id,
-              normalized_path, relative_path, byte_size, modified_at_ms,
-              volume_id, filesystem_file_id, presence, last_seen_scan_run_id,
-              last_seen_at_ms, created_at_ms, updated_at_ms)
-             VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, ?8, ?9, 'present',
-                     ?10, ?11, ?11, ?11)",
+              normalized_path, locator_key, relative_path, byte_size,
+              modified_at_ms, modified_at_ns, volume_id, filesystem_file_id,
+              identity_volume_serial, identity_file_id, presence,
+              last_seen_scan_run_id, last_seen_at_ms, created_at_ms, updated_at_ms)
+             VALUES (?1, ?2, ?3, NULL, ?4, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
+                     ?11, ?12, 'present', ?13, ?14, ?14, ?14)",
             params![
                 &location_id,
                 &planned.project_file.id,
                 &context.root_id,
-                &planned.observation.normalized_path,
+                &planned.observation.locator_key,
                 &planned.observation.relative_path,
                 planned.observation.byte_size,
-                planned.observation.modified_at_ms,
-                planned.observation.volume_id,
-                planned.observation.filesystem_file_id.as_deref(),
+                legacy_modified_at_ms(planned.observation.modified_at_ns),
+                planned.observation.modified_at_ns,
+                legacy_volume_id(planned.observation.identity.as_ref()),
+                planned
+                    .observation
+                    .identity
+                    .as_ref()
+                    .map(|identity| identity.file_id.as_str()),
+                planned
+                    .observation
+                    .identity
+                    .as_ref()
+                    .map(|identity| identity.volume_serial.as_str()),
+                planned
+                    .observation
+                    .identity
+                    .as_ref()
+                    .map(|identity| identity.file_id.as_str()),
                 &context.run_id,
                 now_ms,
             ],
@@ -865,7 +1121,7 @@ pub(crate) fn publish_scan_run_tx(
     let mut seen = BTreeSet::new();
     if observations
         .iter()
-        .any(|observation| !seen.insert(&observation.normalized_path))
+        .any(|observation| !seen.insert(&observation.locator_key))
     {
         return Err(StorageError::Conflict);
     }
@@ -961,12 +1217,14 @@ pub(crate) fn publish_scan_run_tx(
 }
 
 fn published_location_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PublishedLocation> {
+    let identity = identity_from_columns(row.get(8)?, row.get(9)?)
+        .map_err(|_| sqlite_invalid_column(8, "encoded_identity"))?;
     Ok(PublishedLocation {
         id: row.get(0)?,
         project_file_id: row.get(1)?,
         scan_root_id: row.get(2)?,
         detached_scan_root_id: row.get(3)?,
-        normalized_path: row.get(4)?,
+        locator_key: row.get(4)?,
         relative_path: row.get(5)?,
         byte_size: map_u64(row.get(6)?).map_err(|_| {
             rusqlite::Error::InvalidColumnType(
@@ -975,9 +1233,8 @@ fn published_location_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Publ
                 rusqlite::types::Type::Integer,
             )
         })?,
-        modified_at_ms: row.get(7)?,
-        volume_id: row.get(8)?,
-        filesystem_file_id: row.get(9)?,
+        modified_at_ns: row.get(7)?,
+        identity,
         presence: FilePresence::parse(&row.get::<_, String>(10)?).map_err(|_| {
             rusqlite::Error::InvalidColumnType(10, "presence".into(), rusqlite::types::Type::Text)
         })?,
@@ -987,8 +1244,8 @@ fn published_location_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Publ
 }
 
 const LOCATION_COLUMNS: &str = "SELECT id, project_file_id, scan_root_id, detached_scan_root_id,
-            normalized_path, relative_path, byte_size, modified_at_ms,
-            volume_id, filesystem_file_id, presence,
+            locator_key, relative_path, byte_size, modified_at_ns,
+            identity_volume_serial, identity_file_id, presence,
             last_seen_scan_run_id, last_seen_at_ms
      FROM file_location";
 
@@ -1163,25 +1420,28 @@ impl Database {
                 for observation in observations {
                     let path_bytes = observation_path_bytes(observation)
                         .map_err(|_| StorageError::StagingRejected)?;
-                    if !batch_paths.insert(&observation.normalized_path) {
+                    if !batch_paths.insert(&observation.locator_key) {
                         return Err(StorageError::StagingRejected);
                     }
                     let byte_size = i64::try_from(observation.byte_size)
                         .map_err(|_| StorageError::StagingRejected)?;
+                    let modified_at_ns = i64::try_from(observation.modified_at_ns)
+                        .map_err(|_| StorageError::StagingRejected)?;
                     let existing = transaction
                         .query_row(
-                            "SELECT relative_path, byte_size, modified_at_ms, volume_id,
-                                    filesystem_file_id
+                            "SELECT relative_path, byte_size, modified_at_ns,
+                                    identity_volume_serial, identity_file_id
                              FROM scan_stage_observation
-                             WHERE run_id = ?1 AND normalized_path = ?2",
-                            params![&context.run_id, &observation.normalized_path],
+                             WHERE run_id = ?1 AND locator_key = ?2",
+                            params![&context.run_id, &observation.locator_key],
                             |row| {
+                                let identity = identity_from_columns(row.get(3)?, row.get(4)?)
+                                    .map_err(|_| sqlite_invalid_column(3, "encoded_identity"))?;
                                 Ok((
                                     row.get::<_, String>(0)?,
                                     row.get::<_, i64>(1)?,
                                     row.get::<_, i64>(2)?,
-                                    row.get::<_, Option<i64>>(3)?,
-                                    row.get::<_, Option<String>>(4)?,
+                                    identity,
                                 ))
                             },
                         )
@@ -1191,9 +1451,8 @@ impl Database {
                             != (
                                 observation.relative_path.clone(),
                                 byte_size,
-                                observation.modified_at_ms,
-                                observation.volume_id,
-                                observation.filesystem_file_id.clone(),
+                                modified_at_ns,
+                                observation.identity.clone(),
                             )
                         {
                             return Err(StorageError::StagingRejected);
@@ -1208,17 +1467,30 @@ impl Database {
                         .ok_or(StorageError::StagingRejected)?;
                     transaction.execute(
                         "INSERT INTO scan_stage_observation
-                         (run_id, normalized_path, relative_path, byte_size,
-                          modified_at_ms, volume_id, filesystem_file_id)
-                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                         (run_id, normalized_path, locator_key, relative_path, byte_size,
+                          modified_at_ms, modified_at_ns, volume_id, filesystem_file_id,
+                          identity_volume_serial, identity_file_id)
+                         VALUES (?1, ?2, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                         params![
                             &context.run_id,
-                            &observation.normalized_path,
+                            &observation.locator_key,
                             &observation.relative_path,
                             byte_size,
-                            observation.modified_at_ms,
-                            observation.volume_id,
-                            observation.filesystem_file_id.as_deref(),
+                            legacy_modified_at_ms(modified_at_ns),
+                            modified_at_ns,
+                            legacy_volume_id(observation.identity.as_ref()),
+                            observation
+                                .identity
+                                .as_ref()
+                                .map(|identity| identity.file_id.as_str()),
+                            observation
+                                .identity
+                                .as_ref()
+                                .map(|identity| identity.volume_serial.as_str()),
+                            observation
+                                .identity
+                                .as_ref()
+                                .map(|identity| identity.file_id.as_str()),
                         ],
                     )?;
                 }
@@ -1278,23 +1550,33 @@ impl Database {
         result
     }
 
-    /// Read a bounded, stable Library page. The client sends no SQL and must
-    /// echo `snapshot` on subsequent pages; a changed successful publication
-    /// returns `Conflict`, so the client can restart from the first page.
+    /// Read a bounded, stable page for one root. The client sends no SQL and
+    /// must echo the returned snapshot on subsequent pages. A committed
+    /// publication expires the cursor and requires a restart from page one.
     pub fn query_library(&self, query: &LibraryQuery) -> Result<LibraryPage> {
         if query.scan_root_id.is_empty()
+            || query.scan_root_id.contains('\0')
             || query.page_size == 0
             || query.page_size > MAX_LIBRARY_PAGE_SIZE
         {
             return Err(StorageError::InvalidSchema);
         }
-        if query.cursor.as_ref().is_some_and(|cursor| {
-            cursor.normalized_path.is_empty() || cursor.location_id.is_empty()
-        }) {
-            return Err(StorageError::InvalidSchema);
+        if query
+            .snapshot
+            .as_ref()
+            .is_some_and(|snapshot| !valid_snapshot(snapshot))
+        {
+            return Err(StorageError::InvalidCursor);
         }
-        let snapshot = self
-            .connection
+        if let Some(cursor) = query.cursor.as_ref()
+            && (!valid_cursor(cursor)
+                || cursor.scan_root_id != query.scan_root_id
+                || query.snapshot.as_ref() != Some(&cursor.snapshot))
+        {
+            return Err(StorageError::InvalidCursor);
+        }
+        let transaction = self.connection.unchecked_transaction()?;
+        let snapshot = transaction
             .query_row(
                 "SELECT last_successful_run_id, last_successful_generation,
                         last_successful_at_ms
@@ -1314,47 +1596,67 @@ impl Database {
             .as_ref()
             .is_some_and(|expected| expected != &snapshot)
         {
-            return Err(StorageError::Conflict);
+            return Err(StorageError::StaleCursor);
         }
 
-        let cursor_path = query
+        let cursor_key = query
             .cursor
             .as_ref()
-            .map(|cursor| cursor.normalized_path.as_str());
+            .map(|cursor| cursor.locator_key.as_str());
         let cursor_id = query
             .cursor
             .as_ref()
             .map(|cursor| cursor.location_id.as_str());
+        if let Some(cursor) = query.cursor.as_ref() {
+            let exists: i64 = transaction.query_row(
+                "SELECT count(*) FROM file_location
+                 WHERE scan_root_id = ?1 AND locator_key = ?2 AND id = ?3",
+                params![
+                    &query.scan_root_id,
+                    &cursor.locator_key,
+                    &cursor.location_id
+                ],
+                |row| row.get(0),
+            )?;
+            if exists != 1 {
+                return Err(StorageError::StaleCursor);
+            }
+        }
         let limit = i64::try_from(query.page_size + 1).map_err(|_| StorageError::Conflict)?;
-        let mut statement = self.connection.prepare(&format!(
+        let mut statement = transaction.prepare(&format!(
             "{LOCATION_COLUMNS}
              WHERE scan_root_id = ?1
-               AND (?2 IS NULL OR normalized_path > ?2
-                    OR (normalized_path = ?2 AND id > ?3))
-             ORDER BY normalized_path, id
+               AND (?2 IS NULL OR locator_key > ?2
+                    OR (locator_key = ?2 AND id > ?3))
+             ORDER BY locator_key COLLATE BINARY, id
              LIMIT ?4"
         ))?;
         let mut locations = statement
             .query_map(
-                params![&query.scan_root_id, cursor_path, cursor_id, limit],
+                params![&query.scan_root_id, cursor_key, cursor_id, limit],
                 published_location_from_row,
             )?
             .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(statement);
         let has_more = locations.len() > query.page_size;
         if has_more {
             locations.pop();
         }
         let next_cursor = locations.last().map(|location| LibraryCursor {
-            normalized_path: location.normalized_path.clone(),
+            scan_root_id: query.scan_root_id.clone(),
+            snapshot: snapshot.clone(),
+            locator_key: location.locator_key.clone(),
             location_id: location.id.clone(),
         });
-        Ok(LibraryPage {
+        let page = LibraryPage {
             scan_root_id: query.scan_root_id.clone(),
             locations,
             next_cursor,
             snapshot,
             has_more,
-        })
+        };
+        transaction.rollback()?;
+        Ok(page)
     }
 
     /// Unbounded storage-only fixture/maintenance read. Do not bind this
@@ -1370,7 +1672,8 @@ impl Database {
             return Err(StorageError::NotFound);
         }
         let mut statement = self.connection.prepare(&format!(
-            "{LOCATION_COLUMNS} WHERE scan_root_id = ?1 ORDER BY normalized_path, id"
+            "{LOCATION_COLUMNS} WHERE scan_root_id = ?1
+             ORDER BY locator_key COLLATE BINARY, id"
         ))?;
         statement
             .query_map([root_id], published_location_from_row)?
@@ -1386,7 +1689,7 @@ impl Database {
         let mut statement = self.connection.prepare(&format!(
             "{LOCATION_COLUMNS}
              WHERE scan_root_id IS NULL AND detached_scan_root_id IS NOT NULL
-             ORDER BY detached_scan_root_id, normalized_path, id"
+             ORDER BY detached_scan_root_id, locator_key COLLATE BINARY, id"
         ))?;
         statement
             .query_map([], published_location_from_row)?

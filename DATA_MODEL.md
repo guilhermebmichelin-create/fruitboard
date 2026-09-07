@@ -9,7 +9,10 @@ bundled SQLite 3.53.2. Native startup opens
 `app_local_data_dir()/storage/fruitboard.db`; Windows resolves this below the
 current user's local application data, outside roaming/Drive locations.
 
-The executable schema is version 4:
+The executable schema is version 5. Migration 005 is the shared Phase 2
+integration boundary; its exact locator, timestamp, identity, job/run, and
+root-scoped pagination contract is documented in
+[`docs/PHASE_2_INTEGRATION_CONTRACT.md`](docs/PHASE_2_INTEGRATION_CONTRACT.md).
 
 | Table | Fields and constraints | Classification |
 | --- | --- | --- |
@@ -20,9 +23,9 @@ The executable schema is version 4:
 | `scan_job` | One active queued/running job per root, retry chain/attempt budget, due time, follow-up and cancellation flags | Device-local durable queue |
 | `scan_run` | Run ID, root generation/revision, session ID, lease token/deadline, terminal outcome | Device-local leased attempt |
 | `project_file` | Minimal UUIDv7 file metadata used by the filesystem-only publication checkpoint | Device-local committed read model |
-| `file_location` | Per-path normalized/relative location, qualified identity, present or missing state, last-seen run, and detached-root history | Device-local committed read model |
+| `file_location` | Per-locator-key/display-relative location, bounded decimal identity, nanosecond metadata, present or missing state, last-seen run, and detached-root history | Device-local committed read model |
 | `scan_stage` | Run-owned captured fences, bounded counters, and open/published/discarded state | Device-local staging ledger |
-| `scan_stage_observation` | Bounded normalized/relative metadata observations keyed by run and path | Device-local staging data |
+| `scan_stage_observation` | Bounded locator-key/display-relative metadata observations keyed by run and locator | Device-local staging data |
 
 All shipped tables are STRICT. The preference defaults to Home. The execution
 tables use partial and due-time indexes for one active job per root and bounded
@@ -31,8 +34,9 @@ filesystem-only checkpoint and remain outside the renderer.
 The singleton key is infrastructure identity, not a domain entity UUID.
 There is no foreign-key relationship between these two tables; foreign-key
 enforcement is enabled on every connection and tested with temporary relational
-tables. The broader logical product tables below remain proposals; migration
-004 only ships the small device-local publication subset listed above.
+tables. The broader logical product tables below remain proposals; migrations
+004 and 005 only ship the small device-local execution/publication subset
+listed above.
 
 Rust exposes typed preference methods and keeps the connection and transaction
 closure private. Issue #16 connects them to exact `get_startup_view` and
@@ -52,8 +56,9 @@ Migrations are embedded from `crates/storage-sqlite/migrations/`. The runner
 checks the application ID, `user_version`, and the complete ordered ledger,
 then commits all pending SQL, seeds, ledger rows, and the version in one
 IMMEDIATE transaction. Changed history, unrelated databases, and newer schemas
-are refused. Tests cover v0 through v3 fixtures, including migrations 003 and
-004 preserving roots/preferences and rollback after a later failure.
+are refused. Tests cover v0 through v4 fixtures, including migrations 003–005
+preserving roots/preferences, converting legacy publication fields with
+checked bounds, and rolling back after a later failure.
 
 Before upgrading an existing schema, the SQLite backup API creates a verified
 snapshot in `storage/backups/`. Backup failure prevents the upgrade. Completed
@@ -97,8 +102,10 @@ reconciliation core a production scanner.
 - Missing, archived, abandoned, and deleted are distinct states.
 - Syncable and device-local data are classified at the table/field level.
 - Application mutations and their sync operation are committed atomically.
-- Timestamps are UTC Unix milliseconds. User-entered calendar dates remain ISO
-  local dates when time zone semantics would be misleading.
+- General application timestamps are UTC Unix milliseconds. Filesystem change
+  detection uses signed Unix nanoseconds in the migration-005 storage boundary
+  so adjacent writes remain distinguishable; user-entered calendar dates
+  remain ISO local dates when time zone semantics would be misleading.
 - Deletions of syncable records use tombstones long enough for offline replicas.
 
 ## Entity overview
@@ -214,9 +221,10 @@ nullable `deleted_at_ms` unless explicitly immutable.
   `(device_id, volume_id, filesystem_file_id)` index links aliases to one
   underlying file without collapsing them
 
-Migration 004 implements a deliberately smaller device-local subset for the
-filesystem-only checkpoint: no absolute path is exposed, and `file_location`
-stores normalized/relative paths, metadata, qualified identity when available,
+Migrations 004 and 005 implement a deliberately smaller device-local subset for
+the filesystem-only checkpoint: no absolute path is exposed, and
+`file_location` stores a boundary-owned locator key separately from its
+display-relative spelling, nanosecond metadata, bounded decimal identity,
 `present|missing` state, and last-seen run markers. Detached root history keeps
 the former root ID after configuration removal. The execution boundary rejects
 cancelled or invalidated runs; traversal must withhold publication for offline,
