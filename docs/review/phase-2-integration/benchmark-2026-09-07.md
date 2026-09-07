@@ -142,7 +142,7 @@ peak = maximum sample inside the window.
 | A warm-up | 5.8 | 58.9 | 53.0 |
 | A measured (min..max) | 5.5 | 58.7–58.9 | 52.2–53.4 |
 | B warm-up | 5.9 | 58.9 | 53.0 |
-| B measured (min..max) | 5.5 | 58.7–58.8 | 53.1–53.3 |
+| B measured (min..max) | 5.5 | 58.7–58.8 | 53.2–53.3 |
 
 Peak incremental memory was ~53 MiB on the 10,000-location set. **Measured
 on the baseline set, not the accepted 100,000-entry qualification set**
@@ -179,9 +179,9 @@ the budget row "Baseline fixture 10,000 FLP-named files" as literally
 implemented.
 
 **F2 — Warm reconciliation p95 (32.9 s; median 12.9 s) exceeds the 10 s
-provisional budget on this host.** First discovery passed (11.9 s). The
-first four measured iterations were much slower (23.5–32.9 s) while the last
-six were stable (~11.7–12.9 s), matching heavy background activity
+provisional budget on this host.** First discovery passed (11.9 s). Three of
+the first four measured iterations were much slower (23.5–32.9 s) while the
+second and the last six were stable (~11.7–12.9 s), matching heavy background activity
 (DriveFS indexing of the freshly generated fixture, Defender real-time
 scanning, agent tooling) during the first part of the run. Hypotheses, in
 order of suspicion: (a) background I/O/AV contention on the fixture volume;
