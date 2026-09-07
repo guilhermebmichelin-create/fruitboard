@@ -8,7 +8,7 @@ analyzing, and finishing music.
 Fruitboard's **Phase 0 architecture is accepted**; the manual governance
 exception recorded for the private GitHub Free repository was superseded on
 2026-09-07 when the repository became public, and enforced branch protection is
-now proposed (pending owner approval; see [DEVELOPMENT.md](DEVELOPMENT.md#proposed-enforced-branch-protection-pending-owner-approval)).
+enabled on `main` (2026-09-07; see [DEVELOPMENT.md](DEVELOPMENT.md#enforced-branch-protection)).
 **Phase 1 is
 accepted**: the reproducible Tauri/React shell now includes Rust-owned local
 SQLite, one persisted startup-view preference, automated quality/security
@@ -33,10 +33,9 @@ environment. Start with [DEVELOPMENT.md](DEVELOPMENT.md); after installing the
 pinned tools, `pnpm check` is the single local verification entry point and
 `pnpm dev` launches the Windows desktop shell.
 
-CI mirrors that gate through six stable jobs. Repository policy currently
-relies on manual merge governance; enforced branch protection is available on
-the now-public repository and is proposed for adoption, pending owner approval;
-see [the governance details](DEVELOPMENT.md#github-governance).
+CI mirrors that gate through stable per-area jobs, enforced as required checks
+on `main` by branch protection (enabled 2026-09-07); see [the governance
+details](DEVELOPMENT.md#github-governance).
 
 The current shell's information hierarchy, responsive evidence, accessibility
 coverage, and intentional limitations are recorded in the
