@@ -25,11 +25,15 @@
 //! renewal and publication call revalidates the session, lease token, root
 //! revision and the durable cancellation flag inside storage's transaction.
 //!
-//! There is no Tauri dependency, no IPC surface, no renderer command, no
-//! watcher wiring, and no production scan entry point. The host owns the one
-//! global worker instance, a started process session and the poll loop; the
-//! filesystem port is injected, which keeps this crate portable and lets
-//! tests script every outcome deterministically.
+//! There is no Tauri dependency, no IPC surface, no renderer command and no
+//! production scan entry point. The host owns the one global worker instance,
+//! a started process session and the poll loop; the filesystem port is
+//! injected, which keeps this crate portable and lets tests script every
+//! outcome deterministically. Watcher wiring stays out of the crate too: the
+//! host owns watcher lifecycle and activation, while
+//! [`WatcherFollowUpAdapter`] (see [`followups`]) is the compile-time seam
+//! that turns coalesced watcher hints into durable follow-up requests on the
+//! host's poll loop.
 use fruitboard_filesystem_enumeration as enumeration;
 use fruitboard_reconciliation as reconciliation;
 
@@ -48,6 +52,11 @@ use reconciliation::{
 };
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+mod followups;
+pub use followups::{
+    FollowUpCause, FollowUpOutcome, FollowUpRequest, RootIdMapping, WatcherFollowUpAdapter,
+};
 
 /// Injected, monotonic-enough worker clock. Tests supply a deterministic
 /// fake; the host supplies [`SystemClock`]. No wall-clock sleeps anywhere in

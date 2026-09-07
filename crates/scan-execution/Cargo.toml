@@ -8,6 +8,7 @@ publish = false
 [dependencies]
 fruitboard-storage.workspace = true
 fruitboard-filesystem-enumeration = { path = "../filesystem-enumeration" }
+fruitboard-filesystem-watcher = { path = "../filesystem-watcher" }
 fruitboard-reconciliation = { path = "../reconciliation" }
 
 [dev-dependencies]

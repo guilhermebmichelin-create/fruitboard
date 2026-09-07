@@ -914,6 +914,7 @@ name = "fruitboard-scan-execution"
 version = "0.1.0"
 dependencies = [
  "fruitboard-filesystem-enumeration",
+ "fruitboard-filesystem-watcher",
  "fruitboard-reconciliation",
  "fruitboard-storage",
  "rusqlite",
