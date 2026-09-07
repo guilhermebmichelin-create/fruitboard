@@ -1,5 +1,5 @@
 [package]
-name = "fruitboard-scan-worker"
+name = "fruitboard-scan-execution"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true

@@ -4,8 +4,8 @@ use enumeration::{
     FileMetadata, FilesystemPort, FilesystemQualification, NeverCancelled, OpenedDirectory,
     Outcome as EnumOutcome, PortError, QualifiedIdentity, RootMetadata,
 };
-use fruitboard_storage::{ScanJobState, ScanRunState, ScanStageState, MAX_LIBRARY_PAGE_SIZE};
-use rusqlite::{params, Connection};
+use fruitboard_storage::{MAX_LIBRARY_PAGE_SIZE, ScanJobState, ScanRunState, ScanStageState};
+use rusqlite::{Connection, params};
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -101,13 +101,6 @@ fn dir_entry(name: &str, file_id: u128, children: Vec<Entry>) -> Entry {
         identity: Some(file_id),
         children,
         deny_open: false,
-    }
-}
-
-fn denied_dir_entry(name: &str, file_id: u128, children: Vec<Entry>) -> Entry {
-    Entry {
-        deny_open: true,
-        ..dir_entry(name, file_id, children)
     }
 }
 
@@ -214,14 +207,10 @@ impl FakeCursor {
 
 impl DirectoryCursor for FakeCursor {
     fn next_entry(&mut self) -> Result<Option<DirectoryEntry>, PortError> {
-        Ok(self
-            .directory
-            .children
-            .get(self.index)
-            .map(|child| {
-                self.index += 1;
-                DirectoryEntry::new(child.name.clone())
-            }))
+        Ok(self.directory.children.get(self.index).map(|child| {
+            self.index += 1;
+            DirectoryEntry::new(child.name.clone())
+        }))
     }
 
     fn read_metadata(&mut self, entry: &DirectoryEntry) -> Result<FileMetadata, PortError> {
@@ -329,7 +318,6 @@ struct Harness {
     worker: ScanWorker,
     session_id: String,
     root_id: String,
-    root_path: String,
 }
 
 impl Harness {
@@ -356,7 +344,6 @@ impl Harness {
             worker,
             session_id,
             root_id: root.id,
-            root_path: root.canonical_path,
         }
     }
 
@@ -379,7 +366,13 @@ impl Harness {
             .request_manual_scan(&mut self.db, &self.root_id, &self.clock)
             .expect("enqueue manual scan");
         self.worker
-            .poll(&mut self.db, &self.session_id, port, &NeverCancelled, &self.clock)
+            .poll(
+                &mut self.db,
+                &self.session_id,
+                port,
+                &NeverCancelled,
+                &self.clock,
+            )
             .expect("worker poll")
             .expect("one execution")
     }
@@ -387,7 +380,13 @@ impl Harness {
     fn drain(&mut self, tree: Entry) -> Option<ScanExecution> {
         let mut port = FakePort::new(tree);
         self.worker
-            .poll(&mut self.db, &self.session_id, &mut port, &NeverCancelled, &self.clock)
+            .poll(
+                &mut self.db,
+                &self.session_id,
+                &mut port,
+                &NeverCancelled,
+                &self.clock,
+            )
             .expect("worker poll")
     }
 
@@ -422,7 +421,10 @@ impl Harness {
     /// Begin a fresh process session; prior sessions are ended by storage, so
     /// the harness continues polling with the new session identity.
     fn restart(&mut self) -> fruitboard_storage::ScanSession {
-        let session = self.worker.start_session(&mut self.db, &self.clock).expect("restart session");
+        let session = self
+            .worker
+            .start_session(&mut self.db, &self.clock)
+            .expect("restart session");
         self.session_id = session.id.clone();
         session
     }
@@ -446,16 +448,21 @@ fn no_changes(summary: &ChangeSummary) {
 
 #[test]
 fn worker_config_rejects_invalid_lease_settings() {
-    let mut config = WorkerConfig::default();
-    config.lease_duration_ms = 0;
     assert_eq!(
-        ScanWorker::new(config).err(),
+        ScanWorker::new(WorkerConfig {
+            lease_duration_ms: 0,
+            ..WorkerConfig::default()
+        })
+        .err(),
         Some(WorkerConfigError::LeaseDuration)
     );
-    let mut config = WorkerConfig::default();
-    config.lease_renewal_interval_ms = config.lease_duration_ms;
+    let config = WorkerConfig::default();
     assert_eq!(
-        ScanWorker::new(config).err(),
+        ScanWorker::new(WorkerConfig {
+            lease_renewal_interval_ms: config.lease_duration_ms,
+            ..config
+        })
+        .err(),
         Some(WorkerConfigError::RenewalInterval)
     );
 }
@@ -468,7 +475,14 @@ fn unchanged_tree_republishes_without_changes() {
     let tree = tree(vec![file_entry("a.flp", 101), file_entry("b.flp", 102)]);
     let first = harness.scan(tree.clone());
     assert_eq!(first.status, ScanExecutionStatus::Published);
-    assert_eq!(first.publication.as_ref().expect("publication").location_count, 2);
+    assert_eq!(
+        first
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        2
+    );
     let before = harness.committed();
 
     let second = harness.scan(tree);
@@ -497,17 +511,26 @@ fn add_and_modify_converge() {
 
     let rows = harness.committed();
     assert_eq!(rows.len(), 2);
-    let modified = rows.iter().find(|row| row.relative_path == "a.flp").unwrap();
+    let modified = rows
+        .iter()
+        .find(|row| row.relative_path == "a.flp")
+        .unwrap();
     assert!(modified.present);
     assert_eq!(modified.byte_size, 20);
-    assert!(rows.iter().any(|row| row.relative_path == "b.flp" && row.present));
+    assert!(
+        rows.iter()
+            .any(|row| row.relative_path == "b.flp" && row.present)
+    );
 }
 
 // P2-02: rename evidence, missing and restore converge per path.
 #[test]
 fn rename_missing_and_restore_converge() {
     let mut harness = Harness::new("rename-restore");
-    harness.scan(tree(vec![file_entry("a.flp", 101), file_entry("c.flp", 303)]));
+    harness.scan(tree(vec![
+        file_entry("a.flp", 101),
+        file_entry("c.flp", 303),
+    ]));
 
     // c is renamed to d (same qualified identity); b is added; a disappears.
     let second = harness.scan(tree(vec![
@@ -524,9 +547,15 @@ fn rename_missing_and_restore_converge() {
 
     let after_rename = harness.committed();
     assert_eq!(after_rename.len(), 4);
-    let renamed_old = after_rename.iter().find(|row| row.relative_path == "c.flp").unwrap();
+    let renamed_old = after_rename
+        .iter()
+        .find(|row| row.relative_path == "c.flp")
+        .unwrap();
     assert!(!renamed_old.present);
-    let renamed_new = after_rename.iter().find(|row| row.relative_path == "d.flp").unwrap();
+    let renamed_new = after_rename
+        .iter()
+        .find(|row| row.relative_path == "d.flp")
+        .unwrap();
     assert!(renamed_new.present);
     assert_eq!(renamed_old.project_file_id, renamed_new.project_file_id);
 
@@ -543,8 +572,18 @@ fn rename_missing_and_restore_converge() {
     assert_eq!(changes.added, 0);
     assert_eq!(changes.missing, 0);
     let rows = harness.committed();
-    assert!(rows.iter().filter(|row| row.relative_path != "c.flp").all(|row| row.present));
-    assert!(!rows.iter().find(|row| row.relative_path == "c.flp").unwrap().present);
+    assert!(
+        rows.iter()
+            .filter(|row| row.relative_path != "c.flp")
+            .all(|row| row.present)
+    );
+    assert!(
+        !rows
+            .iter()
+            .find(|row| row.relative_path == "c.flp")
+            .unwrap()
+            .present
+    );
 }
 
 // P2-03: a denial in the middle of traversal is non-authoritative, discards
@@ -572,7 +611,10 @@ fn denied_subtree_discards_staging_and_preserves_committed_rows() {
 
     let run = harness.run(&second.run_id);
     assert_eq!(run.state, ScanRunState::Failed);
-    assert_eq!(harness.staging_state(&second.run_id), ScanStageState::Discarded);
+    assert_eq!(
+        harness.staging_state(&second.run_id),
+        ScanStageState::Discarded
+    );
     let job = harness.db.scan_job(&second.job_id).expect("job");
     assert_eq!(job.state, ScanJobState::Failed);
     assert_eq!(job.attempt, 1);
@@ -590,7 +632,10 @@ fn offline_root_fails_then_persisted_retry_converges() {
 
     let failed = harness.scan_offline(tree.clone());
     assert_eq!(failed.status, ScanExecutionStatus::Failed);
-    assert_eq!(failed.enumeration_outcome, Some(EnumOutcome::RootUnavailable));
+    assert_eq!(
+        failed.enumeration_outcome,
+        Some(EnumOutcome::RootUnavailable)
+    );
     assert!(failed.publication.is_none());
     assert_eq!(harness.committed(), before);
 
@@ -600,12 +645,24 @@ fn offline_root_fails_then_persisted_retry_converges() {
 
     // Backoff is storage's 1s base plus at most 20% deterministic jitter.
     let eligible = ScanWorker::retry_eligible_at(&job);
-    assert!(eligible >= T0 + 1_000 && eligible <= T0 + 1_200);
+    assert!((T0 + 1_000..=T0 + 1_200).contains(&eligible));
 
     harness.clock.advance(999);
-    assert_eq!(harness.worker.service_retries(&mut harness.db, &harness.clock).expect("retries"), 0);
+    assert_eq!(
+        harness
+            .worker
+            .service_retries(&mut harness.db, &harness.clock)
+            .expect("retries"),
+        0
+    );
     harness.clock.set(eligible);
-    assert_eq!(harness.worker.service_retries(&mut harness.db, &harness.clock).expect("retries"), 1);
+    assert_eq!(
+        harness
+            .worker
+            .service_retries(&mut harness.db, &harness.clock)
+            .expect("retries"),
+        1
+    );
     let requeued = harness.db.scan_job(&failed.job_id).expect("job");
     assert_eq!(requeued.state, ScanJobState::Queued);
     assert_eq!(requeued.attempt, 1, "chain budget is preserved, not reset");
@@ -670,12 +727,19 @@ fn durable_cancellation_between_batches_stops_without_publishing() {
     assert!(!execution.authoritative);
     assert!(execution.publication.is_none());
     assert!(harness.committed().is_empty());
-    assert_eq!(harness.staging_state(&execution.run_id), ScanStageState::Discarded);
+    assert_eq!(
+        harness.staging_state(&execution.run_id),
+        ScanStageState::Discarded
+    );
     let run = harness.run(&execution.run_id);
     assert_eq!(run.state, ScanRunState::Cancelled);
     let job = harness.db.scan_job(&execution.job_id).expect("job");
     assert_eq!(job.state, ScanJobState::Cancelled);
-    assert_eq!(harness.root_jobs().len(), 1, "cancellation is never requeued");
+    assert_eq!(
+        harness.root_jobs().len(),
+        1,
+        "cancellation is never requeued"
+    );
 }
 
 // P2-04: a cancellation committed before the final apply prevents apply; the
@@ -704,8 +768,14 @@ fn durable_cancellation_committed_before_apply_prevents_publish() {
     assert_eq!(execution.status, ScanExecutionStatus::Cancelled);
     assert!(execution.publication.is_none());
     assert!(harness.committed().is_empty());
-    assert_eq!(harness.run(&execution.run_id).state, ScanRunState::Cancelled);
-    assert_eq!(harness.staging_state(&execution.run_id), ScanStageState::Discarded);
+    assert_eq!(
+        harness.run(&execution.run_id).state,
+        ScanRunState::Cancelled
+    );
+    assert_eq!(
+        harness.staging_state(&execution.run_id),
+        ScanStageState::Discarded
+    );
 }
 
 // P2-03: the local cooperative cancellation token ends the run cancelled
@@ -721,12 +791,18 @@ fn local_cancellation_token_ends_the_run_cancelled() {
     let token = CancellationToken::new();
     token.cancel();
     let mut port = FakePort::new(tree(vec![file_entry("a.flp", 101)]));
-    let execution = harness.worker.execute(&mut harness.db, scan, &mut port, &token, &harness.clock);
+    let execution =
+        harness
+            .worker
+            .execute(&mut harness.db, scan, &mut port, &token, &harness.clock);
     assert_eq!(execution.status, ScanExecutionStatus::Cancelled);
     assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Cancelled));
     assert!(execution.publication.is_none());
     assert!(harness.committed().is_empty());
-    assert_eq!(harness.staging_state(&execution.run_id), ScanStageState::Discarded);
+    assert_eq!(
+        harness.staging_state(&execution.run_id),
+        ScanStageState::Discarded
+    );
     assert_eq!(harness.root_jobs().len(), 1);
 }
 
@@ -775,21 +851,34 @@ fn follow_up_during_staging_invalidates_and_schedules_one_follow_up() {
     assert_eq!(execution.status, ScanExecutionStatus::Interrupted);
     assert!(execution.publication.is_none());
     assert!(harness.committed().is_empty());
-    assert_eq!(harness.staging_state(&execution.run_id), ScanStageState::Discarded);
+    assert_eq!(
+        harness.staging_state(&execution.run_id),
+        ScanStageState::Discarded
+    );
     let run = harness.run(&execution.run_id);
     assert_eq!(run.state, ScanRunState::Interrupted);
     assert_eq!(run.error_code.as_deref(), Some("follow_up_requested"));
 
     let jobs = harness.root_jobs();
     assert_eq!(jobs.len(), 2, "exactly one follow-up was scheduled");
-    let queued = jobs.iter().filter(|job| job.state == ScanJobState::Queued).count();
+    let queued = jobs
+        .iter()
+        .filter(|job| job.state == ScanJobState::Queued)
+        .count();
     assert_eq!(queued, 1);
 
     // The deduplicated follow-up is the first successful publication of
     // this tree: every row is added by it.
     let follow_up = harness.drain(tree(many_files(600))).expect("execution");
     assert_eq!(follow_up.status, ScanExecutionStatus::Published);
-    assert_eq!(follow_up.publication.as_ref().expect("publication").location_count, 600);
+    assert_eq!(
+        follow_up
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        600
+    );
     let changes = follow_up.changes.expect("change summary");
     assert_eq!(changes.added, 600);
 }
@@ -825,8 +914,14 @@ fn disable_while_running_stops_and_reenable_publishes_fresh_run() {
     assert_eq!(execution.status, ScanExecutionStatus::Cancelled);
     assert!(execution.publication.is_none());
     assert_eq!(harness.committed(), before);
-    assert_eq!(harness.run(&execution.run_id).state, ScanRunState::Cancelled);
-    assert_eq!(harness.staging_state(&execution.run_id), ScanStageState::Discarded);
+    assert_eq!(
+        harness.run(&execution.run_id).state,
+        ScanRunState::Cancelled
+    );
+    assert_eq!(
+        harness.staging_state(&execution.run_id),
+        ScanStageState::Discarded
+    );
 
     harness
         .db
@@ -885,7 +980,13 @@ fn queued_work_is_invalidated_by_disable_and_never_leased() {
         .db
         .set_scan_root_enabled_at(&harness.root_id, false, harness.clock.now_ms())
         .expect("disable root");
-    assert!(harness.worker.claim(&mut harness.db, &harness.session_id, &harness.clock).expect("claim").is_none());
+    assert!(
+        harness
+            .worker
+            .claim(&mut harness.db, &harness.session_id, &harness.clock)
+            .expect("claim")
+            .is_none()
+    );
 }
 
 // P2-04: injected SQL failure inside the publication transaction rolls back
@@ -915,7 +1016,10 @@ fn publication_rollback_on_injected_sql_failure_converges_on_retry() {
     assert_eq!(execution.status, ScanExecutionStatus::Failed);
     assert!(execution.publication.is_none());
     assert!(harness.committed().is_empty());
-    assert_eq!(harness.staging_state(&execution.run_id), ScanStageState::Discarded);
+    assert_eq!(
+        harness.staging_state(&execution.run_id),
+        ScanStageState::Discarded
+    );
     let job = harness.db.scan_job(&execution.job_id).expect("job");
     assert_eq!(job.state, ScanJobState::Failed);
     assert_eq!(job.attempt, 1);
@@ -925,10 +1029,23 @@ fn publication_rollback_on_injected_sql_failure_converges_on_retry() {
         .expect("disarm injected failure");
     let eligible = ScanWorker::retry_eligible_at(&job);
     harness.clock.set(eligible);
-    assert_eq!(harness.worker.service_retries(&mut harness.db, &harness.clock).expect("retries"), 1);
+    assert_eq!(
+        harness
+            .worker
+            .service_retries(&mut harness.db, &harness.clock)
+            .expect("retries"),
+        1
+    );
     let recovered = harness.drain(tree).expect("execution");
     assert_eq!(recovered.status, ScanExecutionStatus::Published);
-    assert_eq!(recovered.publication.as_ref().expect("publication").location_count, 3);
+    assert_eq!(
+        recovered
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        3
+    );
 }
 
 // P2-04: a worker whose lease expired cannot commit, even with a healthy
@@ -968,8 +1085,14 @@ fn stale_worker_cannot_commit_after_lease_expiry() {
     let recovered = harness.drain(tree).expect("execution");
     assert_eq!(recovered.status, ScanExecutionStatus::Published);
     assert_eq!(harness.committed(), before);
-    assert_eq!(harness.db.scan_job(&execution.job_id).expect("job").attempt, 2);
-    assert_eq!(harness.run(&execution.run_id).state, ScanRunState::Interrupted);
+    assert_eq!(
+        harness.db.scan_job(&execution.job_id).expect("job").attempt,
+        2
+    );
+    assert_eq!(
+        harness.run(&execution.run_id).state,
+        ScanRunState::Interrupted
+    );
     assert_eq!(harness.run(&first.run_id).state, ScanRunState::Completed);
 }
 
@@ -1008,7 +1131,10 @@ fn stale_worker_cannot_commit_after_lease_replacement() {
     assert!(!execution.authoritative);
     assert!(execution.publication.is_none());
     assert_eq!(harness.committed(), committed_after_replacement);
-    assert_ne!(stale_lease_token, harness.run(&replacement.run_id).lease_token);
+    assert_ne!(
+        stale_lease_token,
+        harness.run(&replacement.run_id).lease_token
+    );
 }
 
 // P2-04/P2-06: startup recovery fences prior-session work (interrupted run,
@@ -1030,14 +1156,23 @@ fn restart_requeues_interrupted_work_without_resetting_the_chain() {
 
     let run = harness.run(&crashed_run);
     assert_eq!(run.state, ScanRunState::Interrupted);
-    assert_eq!(harness.staging_state(&crashed_run), ScanStageState::Discarded);
+    assert_eq!(
+        harness.staging_state(&crashed_run),
+        ScanStageState::Discarded
+    );
     let jobs = harness.root_jobs();
-    assert_eq!(jobs.len(), 1, "no duplicate recovery job next to queued work");
+    assert_eq!(
+        jobs.len(),
+        1,
+        "no duplicate recovery job next to queued work"
+    );
     assert_eq!(jobs[0].state, ScanJobState::Queued);
     assert_eq!(jobs[0].attempt, 1);
 
     harness.clock.advance(1_001);
-    let recovered = harness.drain(tree(vec![file_entry("a.flp", 101)])).expect("execution");
+    let recovered = harness
+        .drain(tree(vec![file_entry("a.flp", 101)]))
+        .expect("execution");
     assert_eq!(recovered.status, ScanExecutionStatus::Published);
     assert_eq!(harness.db.scan_job(&jobs[0].id).expect("job").attempt, 2);
 }
@@ -1053,13 +1188,18 @@ fn recovery_scan_is_deduplicated_and_cancelled_work_is_not_revived() {
     harness.restart();
     let jobs = harness.root_jobs();
     assert_eq!(jobs.len(), 2, "one recovery job after restart");
-    assert!(jobs.iter().any(|job| job.kind == ScanKind::Recovery && job.state == ScanJobState::Queued));
+    assert!(
+        jobs.iter()
+            .any(|job| job.kind == ScanKind::Recovery && job.state == ScanJobState::Queued)
+    );
 
     // A second restart while that recovery job is queued must not duplicate.
     harness.restart();
     assert_eq!(harness.root_jobs().len(), 2);
 
-    let recovered = harness.drain(tree(vec![file_entry("a.flp", 101)])).expect("execution");
+    let recovered = harness
+        .drain(tree(vec![file_entry("a.flp", 101)]))
+        .expect("execution");
     assert_eq!(recovered.status, ScanExecutionStatus::Published);
     no_changes(recovered.changes.as_ref().expect("change summary"));
 
@@ -1068,12 +1208,25 @@ fn recovery_scan_is_deduplicated_and_cancelled_work_is_not_revived() {
         .worker
         .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
         .expect("enqueue");
-    let job = harness.root_jobs().into_iter().find(|job| job.state == ScanJobState::Queued).unwrap();
-    let state = harness.db.cancel_scan_job(&job.id, harness.clock.now_ms()).expect("cancel");
+    let job = harness
+        .root_jobs()
+        .into_iter()
+        .find(|job| job.state == ScanJobState::Queued)
+        .unwrap();
+    let state = harness
+        .db
+        .cancel_scan_job(&job.id, harness.clock.now_ms())
+        .expect("cancel");
     assert_eq!(state, ScanJobState::Cancelled);
     harness.restart();
     assert_eq!(harness.root_jobs().len(), 3);
-    assert!(harness.worker.claim(&mut harness.db, &harness.session_id, &harness.clock).expect("claim").is_none());
+    assert!(
+        harness
+            .worker
+            .claim(&mut harness.db, &harness.session_id, &harness.clock)
+            .expect("claim")
+            .is_none()
+    );
 }
 
 // P2-04: repeated triggers coalesce onto one active slot; a trigger during
@@ -1082,15 +1235,33 @@ fn recovery_scan_is_deduplicated_and_cancelled_work_is_not_revived() {
 fn repeated_triggers_coalesce_and_follow_up_reconciles() {
     let mut harness = Harness::new("coalesce");
     let tree = tree(vec![file_entry("a.flp", 101), file_entry("b.flp", 102)]);
-    harness.worker.request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock).expect("trigger");
-    harness.worker.request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock).expect("trigger");
-    harness.worker.request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock).expect("trigger");
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("trigger");
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("trigger");
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("trigger");
     assert_eq!(harness.root_jobs().len(), 1, "queued triggers coalesce");
 
     let scan = harness.claim();
-    assert!(harness.worker.claim(&mut harness.db, &harness.session_id, &harness.clock).expect("claim").is_none(),
-        "one worker runs one scan");
-    harness.worker.request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock).expect("trigger");
+    assert!(
+        harness
+            .worker
+            .claim(&mut harness.db, &harness.session_id, &harness.clock)
+            .expect("claim")
+            .is_none(),
+        "one worker runs one scan"
+    );
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("trigger");
     let mut port = FakePort::new(tree.clone());
     let execution = harness.worker.execute(
         &mut harness.db,
@@ -1119,7 +1290,14 @@ fn resource_limited_traversal_discards_and_preserves_committed_rows() {
     let mut harness = Harness::with_config("resource-limit", config, r"C:\synthetic-root");
     let first = harness.scan(tree(many_files(2)));
     assert_eq!(first.status, ScanExecutionStatus::Published);
-    assert_eq!(first.publication.as_ref().expect("publication").location_count, 2);
+    assert_eq!(
+        first
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        2
+    );
     let before = harness.committed();
 
     // Four observations exceed the configured limit of two.
@@ -1129,7 +1307,10 @@ fn resource_limited_traversal_discards_and_preserves_committed_rows() {
     assert_eq!(second.enumeration_outcome, Some(EnumOutcome::ResourceLimit));
     assert!(second.publication.is_none());
     assert_eq!(harness.committed(), before);
-    assert_eq!(harness.staging_state(&second.run_id), ScanStageState::Discarded);
+    assert_eq!(
+        harness.staging_state(&second.run_id),
+        ScanStageState::Discarded
+    );
 }
 
 // P2-02/P2-03: an empty authoritative enumeration publishes an empty result
@@ -1145,10 +1326,20 @@ fn empty_root_marks_previous_rows_missing_and_restores_them() {
     assert_eq!(second.status, ScanExecutionStatus::Published);
     let changes = second.changes.expect("change summary");
     assert_eq!(changes.missing, 1);
-    assert_eq!(second.publication.as_ref().expect("publication").location_count, 1);
+    assert_eq!(
+        second
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        1
+    );
     let rows = harness.committed();
     assert_eq!(rows.len(), 1);
-    assert!(!rows[0].present, "the vanished path is missing, not deleted");
+    assert!(
+        !rows[0].present,
+        "the vanished path is missing, not deleted"
+    );
 
     let third = harness.scan(tree(vec![file_entry("a.flp", 101)]));
     assert_eq!(third.status, ScanExecutionStatus::Published);
@@ -1260,8 +1451,11 @@ mod ntfs {
         fixture.write("notes.txt");
         let marker_before = std::fs::read(fixture.root.join("alpha.FLP")).expect("marker");
 
-        let mut harness =
-            Harness::with_config("ntfs-authoritative", WorkerConfig::default(), &fixture.root.to_string_lossy());
+        let mut harness = Harness::with_config(
+            "ntfs-authoritative",
+            WorkerConfig::default(),
+            &fixture.root.to_string_lossy(),
+        );
         let mut port = WindowsFilesystemPort::new();
         let first = harness.scan_with_port(&mut port);
         assert_eq!(first.status, ScanExecutionStatus::Published);
@@ -1271,13 +1465,26 @@ mod ntfs {
 
         let rows = harness.committed();
         assert_eq!(rows.len(), 2);
-        let alpha = rows.iter().find(|row| row.relative_path == "alpha.FLP").expect("alpha row");
+        let alpha = rows
+            .iter()
+            .find(|row| row.relative_path == "alpha.FLP")
+            .expect("alpha row");
         assert!(alpha.present);
         assert_eq!(alpha.byte_size, marker_before.len() as u64);
-        assert!(rows.iter().any(|row| row.relative_path == "nested\\beta.flp"));
-        assert!(!rows.iter().any(|row| row.relative_path.contains("notes.txt")));
+        assert!(
+            rows.iter()
+                .any(|row| row.relative_path == "nested\\beta.flp")
+        );
+        assert!(
+            !rows
+                .iter()
+                .any(|row| row.relative_path.contains("notes.txt"))
+        );
         let marker_after = std::fs::read(fixture.root.join("alpha.FLP")).expect("marker");
-        assert_eq!(marker_before, marker_after, "source bytes are never read or written");
+        assert_eq!(
+            marker_before, marker_after,
+            "source bytes are never read or written"
+        );
 
         let second = harness.scan_with_port(&mut port);
         assert_eq!(second.status, ScanExecutionStatus::Published);
@@ -1294,8 +1501,11 @@ mod ntfs {
         fixture.write("kept.flp");
         fixture.write("denied/hidden.flp");
 
-        let mut harness =
-            Harness::with_config("ntfs-denied", WorkerConfig::default(), &fixture.root.to_string_lossy());
+        let mut harness = Harness::with_config(
+            "ntfs-denied",
+            WorkerConfig::default(),
+            &fixture.root.to_string_lossy(),
+        );
         let mut port = WindowsFilesystemPort::new();
         let first = harness.scan_with_port(&mut port);
         assert_eq!(first.status, ScanExecutionStatus::Published);
@@ -1307,7 +1517,11 @@ mod ntfs {
         assert_eq!(second.status, ScanExecutionStatus::Failed);
         assert_eq!(second.enumeration_outcome, Some(EnumOutcome::Denied));
         assert!(second.publication.is_none());
-        assert_eq!(harness.committed(), before, "denied subtree is never marked missing");
+        assert_eq!(
+            harness.committed(),
+            before,
+            "denied subtree is never marked missing"
+        );
 
         drop(_guard);
         let third = harness.scan_with_port(&mut port);

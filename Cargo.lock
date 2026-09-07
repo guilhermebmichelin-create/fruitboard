@@ -910,7 +910,7 @@ name = "fruitboard-reconciliation"
 version = "0.1.0"
 
 [[package]]
-name = "fruitboard-scan-worker"
+name = "fruitboard-scan-execution"
 version = "0.1.0"
 dependencies = [
  "fruitboard-filesystem-enumeration",

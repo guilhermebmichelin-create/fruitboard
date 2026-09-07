@@ -26,9 +26,9 @@ const cleanup = (dir) => rm(dir, { recursive: true, force: true });
 
 const fakeIntegrationRoot = async () => {
   const root = await makeTempDir("integrated");
-  await mkdir(path.join(root, "crates", "scan-worker"), { recursive: true });
+  await mkdir(path.join(root, "crates", "scan-execution"), { recursive: true });
   await writeFile(
-    path.join(root, "crates", "scan-worker", "Cargo.toml"),
+    path.join(root, "crates", "scan-execution", "Cargo.toml"),
     '[package]\nname = "placeholder"\n',
     "utf8",
   );
@@ -45,25 +45,31 @@ test("the methodology contract stays pinned to the accepted protocol", () => {
   assert.equal(MEASURED_ITERATIONS, 10);
 });
 
-test("the scanner integration marker is absent from this repository", () => {
+test("the scanner integration marker is present in this repository", () => {
   const detected = detectScannerIntegration();
-  assert.equal(detected.present, false);
-  assert.equal(detected.marker, "crates/scan-worker/Cargo.toml");
+  assert.equal(detected.present, true);
+  assert.equal(detected.marker, "crates/scan-execution/Cargo.toml");
 });
 
 test("the scaffold refuses to run without scanner integration", async (t) => {
   const fixtureDir = await makeTempDir("fixture");
   const reportDir = await makeTempDir("report");
-  t.after(() => Promise.all([cleanup(fixtureDir), cleanup(reportDir)]));
+  const emptyRoot = await makeTempDir("no-integration");
+  t.after(
+    () =>
+      Promise.all([
+        cleanup(fixtureDir),
+        cleanup(reportDir),
+        cleanup(emptyRoot),
+      ]),
+  );
   const manifestPath = await generateFixture(fixtureDir);
   const reportPath = path.join(reportDir, "report.json");
 
-  const result = await runCli([
-    "--manifest",
-    manifestPath,
-    "--out",
-    reportPath,
-  ]);
+  const result = await runCli(
+    ["--manifest", manifestPath, "--out", reportPath],
+    { repoRoot: emptyRoot },
+  );
   assert.equal(result.code, 1);
   assert.match(
     result.stderr.join("\n"),

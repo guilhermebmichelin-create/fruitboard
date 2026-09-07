@@ -32,7 +32,7 @@ import {
 } from "./generate-synthetic-tree.mjs";
 
 export const ENVIRONMENT_REPORT_SCHEMA = "fruitboard/benchmark-environment/1";
-export const INTEGRATION_MARKER = "crates/scan-worker/Cargo.toml";
+export const INTEGRATION_MARKER = "crates/scan-execution/Cargo.toml";
 export const MEASURED_ITERATIONS = 10;
 export const WARM_UP_RUNS = 1;
 

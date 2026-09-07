@@ -38,13 +38,13 @@ use enumeration::{
 };
 use fruitboard_storage::{
     Database, EncodedIdentity as StagedIdentity, EnqueueResult, FilePresence, LeasedScan,
-    LibraryQuery, PublishedLocation, ScanJob, ScanJobState, ScanKind,
-    ScanObservation as StagedObservation, ScanPublication, ScanRunOutcome, ScanRunState,
-    ScanSession, StorageError, MAX_LIBRARY_PAGE_SIZE, MAX_STAGED_PATH_BYTES, MAX_STAGED_RECORDS,
+    LibraryQuery, MAX_LIBRARY_PAGE_SIZE, MAX_STAGED_PATH_BYTES, MAX_STAGED_RECORDS,
+    PublishedLocation, ScanJob, ScanJobState, ScanKind, ScanObservation as StagedObservation,
+    ScanPublication, ScanRunOutcome, ScanRunState, ScanSession, StorageError,
 };
 use reconciliation::{
-    reconcile, Identity as PlanIdentity, Location as PlanLocation, Metadata as PlanMetadata,
-    Observation as PlanObservation, Outcome as PlanOutcome,
+    Identity as PlanIdentity, Location as PlanLocation, Metadata as PlanMetadata,
+    Observation as PlanObservation, Outcome as PlanOutcome, reconcile,
 };
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -198,14 +198,14 @@ impl ScanWorker {
                 return self.execution(&scan, ScanExecutionStatus::Fenced, None, None, None);
             }
             FenceState::Invalidated => {
-                return self.resolve(db, &scan, clock, false, None, None, None);
+                return self.resolve(db, &scan, clock, false, None);
             }
             FenceState::Held => {}
         }
         let Some(root_path) = root_path(db, &scan.leased.run.scan_root_id) else {
             // The removal transaction already cancelled this run and detached
             // its committed history; there is nothing left to enumerate.
-            return self.resolve(db, &scan, clock, false, None, None, None);
+            return self.resolve(db, &scan, clock, false, None);
         };
 
         let mut adapter = StagingAdapter {
@@ -235,7 +235,7 @@ impl ScanWorker {
 
         if !report.authoritative {
             let forced_cancel = outcome == enumeration::Outcome::Cancelled;
-            return self.resolve(db, &scan, clock, forced_cancel, Some(outcome), None, None);
+            return self.resolve(db, &scan, clock, forced_cancel, Some(outcome));
         }
 
         // Pre-publication fence: an invalidation that arrived between the last
@@ -253,7 +253,7 @@ impl ScanWorker {
                 );
             }
             FenceState::Invalidated => {
-                return self.resolve(db, &scan, clock, false, Some(outcome), None, None);
+                return self.resolve(db, &scan, clock, false, Some(outcome));
             }
             FenceState::Held => {}
         }
@@ -271,7 +271,7 @@ impl ScanWorker {
                 Some(publication),
                 changes,
             ),
-            Err(_) => self.resolve(db, &scan, clock, false, Some(outcome), None, None),
+            Err(_) => self.resolve(db, &scan, clock, false, Some(outcome)),
         }
     }
 
@@ -364,28 +364,18 @@ impl ScanWorker {
         clock: &dyn ScanClock,
         forced_cancel: bool,
         outcome: Option<enumeration::Outcome>,
-        publication: Option<ScanPublication>,
-        changes: Option<ChangeSummary>,
     ) -> ScanExecution {
         let now = clock.now_ms();
         let (Ok(run), Ok(job)) = (
             db.scan_run(&scan.leased.run.id),
             db.scan_job(&scan.leased.run.scan_job_id),
         ) else {
-            return self.execution(&scan, ScanExecutionStatus::Fenced, outcome, publication, changes);
+            return self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
         };
         if run.state != ScanRunState::Running {
-            return self.execution(
-                &scan,
-                status_from_state(run.state),
-                outcome,
-                publication,
-                changes,
-            );
+            return self.execution(scan, status_from_state(run.state), outcome, None, None);
         }
-        let terminal = if forced_cancel
-            || run.cancellation_requested
-            || job.cancellation_requested
+        let terminal = if forced_cancel || run.cancellation_requested || job.cancellation_requested
         {
             ScanRunOutcome::Cancelled
         } else if job.follow_up_requested {
@@ -403,10 +393,8 @@ impl ScanWorker {
             now,
             terminal,
         ) {
-            Ok(state) => {
-                self.execution(&scan, status_from_state(state), outcome, publication, changes)
-            }
-            Err(error) => self.execution_fenced(&scan, outcome, publication, changes, &error),
+            Ok(state) => self.execution(scan, status_from_state(state), outcome, None, None),
+            Err(error) => self.execution_fenced(scan, outcome, &error),
         }
     }
 
@@ -435,17 +423,9 @@ impl ScanWorker {
         &self,
         scan: &ActiveScan,
         outcome: Option<enumeration::Outcome>,
-        publication: Option<ScanPublication>,
-        changes: Option<ChangeSummary>,
         error: &StorageError,
     ) -> ScanExecution {
-        let mut execution = self.execution(
-            scan,
-            ScanExecutionStatus::Fenced,
-            outcome,
-            publication,
-            changes,
-        );
+        let mut execution = self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
         execution.error_code = Some(error.to_string());
         execution
     }
@@ -621,11 +601,7 @@ fn change_plan(db: &Database, root_id: &str, buffer: &PlanBuffer) -> Option<Chan
         cursor = page.next_cursor;
         snapshot = Some(page.snapshot);
     }
-    if previous
-        .len()
-        .saturating_add(buffer.observations.len())
-        > PlanBuffer::CAPACITY
-    {
+    if previous.len().saturating_add(buffer.observations.len()) > PlanBuffer::CAPACITY {
         return None;
     }
     let plan = reconcile(&previous, &buffer.observations, PlanOutcome::Complete).ok()?;

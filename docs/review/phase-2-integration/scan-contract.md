@@ -2,9 +2,9 @@
 
 Status: **contract map + hidden worker composition; no production activation.**
 Production scan stays hidden (no renderer controls, no watcher wiring).
-`crates/scan-worker` composes the three landed foundations behind a
+`crates/scan-execution` composes the three landed foundations behind a
 typed API for tests only. This document prevents contract drift between the
-three landed isolated foundations and scopes the scan-worker
+three landed isolated foundations and scopes the scan-execution
 handoff. NTFS-local only. DriveFS (#47) and FAT32/cross-volume (#48)
 are explicitly out. No renderer Scan/Cancel controls, no WAL change,
 no PyFLP, privacy redaction preserved (fixed `storage_*` codes only,
@@ -129,7 +129,7 @@ Double-discard (adapter `invalidate_run` plus a ledger D-path discard of the sam
 
 * #59 in-memory guard: `MAX_RECORDS = 10_000`, `MAX_PATH_BYTES = 32_768`, `MAX_TOTAL_PATH_BYTES = 4 MiB`. Whole-run rejection, no partial output. Not a staging quota and not a performance claim.
 * #62 staging bounds (enforced pre-write per batch and re-checked at publish): `MAX_STAGED_BATCH_RECORDS = 512` per call, `MAX_STAGED_RECORDS = 10_000` total, `MAX_STAGED_PATH_BYTES = 4 MiB` total, `MAX_OBSERVATION_PATH_BYTES = 32 KiB` per field, `MAX_LIBRARY_PAGE_SIZE = 200`. Breach is terminal `StagingRejected` (D7), never a same-run retry.
-* #67 provisional targets (`docs/PHASE_2_EXECUTION_PLAN.md`, `scripts/benchmark-scan.md`): baseline fixture `10_000` FLP files across `1_000` directories, qualification set `100_000` entries; first-discovery latency `<= 30 s`, warm unchanged reconciliation `p95 <= 10 s`; incremental working memory `<= 128 MiB` on the `100_000`-entry set; batch/staging `<= 512` records / `<= 256 MiB`; queue/leases one worker plus one follow-up per root, `30 s` lease renewed every `5 s`; retries `1 / 2 / 4 s` plus `<= 20%` jitter then explicit retry; progress `<= 4 / s`, pages `<= 200`, query `p95 <= 200 ms`; initially `<= 100` roots. Method: pinned release build, recorded seed and manifest hash, one warm-up plus 10 measured iterations, median/max/nearest-rank `p95`. These are owner-accepted starting points, not measured promises and not enforcement. The scaffold validates fixtures and captures the environment report only; it emits no numbers while `crates/scan-worker/Cargo.toml` is absent.
+* #67 provisional targets (`docs/PHASE_2_EXECUTION_PLAN.md`, `scripts/benchmark-scan.md`): baseline fixture `10_000` FLP files across `1_000` directories, qualification set `100_000` entries; first-discovery latency `<= 30 s`, warm unchanged reconciliation `p95 <= 10 s`; incremental working memory `<= 128 MiB` on the `100_000`-entry set; batch/staging `<= 512` records / `<= 256 MiB`; queue/leases one worker plus one follow-up per root, `30 s` lease renewed every `5 s`; retries `1 / 2 / 4 s` plus `<= 20%` jitter then explicit retry; progress `<= 4 / s`, pages `<= 200`, query `p95 <= 200 ms`; initially `<= 100` roots. Method: pinned release build, recorded seed and manifest hash, one warm-up plus 10 measured iterations, median/max/nearest-rank `p95`. These are owner-accepted starting points, not measured promises and not enforcement. The scaffold validates fixtures and captures the environment report only; it emits no numbers while `crates/scan-execution/Cargo.toml` is absent.
 
 Worker configuration rule: set `EnumerationLimits.max_observations <= MAX_STAGED_RECORDS`, `max_total_path_bytes <= MAX_STAGED_PATH_BYTES`, and `max_batch_records <= MAX_STAGED_BATCH_RECORDS` (512). The #64 defaults (`100_000` observations, `64 MiB` total path bytes) are deliberately larger than the staging quota and must be tightened by the worker; otherwise a legitimate `Complete` traversal is guaranteed to die as D7.
 
@@ -210,7 +210,7 @@ in-memory model; the worker converts committed rows plus staged
 observations to `reconciler::Observation` for advisory decision diffing
 only after the publish fence, never as a storage key.
 
-### 5.2 One integration test plan for scan-worker (NTFS-local only)
+### 5.2 One integration test plan for scan-execution (NTFS-local only)
 
 Test: `scan_worker_ntfs_local_fenced_roundtrip`. Runs on Windows NTFS
 only; skipped elsewhere. DriveFS (#47) and FAT32/cross-volume (#48)
@@ -258,6 +258,6 @@ no PyFLP, fixed redacted diagnostics only.
   ened fixture are unchanged (marker hashes before/after).
 
 Passing this one test plus `cargo test -p fruitboard-storage --locked`
-is the entry gate for any real `scan-worker` implementation. It does
+is the entry gate for any real `scan-execution` implementation. It does
 not qualify DriveFS, FAT32, cross-volume identity, network shares,
 watcher delivery, parsing, benchmarks, or production activation.
