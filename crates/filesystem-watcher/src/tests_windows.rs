@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
 use std::sync::mpsc::sync_channel;
 use std::time::{Duration, Instant};
 
@@ -319,11 +319,11 @@ fn raw_queue_drop_policy_counts_and_flags_coverage_loss() {
         root: RootId(9),
         generation: 1,
         queue_tx,
-        stop_event: AtomicIsize::new(0),
         stopping: AtomicBool::new(false),
         armed: AtomicBool::new(false),
         coverage_lost: AtomicBool::new(false),
         outcome: Mutex::new(None),
+        exit_os_code: AtomicU32::new(0),
         dropped_raw_events: AtomicU64::new(0),
         notify_buffer_overflows: AtomicU64::new(0),
         obscured_events: AtomicU64::new(0),
@@ -348,6 +348,90 @@ fn raw_queue_drop_policy_counts_and_flags_coverage_loss() {
             .dropped_raw_events
             .load(std::sync::atomic::Ordering::SeqCst),
         2
+    );
+}
+
+// --- Regression: starter-owned stop event is safe after worker exit (P1) ---
+//
+// The stop event is owned by `HandleBoundWatcher` and closed only after the
+// worker is joined, so signaling an already-exited worker must be a harmless
+// no-op on a live event — never a use-after-close — and must keep reporting
+// the same sticky outcome.
+
+#[test]
+fn stop_after_worker_exit_is_safe_and_sticky() {
+    let dir = temp_root("stop-after-exit");
+    let mut watcher = HandleBoundWatcher::start(
+        RootId(20),
+        dir.as_os_str(),
+        watcher_config(1, 1_000_000_000, 64),
+    )
+    .expect("live watch must start");
+
+    std::fs::remove_dir(&dir).expect("removal must be permitted by the share mode");
+    let outcome = wait_for_outcome(&mut watcher, Duration::from_secs(30))
+        .expect("the deleted root must end the watch");
+    assert_eq!(outcome.reason, EndReason::RootLost);
+
+    // Stopping an already-exited worker must not hang, crash, or reclassify:
+    // repeated stops keep reporting the same sticky RootLost outcome.
+    assert_eq!(
+        watcher.stop().map(|outcome| outcome.reason),
+        Some(EndReason::RootLost)
+    );
+    assert_eq!(
+        watcher.stop().map(|outcome| outcome.reason),
+        Some(EndReason::RootLost)
+    );
+    assert_eq!(
+        watcher.outcome().map(|outcome| outcome.reason),
+        Some(EndReason::RootLost)
+    );
+}
+
+#[test]
+fn start_failure_after_thread_spawn_never_touches_a_closed_handle() {
+    // Best-effort race for the pre-arm window (root deleted between
+    // `CreateFileW` and the first read): a deleter thread removes the root
+    // while `start()` is opening it. Either the start fails — which must
+    // classify as `RootUnavailable` (never `ResourceUnavailable{0}`) without
+    // hanging or crashing — or it succeeds, in which case the watch must end
+    // with `RootLost` and stop cleanly via the P1 path above. The
+    // deterministic classification contract itself is pinned by
+    // `platform_unit_tests::start_failure_preserves_root_lost_instead_of_resource_unavailable`.
+    let mut saw_root_loss = false;
+    for attempt in 0..20 {
+        let dir = temp_root(&format!("start-race-{attempt}"));
+        let victim = dir.clone();
+        let deleter = std::thread::spawn(move || std::fs::remove_dir_all(&victim).ok());
+        let started = HandleBoundWatcher::start(
+            RootId(21),
+            dir.as_os_str(),
+            watcher_config(1, 1_000_000_000, 64),
+        );
+        let _ = deleter.join();
+        match started {
+            Err(StartError::RootUnavailable { .. }) => {
+                saw_root_loss = true;
+            }
+            Err(other) => {
+                panic!("pre-arm failure must not lose the root-loss class: {other:?}");
+            }
+            Ok(mut watcher) => {
+                let _ = std::fs::remove_dir_all(&dir);
+                if let Some(outcome) = wait_for_outcome(&mut watcher, Duration::from_secs(30)) {
+                    assert_eq!(outcome.reason, EndReason::RootLost);
+                    saw_root_loss = true;
+                }
+                // Safe even if the worker already exited (P1).
+                let _ = watcher.stop();
+                let _ = std::fs::remove_dir_all(&dir);
+            }
+        }
+    }
+    assert!(
+        saw_root_loss,
+        "the delete-around-start scenario must surface at least one root-loss signal"
     );
 }
 
