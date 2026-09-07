@@ -1,9 +1,10 @@
 # Scan contract: reconciler <-> ledger/staging <-> enumerator (#59 / #60-#62 / #64)
 
-Status: **contract map only; no scan-worker implementation in this step.**
-Production scan stays hidden. `crates/scan-worker` does not exist
-(#67 scaffold only). This document prevents contract drift between the
-three landed isolated foundations and scopes the future scan-worker
+Status: **contract map + hidden worker composition; no production activation.**
+Production scan stays hidden (no renderer controls, no watcher wiring).
+`crates/scan-worker` composes the three landed foundations behind a
+typed API for tests only. This document prevents contract drift between the
+three landed isolated foundations and scopes the scan-worker
 handoff. NTFS-local only. DriveFS (#47) and FAT32/cross-volume (#48)
 are explicitly out. No renderer Scan/Cancel controls, no WAL change,
 no PyFLP, privacy redaction preserved (fixed `storage_*` codes only,

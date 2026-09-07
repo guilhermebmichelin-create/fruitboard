@@ -1,0 +1,19 @@
+[package]
+name = "fruitboard-scan-worker"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+fruitboard-storage.workspace = true
+fruitboard-filesystem-enumeration = { path = "../filesystem-enumeration" }
+fruitboard-reconciliation = { path = "../reconciliation" }
+
+[dev-dependencies]
+# Test-only: drives an external-party SQL trigger fixture that injects a
+# failure inside the publication transaction, and fixture connections that
+# commit durable cancellations/triggers mid-traversal. The production crate
+# keeps executing storage exclusively through the typed fruitboard-storage
+# API.
+rusqlite.workspace = true
