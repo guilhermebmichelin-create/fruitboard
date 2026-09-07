@@ -321,7 +321,10 @@ Keep these as outlines until the preceding design is informed by real usage.
 - [x] Phase 1 epic #10 and issues #11–#18 were created after final acceptance.
 - [x] The owner accepts the documented GitHub Free manual-governance exception
   because private-repository protection is unavailable and GitHub Pro was
-  declined.
+  declined. (Condition superseded on 2026-09-07: the repository became public,
+  restoring branch-protection availability; a replacement enforcement proposal
+  is pending owner approval in [DEVELOPMENT.md](DEVELOPMENT.md#proposed-enforced-branch-protection-pending-owner-approval).
+  This historical acceptance is not rewritten.)
 - [x] No application feature implementation has entered Phase 0.
 - [x] Phase 0 PRs were accepted and merged in order #6 → #7 → #8 → #9.
 

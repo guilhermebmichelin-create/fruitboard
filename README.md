@@ -5,8 +5,11 @@ analyzing, and finishing music.
 
 ## Project status
 
-Fruitboard's **Phase 0 architecture is accepted** with a documented manual
-governance exception for this private GitHub Free repository. **Phase 1 is
+Fruitboard's **Phase 0 architecture is accepted**; the manual governance
+exception recorded for the private GitHub Free repository was superseded on
+2026-09-07 when the repository became public, and enforced branch protection is
+now proposed (pending owner approval; see [DEVELOPMENT.md](DEVELOPMENT.md#proposed-enforced-branch-protection-pending-owner-approval)).
+**Phase 1 is
 accepted**: the reproducible Tauri/React shell now includes Rust-owned local
 SQLite, one persisted startup-view preference, automated quality/security
 gates, and a Windows packaging smoke. It still has no scanner, parser, project
@@ -30,9 +33,10 @@ environment. Start with [DEVELOPMENT.md](DEVELOPMENT.md); after installing the
 pinned tools, `pnpm check` is the single local verification entry point and
 `pnpm dev` launches the Windows desktop shell.
 
-CI mirrors that gate through six stable jobs. Repository policy intentionally
-uses manual merge governance until enforced private-repository protection is
-available; see [the CI and exception details](DEVELOPMENT.md#pull-request-ci).
+CI mirrors that gate through six stable jobs. Repository policy currently
+relies on manual merge governance; enforced branch protection is available on
+the now-public repository and is proposed for adoption, pending owner approval;
+see [the governance details](DEVELOPMENT.md#github-governance).
 
 The current shell's information hierarchy, responsive evidence, accessibility
 coverage, and intentional limitations are recorded in the
@@ -70,5 +74,9 @@ Distribution and third-party parser licensing remain gated; see
 
 ## Repository
 
-The canonical repository is private during the architecture phase at
-`github.com/guilhermebmichelin-create/fruitboard`.
+The canonical repository is public since 2026-09-07 at
+`github.com/guilhermebmichelin-create/fruitboard`. Public visibility changes the
+repository, not the product rules: privacy rules are unchanged (no telemetry or
+third-party tracking), FLP files remain read-only inputs, private paths and
+project data stay out of commits and logs, review evidence discipline still
+applies, and the owner still merges every pull request manually.

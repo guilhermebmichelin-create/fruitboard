@@ -3,9 +3,11 @@
 Status: **Phase 0 decision; final product license not yet selected**
 
 The owner intends to release Fruitboard publicly as open source after completion.
-The exact license and a public release have not yet been approved; the repository
-does not currently grant an open-source license. A final `LICENSE` file must not
-be added by assumption.
+That intent is now partially realized: the repository has been public on GitHub
+since 2026-09-07. This is repository visibility only — the exact license and a
+public application release have not yet been approved, and the repository does
+not currently grant an open-source license. A final `LICENSE` file must not be
+added by assumption.
 
 ## Product-owner direction
 

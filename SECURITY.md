@@ -189,9 +189,13 @@ print only fixed safe text.
   nothing, and verifies `NotSigned` rather than implying trust. Public builds
   must sign the application, every sidecar, installer, and update metadata in a
   protected release environment with timestamping and post-build verification.
-- GitHub dependency review, private-repository CodeQL, and GitHub secret
-  protection remain unavailable on the current private GitHub Free plan. Enable
-  them if the plan or repository visibility changes; do not represent an
+- GitHub dependency review, CodeQL, and GitHub secret protection were
+  unavailable on the private GitHub Free plan when this control was recorded.
+  The repository became public on 2026-09-07, so they are now available on the
+  current plan; enabling them is part of the [pending branch-protection
+  proposal](DEVELOPMENT.md#proposed-enforced-branch-protection-pending-owner-approval)
+  and has not happened yet. Until enabled, the executable privacy regressions,
+  `pnpm audit`, and RustSec checks below remain the baseline; never represent an
   unavailable or skipped integration as a passing security check.
 - Add Python dependency auditing with the parser environment; the current empty
   research lock has no parser dependency and PyFLP remains blocked.
