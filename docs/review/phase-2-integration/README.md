@@ -1,0 +1,46 @@
+# Phase 2 integration evidence index (#41)
+
+This directory is the home of the #41 evidence aggregator and, later, the
+P2-12 checkpoint review. The table below maps every acceptance ID from
+`docs/PHASE_2_EXECUTION_PLAN.md` ("Acceptance ownership and evidence") to its
+planned evidence source: a CI job, a deterministic test name, a manual journey
+step, or an explicit unverified label. Rows are filled as evidence merges;
+nothing here is a performance claim, and rows without merged evidence stay
+marked pending.
+
+Introduced by the evidence-scaffolding PR for #41 (P2-11 prep only): the
+synthetic fixture generator (`scripts/generate-synthetic-tree.mjs`), the
+benchmark methodology (`scripts/benchmark-scan.md`), and the benchmark
+scaffold (`scripts/run-benchmark.mjs`). No scanner behavior is included and no
+benchmark numbers are claimed anywhere in this index.
+
+## Acceptance ID evidence map
+
+| ID    | Acceptance criterion (summary)                                               | Owner issues                  | Status                                        | Evidence source                                                                                                                                                                                                                                                                                                                                     |
+| ----- | ---------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P2-01 | Existing root settings/picker remain safe and accessible                     | #34, #35                      | Merged evidence; rendered follow-ups recorded | Picker/repository PRs #20-#32, #44, #52-#54 with installed-picker evidence in `docs/review/issue-34/`; settings and onboarding PRs #55/#56/#58; rendered desktop/narrow keyboard evidence in `docs/review/issue-35/README.md` (fake adapter, labeled separately from installed-app evidence); CI jobs `docs-policy`, `client`, `windows-foundation` |
+| P2-02 | Unchanged tree causes no spurious changes; add/modify/rename converge        | #36                           | Partially evidenced                           | PR #59 deterministic reconciliation core with in-memory decision tests (`crates/reconciliation/README.md`), exercised by CI job `rust-portable`; synthetic NTFS fixture tests pending (fixture generator added as P2-11 prep, enumerator integration pending)                                                                                       |
+| P2-03 | Partial/offline/denied/cancelled/limited traversal never marks files missing | #36, #40                      | Pending                                       | Fault-injection tests for every outcome, comparing committed rows before/after; requires #40 staging/publication                                                                                                                                                                                                                                    |
+| P2-04 | Generations, dedup, leases, backoff and cancellation obey the contracts      | #38                           | Partially evidenced                           | PR #60 durable execution ledger and PR #61 contract preservation; evidence summary in `docs/PHASE_2_DURABLE_EXECUTION.md`; durable state-machine tests in `fruitboard-storage` run by CI job `migration` (coalescing, follow-ups, restart/backup, suppression); full fake-clock coverage of the remaining contracts pending                         |
+| P2-05 | Disable/remove while queued/running prevents stale publication               | #38, #40                      | Partially evidenced                           | PR #60 disable/remove invalidation and fresh re-add identity (`disabling_and_removing_roots_invalidate_work_and_readding_gets_new_identity` in CI job `migration`); publication-side stale-proof pending #40                                                                                                                                        |
+| P2-06 | Atomic publication and restart/backup recovery preserve valid data           | #40                           | Pending                                       | Crash before/after staging/apply, migration rollback and backup/recovery fixtures                                                                                                                                                                                                                                                                   |
+| P2-07 | Hardlink aliases and uncertain identity preserve per-path presence           | #40, #36                      | Pending                                       | Two-location identity regression, rename/replacement tests; fixture hardlink cases prepared by the generator; #48 limits stated                                                                                                                                                                                                                     |
+| P2-08 | Scan/Cancel/Retry and Library list are usable, honest and persistent         | #38 controls, #40 list        | Pending                                       | Typed IPC/client/native integration tests, axe, keyboard and desktop/narrow evidence                                                                                                                                                                                                                                                                |
+| P2-09 | Watcher bursts/overflow/event loss converge through durable reconciliation   | #37                           | Pending                                       | Synthetic burst/overflow/restart tests with bounded coalescing; #47 manual evidence for Drive claims                                                                                                                                                                                                                                                |
+| P2-10 | No parsing, hydration or source mutation enters filesystem-only discovery    | #39, #36                      | Pending                                       | Dependency/privacy checks (CI job `security`), content-read spy tests and source-byte preservation                                                                                                                                                                                                                                                  |
+| P2-11 | Performance/resource limits are measured and safely enforced                 | #36, #38, #40; #41 aggregates | Prep only (this PR)                           | Methodology in `scripts/benchmark-scan.md`; scaffold `scripts/run-benchmark.mjs` validates fixtures and captures the environment report; fixture generator with deterministic manifest hashes; the measured report lands only after the integrated scanner exists and must follow the documented protocol exactly; no numbers are claimed yet       |
+| P2-12 | Complete visible journey works after integration                             | #41                           | Pending                                       | This index plus the checkpoint review in this directory: merged PR mapping, CI results, the Windows interactive journey, explicit unverified modes, and owner acceptance                                                                                                                                                                            |
+
+## Standing gates and labeling rules
+
+- DriveFS modes and cross-volume/FAT32 identity claims stay gated on open
+  follow-ups #47 and #48: no blanket platform qualification until their
+  evidence lands or the owner explicitly excludes them from scope.
+- Fake-adapter rendering evidence is labeled separately from installed-app
+  evidence, mirroring the #35 precedent.
+- Production scanning stays hidden until P2-03 through P2-08 have integrated
+  evidence, per the accepted execution plan.
+- No benchmark numbers appear in this repository until the methodology in
+  `scripts/benchmark-scan.md` is executed against a pinned release build with
+  the captured machine profile; provisional budgets are quoted targets, not
+  results.
