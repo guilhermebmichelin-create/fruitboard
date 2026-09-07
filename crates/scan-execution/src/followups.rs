@@ -19,12 +19,18 @@
 //!   absence evidence: the follow-up is a full-root reconciliation, exactly
 //!   like any other trigger.
 //! - Generation fencing: hints carry the watcher generation that produced
-//!   them. A hint whose `(root, generation)` is older than the adapter's
-//!   current generation for that root is dropped — fresh generations exist
-//!   after a watcher restart (strictly monotonic per root, #69 contract), and
-//!   a root that was removed and re-added is a fresh durable root id. When a
-//!   watch ends, the host calls [`WatcherFollowUpAdapter::watch_ended`] so
-//!   replayed hints from the dead watch are dropped until a strictly newer
+//!   them. The host must call [`WatcherFollowUpAdapter::watch_started`] for
+//!   each root when it installs its watch, before processing that watch's
+//!   hints; until the seed arrives, hints for the root are dropped. This
+//!   closes the restart bootstrap window: after a host restart the adapter's
+//!   generation table is empty, and a replayed hint from a dead generation
+//!   can never be adopted as the current one. A hint whose `(root,
+//!   generation)` is older than the adapter's current generation for that
+//!   root is likewise dropped — fresh generations exist after a watcher
+//!   restart (strictly monotonic per root, #69 contract), and a root that
+//!   was removed and re-added is a fresh durable root id. When a watch ends,
+//!   the host calls [`WatcherFollowUpAdapter::watch_ended`] so replayed
+//!   hints from the dead watch are dropped until a strictly newer
 //!   generation starts a fresh watch.
 //! - Suppression lives in storage: disabled roots refuse requests
 //!   ([`StorageError::Conflict`], counted as suppressed), removed roots return
@@ -90,7 +96,8 @@ pub struct FollowUpOutcome {
     /// follow-up request.
     pub requests: Vec<FollowUpRequest>,
     /// Hints dropped because their `(root, generation)` is older than the
-    /// current generation (stale watch signals, idempotent replayed drops).
+    /// current generation, or because the host has not seeded the watch yet
+    /// (stale watch signals, idempotent replayed drops, bootstrap drops).
     pub stale_generation_dropped: usize,
     /// Hints dropped because no durable root matched: the host mapping no
     /// longer knows the root, or storage reports it removed.
@@ -145,7 +152,10 @@ pub struct WatcherFollowUpAdapter<M: RootIdMapping> {
 
 impl<M: RootIdMapping> WatcherFollowUpAdapter<M> {
     /// A fresh adapter over the host's root mapping. No hint is accepted
-    /// before the first watch generation is observed per root.
+    /// until the host seeds each root with [`WatcherFollowUpAdapter::
+    /// watch_started`]: this closes the restart bootstrap window where a
+    /// replayed hint from a dead generation would otherwise be adopted as
+    /// the current one.
     pub fn new(mapping: M) -> Self {
         Self {
             mapping,
@@ -214,6 +224,18 @@ impl<M: RootIdMapping> WatcherFollowUpAdapter<M> {
         Ok(outcome)
     }
 
+    /// Tell the adapter that the host started (or restarted) a live watch
+    /// for `root` at `generation`. The host must call this when it installs
+    /// each watch — before processing any hint from it — so replayed hints
+    /// from a dead generation are dropped at bootstrap instead of being
+    /// adopted as the current one. Seeding the same generation again is
+    /// idempotent; a strictly newer generation promotes the fence like any
+    /// fresh watch.
+    pub fn watch_started(&mut self, root: RootId, generation: u64) {
+        self.generations
+            .insert(root, RootWatchState::Active(generation));
+    }
+
     /// Tell the adapter that the watch for `root` has ended (host stopped it
     /// after disable, removal or shutdown). Replayed hints from the ended
     /// watch are dropped until a strictly newer generation starts a fresh
@@ -252,16 +274,14 @@ impl<M: RootIdMapping> WatcherFollowUpAdapter<M> {
 
     /// Generation fence: accepts the hint when its generation is the current
     /// one, promotes a strictly newer generation (fresh watch), and drops an
-    /// older one. A hint at or below an ended watch's generation is dropped
-    /// until a strictly newer generation revives the root.
+    /// older one. A hint for a root the host has not seeded yet is dropped:
+    /// the bootstrap window must never adopt a replayed generation. A hint
+    /// at or below an ended watch's generation is dropped until a strictly
+    /// newer generation revives the root.
     fn fence(&mut self, root: RootId, generation: u64) -> bool {
         let state = self.generations.get(&root).copied();
         match state {
-            None => {
-                self.generations
-                    .insert(root, RootWatchState::Active(generation));
-                true
-            }
+            None => false,
             Some(RootWatchState::Active(current)) => {
                 if generation == current {
                     true
@@ -273,15 +293,12 @@ impl<M: RootIdMapping> WatcherFollowUpAdapter<M> {
                     false
                 }
             }
-            Some(RootWatchState::Ended(current)) => {
-                if generation > current {
-                    self.generations
-                        .insert(root, RootWatchState::Active(generation));
-                    true
-                } else {
-                    false
-                }
+            Some(RootWatchState::Ended(current)) if generation > current => {
+                self.generations
+                    .insert(root, RootWatchState::Active(generation));
+                true
             }
+            Some(RootWatchState::Ended(_)) => false,
         }
     }
 }

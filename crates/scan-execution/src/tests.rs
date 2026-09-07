@@ -1463,8 +1463,14 @@ impl RootIdMapping for FakeMapping {
     }
 }
 
+/// The host installs each watch with a seeded generation before processing
+/// hints, so the shared helper seeds the initial generation exactly like the
+/// host lifecycle.
 fn adapter(harness: &Harness) -> WatcherFollowUpAdapter<FakeMapping> {
-    WatcherFollowUpAdapter::new(FakeMapping::track(WATCH_ROOT, &harness.root_id))
+    let mut follow_ups =
+        WatcherFollowUpAdapter::new(FakeMapping::track(WATCH_ROOT, &harness.root_id));
+    follow_ups.watch_started(WATCH_ROOT, 1);
+    follow_ups
 }
 
 /// The host poll loop: drain the watcher port into the adapter at every tick.
@@ -1788,6 +1794,7 @@ fn removed_root_hints_are_dropped_without_errors() {
         .expect("remove root");
     let mut mapping = FakeMapping::track(WATCH_ROOT, &harness.root_id);
     let mut follow_ups = WatcherFollowUpAdapter::new(mapping.clone());
+    follow_ups.watch_started(WATCH_ROOT, 1);
     let hint = |kind: HintKind| WatchHint {
         root: WATCH_ROOT,
         generation: 1,
@@ -1810,6 +1817,7 @@ fn removed_root_hints_are_dropped_without_errors() {
     // The host mapping forgets the root: the same drop through the mapping.
     mapping.forget(WATCH_ROOT);
     let mut follow_ups = WatcherFollowUpAdapter::new(mapping);
+    follow_ups.watch_started(WATCH_ROOT, 1);
     let dropped = follow_ups
         .process_hints(
             &mut harness.db,
@@ -2056,6 +2064,70 @@ fn watcher_restart_with_fresh_generation_drops_old_hints_and_reschedules() {
     assert_eq!(stale.stale_generation_dropped, 1);
     assert!(stale.requests.is_empty());
     assert_eq!(follow_ups.stale_generation_dropped(), 1);
+}
+
+// P2-09: the host must seed each watch before its hints are processed. A
+// fresh adapter (for example after a host restart) drops hints until the
+// seed arrives, so a replayed hint from a dead generation can never be
+// adopted as the current generation at bootstrap.
+#[test]
+fn unseeded_adapter_drops_hints_until_the_host_seeds_the_watch() {
+    let mut harness = Harness::new("followup-unseeded");
+    let mut follow_ups =
+        WatcherFollowUpAdapter::new(FakeMapping::track(WATCH_ROOT, &harness.root_id));
+    let hint = WatchHint {
+        root: WATCH_ROOT,
+        generation: 2,
+        kind: HintKind::ReconciliationRequested,
+    };
+
+    // No seed yet: the hint is dropped as stale, not adopted as current.
+    let unseeded = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(unseeded.stale_generation_dropped, 1);
+    assert!(unseeded.requests.is_empty());
+    assert_eq!(follow_ups.stale_generation_dropped(), 1);
+    assert_eq!(harness.root_jobs().len(), 0);
+
+    // The host installs the watch at generation 2; the same hint is accepted
+    // and schedules its follow-up.
+    follow_ups.watch_started(WATCH_ROOT, 2);
+    let seeded = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(seeded.requests.len(), 1);
+    assert_eq!(harness.root_jobs().len(), 1);
+}
+
+// P2-09: a seeded adapter fences replayed hints from a dead generation at
+// bootstrap: the seeded generation is the live watch's, older replayed hints
+// are dropped in batch order, and the seeded generation's own hint is
+// accepted.
+#[test]
+fn seeded_adapter_fences_replayed_hints_from_a_dead_generation() {
+    let mut harness = Harness::new("followup-seeded-fence");
+    let mut follow_ups =
+        WatcherFollowUpAdapter::new(FakeMapping::track(WATCH_ROOT, &harness.root_id));
+    follow_ups.watch_started(WATCH_ROOT, 3);
+    let hint = |generation: u64| WatchHint {
+        root: WATCH_ROOT,
+        generation,
+        kind: HintKind::ReconciliationRequested,
+    };
+
+    let outcome = follow_ups
+        .process_hints(
+            &mut harness.db,
+            &[hint(2), hint(3), hint(1)],
+            &harness.clock,
+        )
+        .expect("adapter");
+    assert_eq!(outcome.stale_generation_dropped, 2);
+    assert_eq!(outcome.requests.len(), 1);
+    assert!(!outcome.requests[0].coalesced);
+    assert_eq!(follow_ups.stale_generation_dropped(), 2);
+    assert_eq!(harness.root_jobs().len(), 1);
 }
 
 /// The fake consumer proving the exact trait shape the desktop host binds:
