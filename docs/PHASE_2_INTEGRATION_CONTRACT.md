@@ -44,7 +44,7 @@ segment        = mode ":" 1*comp-char
 mode           = "i" / "s"   ; i = case-insensitive component, s = case-sensitive
 comp-char      = unreserved / pct-encoded
 unreserved     = ALPHA / DIGIT / "-" / "_" / "." / "~"
-pct-encoded    = "%" HEXDIG HEXDIG   ; uppercase hex, UTF-8 of NFC text
+pct-encoded    = "%" HEXDIG HEXDIG   ; emit uppercase hex; storage accepts either case; UTF-8 of NFC text
 ```
 
 Envelope rules, all enforced by storage at the staging boundary:
@@ -55,6 +55,8 @@ Envelope rules, all enforced by storage at the staging boundary:
 - ASCII-only, no NUL (`%x00`), total length 1..=32768 bytes.
 - Every `/`-separated segment carries its own `i:`/`s:` mode tag. No empty
   segments, no `\` separators, no `:` inside the encoded component.
+- Storage rejects a display `relative_path` containing NUL or `:`; this ban is
+  independent of the opaque locator-key encoding.
 - `pct-encoded` bytes decode to UTF-8 of Unicode NFC text. The enumerator
   NFC-normalizes every component before encoding.
 - A case-insensitive (`i:`) component is case-folded by the enumerator before
@@ -315,7 +317,7 @@ The native IPC adapter serializes `LibraryCursor` opaquely. Agent 3 should use:
 ```ts
 interface LibraryPageRequest {
   rootId: string;
-  limit: number;          // native clamps/rejects outside 1..200
+  limit: number;          // native rejects outside 1..=200 with storage_invalid_schema
   cursor: string | null;  // null starts the current committed root snapshot
 }
 

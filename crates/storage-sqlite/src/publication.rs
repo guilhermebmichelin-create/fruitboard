@@ -389,7 +389,7 @@ fn sqlite_invalid_column(column: usize, name: &str) -> rusqlite::Error {
 pub const LOCATOR_KEY_V1_PREFIX: &str = "v1:";
 
 /// Every '%' must open exactly two hexadecimal digits. Storage accepts either
-/// hex case on read; the enumerator emits uppercase per §1.1.
+/// hex case; the filesystem boundary emits uppercase per §1.1.
 fn valid_pct_encoding(value: &str) -> bool {
     let bytes = value.as_bytes();
     let mut index = 0;

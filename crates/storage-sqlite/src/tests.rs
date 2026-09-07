@@ -82,7 +82,12 @@ fn publish_observations(
 /// This emulates the enumerator folding an insensitive component (§1.1);
 /// case-sensitive and mixed-mode keys use `exact_observation` explicitly.
 fn v1_key(path: &str) -> String {
-    format!("v1:i:{}", path.replace('\\', "/"))
+    let segments = path
+        .replace('\\', "/")
+        .split('/')
+        .map(|segment| format!("i:{segment}"))
+        .collect::<Vec<_>>();
+    format!("v1:{}", segments.join("/"))
 }
 
 fn staged_observation(
@@ -2886,6 +2891,145 @@ fn library_query_is_bounded_cursored_and_snapshot_stable() {
 }
 
 #[test]
+fn library_cursor_survives_failed_and_cancelled_runs() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database
+        .begin_scan_session("cursor-outcome-session", 1)
+        .unwrap();
+
+    let initial_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let initial = database
+        .lease_next_scan("cursor-outcome-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    publish_observations(
+        &mut database,
+        &initial,
+        4,
+        &[
+            staged_observation("a.flp", 1, 1, None),
+            staged_observation("b.flp", 1, 1, None),
+        ],
+    );
+    assert_eq!(
+        database.scan_job(&initial_job.job_id).unwrap().state,
+        ScanJobState::Completed
+    );
+    let first_page = database
+        .query_library(&LibraryQuery {
+            scan_root_id: root.id.clone(),
+            page_size: 1,
+            cursor: None,
+            snapshot: None,
+        })
+        .unwrap();
+    let cursor = first_page.next_cursor.clone().unwrap();
+    let snapshot = first_page.snapshot.clone();
+
+    let failed_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 6)
+        .unwrap();
+    let failed = database
+        .lease_next_scan("cursor-outcome-session", 7, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .stage_scan_observations(
+            &failed.run.id,
+            "cursor-outcome-session",
+            &failed.run.lease_token,
+            8,
+            &[staged_observation("failed.flp", 1, 1, None)],
+        )
+        .unwrap();
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &failed.run.id,
+                "cursor-outcome-session",
+                &failed.run.lease_token,
+                9,
+                ScanRunOutcome::Failed,
+            )
+            .unwrap(),
+        ScanRunState::Failed
+    );
+    assert_eq!(
+        database.scan_job(&failed_job.job_id).unwrap().state,
+        ScanJobState::Failed
+    );
+    let after_failed = database
+        .query_library(&LibraryQuery {
+            scan_root_id: root.id.clone(),
+            page_size: 1,
+            cursor: Some(cursor.clone()),
+            snapshot: Some(snapshot.clone()),
+        })
+        .unwrap();
+    assert_eq!(after_failed.snapshot, snapshot);
+    assert_eq!(after_failed.locations.len(), 1);
+    assert_eq!(after_failed.locations[0].locator_key, v1_key("b.flp"));
+    assert!(!after_failed.has_more);
+
+    let cancelled_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 10)
+        .unwrap();
+    let cancelled = database
+        .lease_next_scan("cursor-outcome-session", 11, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .stage_scan_observations(
+            &cancelled.run.id,
+            "cursor-outcome-session",
+            &cancelled.run.lease_token,
+            12,
+            &[staged_observation("cancelled.flp", 1, 1, None)],
+        )
+        .unwrap();
+    assert_eq!(
+        database
+            .request_scan_cancellation(&cancelled.run.id, 13)
+            .unwrap(),
+        ScanRunState::Running
+    );
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &cancelled.run.id,
+                "cursor-outcome-session",
+                &cancelled.run.lease_token,
+                14,
+                ScanRunOutcome::Cancelled,
+            )
+            .unwrap(),
+        ScanRunState::Cancelled
+    );
+    assert_eq!(
+        database.scan_job(&cancelled_job.job_id).unwrap().state,
+        ScanJobState::Cancelled
+    );
+    let after_cancelled = database
+        .query_library(&LibraryQuery {
+            scan_root_id: root.id,
+            page_size: 1,
+            cursor: Some(cursor),
+            snapshot: Some(after_failed.snapshot.clone()),
+        })
+        .unwrap();
+    assert_eq!(after_cancelled.snapshot, after_failed.snapshot);
+    assert_eq!(after_cancelled.locations.len(), 1);
+    assert_eq!(after_cancelled.locations[0].locator_key, v1_key("b.flp"));
+    assert!(!after_cancelled.has_more);
+}
+
+#[test]
 fn publication_rejects_stale_or_cancelled_runs_without_touching_committed_rows() {
     let directory = TestDirectory::new();
     let mut database = Database::open(directory.path()).unwrap();
@@ -3708,6 +3852,50 @@ fn integration_identity_timestamp_and_numeric_bounds_are_checked() {
 }
 
 #[test]
+fn publication_round_trips_maximum_modified_at_ns() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database
+        .begin_scan_session("maximum-timestamp-session", 1)
+        .unwrap();
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("maximum-timestamp-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    publish_observations(
+        &mut database,
+        &lease,
+        4,
+        &[exact_observation(
+            "v1:i:maximum.flp",
+            "maximum.flp",
+            1,
+            i64::MAX as i128,
+            None,
+        )],
+    );
+
+    let locations = database.list_published_locations(&root.id).unwrap();
+    assert_eq!(locations.len(), 1);
+    assert_eq!(locations[0].modified_at_ns, i64::MAX);
+    let page = database
+        .query_library(&LibraryQuery {
+            scan_root_id: root.id,
+            page_size: 1,
+            cursor: None,
+            snapshot: None,
+        })
+        .unwrap();
+    assert_eq!(page.locations[0].modified_at_ns, i64::MAX);
+}
+
+#[test]
 fn integration_library_pages_are_root_scoped_and_snapshot_bound() {
     let directory = TestDirectory::new();
     let mut database = Database::open(directory.path()).unwrap();
@@ -4131,6 +4319,7 @@ fn integration_canonical_decimal_and_locator_key_shape_are_enforced() {
                 None,
             ),
             exact_observation("v1:i:caf%C3%A9.flp", "caf\u{e9}.flp", 4, 4, None),
+            exact_observation("v1:i:lower%c3%a9.flp", "lower-caf\u{e9}.flp", 5, 5, None),
         ],
     );
     assert_eq!(
@@ -4138,7 +4327,7 @@ fn integration_canonical_decimal_and_locator_key_shape_are_enforced() {
         ScanJobState::Completed
     );
     let committed = database.list_published_locations(&root.id).unwrap();
-    assert_eq!(committed.len(), 2);
+    assert_eq!(committed.len(), 3);
 
     // Every malformed key rejects its run without touching committed rows.
     let invalid_keys = [

@@ -207,19 +207,26 @@ nullable `deleted_at_ms` unless explicitly immutable.
 
 `file_location` — device-local
 
-- `id`, `project_file_id`, `device_id`, `scan_root_id`
-- `absolute_path`, `normalized_path`, `relative_path`
-- `volume_id`, `filesystem_file_id` nullable
-- `presence` check `present|missing|offline|unknown`
-- `cloud_presence` check `local|placeholder|partial|unknown`
-- `last_seen_scan_run_id`, `last_seen_at_ms`
-- unique `(device_id, normalized_path)`; filesystem identity is a non-unique
-  lookup, never a location uniqueness constraint, so two paths may share one
-  underlying file
-- hardlink aliases share one filesystem identity but keep one location row
-  each: availability is tracked per path, and a non-unique
-  `(device_id, volume_id, filesystem_file_id)` index links aliases to one
-  underlying file without collapsing them
+- `id`, `project_file_id`, nullable `scan_root_id`, nullable
+  `detached_scan_root_id`
+- `locator_key` is the boundary-owned `LocatorKeyV1`; `relative_path` is the
+  display spelling; `normalized_path` is retained as v4 migration-history data
+- `byte_size`, legacy `modified_at_ms`, and checked `modified_at_ns`
+- legacy `volume_id`/`filesystem_file_id`, plus nullable bounded-decimal
+  `identity_volume_serial`/`identity_file_id`
+- `presence` check `present|missing`, `last_seen_scan_run_id`,
+  `last_seen_at_ms`, `created_at_ms`, and `updated_at_ms`
+- active rows use the unique `file_location_active_locator` index on
+  `(scan_root_id, locator_key COLLATE BINARY)`; detached rows are excluded
+- `file_location_root_presence_locator` indexes
+  `(scan_root_id, presence, locator_key COLLATE BINARY)`
+- `file_location_encoded_identity` is a non-unique lookup on
+  `(identity_volume_serial, identity_file_id)`; hardlink aliases remain
+  separate location rows
+- migration 005 replaces normalized-path staging indexes with the unique
+  `scan_stage_observation_locator` `(run_id, locator_key COLLATE BINARY)` and
+  ordered `scan_stage_observation_locator_order` `(run_id, locator_key
+  COLLATE BINARY, id)` indexes
 
 Migrations 004 and 005 implement a deliberately smaller device-local subset for
 the filesystem-only checkpoint: no absolute path is exposed, and
