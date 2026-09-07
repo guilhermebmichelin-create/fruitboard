@@ -5,6 +5,7 @@ members = [
   "crates/filesystem-watcher",
   "crates/storage-sqlite",
   "crates/reconciliation",
+  "crates/filesystem-enumeration",
 ]
 resolver = "3"
 

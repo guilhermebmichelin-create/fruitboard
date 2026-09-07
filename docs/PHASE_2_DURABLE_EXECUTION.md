@@ -59,12 +59,13 @@ expiry and retry persistence across reopen, active-session restart and backup
 recovery without retry-budget reset, replaced tokens and sessions,
 cancellation precedence and commit ordering, disable/removal invalidation,
 terminal-attempt immutability, fresh identity after re-adding a path, and
-table-driven finish/restart/backup transition matrices. The existing
-backup/recovery tests continue to run against migration 003 (48 storage tests).
+table-driven finish/restart/backup transition matrices. The follow-up #40
+staging/publication slice is documented separately in
+[durable publication evidence](PHASE_2_DURABLE_PUBLICATION.md); the storage
+suite now runs against migration 004.
 
-This is an execution and recovery foundation, not a scanner. It does not walk
-the filesystem, read FLP contents, stage observations, publish a Library
-dataset, maintain missing/restored location history, or expose scan controls.
-Run-scoped staging and atomic publication are the next #40 slice. Bounded
-enumeration remains #36; watcher hints remain #37. Keep WAL disabled, PyFLP
+This document covers the execution and recovery portion, not a scanner. It does
+not walk the filesystem, read FLP contents, or expose scan controls. Run-scoped
+staging and atomic publication are tracked in the #40 document, while bounded
+enumeration remains #36 and watcher hints remain #37. Keep WAL disabled, PyFLP
 absent, and DriveFS/non-NTFS support unverified under #47/#48.

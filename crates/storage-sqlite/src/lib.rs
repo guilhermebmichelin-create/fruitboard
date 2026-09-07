@@ -3,6 +3,7 @@ mod error;
 mod execution;
 mod files;
 mod migrations;
+mod publication;
 
 pub use error::{Result, StorageError};
 pub use execution::{
@@ -11,6 +12,12 @@ pub use execution::{
 };
 use files::{Location, check_path, private_directory, private_file};
 use migrations::{MIGRATIONS, Migration};
+pub use publication::{
+    EncodedIdentity, FilePresence, LibraryCursor, LibraryPage, LibraryQuery, LibrarySnapshot,
+    MAX_LIBRARY_PAGE_SIZE, MAX_STAGED_BATCH_RECORDS, MAX_STAGED_PATH_BYTES, MAX_STAGED_RECORDS,
+    PublishedLocation, ScanObservation, ScanPublication, ScanRootPublication, ScanStageState,
+    ScanStaging,
+};
 use rusqlite::{
     Connection, OpenFlags, TransactionBehavior,
     backup::{Backup, StepResult},
