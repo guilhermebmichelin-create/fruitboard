@@ -7,6 +7,11 @@ pub mod foundation;
 #[cfg(feature = "packaging-smoke")]
 use foundation::packaging_smoke::{SmokeMode, SmokeRequest};
 
+use foundation::scan_console::{
+    CancelScanResult, LibraryPageResponse, ScanConsoleService, ScanConsoleState, ScanStartResult,
+    ScanStatus, handle_cancel_scan, handle_get_library_page, handle_get_scan_console_state,
+    handle_list_scan_statuses, handle_retry_scan, handle_scan_now,
+};
 use foundation::{
     AppError, COMMAND_SCHEMA_VERSION, Clock, CommandEnvelope, CommandRuntime, DiagnosticCode,
     ErrorCode, IdGenerator, SystemClock, SystemIdGenerator, default_log_sink,
@@ -209,6 +214,7 @@ struct NativeFoundation {
     commands: CommandRuntime,
     preferences: PreferencesService,
     scan_roots: ScanRootsService,
+    scan_console: ScanConsoleService,
 }
 
 impl NativeFoundation {
@@ -221,10 +227,16 @@ impl NativeFoundation {
         let logs = default_log_sink(log_directory, clock.clone());
         let database = Arc::new(Mutex::new(Database::open(data_directory)?));
 
+        #[cfg(feature = "scan-console")]
+        let scan_console = ScanConsoleService::new_enabled(database.clone());
+        #[cfg(not(feature = "scan-console"))]
+        let scan_console = ScanConsoleService::new(database.clone());
+
         Ok(Self {
             commands: CommandRuntime::new(clock, ids, logs),
             preferences: PreferencesService::new(database.clone()),
-            scan_roots: ScanRootsService::new(database),
+            scan_roots: ScanRootsService::new(database.clone()),
+            scan_console,
         })
     }
 }
@@ -541,6 +553,54 @@ async fn pick_scan_root(
     }
 }
 
+#[tauri::command]
+fn scan_now(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<ScanStartResult> {
+    handle_scan_now(&state.commands, &state.scan_console, request)
+}
+
+#[tauri::command]
+fn cancel_scan(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<CancelScanResult> {
+    handle_cancel_scan(&state.commands, &state.scan_console, request)
+}
+
+#[tauri::command]
+fn retry_scan(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<ScanStartResult> {
+    handle_retry_scan(&state.commands, &state.scan_console, request)
+}
+
+#[tauri::command]
+fn list_scan_statuses(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<Vec<ScanStatus>> {
+    handle_list_scan_statuses(&state.commands, &state.scan_console, request)
+}
+
+#[tauri::command]
+fn get_library_page(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<LibraryPageResponse> {
+    handle_get_library_page(&state.commands, &state.scan_console, request)
+}
+
+#[tauri::command]
+fn get_scan_console_state(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<ScanConsoleState> {
+    handle_get_scan_console_state(&state.commands, &state.scan_console, request)
+}
+
 fn install_safe_panic_hook() {
     static INSTALL: std::sync::Once = std::sync::Once::new();
 
@@ -597,6 +657,16 @@ pub fn run() -> tauri::Result<()> {
 
             app.manage(foundation);
 
+            #[cfg(feature = "scan-console")]
+            app.state::<NativeFoundation>()
+                .scan_console
+                .initialize(app.handle().clone())
+                .inspect_err(|error| {
+                    // StorageError is a closed set of fixed codes, without a raw
+                    // SQLite/io source, SQL statement, or filesystem path.
+                    eprintln!("{error}");
+                })?;
+
             #[cfg(feature = "packaging-smoke")]
             if let Some((request, storage)) = smoke {
                 foundation::packaging_smoke::schedule(app.handle().clone(), request, storage);
@@ -612,7 +682,13 @@ pub fn run() -> tauri::Result<()> {
             remove_scan_root,
             pick_scan_root,
             set_scan_root_display_name,
-            set_scan_root_enabled
+            set_scan_root_enabled,
+            scan_now,
+            cancel_scan,
+            retry_scan,
+            list_scan_statuses,
+            get_library_page,
+            get_scan_console_state
         ])
         .run(tauri::generate_context!())
 }

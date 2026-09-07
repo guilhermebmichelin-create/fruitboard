@@ -6,6 +6,9 @@ mod jobs;
 mod logging;
 #[cfg(feature = "packaging-smoke")]
 pub(crate) mod packaging_smoke;
+pub(crate) mod scan_console;
+#[cfg(feature = "scan-console")]
+pub(crate) mod scan_console_host;
 
 pub use command::{COMMAND_SCHEMA_VERSION, CommandEnvelope};
 pub use errors::{ErrorCode, UserFacingError};
