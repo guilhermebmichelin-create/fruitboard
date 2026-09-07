@@ -221,8 +221,9 @@ nullable `deleted_at_ms` unless explicitly immutable.
 - `file_location_root_presence_locator` indexes
   `(scan_root_id, presence, locator_key COLLATE BINARY)`
 - `file_location_encoded_identity` is a non-unique lookup on
-  `(identity_volume_serial, identity_file_id)`; hardlink aliases remain
-  separate location rows
+  `(identity_volume_serial, identity_file_id)`; hardlink aliases
+  keep one location row each: availability is tracked per path, so
+  when one alias disappears, the other remains available
 - migration 005 replaces normalized-path staging indexes with the unique
   `scan_stage_observation_locator` `(run_id, locator_key COLLATE BINARY)` and
   ordered `scan_stage_observation_locator_order` `(run_id, locator_key
