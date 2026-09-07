@@ -942,26 +942,30 @@ fn case_sensitive_directory_keeps_case_distinct_serialized_locators() {
 }
 
 #[test]
-fn windows_timestamp_and_identity_conversions_keep_boundary_precision() {
+fn windows_timestamp_and_identity_conversions_are_checked() {
+    // Unix epoch: the offset constant cancels exactly.
     assert_eq!(
-        windows_filetime_100ns_to_unix_ns(WINDOWS_EPOCH_OFFSET_100NS as i64),
-        0
+        windows_filetime_100ns_to_unix_ns_checked(WINDOWS_EPOCH_OFFSET_100NS as i64),
+        Ok(0)
+    );
+    // Single-tick edges around the epoch.
+    assert_eq!(
+        windows_filetime_100ns_to_unix_ns_checked(WINDOWS_EPOCH_OFFSET_100NS as i64 - 1),
+        Ok(-100)
     );
     assert_eq!(
-        windows_filetime_100ns_to_unix_ns(WINDOWS_EPOCH_OFFSET_100NS as i64 - 1),
-        -100
+        windows_filetime_100ns_to_unix_ns_checked(WINDOWS_EPOCH_OFFSET_100NS as i64 + 1),
+        Ok(100)
+    );
+    // FILETIME extremes fall outside the durable i64-nanosecond range and
+    // must reject, never saturate.
+    assert_eq!(
+        windows_filetime_100ns_to_unix_ns_checked(i64::MIN),
+        Err(TimestampError::OutOfRange)
     );
     assert_eq!(
-        windows_filetime_100ns_to_unix_ns(WINDOWS_EPOCH_OFFSET_100NS as i64 + 1),
-        100
-    );
-    assert_eq!(
-        windows_filetime_100ns_to_unix_ns(i64::MIN),
-        (i64::MIN as i128 - WINDOWS_EPOCH_OFFSET_100NS) * 100
-    );
-    assert_eq!(
-        windows_filetime_100ns_to_unix_ns(i64::MAX),
-        (i64::MAX as i128 - WINDOWS_EPOCH_OFFSET_100NS) * 100
+        windows_filetime_100ns_to_unix_ns_checked(i64::MAX),
+        Err(TimestampError::OutOfRange)
     );
 
     assert_eq!(windows_file_id_to_u128([0; 16]), 0);
@@ -1089,6 +1093,823 @@ fn path_normalization_rejects_absolute_parent_and_ads_components() {
     assert_eq!(
         normalize_relative_path(Path::new("folder:ads.flp")),
         Err(PathError::AlternateDataStream)
+    );
+}
+
+fn file_metadata_ns(file_id: u128, byte_size: u64, modified_unix_ns: i128) -> FileMetadata {
+    FileMetadata {
+        kind: EntryKind::File,
+        byte_size,
+        modified_unix_ns,
+        identity: Some(identity(file_id)),
+        reparse_point: false,
+        recall_or_offline: false,
+    }
+}
+
+fn observations_of(sink: &RecordingSink) -> Vec<&Observation> {
+    sink.batches
+        .iter()
+        .flat_map(|batch| batch.records.iter())
+        .collect()
+}
+
+fn run_with_entries(
+    entries: Vec<Result<DirectoryEntry, PortError>>,
+    files: &[(&str, FileMetadata)],
+) -> (EnumerationReport, RecordingSink) {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.add_directory(".", entries);
+    for (name, metadata) in files {
+        port.add_file(name, Ok(metadata.clone()));
+    }
+    let mut sink = RecordingSink::default();
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+    (report, sink)
+}
+
+// This is the storage validator's syntactic shape from publication.rs:417-438
+// on the Contract-Revision:2 branch. It is deliberately test-only so this
+// isolated crate can prove the handoff without importing storage-sqlite.
+fn agent1_valid_pct_encoding(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = bytes.get(index + 1).is_some_and(u8::is_ascii_hexdigit);
+            let low = bytes.get(index + 2).is_some_and(u8::is_ascii_hexdigit);
+            if !high || !low {
+                return false;
+            }
+            index += 3;
+        } else {
+            index += 1;
+        }
+    }
+    true
+}
+
+fn agent1_is_valid_locator_key_v1(key: &str) -> bool {
+    if key.len() > MAX_OBSERVATION_KEY_BYTES || !key.is_ascii() || key.contains('\0') {
+        return false;
+    }
+    let Some(body) = key.strip_prefix("v1:") else {
+        return false;
+    };
+    if body.is_empty() {
+        return false;
+    }
+    body.split('/').all(|segment| {
+        let Some((mode, encoded)) = segment.split_once(':') else {
+            return false;
+        };
+        (mode == "i" || mode == "s")
+            && !encoded.is_empty()
+            && encoded.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~' | b'%')
+            })
+            && agent1_valid_pct_encoding(encoded)
+    })
+}
+
+fn scan_observation_for_key(locator_key: &str) -> ScanObservation {
+    ScanObservation {
+        locator_key: locator_key.to_owned(),
+        relative_path: "a.flp".to_owned(),
+        byte_size: 1,
+        modified_at_ns: 1,
+        identity: None,
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Agent1ScanObservationFixture {
+    locator_key: String,
+    relative_path: String,
+    byte_size: String,
+    modified_at_ns: String,
+    identity: Option<Agent1IdentityFixture>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Agent1IdentityFixture {
+    volume_serial: String,
+    file_id: String,
+}
+
+#[test]
+fn scan_observation_json_fixture_pins_agent1_serde_contract() {
+    // Vendored because this crate intentionally remains outside the root
+    // workspace. Contract-Revision:2 sections 2-3 require camelCase field
+    // names and exact decimal strings for u64, i128, u64 identity, and u128
+    // identity.
+    let fixture_text = include_str!("../testdata/scan_observation_max.json");
+    let fixture: Agent1ScanObservationFixture =
+        serde_json::from_str(fixture_text).expect("pinned ScanObservation fixture parses");
+    let value: serde_json::Value =
+        serde_json::from_str(fixture_text).expect("pinned fixture is valid JSON");
+    let object = value.as_object().expect("fixture object");
+    assert_eq!(
+        object.keys().map(String::as_str).collect::<BTreeSet<_>>(),
+        BTreeSet::from([
+            "locatorKey",
+            "relativePath",
+            "byteSize",
+            "modifiedAtNs",
+            "identity"
+        ])
+    );
+    assert!(object["byteSize"].is_string());
+    assert!(object["modifiedAtNs"].is_string());
+    assert_eq!(fixture.locator_key, "v1:i:max.flp");
+    assert_eq!(fixture.relative_path, "Max.FLp");
+    assert_eq!(fixture.byte_size, u64::MAX.to_string());
+    assert_eq!(fixture.modified_at_ns, i128::MIN.to_string());
+    let identity = fixture.identity.expect("maximum identity present");
+    assert_eq!(identity.volume_serial, u64::MAX.to_string());
+    assert_eq!(identity.file_id, u128::MAX.to_string());
+
+    // The wire DTO preserves the full source range; the storage staging guard
+    // separately rejects u64 values above SQLite's signed i64 range.
+    let observation = ScanObservation {
+        locator_key: fixture.locator_key,
+        relative_path: fixture.relative_path,
+        byte_size: fixture.byte_size.parse().expect("u64 decimal"),
+        modified_at_ns: fixture.modified_at_ns.parse().expect("i128 decimal"),
+        identity: Some(EncodedIdentity {
+            volume_serial: identity.volume_serial,
+            file_id: identity.file_id,
+        }),
+    };
+    assert_eq!(
+        validate_scan_observation(&observation),
+        Err(ScanConversionError::ByteSizeOutOfRange)
+    );
+}
+
+#[test]
+fn locator_key_v1_matches_agent1_shape_for_contract_vectors() {
+    let insensitive = DirectoryCaseSensitivity::Insensitive;
+    let sensitive = DirectoryCaseSensitivity::Sensitive;
+    let mixed = LocatorKeyV1::root()
+        .child("Shared", insensitive)
+        .expect("valid component")
+        .child("BuildOutput", sensitive)
+        .expect("valid component")
+        .child("artifact.flp", insensitive)
+        .expect("valid component");
+    let generated = [
+        LocatorKeyV1::root()
+            .child("Foo.flp", insensitive)
+            .expect("valid component"),
+        mixed,
+        LocatorKeyV1::root()
+            .child("café.flp", insensitive)
+            .expect("valid component"),
+    ];
+    for key in generated.iter().map(LocatorKeyV1::as_str) {
+        assert!(agent1_is_valid_locator_key_v1(key), "Agent 1 rejects {key}");
+        assert_eq!(
+            validate_scan_observation(&scan_observation_for_key(key)).is_ok(),
+            agent1_is_valid_locator_key_v1(key),
+            "validator disagreement for generated key {key}"
+        );
+    }
+
+    // Copied from Agent 1's publication test at tests.rs:4144-4157. These
+    // vectors must remain rejected by both boundaries.
+    let invalid_keys = [
+        "Projects/foo.flp",
+        "ci:projects:foo.flp",
+        "v1:",
+        "v1:i:",
+        "v1:x:foo.flp",
+        "v1:i:foo/bar",
+        "v1:i:a//i:b",
+        "v1:i:a\\b",
+        "v1:i:café.flp",
+        "v1:i:bad%2.flp",
+        "v1:i:bad%zz.flp",
+        "v1:i:ok.flp%",
+    ];
+    for key in invalid_keys {
+        assert!(
+            !agent1_is_valid_locator_key_v1(key),
+            "Agent 1 accepts {key}"
+        );
+        assert_eq!(
+            validate_scan_observation(&scan_observation_for_key(key)).is_ok(),
+            agent1_is_valid_locator_key_v1(key),
+            "validator disagreement for invalid key {key}"
+        );
+    }
+}
+
+#[test]
+fn locator_key_lowercase_hex_policy_is_explicit() {
+    // Agent 1's syntactic guard intentionally accepts either hex case, while
+    // rev2 §1.1 ABNF and this producer require canonical uppercase escapes.
+    // The producer emits uppercase and rejects a non-canonical input rather
+    // than silently changing the opaque bytes handed to storage.
+    let lowercase = "v1:i:caf%c3%a9.flp";
+    assert!(agent1_is_valid_locator_key_v1(lowercase));
+    assert_eq!(
+        validate_scan_observation(&scan_observation_for_key(lowercase)),
+        Err(ScanConversionError::LocatorKey)
+    );
+}
+
+#[test]
+fn scan_observation_locator_key_boundaries_match_storage() {
+    let prefix_len = "v1:i:".len();
+    let maximum = format!(
+        "v1:i:{}",
+        "a".repeat(MAX_OBSERVATION_KEY_BYTES - prefix_len)
+    );
+    assert_eq!(maximum.len(), MAX_OBSERVATION_KEY_BYTES);
+    assert!(agent1_is_valid_locator_key_v1(&maximum));
+    assert!(validate_scan_observation(&scan_observation_for_key(&maximum)).is_ok());
+
+    let over = format!("{}a", maximum);
+    assert_eq!(over.len(), MAX_OBSERVATION_KEY_BYTES + 1);
+    assert!(!agent1_is_valid_locator_key_v1(&over));
+    assert_eq!(
+        validate_scan_observation(&scan_observation_for_key(&over)),
+        Err(ScanConversionError::LocatorKey)
+    );
+
+    for key in ["v1:i:a\0b", "Projects/foo.flp"] {
+        assert!(!agent1_is_valid_locator_key_v1(key));
+        assert_eq!(
+            validate_scan_observation(&scan_observation_for_key(key)),
+            Err(ScanConversionError::LocatorKey)
+        );
+    }
+}
+
+#[test]
+fn traversal_rejects_overlength_locator_key_before_metadata() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    let name = format!(
+        "{}.flp",
+        "a".repeat(MAX_OBSERVATION_KEY_BYTES - "v1:i:".len() - ".flp".len() + 1)
+    );
+    assert_eq!(format!("v1:i:{name}").len(), MAX_OBSERVATION_KEY_BYTES + 1);
+    port.add_directory(".", vec![file_entry(&name)]);
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::Partial);
+    assert!(!report.authoritative);
+    assert_eq!(report.observations_discovered, 0);
+    assert!(
+        report
+            .coverage_failures
+            .iter()
+            .any(|failure| { failure.kind == CoverageFailureKind::LocatorKeyTooLong })
+    );
+}
+
+#[test]
+fn locator_key_v1_case_only_rename_keeps_key_and_updates_display_only() {
+    let root = root_path();
+
+    // First spelling observed.
+    let mut first = FakePort::new(&root);
+    first.add_directory(".", vec![file_entry("A.flp")]);
+    first.add_file("A.flp", Ok(file_metadata(1, 10)));
+    let mut first_sink = RecordingSink::default();
+    let first_report = enumerate(
+        &mut first,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut first_sink,
+        &mut NoProgress,
+    );
+    assert_eq!(first_report.outcome, Outcome::Complete);
+
+    // Case-only rename observed later.
+    let mut second = FakePort::new(&root);
+    second.add_directory(".", vec![file_entry("a.flp")]);
+    second.add_file("a.flp", Ok(file_metadata(1, 10)));
+    let mut second_sink = RecordingSink::default();
+    let second_report = enumerate(
+        &mut second,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut second_sink,
+        &mut NoProgress,
+    );
+    assert_eq!(second_report.outcome, Outcome::Complete);
+
+    let first_observation = &observations_of(&first_sink)[0];
+    let second_observation = &observations_of(&second_sink)[0];
+    // Same durable key: publication updates the display spelling and retains
+    // the location and physical association.
+    assert_eq!(
+        first_observation.locator_key_v1,
+        second_observation.locator_key_v1
+    );
+    assert_eq!(first_observation.locator_key_v1.as_str(), "v1:i:a.flp");
+    assert_ne!(
+        first_observation.display_path.as_str(),
+        second_observation.display_path.as_str()
+    );
+
+    // Unit-level: the insensitive fold is total for ASCII case pairs.
+    assert_eq!(
+        LocatorKeyV1::root()
+            .child("A.flp", DirectoryCaseSensitivity::Insensitive)
+            .expect("valid component"),
+        LocatorKeyV1::root()
+            .child("a.flp", DirectoryCaseSensitivity::Insensitive)
+            .expect("valid component"),
+    );
+}
+
+#[test]
+fn locator_key_v1_sensitive_directory_keeps_case_distinct_aliases_in_binary_order() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.set_case_sensitivity(".", DirectoryCaseSensitivity::Sensitive);
+    port.add_directory(".", vec![file_entry("foo.flp"), file_entry("Foo.flp")]);
+    port.add_file("foo.flp", Ok(file_metadata(1, 1)));
+    port.add_file("Foo.flp", Ok(file_metadata(2, 2)));
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::Complete);
+    let mut keys = observations_of(&sink)
+        .iter()
+        .map(|observation| observation.locator_key_v1.as_str().to_owned())
+        .collect::<Vec<_>>();
+    assert_eq!(keys.len(), 2);
+    assert_ne!(keys[0], keys[1]);
+    // Deterministic storage order is the byte-wise order of the key strings.
+    keys.sort();
+    assert_eq!(keys, vec!["v1:s:Foo.flp", "v1:s:foo.flp"]);
+    let upper = LocatorKeyV1::decode("v1:s:Foo.flp").expect("valid key");
+    let lower = LocatorKeyV1::decode("v1:s:foo.flp").expect("valid key");
+    assert!(upper < lower);
+}
+
+#[test]
+fn locator_key_v1_mixed_directory_modes_share_one_tree() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    // Root stays insensitive; `sub` is case-sensitive.
+    port.add_directory(".", vec![file_entry("Root.flp"), file_entry("sub")]);
+    port.add_file("Root.flp", Ok(file_metadata(1, 1)));
+    port.add_file("sub", Ok(directory_metadata(2)));
+    port.add_directory("sub", vec![file_entry("Leaf.flp"), file_entry("leaf.flp")]);
+    port.add_file("sub/Leaf.flp", Ok(file_metadata(3, 1)));
+    port.add_file("sub/leaf.flp", Ok(file_metadata(4, 1)));
+    port.set_case_sensitivity("sub", DirectoryCaseSensitivity::Sensitive);
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::Complete);
+    let mut keys = observations_of(&sink)
+        .iter()
+        .map(|observation| observation.locator_key_v1.as_str().to_owned())
+        .collect::<Vec<_>>();
+    keys.sort();
+    assert_eq!(
+        keys,
+        vec![
+            "v1:i:root.flp",
+            "v1:i:sub/s:Leaf.flp",
+            "v1:i:sub/s:leaf.flp",
+        ]
+    );
+    // Every segment records its own directory mode.
+    let nested = LocatorKeyV1::decode("v1:i:sub/s:Leaf.flp").expect("valid key");
+    assert_eq!(
+        nested
+            .components()
+            .expect("valid components")
+            .iter()
+            .map(|component| component.sensitivity)
+            .collect::<Vec<_>>(),
+        vec![
+            DirectoryCaseSensitivity::Insensitive,
+            DirectoryCaseSensitivity::Sensitive,
+        ]
+    );
+    assert_eq!(
+        nested.components().expect("valid components")[1].spelling,
+        "Leaf.flp"
+    );
+}
+
+#[test]
+fn locator_key_v1_unicode_long_paths_and_serialization_are_stable() {
+    let insensitive = DirectoryCaseSensitivity::Insensitive;
+    let sensitive = DirectoryCaseSensitivity::Sensitive;
+
+    // NFC and NFD spellings normalize to the same durable key; display paths
+    // remain responsible for retaining the spelling returned by the filesystem.
+    let nfc = LocatorKeyV1::root()
+        .child("\u{e9}.flp", sensitive)
+        .expect("valid");
+    let nfd = LocatorKeyV1::root()
+        .child("e\u{301}.flp", sensitive)
+        .expect("valid");
+    assert_eq!(nfc, nfd);
+    assert_eq!(nfc.as_str(), "v1:s:%C3%A9.flp");
+    assert!(nfc.as_str().is_ascii() && nfd.as_str().is_ascii());
+
+    // Non-ASCII case folds in insensitive directories (Ä -> ä).
+    assert_eq!(
+        LocatorKeyV1::root()
+            .child("\u{c4}.flp", insensitive)
+            .expect("valid"),
+        LocatorKeyV1::root()
+            .child("\u{e4}.flp", insensitive)
+            .expect("valid"),
+    );
+    // The generated simple-fold table is not Unicode lowercase expansion:
+    // common/special mappings fold, while Turkic dotted I stays distinct.
+    assert_eq!(
+        LocatorKeyV1::root()
+            .child("\u{b5}.flp", insensitive)
+            .expect("valid"),
+        LocatorKeyV1::root()
+            .child("\u{3bc}.flp", insensitive)
+            .expect("valid"),
+    );
+    assert_eq!(
+        LocatorKeyV1::root()
+            .child("\u{3c2}.flp", insensitive)
+            .expect("valid"),
+        LocatorKeyV1::root()
+            .child("\u{3c3}.flp", insensitive)
+            .expect("valid"),
+    );
+    assert_ne!(
+        LocatorKeyV1::root()
+            .child("\u{130}.flp", insensitive)
+            .expect("valid"),
+        LocatorKeyV1::root()
+            .child("i\u{307}.flp", insensitive)
+            .expect("valid"),
+    );
+
+    // Mixed-case extensions fold with the rest of the component.
+    assert_eq!(
+        LocatorKeyV1::root()
+            .child("Song.FLP", insensitive)
+            .expect("valid")
+            .as_str(),
+        "v1:i:song.flp",
+    );
+
+    // Long paths are stable: encode -> decode -> encode is byte-identical.
+    let long_name = format!("{}.flp", "a".repeat(200));
+    let long_key = LocatorKeyV1::root()
+        .child(&long_name, insensitive)
+        .expect("valid");
+    assert!(long_key.as_str().is_ascii());
+    let decoded = LocatorKeyV1::decode(long_key.as_str()).expect("valid key");
+    assert_eq!(
+        LocatorKeyV1::decode(decoded.as_str())
+            .expect("valid key")
+            .as_str(),
+        long_key.as_str()
+    );
+
+    // Byte-stable across independent constructions (two runs agree exactly).
+    let again = LocatorKeyV1::root()
+        .child(&long_name, insensitive)
+        .expect("valid");
+    assert_eq!(again.as_str(), long_key.as_str());
+
+    // Non-canonical and malformed strings reject.
+    assert_eq!(
+        LocatorKeyV1::decode("").unwrap_err(),
+        LocatorKeyError::Empty
+    );
+    assert_eq!(
+        LocatorKeyV1::decode("a.flp").unwrap_err(),
+        LocatorKeyError::MissingVersion
+    );
+    assert_eq!(
+        LocatorKeyV1::decode("v1:x:a").unwrap_err(),
+        LocatorKeyError::BadMode
+    );
+    assert_eq!(
+        LocatorKeyV1::decode("v1:i:%zz").unwrap_err(),
+        LocatorKeyError::BadEscape
+    );
+    assert_eq!(
+        LocatorKeyV1::decode("v1:i:%61").unwrap_err(),
+        LocatorKeyError::NonCanonical
+    );
+    assert_eq!(
+        LocatorKeyV1::decode("v1:i:a%7eb").unwrap_err(),
+        LocatorKeyError::NonCanonical
+    );
+    assert_eq!(
+        LocatorKeyV1::decode("v1:i:a%2fb").unwrap_err(),
+        LocatorKeyError::InvalidComponent
+    );
+    assert_eq!(
+        LocatorKeyV1::decode("v1:i:é").unwrap_err(),
+        LocatorKeyError::NonAscii
+    );
+    assert_eq!(
+        LocatorKeyV1::decode("v1").unwrap_err(),
+        LocatorKeyError::MissingVersion
+    );
+    assert_eq!(
+        LocatorKeyV1::decode("v1:s:%FF").unwrap_err(),
+        LocatorKeyError::InvalidUnicode
+    );
+}
+
+#[test]
+fn locator_key_v1_duplicates_reject_the_run_regardless_of_order() {
+    for entries in [
+        vec![file_entry("Same.flp"), file_entry("same.FLP")],
+        vec![file_entry("same.FLP"), file_entry("Same.flp")],
+    ] {
+        let root = root_path();
+        let mut port = FakePort::new(&root);
+        port.add_directory(".", entries);
+        port.add_file("Same.flp", Ok(file_metadata(1, 1)));
+        port.add_file("same.FLP", Ok(file_metadata(2, 1)));
+        let mut sink = RecordingSink::default();
+
+        let report = enumerate(
+            &mut port,
+            &root,
+            &limits(),
+            &NeverCancelled,
+            &mut sink,
+            &mut NoProgress,
+        );
+
+        assert_eq!(report.outcome, Outcome::Invalid);
+        assert!(!report.authoritative);
+        assert!(
+            report
+                .coverage_failures
+                .iter()
+                .any(|failure| failure.kind == CoverageFailureKind::DuplicateLocator)
+        );
+        // No winner: provisional batches are discarded, never staged.
+        assert!(sink.batches.is_empty());
+        assert!(sink.discarded);
+    }
+}
+
+#[test]
+fn checked_timestamp_edges_reject_out_of_range_without_saturating() {
+    assert_eq!(unix_ns_to_i64_checked(i64::MIN as i128), Ok(i64::MIN));
+    assert_eq!(unix_ns_to_i64_checked(i64::MAX as i128), Ok(i64::MAX));
+    assert_eq!(
+        unix_ns_to_i64_checked(i64::MIN as i128 - 1),
+        Err(TimestampError::OutOfRange)
+    );
+    assert_eq!(
+        unix_ns_to_i64_checked(i64::MAX as i128 + 1),
+        Err(TimestampError::OutOfRange)
+    );
+    assert_eq!(system_time_to_unix_ns_checked(std::time::UNIX_EPOCH), Ok(0));
+    assert_eq!(
+        system_time_to_unix_ns_checked(std::time::UNIX_EPOCH - std::time::Duration::from_secs(1)),
+        Err(TimestampError::BeforeEpoch)
+    );
+
+    // A fake-port timestamp outside the durable range fails the file with an
+    // explicit coverage failure instead of saturating the run.
+    let (report, _) = run_with_entries(
+        vec![file_entry("future.flp")],
+        &[("future.flp", file_metadata_ns(1, 8, i64::MAX as i128 + 1))],
+    );
+    assert_eq!(report.outcome, Outcome::Partial);
+    assert!(!report.authoritative);
+    assert!(
+        report
+            .coverage_failures
+            .iter()
+            .any(|failure| failure.kind == CoverageFailureKind::TimestampOutOfRange)
+    );
+
+    // A byte size beyond the durable 0..=i64::MAX range fails the same way.
+    let (report, _) = run_with_entries(
+        vec![file_entry("huge.flp")],
+        &[("huge.flp", file_metadata_ns(1, i64::MAX as u64 + 1, 100))],
+    );
+    assert_eq!(report.outcome, Outcome::Partial);
+    assert!(
+        report
+            .coverage_failures
+            .iter()
+            .any(|failure| failure.kind == CoverageFailureKind::ByteSizeOutOfRange)
+    );
+
+    // Boundary values still pass.
+    let (report, sink) = run_with_entries(
+        vec![file_entry("edge.flp")],
+        &[(
+            "edge.flp",
+            file_metadata_ns(1, i64::MAX as u64, i64::MIN as i128),
+        )],
+    );
+    assert_eq!(report.outcome, Outcome::Complete);
+    assert_eq!(observations_of(&sink).len(), 1);
+}
+
+#[test]
+fn file_id_byte_order_is_little_endian_and_round_trips() {
+    // Byte edges.
+    assert_eq!(windows_file_id_to_u128([0; 16]), 0);
+    assert_eq!(windows_file_id_to_u128([u8::MAX; 16]), u128::MAX);
+
+    // Fixed byte-order vector: bytes 0x01..=0x10 read little-endian.
+    let vector: [u8; 16] = [
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
+        0x10,
+    ];
+    assert_eq!(
+        windows_file_id_to_u128(vector),
+        0x100F_0E0D_0C0B_0A09_0807_0605_0403_0201u128
+    );
+
+    // The inverse helper is exact on edges and the vector.
+    for value in [
+        0u128,
+        1,
+        1u128 << 120,
+        u128::MAX,
+        windows_file_id_to_u128(vector),
+    ] {
+        assert_eq!(
+            windows_file_id_to_u128(u128_to_windows_file_id_bytes(value)),
+            value
+        );
+    }
+
+    // Identity DTO decimals are exact at the numeric edges.
+    let encoded = encode_identity(&QualifiedIdentity {
+        volume_serial: u64::MAX,
+        file_id: u128::MAX,
+        qualification: IdentityQualification::LocalNtfs,
+    })
+    .expect("local NTFS identity encodes");
+    assert_eq!(encoded.volume_serial, "18446744073709551615");
+    assert_eq!(encoded.file_id, "340282366920938463463374607431768211455");
+    let zero = encode_identity(&identity(0)).expect("zero identity encodes");
+    assert_eq!(zero.volume_serial, "7");
+    assert_eq!(zero.file_id, "0");
+}
+
+#[test]
+fn scan_observation_conversion_enforces_storage_staging_guards() {
+    // A real enumeration observation converts exactly.
+    let (_, sink) = run_with_entries(
+        vec![file_entry("Mix.FLP")],
+        &[("Mix.FLP", file_metadata(9, 42))],
+    );
+    let observation = observations_of(&sink)[0];
+    let scan = observation
+        .to_scan_observation()
+        .expect("valid observation converts");
+    // The key is the durable LocatorKeyV1 bytes, never the display spelling.
+    assert_eq!(scan.locator_key, observation.locator_key_v1.as_str());
+    assert!(scan.locator_key.starts_with("v1:"));
+    assert_ne!(scan.locator_key, observation.locator.as_str());
+    assert_eq!(scan.relative_path, observation.display_path.as_str());
+    assert_eq!(scan.byte_size, 42);
+    assert_eq!(scan.modified_at_ns, 100);
+    let identity = scan.identity.as_ref().expect("identity present");
+    assert_eq!(identity.volume_serial, "7");
+    assert_eq!(identity.file_id, "9");
+    validate_scan_observation(&scan).expect("converted observation validates");
+
+    // Decimal strings are exact at the numeric edges (JSON-safe, no numbers).
+    assert_eq!(u64::MAX.to_string(), "18446744073709551615");
+    assert_eq!(
+        u128::MAX.to_string(),
+        "340282366920938463463374607431768211455"
+    );
+    let edge = ScanObservation {
+        locator_key: "v1:i:edge.flp".to_owned(),
+        relative_path: "edge.flp".to_owned(),
+        byte_size: i64::MAX as u64,
+        modified_at_ns: i64::MIN as i128,
+        identity: Some(EncodedIdentity {
+            volume_serial: u64::MAX.to_string(),
+            file_id: u128::MAX.to_string(),
+        }),
+    };
+    validate_scan_observation(&edge).expect("edge values validate");
+    let top = ScanObservation {
+        modified_at_ns: i64::MAX as i128,
+        ..edge.clone()
+    };
+    validate_scan_observation(&top).expect("maximum mtime validates");
+
+    // Out-of-range numerics reject.
+    assert_eq!(
+        validate_scan_observation(&ScanObservation {
+            byte_size: i64::MAX as u64 + 1,
+            ..edge.clone()
+        }),
+        Err(ScanConversionError::ByteSizeOutOfRange)
+    );
+    assert_eq!(
+        validate_scan_observation(&ScanObservation {
+            modified_at_ns: i64::MAX as i128 + 1,
+            ..edge.clone()
+        }),
+        Err(ScanConversionError::TimestampOutOfRange)
+    );
+    assert_eq!(
+        validate_scan_observation(&ScanObservation {
+            modified_at_ns: i64::MIN as i128 - 1,
+            ..edge.clone()
+        }),
+        Err(ScanConversionError::TimestampOutOfRange)
+    );
+
+    // Non-ASCII keys reject per the storage is_ascii guard.
+    assert_eq!(
+        validate_scan_observation(&ScanObservation {
+            locator_key: "v1:i:é.flp".to_owned(),
+            ..edge.clone()
+        }),
+        Err(ScanConversionError::LocatorKey)
+    );
+
+    // Identity encodings: negative, signed, nondecimal, leading-zero,
+    // overflow, and partial pairs all reject.
+    for (volume_serial, file_id) in [
+        (Some("-1"), Some("1")),
+        (Some("+1"), Some("1")),
+        (Some("0x1"), Some("1")),
+        (Some("01"), Some("1")),
+        (Some("1"), Some("007")),
+        (Some("18446744073709551616"), Some("1")),
+        (Some("1"), Some("340282366920938463463374607431768211456")),
+        (Some(""), Some("1")),
+        (Some("1"), Some("")),
+        (Some("1"), None),
+        (None, Some("1")),
+    ] {
+        assert!(
+            validate_identity_pair(volume_serial, file_id).is_err(),
+            "invalid identity must reject: {volume_serial:?}/{file_id:?}"
+        );
+    }
+    assert_eq!(
+        validate_identity_pair(None, None).expect("empty pair"),
+        None
+    );
+    assert_eq!(
+        validate_identity_pair(Some("0"), Some("0")).expect("zero pair"),
+        Some(EncodedIdentity {
+            volume_serial: "0".to_owned(),
+            file_id: "0".to_owned(),
+        })
     );
 }
 
@@ -1294,6 +2115,49 @@ mod windows_fixtures {
                 .as_str()
                 .starts_with(&format!("{junction_relative}\\"))
         }));
+    }
+
+    #[test]
+    fn ntfs_fixture_locator_keys_are_ascii_decode_and_convert() {
+        let fixture = Fixture::new("keys");
+        fixture.create_long_unicode_file();
+        fs::write(fixture.root.join("Mixed-Case.FlP"), &fixture.marker)
+            .expect("write mixed-case marker");
+        let mut port = WindowsFilesystemPort::new();
+        let mut sink = RecordingSink::default();
+        let report = enumerate(
+            &mut port,
+            &fixture.root,
+            &EnumerationLimits {
+                progress_interval: std::time::Duration::ZERO,
+                ..EnumerationLimits::default()
+            },
+            &NeverCancelled,
+            &mut sink,
+            &mut NoProgress,
+        );
+
+        assert_eq!(report.outcome, Outcome::Complete);
+        let observations = sink
+            .batches
+            .iter()
+            .flat_map(|batch| batch.records.iter())
+            .collect::<Vec<_>>();
+        assert!(!observations.is_empty());
+        let mut keys = Vec::new();
+        for observation in &observations {
+            let key = observation.locator_key_v1.as_str();
+            assert!(key.is_ascii(), "key must be ASCII: {key}");
+            let decoded = LocatorKeyV1::decode(key).expect("key decodes");
+            assert_eq!(decoded.as_str(), key, "decode round-trips");
+            observation
+                .to_scan_observation()
+                .expect("observation converts to the storage DTO");
+            keys.push(key.to_owned());
+        }
+        keys.sort();
+        keys.dedup();
+        assert_eq!(keys.len(), observations.len(), "no duplicate keys");
     }
 
     #[test]

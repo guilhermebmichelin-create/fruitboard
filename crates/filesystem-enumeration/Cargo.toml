@@ -10,3 +10,15 @@ publish = false
 # to the root workspace after review; no shared manifest or lockfile is changed
 # by this slice.
 [workspace]
+
+[dependencies]
+# Pinned UCD version (Unicode 17.0.0) backing the contract's NFC rule
+# (integration contract rev 2, §1.1). The simple-fold equivalence set is the
+# vendored generated table in src/simple_fold.rs (same UCD version).
+unicode-normalization = "=0.1.25"
+
+[dev-dependencies]
+# This test-only mirror pins the JSON spelling of Agent 1's ScanObservation
+# without coupling the isolated production crate to storage-sqlite.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

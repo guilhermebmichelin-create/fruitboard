@@ -210,7 +210,7 @@ toolchain:
 
 ```text
 cargo test --manifest-path crates/filesystem-enumeration/Cargo.toml
-25 passed; 2 ignored; 0 failed
+39 passed; 2 ignored; 0 failed
 cargo clippy --manifest-path crates/filesystem-enumeration/Cargo.toml --all-targets -- -D warnings
 passed
 cargo fmt --manifest-path crates/filesystem-enumeration/Cargo.toml -- --check

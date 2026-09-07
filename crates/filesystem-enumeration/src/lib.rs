@@ -13,6 +13,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::time::{Duration, Instant};
 
+use unicode_normalization::UnicodeNormalization;
+
+mod simple_fold;
+
 /// The provisional Phase 2 maximum observation batch.
 pub const HARD_MAX_BATCH_RECORDS: usize = 512;
 /// The provisional Phase 2 maximum staging batch size.
@@ -144,114 +148,278 @@ pub enum DirectoryCaseSensitivity {
     Insensitive,
 }
 
-#[derive(Clone, Debug)]
-struct LocatorKey(Vec<LocatorComponent>);
+/// Durable, versioned storage key agreed with the publication owner
+/// (integration contract Contract-Revision: 2, §1.1).
+///
+/// The key is opaque to storage: storage compares and orders it by exact byte
+/// equality (`COLLATE BINARY`) and never lowercases, canonicalizes, or applies
+/// a `NOCASE` collation. Every traversed component contributes one segment that
+/// records the case-sensitivity mode of its containing directory, so a
+/// case-only rename in an insensitive directory keeps the same key (publication
+/// updates the display spelling only) while `Foo.flp` vs `foo.flp` in a
+/// sensitive directory stay distinct.
+///
+/// Encoding (`v1:` envelope, one `/`-separated `mode:component` segment per
+/// traversed component after the literal `v1:` prefix):
+/// `i:<escaped>` when the containing directory is case-insensitive,
+/// `s:<escaped>` when it is case-sensitive. `<escaped>` is the canonical
+/// component spelling percent-encoded to ASCII (unreserved bytes
+/// `A-Z a-z 0-9 - _ . ~` verbatim, every other byte as uppercase `%XX` over
+/// its UTF-8 form). Canonicalization is NFC-normalization of the on-disk
+/// spelling, then — for insensitive components only — Unicode simple case
+/// folding of the NFC form (generated table `simple_fold`, Unicode 17.0.0
+/// C+S entries; ASCII folds to lowercase), re-normalized to NFC so the
+/// encoded bytes always decode to NFC text. Sensitive components keep their
+/// exact NFC spelling. In particular the decomposed spelling `cafe` + U+0301
+/// (NFD) normalizes to the identical key as precomposed `café` (U+00E9).
+///
+/// `Ord`/`Eq` are the derived byte-wise `String` order, which is exactly the
+/// storage `COLLATE BINARY` order. `DisplayRelativePath` remains display-only
+/// and must never be used for equality, ordering, cursors, or lookups.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct LocatorKeyV1(String);
 
+/// Reasons a `LocatorKeyV1` string cannot be accepted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocatorKeyError {
+    Empty,
+    MissingVersion,
+    BadMode,
+    BadEscape,
+    NonCanonical,
+    NonAscii,
+    InvalidUnicode,
+    InvalidComponent,
+}
+
+/// One decoded `LocatorKeyV1` segment: the stored spelling (already
+/// case-folded for insensitive directories) plus its directory mode.
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct LocatorComponent {
-    value: String,
-    sensitivity: DirectoryCaseSensitivity,
+pub struct LocatorKeyComponent {
+    pub spelling: String,
+    pub sensitivity: DirectoryCaseSensitivity,
 }
 
-impl PartialEq for LocatorKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.cmp(other) == Ordering::Equal
+impl LocatorKeyV1 {
+    const VERSION_PREFIX: &'static str = "v1:";
+
+    /// The key for the enumeration root (no components).
+    pub fn root() -> Self {
+        Self(Self::VERSION_PREFIX.to_owned())
     }
-}
 
-impl Eq for LocatorKey {}
-
-impl LocatorKey {
-    fn child(&self, value: &str, sensitivity: DirectoryCaseSensitivity) -> Self {
-        let mut components = self.0.clone();
-        components.push(LocatorComponent {
-            value: value.to_owned(),
-            sensitivity,
+    /// Extend a parent key with one entry name observed in a directory whose
+    /// case mode is `sensitivity`.
+    ///
+    /// The component is canonicalized per contract rev 2 §1.1
+    /// ([`canonicalize_key_component`]) before percent-encoding, so the
+    /// emitted key is always canonical: NFC text, folded for insensitive
+    /// directories, uppercase hex escapes.
+    pub fn child(
+        &self,
+        name: &str,
+        sensitivity: DirectoryCaseSensitivity,
+    ) -> Result<Self, PathError> {
+        validate_component(name)?;
+        let spelling = canonicalize_key_component(name, sensitivity);
+        let mut encoded = self.0.clone();
+        // The root key is exactly the `v1:` envelope; the first segment
+        // follows it directly (`v1:i:…`), deeper segments join with `/`.
+        if encoded != Self::VERSION_PREFIX {
+            encoded.push('/');
+        }
+        encoded.push(match sensitivity {
+            DirectoryCaseSensitivity::Sensitive => 's',
+            DirectoryCaseSensitivity::Insensitive => 'i',
         });
-        Self(components)
+        encoded.push(':');
+        encoded.push_str(&escape_key_component(&spelling));
+        Ok(Self(encoded))
     }
-}
 
-impl Ord for LocatorKey {
-    fn cmp(&self, other: &Self) -> Ordering {
-        for (left, right) in self.0.iter().zip(&other.0) {
-            let sensitivity = left.sensitivity.cmp(&right.sensitivity);
-            if sensitivity != Ordering::Equal {
-                return sensitivity;
-            }
-            let value = match left.sensitivity {
-                DirectoryCaseSensitivity::Sensitive => left.value.cmp(&right.value),
-                DirectoryCaseSensitivity::Insensitive => {
-                    compare_case_insensitive(&left.value, &right.value)
-                }
+    /// The opaque ASCII key bytes handed to storage.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Validate an untrusted key string and return its canonical form.
+    /// Non-canonical spellings (wrong hex case, over-escaped unreserved bytes,
+    /// non-NFC text, or a non-folded insensitive spelling) are rejected so
+    /// `encode -> decode -> encode` is byte-identical. The bare `v1:` envelope
+    /// decodes to the root; staging validation additionally requires at least
+    /// one segment (mirroring Agent 1's staging guard, which rejects `v1:`).
+    pub fn decode(value: &str) -> Result<Self, LocatorKeyError> {
+        if value.is_empty() {
+            return Err(LocatorKeyError::Empty);
+        }
+        if !value.is_ascii() {
+            return Err(LocatorKeyError::NonAscii);
+        }
+        let rest = value
+            .strip_prefix(Self::VERSION_PREFIX)
+            .ok_or(LocatorKeyError::MissingVersion)?;
+        if rest.is_empty() {
+            return Ok(Self::root());
+        }
+        let mut canonical = Self::VERSION_PREFIX.to_owned();
+        let mut first = true;
+        for segment in rest.split('/') {
+            let (mode, escaped) = segment.split_once(':').ok_or(LocatorKeyError::BadMode)?;
+            let sensitivity = match mode {
+                "s" => DirectoryCaseSensitivity::Sensitive,
+                "i" => DirectoryCaseSensitivity::Insensitive,
+                _ => return Err(LocatorKeyError::BadMode),
             };
-            if value != Ordering::Equal {
-                return value;
+            let spelling = unescape_key_component(escaped)?;
+            validate_component(&spelling).map_err(|_| LocatorKeyError::InvalidComponent)?;
+            // Reject spellings that would not re-encode to this exact segment:
+            // over-escaped unreserved bytes, lowercase hex, non-NFC text, or
+            // a non-folded insensitive spelling.
+            let expected_spelling = canonicalize_key_component(&spelling, sensitivity);
+            if spelling != expected_spelling || escape_key_component(&spelling) != escaped {
+                return Err(LocatorKeyError::NonCanonical);
             }
+            if !first {
+                canonical.push('/');
+            }
+            first = false;
+            canonical.push_str(segment);
         }
-        self.0.len().cmp(&other.0.len())
+        if canonical != value {
+            return Err(LocatorKeyError::NonCanonical);
+        }
+        Ok(Self(canonical))
+    }
+
+    /// Decode the stored segments (stored spellings, plus per-segment modes).
+    ///
+    /// Returns `Err` instead of silently skipping a malformed segment: `Self`
+    /// can only be built by [`LocatorKeyV1::root`], [`LocatorKeyV1::child`],
+    /// or [`LocatorKeyV1::decode`], so well-formed keys always succeed, but
+    /// callers must handle the failure shape explicitly rather than receive a
+    /// silently truncated component list.
+    pub fn components(&self) -> Result<Vec<LocatorKeyComponent>, LocatorKeyError> {
+        let Some(rest) = self.0.strip_prefix(Self::VERSION_PREFIX) else {
+            return Err(LocatorKeyError::MissingVersion);
+        };
+        if rest.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for segment in rest.split('/') {
+            let Some((mode, escaped)) = segment.split_once(':') else {
+                return Err(LocatorKeyError::BadMode);
+            };
+            let sensitivity = match mode {
+                "s" => DirectoryCaseSensitivity::Sensitive,
+                "i" => DirectoryCaseSensitivity::Insensitive,
+                _ => return Err(LocatorKeyError::BadMode),
+            };
+            let spelling = unescape_key_component(escaped)?;
+            validate_component(&spelling).map_err(|_| LocatorKeyError::InvalidComponent)?;
+            out.push(LocatorKeyComponent {
+                spelling,
+                sensitivity,
+            });
+        }
+        Ok(out)
     }
 }
 
-impl PartialOrd for LocatorKey {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+/// Canonicalize one component for a `LocatorKeyV1` segment (contract rev 2
+/// §1.1): NFC-normalize the on-disk spelling, then — for insensitive
+/// directories only — apply Unicode simple case folding of the NFC form and
+/// re-normalize to NFC so the encoded bytes always decode to NFC text.
+///
+/// The fold is the generated C+S table in [`simple_fold`] (the documented
+/// equivalence set); it is intentionally not `str::to_lowercase`, which
+/// disagrees on `µ` (U+00B5), `ς` (U+03C2), and `İ` (U+0130).
+fn canonicalize_key_component(name: &str, sensitivity: DirectoryCaseSensitivity) -> String {
+    let nfc: String = name.nfc().collect();
+    match sensitivity {
+        DirectoryCaseSensitivity::Sensitive => nfc,
+        DirectoryCaseSensitivity::Insensitive => {
+            let folded: String = nfc.chars().map(simple_fold_char).collect();
+            folded.nfc().collect()
+        }
     }
 }
 
-#[cfg(windows)]
-fn compare_case_insensitive(left: &str, right: &str) -> Ordering {
-    use std::os::windows::ffi::OsStrExt;
-
-    let left: Vec<u16> = OsStr::new(left).encode_wide().collect();
-    let right: Vec<u16> = OsStr::new(right).encode_wide().collect();
-    let result = unsafe {
-        CompareStringOrdinal(
-            left.as_ptr(),
-            left.len() as i32,
-            right.as_ptr(),
-            right.len() as i32,
-            1,
-        )
-    };
-    match result {
-        1 => Ordering::Less,
-        2 => Ordering::Equal,
-        3 => Ordering::Greater,
-        _ => left.cmp(&right),
+/// Apply one step of Unicode simple case folding (C+S entries only).
+fn simple_fold_char(value: char) -> char {
+    let code = value as u32;
+    match simple_fold::SIMPLE_FOLD_TABLE.binary_search_by_key(&code, |entry| entry.0) {
+        Ok(index) => simple_fold::SIMPLE_FOLD_TABLE
+            .get(index)
+            .and_then(|entry| char::from_u32(entry.1))
+            .unwrap_or(value),
+        Err(_) => value,
     }
 }
 
-#[cfg(not(windows))]
-fn compare_case_insensitive(left: &str, right: &str) -> Ordering {
-    // The production implementation is Windows-only. This keeps portable
-    // synthetic tests deterministic without changing the serialized spelling.
-    fn ascii_case_key(value: char) -> char {
-        if value.is_ascii_uppercase() {
-            char::from_u32(value as u32 + ('a' as u32 - 'A' as u32))
-                .expect("ASCII case mapping is a valid scalar")
+fn is_key_unreserved(byte: u8) -> bool {
+    matches!(byte, b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~')
+}
+
+fn escape_key_component(spelling: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut out = String::with_capacity(spelling.len());
+    for byte in spelling.as_bytes() {
+        if is_key_unreserved(*byte) {
+            out.push(*byte as char);
         } else {
-            value
+            out.push('%');
+            out.push(HEX[(byte >> 4) as usize] as char);
+            out.push(HEX[(byte & 0x0F) as usize] as char);
         }
     }
+    out
+}
 
-    let mut left_chars = left.chars();
-    let mut right_chars = right.chars();
-    loop {
-        match (left_chars.next(), right_chars.next()) {
-            (Some(left), Some(right)) if left.eq_ignore_ascii_case(&right) => continue,
-            (Some(left), Some(right)) => {
-                let ordering = ascii_case_key(left).cmp(&ascii_case_key(right));
-                if ordering == Ordering::Equal {
-                    left.cmp(&right)
-                } else {
-                    ordering
-                }
-            }
-            (None, None) => return Ordering::Equal,
-            (None, Some(_)) => return Ordering::Less,
-            (Some(_), None) => return Ordering::Greater,
+/// Decode one `%XX`-escaped segment body to its stored spelling.
+///
+/// Malformed escapes (a `%` not followed by two hex digits) report
+/// [`LocatorKeyError::BadEscape`]; escapes that decode to invalid UTF-8
+/// report [`LocatorKeyError::InvalidUnicode`]. Lowercase hex parses here so
+/// the canonical re-encode check in [`LocatorKeyV1::decode`] can report it as
+/// [`LocatorKeyError::NonCanonical`] instead.
+fn unescape_key_component(escaped: &str) -> Result<String, LocatorKeyError> {
+    if !escaped.is_ascii() {
+        return Err(LocatorKeyError::BadEscape);
+    }
+    let bytes = escaped.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = bytes
+                .get(index + 1)
+                .ok_or(LocatorKeyError::BadEscape)?
+                .to_ascii_uppercase();
+            let low = bytes
+                .get(index + 2)
+                .ok_or(LocatorKeyError::BadEscape)?
+                .to_ascii_uppercase();
+            // Canonical form uses uppercase hex only; lowercase is rejected by
+            // the re-encode check in `decode`, but accept here so the check
+            // can report `NonCanonical` instead of `BadEscape`.
+            let value = (hex_value(high).ok_or(LocatorKeyError::BadEscape)? << 4)
+                | hex_value(low).ok_or(LocatorKeyError::BadEscape)?;
+            out.push(value);
+            index += 3;
+        } else {
+            out.push(bytes[index]);
+            index += 1;
         }
+    }
+    String::from_utf8(out).map_err(|_| LocatorKeyError::InvalidUnicode)
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
     }
 }
 
@@ -264,18 +432,78 @@ pub struct QualifiedIdentity {
 }
 
 /// Number of 100-nanosecond intervals between the Windows and Unix epochs.
-/// The conversion is kept at the source precision; storage may deliberately
-/// reduce precision later, but the enumeration boundary does not.
+///
+/// Math: 134,774 days separate 1601-01-01 from 1970-01-01 (369 years with 89
+/// leap days), so `134774 * 86400 * 10_000_000 = 116_444_736_000_000_000`
+/// ticks. The conversion below keeps source precision in `i128`; the durable
+/// storage range is the signed 64-bit nanosecond range, and the handoff
+/// [`unix_ns_to_i64_checked`] enforces it.
 pub const WINDOWS_EPOCH_OFFSET_100NS: i128 = 116_444_736_000_000_000;
 
-/// Convert a signed Windows FILETIME tick count to signed Unix nanoseconds.
-pub const fn windows_filetime_100ns_to_unix_ns(ticks: i64) -> i128 {
-    (ticks as i128 - WINDOWS_EPOCH_OFFSET_100NS) * 100
+/// Reasons a timestamp cannot cross the enumeration boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TimestampError {
+    /// The value does not fit the signed 64-bit Unix-nanosecond range that
+    /// storage durably represents (`i64::MIN..=i64::MAX` ns). Callers must
+    /// surface this as a coverage failure, never saturate or clamp.
+    OutOfRange,
+    /// A wall-clock input predates the Unix epoch and has no representation.
+    BeforeEpoch,
 }
 
-/// Preserve the opaque Windows 128-bit file-ID bytes in the agreed u128 DTO.
+/// Convert a signed Windows FILETIME tick count to signed Unix nanoseconds.
+///
+/// Checked: arithmetic uses `checked_mul`, and results outside the durable
+/// storage range (`i64::MIN..=i64::MAX` ns) are rejected instead of saturated.
+/// Real NTFS timestamps always fit; only adversarial or corrupt values fail.
+pub fn windows_filetime_100ns_to_unix_ns_checked(ticks: i64) -> Result<i128, TimestampError> {
+    let since_windows_epoch = ticks as i128 - WINDOWS_EPOCH_OFFSET_100NS;
+    let unix_ns = since_windows_epoch
+        .checked_mul(100)
+        .ok_or(TimestampError::OutOfRange)?;
+    if unix_ns < i64::MIN as i128 || unix_ns > i64::MAX as i128 {
+        return Err(TimestampError::OutOfRange);
+    }
+    Ok(unix_ns)
+}
+
+/// Convert a wall-clock `SystemTime` to signed Unix nanoseconds.
+///
+/// Checked: times before the Unix epoch have no representation and are
+/// rejected instead of saturated.
+pub fn system_time_to_unix_ns_checked(time: std::time::SystemTime) -> Result<i128, TimestampError> {
+    let duration = time
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| TimestampError::BeforeEpoch)?;
+    Ok(duration.as_nanos() as i128)
+}
+
+/// Checked `i128` to `i64` handoff for the storage `INTEGER` boundary.
+///
+/// The enumeration boundary retains `i128` precision; storage durably holds
+/// signed 64-bit nanoseconds. Values outside `i64::MIN..=i64::MAX` must be
+/// rejected (staging rejects them as terminal `staging_rejected`), never
+/// truncated.
+pub fn unix_ns_to_i64_checked(nanoseconds: i128) -> Result<i64, TimestampError> {
+    i64::try_from(nanoseconds).map_err(|_| TimestampError::OutOfRange)
+}
+
+/// Map the opaque Windows 128-bit file-ID bytes to the agreed `u128` DTO.
+///
+/// Contract-Revision: 2 (integration contract §1 handoff H4). Byte order is
+/// little-endian (`u128::from_le_bytes`), fixed by this boundary and used
+/// identically in every DTO and test: the Windows port calls this exact
+/// function, [`u128_to_windows_file_id_bytes`] is its exact inverse, and
+/// storage treats the resulting canonical decimal string as an opaque lookup
+/// signal. `FILE_ID_128` has no OS-defined integer order, so consistency —
+/// not any particular endianness — is the contract.
 pub const fn windows_file_id_to_u128(bytes: [u8; 16]) -> u128 {
     u128::from_le_bytes(bytes)
+}
+
+/// Exact inverse of [`windows_file_id_to_u128`], for round-trip tests.
+pub const fn u128_to_windows_file_id_bytes(value: u128) -> [u8; 16] {
+    value.to_le_bytes()
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -333,6 +561,10 @@ pub enum PortError {
     Unsupported,
     ReparsePoint,
     Changed,
+    /// A timestamp read from the filesystem cannot be represented in the
+    /// durable signed 64-bit Unix-nanosecond range. The engine records a
+    /// [`CoverageFailureKind::TimestampOutOfRange`] failure, never saturates.
+    TimestampOutOfRange,
     Other,
 }
 
@@ -464,16 +696,29 @@ impl ProgressSink for NoProgress {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Observation {
+    /// Case-preserving boundary spelling. Diagnostic/display use only: it is
+    /// never a storage key and never participates in equality, ordering,
+    /// cursor comparison, identity lookup, or rename inference.
     pub locator: NormalizedLocator,
+    /// The durable comparison/order key handed to storage. Exact byte
+    /// equality within one root defines location identity; the byte-wise
+    /// string order is the storage `COLLATE BINARY` order.
+    pub locator_key_v1: LocatorKeyV1,
+    /// Display-preserving root-relative spelling. Presentation only; never
+    /// used for equality, order, cursors, or lookups.
     pub display_path: DisplayRelativePath,
     pub byte_size: u64,
+    /// Signed Unix nanoseconds at source precision. Values are constrained to
+    /// the durable `i64` range at the boundary (see [`unix_ns_to_i64_checked`]).
     pub modified_unix_ns: i128,
+    /// Local-NTFS-only lookup signal. Non-unique: hardlink aliases remain
+    /// separate locations that share one identity value.
     pub identity: Option<QualifiedIdentity>,
 }
 
 impl Observation {
     fn estimated_bytes(&self) -> usize {
-        self.locator
+        self.locator_key_v1
             .as_str()
             .len()
             .saturating_add(self.display_path.as_str().len())
@@ -482,6 +727,176 @@ impl Observation {
             .saturating_add(self.identity.as_ref().map_or(0, |_| {
                 std::mem::size_of::<u64>() + std::mem::size_of::<u128>()
             }))
+    }
+}
+
+/// Maximum key/display byte length accepted by the storage staging boundary.
+///
+/// This mirrors Agent 1's `MAX_OBSERVATION_PATH_BYTES` (32 KiB). Keys that
+/// exceed it are rejected before staging; the value is duplicated here so this
+/// isolated crate enforces the same bound without depending on storage.
+pub const MAX_OBSERVATION_KEY_BYTES: usize = 32 * 1024;
+
+/// Storage-handoff identity DTO. Field-for-field mirror of Agent 1's
+/// `EncodedIdentity`: canonical unsigned decimal strings, never numbers, so
+/// values beyond JavaScript's exact-integer range cross JSON exactly.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EncodedIdentity {
+    /// Canonical decimal encoding of the Rust `u64` volume serial.
+    pub volume_serial: String,
+    /// Canonical decimal encoding of the Rust `u128` file ID.
+    pub file_id: String,
+}
+
+/// Storage-handoff observation DTO. Field-for-field mirror of Agent 1's
+/// `ScanObservation`: `locator_key` is the opaque [`LocatorKeyV1`] bytes
+/// (never the display spelling), `relative_path` is presentation only, and
+/// `byte_size`/`modified_at_ns` cross JSON as decimal strings in Agent 1's
+/// serde layer (this crate asserts the exact decimal forms in tests).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScanObservation {
+    pub locator_key: String,
+    pub relative_path: String,
+    pub byte_size: u64,
+    pub modified_at_ns: i128,
+    pub identity: Option<EncodedIdentity>,
+}
+
+/// Reasons an observation cannot cross into storage staging.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScanConversionError {
+    LocatorKey,
+    RelativePath,
+    ByteSizeOutOfRange,
+    TimestampOutOfRange,
+    Identity,
+}
+
+/// Encode a qualified identity for the storage handoff.
+///
+/// Returns `None` for identities outside the agreed local-NTFS scope; today
+/// that scope is the only constructible qualification, so valid observations
+/// always map to `Some`. The decimal strings are canonical by construction
+/// (`u64`/`u128` `Display` never emits leading zeroes or signs).
+pub fn encode_identity(identity: &QualifiedIdentity) -> Option<EncodedIdentity> {
+    match identity.qualification {
+        IdentityQualification::LocalNtfs => Some(EncodedIdentity {
+            volume_serial: identity.volume_serial.to_string(),
+            file_id: identity.file_id.to_string(),
+        }),
+    }
+}
+
+fn is_canonical_u64(value: &str) -> bool {
+    !value.is_empty()
+        && (value == "0" || !value.starts_with('0'))
+        && value.bytes().all(|byte| byte.is_ascii_digit())
+        && value.parse::<u64>().is_ok()
+}
+
+fn is_canonical_u128(value: &str) -> bool {
+    !value.is_empty()
+        && (value == "0" || !value.starts_with('0'))
+        && value.bytes().all(|byte| byte.is_ascii_digit())
+        && value.parse::<u128>().is_ok()
+}
+
+/// Validate one encoded identity pair against the storage canonical form:
+/// all-or-none, canonical unsigned decimal, no leading zeroes (except `"0"`),
+/// no signs, no overflow. Mirrors Agent 1's staging validation.
+pub fn validate_identity_pair(
+    volume_serial: Option<&str>,
+    file_id: Option<&str>,
+) -> Result<Option<EncodedIdentity>, ScanConversionError> {
+    match (volume_serial, file_id) {
+        (None, None) => Ok(None),
+        (Some(volume_serial), Some(file_id))
+            if is_canonical_u64(volume_serial) && is_canonical_u128(file_id) =>
+        {
+            Ok(Some(EncodedIdentity {
+                volume_serial: volume_serial.to_owned(),
+                file_id: file_id.to_owned(),
+            }))
+        }
+        _ => Err(ScanConversionError::Identity),
+    }
+}
+
+/// Validate a handoff observation against the storage staging guards.
+///
+/// The locator key is validated by [`LocatorKeyV1::decode`] (the `v1:`
+/// envelope, per-segment `i:`/`s:` modes, canonical uppercase escapes, NFC
+/// text, folded insensitive spellings) plus the 32 KiB key-bytes bound and
+/// the bare-envelope rejection, mirroring Agent 1's `is_valid_locator_key_v1`
+/// plus `observation_path_bytes` (contract rev 2 §1.1, storage
+/// `publication.rs`). Deliberate strict-subset policy: Agent 1's read path
+/// accepts either hex case, while this boundary only emits and accepts
+/// canonical uppercase escapes, so every key accepted here stages cleanly and
+/// no key produced by [`LocatorKeyV1::child`] is ever rejected. Display-path
+/// shape rules, `i64` bounds for byte size and mtime, and canonical identity
+/// mirror the remaining staging guards.
+pub fn validate_scan_observation(observation: &ScanObservation) -> Result<(), ScanConversionError> {
+    let key = observation.locator_key.as_str();
+    // Storage `publication.rs` bound: over-length keys reject before any
+    // shape work; the exact 32 KiB maximum is accepted.
+    if key.len() > MAX_OBSERVATION_KEY_BYTES {
+        return Err(ScanConversionError::LocatorKey);
+    }
+    let decoded = LocatorKeyV1::decode(key).map_err(|_| ScanConversionError::LocatorKey)?;
+    // The bare `v1:` envelope is a valid root internally but never a staging
+    // observation (Agent 1 rejects `v1:`: its body must be non-empty).
+    if decoded == LocatorKeyV1::root() {
+        return Err(ScanConversionError::LocatorKey);
+    }
+    if observation.relative_path.is_empty()
+        || observation.relative_path.len() > MAX_OBSERVATION_KEY_BYTES
+        || observation.relative_path.contains(['\0', ':'])
+        || observation.relative_path.starts_with(['/', '\\'])
+        || observation
+            .relative_path
+            .split(['/', '\\'])
+            .any(|part| matches!(part, "" | "." | ".."))
+    {
+        return Err(ScanConversionError::RelativePath);
+    }
+    if observation.byte_size > i64::MAX as u64 {
+        return Err(ScanConversionError::ByteSizeOutOfRange);
+    }
+    if unix_ns_to_i64_checked(observation.modified_at_ns).is_err() {
+        return Err(ScanConversionError::TimestampOutOfRange);
+    }
+    match &observation.identity {
+        None => Ok(()),
+        Some(identity) => {
+            validate_identity_pair(Some(&identity.volume_serial), Some(&identity.file_id))
+                .map(|_| ())
+        }
+    }
+}
+
+impl Observation {
+    /// Convert this observation into the storage staging DTO.
+    ///
+    /// The locator key is always [`LocatorKeyV1`] bytes — never the
+    /// case-preserving [`NormalizedLocator`] spelling — and every storage
+    /// bound (key shape, `0..=i64::MAX` byte size, `i64` mtime range,
+    /// canonical identity) is enforced here so a `Complete` run is storable.
+    pub fn to_scan_observation(&self) -> Result<ScanObservation, ScanConversionError> {
+        let identity = self.identity.as_ref().and_then(encode_identity);
+        // `encode_identity` returns `None` only for out-of-scope
+        // qualifications; a present-but-unencodable identity must reject.
+        if self.identity.is_some() && identity.is_none() {
+            return Err(ScanConversionError::Identity);
+        }
+        let observation = ScanObservation {
+            locator_key: self.locator_key_v1.as_str().to_owned(),
+            relative_path: self.display_path.as_str().to_owned(),
+            byte_size: self.byte_size,
+            modified_at_ns: self.modified_unix_ns,
+            identity,
+        };
+        validate_scan_observation(&observation)?;
+        Ok(observation)
     }
 }
 
@@ -521,6 +936,15 @@ pub enum CoverageFailureKind {
     EntryDisappeared,
     EntryDenied,
     MetadataRead,
+    /// A filesystem timestamp cannot be represented in the durable signed
+    /// 64-bit Unix-nanosecond range. The file is skipped; nothing saturates.
+    TimestampOutOfRange,
+    /// A byte size exceeds the durable `0..=i64::MAX` storage range.
+    ByteSizeOutOfRange,
+    /// A durable locator key exceeds the 32 KiB staging bound
+    /// ([`MAX_OBSERVATION_KEY_BYTES`]). The file is skipped during traversal
+    /// so a `Complete` run stays storable; nothing saturates or truncates.
+    LocatorKeyTooLong,
     InvalidEntryName,
     DuplicateLocator,
 }
@@ -715,7 +1139,7 @@ where
 struct DirectoryWork {
     relative: PathBuf,
     path_bytes: usize,
-    locator_key: LocatorKey,
+    locator_key: LocatorKeyV1,
     opened: OpenedDirectory,
 }
 
@@ -727,7 +1151,7 @@ struct Engine<'a, P, S, C, R> {
     sink: &'a mut S,
     progress: &'a mut R,
     report: EnumerationReport,
-    seen: BTreeSet<LocatorKey>,
+    seen: BTreeSet<LocatorKeyV1>,
     stack: Vec<DirectoryWork>,
     pending: Vec<Observation>,
     pending_bytes: usize,
@@ -787,7 +1211,7 @@ where
         self.stack.push(DirectoryWork {
             relative: PathBuf::new(),
             path_bytes: 0,
-            locator_key: LocatorKey(Vec::new()),
+            locator_key: LocatorKeyV1::root(),
             opened: opened_root,
         });
 
@@ -853,7 +1277,34 @@ where
                     .name
                     .to_str()
                     .expect("validated directory entry name is Unicode");
-                let locator_key = parent_locator_key.child(entry_text, parent_case_sensitivity);
+                // The durable key encodes the containing directory's case
+                // mode; the display spelling is never used for equality.
+                let locator_key =
+                    match parent_locator_key.child(entry_text, parent_case_sensitivity) {
+                        Ok(key) => key,
+                        Err(_) => {
+                            self.add_failure(
+                                None,
+                                CoverageFailureKind::InvalidEntryName,
+                                Outcome::Invalid,
+                            );
+                            self.emit_progress(false, None);
+                            continue;
+                        }
+                    };
+                // Enforce the staging 32 KiB key bound during traversal, not
+                // only at conversion: an over-long key can never stage, so
+                // the file is skipped with an explicit failure (like an
+                // out-of-range timestamp) instead of poisoning the run.
+                if locator_key.as_str().len() > MAX_OBSERVATION_KEY_BYTES {
+                    self.add_failure(
+                        Some(display_path.clone()),
+                        CoverageFailureKind::LocatorKeyTooLong,
+                        Outcome::Partial,
+                    );
+                    self.emit_progress(false, None);
+                    continue;
+                }
                 if !self.reserve_path_bytes(display_path.as_str().len()) {
                     self.status = Some(Outcome::ResourceLimit);
                     return Outcome::ResourceLimit;
@@ -924,7 +1375,9 @@ where
                             self.status = Some(Outcome::ResourceLimit);
                             return Outcome::ResourceLimit;
                         }
-                        if !self.seen.insert(locator_key) {
+                        // Duplicate durable keys reject the whole run:
+                        // enumeration order never picks a winner.
+                        if !self.seen.insert(locator_key.clone()) {
                             self.add_failure(
                                 Some(display_path),
                                 CoverageFailureKind::DuplicateLocator,
@@ -932,12 +1385,34 @@ where
                             );
                             return Outcome::Invalid;
                         }
+                        // Boundary-checked numerics: a `Complete` run must be
+                        // storable, so unrepresentable values fail here rather
+                        // than at publication.
+                        if unix_ns_to_i64_checked(metadata.modified_unix_ns).is_err() {
+                            self.add_failure(
+                                Some(display_path),
+                                CoverageFailureKind::TimestampOutOfRange,
+                                Outcome::Partial,
+                            );
+                            self.emit_progress(false, None);
+                            continue;
+                        }
+                        if metadata.byte_size > i64::MAX as u64 {
+                            self.add_failure(
+                                Some(display_path),
+                                CoverageFailureKind::ByteSizeOutOfRange,
+                                Outcome::Partial,
+                            );
+                            self.emit_progress(false, None);
+                            continue;
+                        }
                         if metadata.identity.is_none() {
                             self.report.identity_unavailable =
                                 self.report.identity_unavailable.saturating_add(1);
                         }
                         let observation = Observation {
                             locator,
+                            locator_key_v1: locator_key,
                             display_path,
                             byte_size: metadata.byte_size,
                             modified_unix_ns: metadata.modified_unix_ns,
@@ -1223,6 +1698,11 @@ where
                 Outcome::RootUnavailable,
             ),
             PortError::ResourceLimit => self.status = Some(Outcome::ResourceLimit),
+            PortError::TimestampOutOfRange => self.add_failure(
+                None,
+                CoverageFailureKind::TimestampOutOfRange,
+                Outcome::RootUnavailable,
+            ),
             PortError::Unsupported => self.add_failure(
                 None,
                 CoverageFailureKind::UnsupportedFilesystem,
@@ -1259,6 +1739,11 @@ where
                 Outcome::Partial,
             ),
             PortError::ResourceLimit => self.status = Some(Outcome::ResourceLimit),
+            PortError::TimestampOutOfRange => self.add_failure(
+                Some(display.clone()),
+                CoverageFailureKind::TimestampOutOfRange,
+                Outcome::Partial,
+            ),
             PortError::ReparsePoint | PortError::Changed => self.add_failure(
                 Some(display.clone()),
                 CoverageFailureKind::DirectoryChanged,
@@ -1286,6 +1771,11 @@ where
                 Outcome::Partial,
             ),
             PortError::ResourceLimit => self.status = Some(Outcome::ResourceLimit),
+            PortError::TimestampOutOfRange => self.add_failure(
+                display,
+                CoverageFailureKind::TimestampOutOfRange,
+                Outcome::Partial,
+            ),
             PortError::ReparsePoint | PortError::Changed => self.add_failure(
                 display,
                 CoverageFailureKind::DirectoryChanged,
@@ -1312,6 +1802,11 @@ where
                 Outcome::Partial,
             ),
             PortError::ResourceLimit => self.status = Some(Outcome::ResourceLimit),
+            PortError::TimestampOutOfRange => self.add_failure(
+                Some(display.clone()),
+                CoverageFailureKind::TimestampOutOfRange,
+                Outcome::Partial,
+            ),
             PortError::ReparsePoint => {
                 self.add_exclusion(display.clone(), ExclusionReason::ReparsePoint)
             }
@@ -1936,7 +2431,8 @@ mod windows_port {
         } else {
             EntryKind::Other
         };
-        let modified_unix_ns = windows_filetime_100ns_to_unix_ns(basic.last_write_time);
+        let modified_unix_ns = windows_filetime_100ns_to_unix_ns_checked(basic.last_write_time)
+            .map_err(|_| PortError::TimestampOutOfRange)?;
         let identity = if qualification == FilesystemQualification::LocalNtfs
             && !reparse_point
             && !recall_or_offline
@@ -2119,17 +2615,6 @@ mod windows_port {
             _ => PortError::Other,
         }
     }
-}
-
-#[cfg(windows)]
-unsafe extern "system" {
-    fn CompareStringOrdinal(
-        lp_string1: *const u16,
-        cch_count1: i32,
-        lp_string2: *const u16,
-        cch_count2: i32,
-        b_ignore_case: i32,
-    ) -> i32;
 }
 
 #[cfg(test)]
