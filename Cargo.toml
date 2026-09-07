@@ -4,6 +4,7 @@ members = [
   "crates/foundation-sidecar-smoke",
   "crates/storage-sqlite",
   "crates/reconciliation",
+  "crates/filesystem-enumeration",
 ]
 resolver = "3"
 

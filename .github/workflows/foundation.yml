@@ -271,3 +271,31 @@ jobs:
           fi
       - name: Verify Rust advisories
         run: cargo audit --file Cargo.lock
+
+  enumeration-windows:
+    name: enumeration-windows
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up pinned Rust
+        run: |
+          rustup set profile minimal
+          rustup toolchain install 1.98.1 --component clippy,rustfmt --target x86_64-pc-windows-msvc --no-self-update
+          rustup default 1.98.1
+      - name: Restore Cargo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-rust-enumeration-${{ hashFiles('Cargo.lock') }}
+      - name: Gate the filesystem enumeration crate
+        run: |
+          cargo fmt --all --check
+          cargo clippy -p fruitboard-filesystem-enumeration --all-targets --locked -- -D warnings
+          cargo test -p fruitboard-filesystem-enumeration --locked
