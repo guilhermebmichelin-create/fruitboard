@@ -874,6 +874,8 @@ dependencies = [
 name = "fruitboard-desktop"
 version = "0.1.0"
 dependencies = [
+ "fruitboard-filesystem-enumeration",
+ "fruitboard-scan-execution",
  "fruitboard-storage",
  "regex",
  "serde",

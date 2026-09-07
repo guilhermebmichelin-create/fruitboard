@@ -9,6 +9,21 @@ pub enum ErrorCode {
     Conflict,
     Unavailable,
     Internal,
+    /// Scan/Library console: the location could not be accessed.
+    #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
+    AccessDenied,
+    /// Scan/Library console: the operation is not supported for this location.
+    #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
+    Unsupported,
+    /// Scan/Library console: the operation exceeded a resource limit.
+    #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
+    ResourceLimit,
+    /// Library pages: the committed snapshot changed since the cursor.
+    #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
+    StaleCursor,
+    /// Library pages: the cursor or snapshot token is malformed or wrong-root.
+    #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
+    InvalidCursor,
 }
 
 impl ErrorCode {
@@ -20,6 +35,11 @@ impl ErrorCode {
             Self::Conflict => "The request could not be completed because its state changed.",
             Self::Unavailable => "The requested service is temporarily unavailable.",
             Self::Internal => "Fruitboard could not complete the request.",
+            Self::AccessDenied => "The requested location could not be accessed.",
+            Self::Unsupported => "The requested operation is not supported for this location.",
+            Self::ResourceLimit => "The operation exceeded a resource limit.",
+            Self::StaleCursor => "The list changed; start again from the first page.",
+            Self::InvalidCursor => "The page continuation is not valid; start from the first page.",
         }
     }
 
@@ -36,6 +56,18 @@ pub(crate) enum DiagnosticCode {
     StorageFailed,
     ScanRootConflict,
     UnknownScanRoot,
+    /// The scan console is compiled out (feature disabled); every console
+    /// command returns the fixed unavailable envelope.
+    #[cfg_attr(feature = "scan-console", allow(dead_code))]
+    ScanConsoleDisabled,
+    /// The scan request conflicted with durable queue state.
+    ScanJobConflict,
+    /// A cancel/retry referenced an unknown job.
+    UnknownScanJob,
+    /// A library cursor/snapshot token is malformed or wrong-root.
+    InvalidLibraryCursor,
+    /// A library cursor/snapshot refers to a replaced committed snapshot.
+    StaleLibraryCursor,
     #[allow(
         dead_code,
         reason = "reserved for adapters added after the command foundation"
@@ -52,6 +84,11 @@ impl DiagnosticCode {
             Self::StorageFailed => "storage_failed",
             Self::ScanRootConflict => "scan_root_conflict",
             Self::UnknownScanRoot => "unknown_scan_root",
+            Self::ScanConsoleDisabled => "scan_console_disabled",
+            Self::ScanJobConflict => "scan_job_conflict",
+            Self::UnknownScanJob => "unknown_scan_job",
+            Self::InvalidLibraryCursor => "invalid_library_cursor",
+            Self::StaleLibraryCursor => "stale_library_cursor",
             Self::UnexpectedFailure => "unexpected_failure",
         }
     }
@@ -164,6 +201,36 @@ mod tests {
                 ErrorCode::Internal,
                 "internal",
                 "Fruitboard could not complete the request.",
+                false,
+            ),
+            (
+                ErrorCode::AccessDenied,
+                "access_denied",
+                "The requested location could not be accessed.",
+                false,
+            ),
+            (
+                ErrorCode::Unsupported,
+                "unsupported",
+                "The requested operation is not supported for this location.",
+                false,
+            ),
+            (
+                ErrorCode::ResourceLimit,
+                "resource_limit",
+                "The operation exceeded a resource limit.",
+                false,
+            ),
+            (
+                ErrorCode::StaleCursor,
+                "stale_cursor",
+                "The list changed; start again from the first page.",
+                false,
+            ),
+            (
+                ErrorCode::InvalidCursor,
+                "invalid_cursor",
+                "The page continuation is not valid; start from the first page.",
                 false,
             ),
         ];

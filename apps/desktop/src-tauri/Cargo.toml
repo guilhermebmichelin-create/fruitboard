@@ -8,6 +8,13 @@ publish = false
 
 [features]
 packaging-smoke = ["dep:tauri-plugin-shell"]
+# Hidden scan-console IPC: commands are always registered, but the host wiring
+# and worker thread only exist with this feature enabled. Default builds must
+# not compile the scanner crates at all.
+scan-console = [
+  "dep:fruitboard-scan-execution",
+  "dep:fruitboard-filesystem-enumeration",
+]
 
 [lib]
 name = "fruitboard_desktop_lib"
@@ -18,6 +25,8 @@ tauri-build.workspace = true
 
 [dependencies]
 fruitboard-storage.workspace = true
+fruitboard-scan-execution = { path = "../../../crates/scan-execution", optional = true }
+fruitboard-filesystem-enumeration = { path = "../../../crates/filesystem-enumeration", optional = true }
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
