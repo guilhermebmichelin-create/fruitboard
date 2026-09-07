@@ -9,7 +9,10 @@ bundled SQLite 3.53.2. Native startup opens
 `app_local_data_dir()/storage/fruitboard.db`; Windows resolves this below the
 current user's local application data, outside roaming/Drive locations.
 
-The executable schema is version 3:
+The executable schema is version 5. Migration 005 is the shared Phase 2
+integration boundary; its exact locator, timestamp, identity, job/run, and
+root-scoped pagination contract is documented in
+[`docs/PHASE_2_INTEGRATION_CONTRACT.md`](docs/PHASE_2_INTEGRATION_CONTRACT.md).
 
 | Table | Fields and constraints | Classification |
 | --- | --- | --- |
@@ -19,14 +22,21 @@ The executable schema is version 3:
 | `scan_session` | Process session ID and start/end timestamps | Device-local execution fence |
 | `scan_job` | One active queued/running job per root, retry chain/attempt budget, due time, follow-up and cancellation flags | Device-local durable queue |
 | `scan_run` | Run ID, root generation/revision, session ID, lease token/deadline, terminal outcome | Device-local leased attempt |
+| `project_file` | Minimal UUIDv7 file metadata used by the filesystem-only publication checkpoint | Device-local committed read model |
+| `file_location` | Per-locator-key/display-relative location, bounded decimal identity, nanosecond metadata, present or missing state, last-seen run, and detached-root history | Device-local committed read model |
+| `scan_stage` | Run-owned captured fences, bounded counters, and open/published/discarded state | Device-local staging ledger |
+| `scan_stage_observation` | Bounded locator-key/display-relative metadata observations keyed by run and locator | Device-local staging data |
 
 All shipped tables are STRICT. The preference defaults to Home. The execution
 tables use partial and due-time indexes for one active job per root and bounded
-lease/queue recovery.
+lease/queue recovery. Staging and publication tables are bounded by the
+filesystem-only checkpoint and remain outside the renderer.
 The singleton key is infrastructure identity, not a domain entity UUID.
 There is no foreign-key relationship between these two tables; foreign-key
 enforcement is enabled on every connection and tested with temporary relational
-tables. The logical product tables below remain proposals, not shipped schema.
+tables. The broader logical product tables below remain proposals; migrations
+004 and 005 only ship the small device-local execution/publication subset
+listed above.
 
 Rust exposes typed preference methods and keeps the connection and transaction
 closure private. Issue #16 connects them to exact `get_startup_view` and
@@ -46,8 +56,9 @@ Migrations are embedded from `crates/storage-sqlite/migrations/`. The runner
 checks the application ID, `user_version`, and the complete ordered ledger,
 then commits all pending SQL, seeds, ledger rows, and the version in one
 IMMEDIATE transaction. Changed history, unrelated databases, and newer schemas
-are refused. Tests cover v0, v1 and v2 fixtures, including migration 003
-preserving roots/preferences and rollback after a later failure.
+are refused. Tests cover v0 through v4 fixtures, including migrations 003–005
+preserving roots/preferences, converting legacy publication fields with
+checked bounds, and rolling back after a later failure.
 
 Before upgrading an existing schema, the SQLite backup API creates a verified
 snapshot in `storage/backups/`. Backup failure prevents the upgrade. Completed
@@ -74,9 +85,10 @@ regressions verify refusal and preservation of each destination artifact; a
 real hot-journal fixture proves that stale pages can replace Library with Home
 if recovery ignores the companion. Process
 termination evidence is not a hardware power-loss qualification.
-Projects, workflows, parser snapshots, staging/publication, file locations,
-tombstones, notes, and FTS remain deferred to their owning slices. Migration 003
-does not make the reconciliation core a production scanner.
+Projects, workflows, parser snapshots, tombstones, notes, and FTS remain
+deferred to their owning slices. Migrations 003 and 004 provide durable
+execution plus a fenced staging/publication boundary; they do not make the
+reconciliation core a production scanner.
 
 ## Modeling principles
 
@@ -90,8 +102,10 @@ does not make the reconciliation core a production scanner.
 - Missing, archived, abandoned, and deleted are distinct states.
 - Syncable and device-local data are classified at the table/field level.
 - Application mutations and their sync operation are committed atomically.
-- Timestamps are UTC Unix milliseconds. User-entered calendar dates remain ISO
-  local dates when time zone semantics would be misleading.
+- General application timestamps are UTC Unix milliseconds. Filesystem change
+  detection uses signed Unix nanoseconds in the migration-005 storage boundary
+  so adjacent writes remain distinguishable; user-entered calendar dates
+  remain ISO local dates when time zone semantics would be misleading.
 - Deletions of syncable records use tombstones long enough for offline replicas.
 
 ## Entity overview
@@ -193,19 +207,36 @@ nullable `deleted_at_ms` unless explicitly immutable.
 
 `file_location` — device-local
 
-- `id`, `project_file_id`, `device_id`, `scan_root_id`
-- `absolute_path`, `normalized_path`, `relative_path`
-- `volume_id`, `filesystem_file_id` nullable
-- `presence` check `present|missing|offline|unknown`
-- `cloud_presence` check `local|placeholder|partial|unknown`
-- `last_seen_scan_run_id`, `last_seen_at_ms`
-- unique `(device_id, normalized_path)`; filesystem identity is a non-unique
-  lookup, never a location uniqueness constraint, so two paths may share one
-  underlying file
-- hardlink aliases share one filesystem identity but keep one location row
-  each: availability is tracked per path, and a non-unique
-  `(device_id, volume_id, filesystem_file_id)` index links aliases to one
-  underlying file without collapsing them
+- `id`, `project_file_id`, nullable `scan_root_id`, nullable
+  `detached_scan_root_id`
+- `locator_key` is the boundary-owned `LocatorKeyV1`; `relative_path` is the
+  display spelling; `normalized_path` is retained as v4 migration-history data
+- `byte_size`, legacy `modified_at_ms`, and checked `modified_at_ns`
+- legacy `volume_id`/`filesystem_file_id`, plus nullable bounded-decimal
+  `identity_volume_serial`/`identity_file_id`
+- `presence` check `present|missing`, `last_seen_scan_run_id`,
+  `last_seen_at_ms`, `created_at_ms`, and `updated_at_ms`
+- active rows use the unique `file_location_active_locator` index on
+  `(scan_root_id, locator_key COLLATE BINARY)`; detached rows are excluded
+- `file_location_root_presence_locator` indexes
+  `(scan_root_id, presence, locator_key COLLATE BINARY)`
+- `file_location_encoded_identity` is a non-unique lookup on
+  `(identity_volume_serial, identity_file_id)`; hardlink aliases
+  keep one location row each: availability is tracked per path, so
+  when one alias disappears, the other remains available
+- migration 005 replaces normalized-path staging indexes with the unique
+  `scan_stage_observation_locator` `(run_id, locator_key COLLATE BINARY)` and
+  ordered `scan_stage_observation_locator_order` `(run_id, locator_key
+  COLLATE BINARY, id)` indexes
+
+Migrations 004 and 005 implement a deliberately smaller device-local subset for
+the filesystem-only checkpoint: no absolute path is exposed, and
+`file_location` stores a boundary-owned locator key separately from its
+display-relative spelling, nanosecond metadata, bounded decimal identity,
+`present|missing` state, and last-seen run markers. Detached root history keeps
+the former root ID after configuration removal. The execution boundary rejects
+cancelled or invalidated runs; traversal must withhold publication for offline,
+denied, partial, or resource-limited enumerations.
 
 `file_relationship`
 
@@ -379,8 +410,11 @@ desktop master.
 The [Phase 2 execution contracts](docs/PHASE_2_EXECUTION_PLAN.md) define root
 configuration revisions, generation/lease validation, run-scoped staging,
 atomic publication and recovery semantics for #36/#38/#40. Migration 003 ships
-the #38 execution portion of that model; staging, publication and the read
-model remain future slices. See the [durable execution evidence](docs/PHASE_2_DURABLE_EXECUTION.md).
+the #38 execution portion and migration 004 adds the fenced staging/publication
+storage boundary plus a small committed location read model. Filesystem
+enumeration, the renderer Library journey, and streaming/resource measurement
+remain future slices. See the [durable execution evidence](docs/PHASE_2_DURABLE_EXECUTION.md)
+and [publication evidence](docs/PHASE_2_DURABLE_PUBLICATION.md).
 
 `scan_root`
 
@@ -389,8 +423,9 @@ model remain future slices. See the [durable execution evidence](docs/PHASE_2_DU
 - root availability and last safe error code
 - #34 implements the stored subset (id, display name, canonical path,
   enabled, availability, last error code) via migration 002; migration 003
-  adds execution configuration revision and generation. Watch state, hydration
-  policy, and last-scan bookkeeping arrive with later slices.
+  adds execution configuration revision and generation, and migration 004 adds
+  last-success markers. Watch state and hydration policy arrive with later
+  slices.
 
 `scan_run`
 

@@ -464,6 +464,7 @@ pub(crate) fn invalidate_inflight_after_recovery(
 ) -> Result<()> {
     let transaction =
         connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    super::publication::discard_all_open_staging_tx(&transaction, now_ms)?;
     recover_interrupted_tx(&transaction, now_ms, "recovery")?;
     resume_interrupted_jobs_tx(&transaction, now_ms, "recovery")?;
     transaction.execute(
@@ -545,6 +546,7 @@ fn recover_interrupted_tx(
             continue;
         }
         changed += 1;
+        super::publication::discard_staging_for_run_tx(transaction, &run_id, now_ms)?;
 
         let next_job_state = if cancelled {
             ScanJobState::Cancelled
@@ -754,6 +756,20 @@ fn enqueue_scan_tx(
                  WHERE id = ?2",
                 params![now_ms, &job_id],
             )?;
+            transaction.execute(
+                "UPDATE scan_stage SET state = 'discarded', updated_at_ms = ?1
+                 WHERE run_id IN (
+                     SELECT id FROM scan_run WHERE scan_job_id = ?2 AND state = 'running'
+                 ) AND state = 'open'",
+                params![now_ms, &job_id],
+            )?;
+            transaction.execute(
+                "DELETE FROM scan_stage_observation
+                 WHERE run_id IN (
+                     SELECT id FROM scan_run WHERE scan_job_id = ?1 AND state = 'running'
+                 )",
+                [&job_id],
+            )?;
             true
         } else {
             parse_flag(existing_follow_up)?
@@ -790,6 +806,7 @@ fn enqueue_scan_tx(
 }
 
 fn cancel_root_work(transaction: &Transaction<'_>, root_id: &str, now_ms: i64) -> Result<()> {
+    super::publication::discard_staging_for_root_tx(transaction, root_id, now_ms)?;
     transaction.execute(
         "UPDATE scan_job
          SET state = 'cancelled', cancellation_requested = 1,
@@ -872,6 +889,7 @@ fn reap_expired_tx(transaction: &Transaction<'_>, now_ms: i64) -> Result<usize> 
             continue;
         }
         changed += 1;
+        super::publication::discard_staging_for_run_tx(transaction, &run_id, now_ms)?;
         let next_job_state = if cancelled {
             ScanJobState::Cancelled
         } else if job.0 < job.1 {
@@ -1186,6 +1204,7 @@ impl Database {
                  WHERE id = ?2 AND state = 'running'",
                 params![now_ms, &run.scan_job_id],
             )?;
+            super::publication::discard_staging_for_run_tx(transaction, run_id, now_ms)?;
             Ok(ScanRunState::Running)
         })
     }
@@ -1217,6 +1236,7 @@ impl Database {
                          WHERE scan_job_id = ?1 AND state = 'running'",
                         [job_id],
                     )?;
+                    super::publication::discard_staging_for_job_tx(transaction, job_id, now_ms)?;
                     Ok(ScanJobState::Running)
                 }
                 terminal => Ok(terminal),
@@ -1224,8 +1244,10 @@ impl Database {
         })
     }
 
-    /// Finish an owned run. The root revision, generation, session and lease
-    /// are checked in the same transaction as the terminal state write.
+    /// Finish an owned non-authoritative run. The root revision, generation,
+    /// session and lease are checked in the same transaction as the terminal
+    /// state write. Completed runs must have an open stage and are delegated to
+    /// the atomic publication path.
     pub fn finish_scan_run(
         &mut self,
         run_id: &str,
@@ -1290,6 +1312,25 @@ impl Database {
             } else {
                 error_for_outcome(effective_outcome)
             };
+            // A worker may only complete through `publish_scan_run`, which
+            // validates and applies its run-scoped stage in the same
+            // transaction as the completed ledger state. The compatibility
+            // call below delegates when a stage exists; a bare completed row
+            // still cannot precede publication. The delegate's error codes
+            // are deliberately not collapsed: `NotFound` means this run has
+            // no stage row at all (no open stage), while `Conflict` remains
+            // the stale-lease/revision/cancellation fence signal.
+            if effective_outcome == ScanRunOutcome::Completed {
+                return super::publication::publish_scan_run_tx(
+                    transaction,
+                    run_id,
+                    session_id,
+                    lease_token,
+                    now_ms,
+                )
+                .map(|_| ScanRunState::Completed);
+            }
+            super::publication::discard_staging_for_run_tx(transaction, run_id, now_ms)?;
             transaction.execute(
                 "UPDATE scan_run
                  SET state = ?1, cancellation_requested = ?2, finished_at_ms = ?3,
@@ -1425,6 +1466,7 @@ impl Database {
             // work and so the delete remains one clear configuration action.
             super::Database::select_scan_root(transaction, id)?;
             cancel_root_work(transaction, id, now_ms)?;
+            super::publication::detach_locations_for_root_tx(transaction, id, now_ms)?;
             let removed = transaction.execute("DELETE FROM scan_root WHERE id = ?1", [id])?;
             if removed != 1 {
                 return Err(StorageError::NotFound);
