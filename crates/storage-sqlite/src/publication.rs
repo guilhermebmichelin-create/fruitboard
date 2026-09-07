@@ -220,12 +220,18 @@ pub struct PublishedLocation {
     pub last_seen_at_ms: Option<i64>,
 }
 
+/// Result of one atomic publication. IPC-facing summary of the committed
+/// publication state; it carries no paths and no SQL.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanPublication {
     pub run_id: String,
     pub scan_root_id: String,
     pub generation: i64,
+    /// Total committed locations for the root after publication. This counts
+    /// rows currently marked `present` AND rows currently marked `missing`;
+    /// it is not a present-only total. Consumers that need the present-only
+    /// count must filter the bounded Library pages by presence.
     pub location_count: i64,
     pub published_at_ms: i64,
 }
@@ -1395,7 +1401,10 @@ impl Database {
     }
 
     /// Append one bounded, idempotent observation batch outside the committed
-    /// Library dataset. Every batch validates the same run fences as publish.
+    /// Library dataset. Every batch validates the same run fences as publish,
+    /// and the record/path budgets are checked before the first row of the
+    /// batch is written: an over-budget call inserts nothing. Rejection is
+    /// still terminal (`StagingRejected` with a durable discard).
     pub fn stage_scan_observations(
         &mut self,
         run_id: &str,
@@ -1414,9 +1423,10 @@ impl Database {
                 if observations.len() > MAX_STAGED_BATCH_RECORDS {
                     return Err(StorageError::StagingRejected);
                 }
+                // Validation pass: every observation is checked and the
+                // batch's new totals are computed without writing anything.
                 let mut batch_paths = BTreeSet::new();
-                let mut new_count = 0_i64;
-                let mut new_path_bytes = 0_i64;
+                let mut pending: Vec<(&ScanObservation, i64, i64, i64)> = Vec::new();
                 for observation in observations {
                     let path_bytes = observation_path_bytes(observation)
                         .map_err(|_| StorageError::StagingRejected)?;
@@ -1459,12 +1469,30 @@ impl Database {
                         }
                         continue;
                     }
-                    new_count = new_count
-                        .checked_add(1)
-                        .ok_or(StorageError::StagingRejected)?;
-                    new_path_bytes = new_path_bytes
-                        .checked_add(path_bytes)
-                        .ok_or(StorageError::StagingRejected)?;
+                    pending.push((observation, path_bytes, byte_size, modified_at_ns));
+                }
+                // Budget pass: the open stage's totals plus this batch's new
+                // totals must fit before the first row of the batch is
+                // inserted. Rejected batches write nothing.
+                let new_count = pending.len() as i64;
+                let new_path_bytes =
+                    pending.iter().try_fold(0_i64, |total, (_, bytes, _, _)| {
+                        total
+                            .checked_add(*bytes)
+                            .ok_or(StorageError::StagingRejected)
+                    })?;
+                if staging
+                    .record_count
+                    .checked_add(new_count)
+                    .is_none_or(|count| count > MAX_STAGED_RECORDS)
+                    || staging
+                        .path_bytes
+                        .checked_add(new_path_bytes)
+                        .is_none_or(|bytes| bytes > MAX_STAGED_PATH_BYTES)
+                {
+                    return Err(StorageError::StagingRejected);
+                }
+                for (observation, _, byte_size, modified_at_ns) in &pending {
                     transaction.execute(
                         "INSERT INTO scan_stage_observation
                          (run_id, normalized_path, locator_key, relative_path, byte_size,
@@ -1476,7 +1504,7 @@ impl Database {
                             &observation.locator_key,
                             &observation.relative_path,
                             byte_size,
-                            legacy_modified_at_ms(modified_at_ns),
+                            legacy_modified_at_ms(*modified_at_ns),
                             modified_at_ns,
                             legacy_volume_id(observation.identity.as_ref()),
                             observation
@@ -1493,17 +1521,6 @@ impl Database {
                                 .map(|identity| identity.file_id.as_str()),
                         ],
                     )?;
-                }
-                if staging
-                    .record_count
-                    .checked_add(new_count)
-                    .is_none_or(|count| count > MAX_STAGED_RECORDS)
-                    || staging
-                        .path_bytes
-                        .checked_add(new_path_bytes)
-                        .is_none_or(|bytes| bytes > MAX_STAGED_PATH_BYTES)
-                {
-                    return Err(StorageError::StagingRejected);
                 }
                 transaction.execute(
                     "UPDATE scan_stage

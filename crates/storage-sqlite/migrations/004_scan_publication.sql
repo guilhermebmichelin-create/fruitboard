@@ -1,3 +1,12 @@
+-- Scan staging and publication. Staging is disposable by contract: the
+-- removal/invalidation transactions discard it before any committed state
+-- changes. scan_stage.scan_root_id deliberately carries REFERENCES
+-- scan_root(id) ON DELETE CASCADE rather than no foreign key: root removal
+-- invalidates staging first (cancel_root_work discards every open stage and
+-- deletes its observations) and only then deletes the root row, so the
+-- cascade can only remove already-discarded stage rows. It can never remove
+-- file history: file_location rows are detached (ON DELETE SET NULL) before
+-- the root delete, and neither table cascades into project_file.
 ALTER TABLE scan_root ADD COLUMN last_successful_run_id TEXT;
 ALTER TABLE scan_root ADD COLUMN last_successful_generation INTEGER
     CHECK (last_successful_generation IS NULL OR last_successful_generation >= 0);
@@ -46,7 +55,7 @@ CREATE INDEX file_location_root_presence
 
 CREATE TABLE scan_stage (
     run_id TEXT PRIMARY KEY REFERENCES scan_run(id) ON DELETE CASCADE,
-    scan_root_id TEXT NOT NULL,
+    scan_root_id TEXT NOT NULL REFERENCES scan_root(id) ON DELETE CASCADE,
     generation INTEGER NOT NULL CHECK (generation >= 0),
     configuration_revision INTEGER NOT NULL CHECK (configuration_revision >= 0),
     session_id TEXT NOT NULL CHECK (length(session_id) > 0),

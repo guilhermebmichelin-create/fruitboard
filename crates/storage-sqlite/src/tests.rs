@@ -2412,6 +2412,9 @@ fn staging_is_invisible_until_atomic_publication_and_tracks_aliases() {
         .lease_next_scan("publication-session", 3, 100)
         .unwrap()
         .unwrap();
+    // Completing with no stage row is "no open stage" (`NotFound`), distinct
+    // from the stale-lease `Conflict`; either way no completed row precedes
+    // publication.
     assert!(matches!(
         database.finish_scan_run(
             &lease.run.id,
@@ -2420,7 +2423,7 @@ fn staging_is_invisible_until_atomic_publication_and_tracks_aliases() {
             4,
             ScanRunOutcome::Completed,
         ),
-        Err(StorageError::Conflict)
+        Err(StorageError::NotFound)
     ));
     let observations = [
         staged_observation("a.flp", 10, 20, Some("file-1")),
@@ -4733,5 +4736,519 @@ fn migration_quarantines_legacy_keys_and_first_v1_scan_retains_projects() {
             .unwrap();
         assert_eq!(legacy.presence, FilePresence::Missing);
         assert!(legacy.locator_key.starts_with("v0:legacy:"));
+    }
+}
+
+#[test]
+fn completed_delegation_publishes_a_non_empty_stage_and_splits_error_codes() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("delegate-session", 1).unwrap();
+    let job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("delegate-session", 3, 100)
+        .unwrap()
+        .unwrap();
+
+    // Completing a run that has no stage row at all is "no open stage"
+    // (`NotFound`), not a stale-lease `Conflict`.
+    assert!(matches!(
+        database.finish_scan_run(
+            &lease.run.id,
+            "delegate-session",
+            &lease.run.lease_token,
+            4,
+            ScanRunOutcome::Completed,
+        ),
+        Err(StorageError::NotFound)
+    ));
+
+    // A stale token still reports the fence as `Conflict`.
+    database
+        .begin_scan_staging(&lease.run.id, "delegate-session", &lease.run.lease_token, 4)
+        .unwrap();
+    assert!(matches!(
+        database.finish_scan_run(
+            &lease.run.id,
+            "delegate-session",
+            "wrong-token",
+            5,
+            ScanRunOutcome::Completed,
+        ),
+        Err(StorageError::Conflict)
+    ));
+
+    // Delegation must publish a NON-EMPTY open stage, not just an empty one.
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            "delegate-session",
+            &lease.run.lease_token,
+            6,
+            &[staged_observation("delegated.flp", 7, 7, Some("delegated"))],
+        )
+        .unwrap();
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &lease.run.id,
+                "delegate-session",
+                &lease.run.lease_token,
+                7,
+                ScanRunOutcome::Completed,
+            )
+            .unwrap(),
+        ScanRunState::Completed
+    );
+    let published = database.list_published_locations(&root.id).unwrap();
+    assert_eq!(published.len(), 1);
+    assert_eq!(published[0].relative_path, "delegated.flp");
+    assert_eq!(published[0].presence, FilePresence::Present);
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().state,
+        ScanStageState::Published
+    );
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Completed
+    );
+    assert_eq!(
+        database
+            .scan_root_publication(&root.id)
+            .unwrap()
+            .last_successful_run_id
+            .as_deref(),
+        Some(lease.run.id.as_str())
+    );
+}
+
+#[test]
+fn publication_fences_an_expired_lease_before_applying() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database
+        .begin_scan_session("expired-lease-session", 1)
+        .unwrap();
+    let job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("expired-lease-session", 3, 10)
+        .unwrap()
+        .unwrap();
+    assert_eq!(lease.run.lease_expires_at_ms, 13);
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            "expired-lease-session",
+            &lease.run.lease_token,
+            4,
+            &[staged_observation("expired.flp", 1, 1, None)],
+        )
+        .unwrap();
+
+    // At the boundary the lease is already expired: `lease_expires_at_ms <=
+    // now`. Both staging and publication must refuse, and the open stage
+    // must survive untouched until a renewed lease takes over.
+    assert!(matches!(
+        database.stage_scan_observations(
+            &lease.run.id,
+            "expired-lease-session",
+            &lease.run.lease_token,
+            13,
+            &[staged_observation("after-expiry.flp", 1, 1, None)],
+        ),
+        Err(StorageError::Conflict)
+    ));
+    assert!(matches!(
+        database.publish_scan_run(
+            &lease.run.id,
+            "expired-lease-session",
+            &lease.run.lease_token,
+            13,
+        ),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().state,
+        ScanStageState::Open
+    );
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().record_count,
+        1
+    );
+    assert_eq!(
+        database.scan_run(&lease.run.id).unwrap().state,
+        ScanRunState::Running
+    );
+    assert!(
+        database
+            .list_published_locations(&root.id)
+            .unwrap()
+            .is_empty()
+    );
+
+    // A renewed lease publishes the surviving stage normally.
+    database
+        .renew_scan_lease(
+            &lease.run.id,
+            "expired-lease-session",
+            &lease.run.lease_token,
+            12,
+            10,
+        )
+        .unwrap();
+    database
+        .publish_scan_run(
+            &lease.run.id,
+            "expired-lease-session",
+            &lease.run.lease_token,
+            15,
+        )
+        .unwrap();
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Completed
+    );
+    assert_eq!(
+        database.list_published_locations(&root.id).unwrap().len(),
+        1
+    );
+}
+
+#[test]
+fn single_call_staging_over_the_batch_record_limit_is_rejected_without_writing() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database
+        .begin_scan_session("batch-limit-session", 1)
+        .unwrap();
+    let job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("batch-limit-session", 3, 100)
+        .unwrap()
+        .unwrap();
+
+    let observations: Vec<_> = (0..=MAX_STAGED_BATCH_RECORDS)
+        .map(|index| staged_observation(&format!("over-limit-{index}.flp"), 1, 1, None))
+        .collect();
+    assert_eq!(observations.len(), MAX_STAGED_BATCH_RECORDS + 1);
+    assert!(matches!(
+        database.stage_scan_observations(
+            &lease.run.id,
+            "batch-limit-session",
+            &lease.run.lease_token,
+            4,
+            &observations,
+        ),
+        Err(StorageError::StagingRejected)
+    ));
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().state,
+        ScanStageState::Discarded
+    );
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().record_count,
+        0
+    );
+    assert_eq!(
+        database
+            .scan_run(&lease.run.id)
+            .unwrap()
+            .error_code
+            .as_deref(),
+        Some("staging_rejected")
+    );
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Failed
+    );
+    assert!(
+        database
+            .list_published_locations(&root.id)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn staging_rejects_invalid_relative_path_fixtures_terminally() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database
+        .begin_scan_session("relative-path-session", 1)
+        .unwrap();
+
+    let fixtures = [
+        ("dot_dot", ".."),
+        ("leading_slash", "/escape.flp"),
+        ("empty", ""),
+        ("nul", "bad\u{0}name.flp"),
+        ("colon", "with:colon.flp"),
+    ];
+    let mut at = 2;
+    for (name, relative_path) in fixtures {
+        let job = database
+            .enqueue_scan(&root.id, ScanKind::Manual, at)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("relative-path-session", at, 100)
+            .unwrap()
+            .unwrap();
+        assert!(
+            matches!(
+                database.stage_scan_observations(
+                    &lease.run.id,
+                    "relative-path-session",
+                    &lease.run.lease_token,
+                    at,
+                    &[exact_observation("v1:i:bad.flp", relative_path, 1, 1, None)],
+                ),
+                Err(StorageError::StagingRejected)
+            ),
+            "fixture {name} must be rejected"
+        );
+        assert_eq!(
+            database.scan_staging(&lease.run.id).unwrap().state,
+            ScanStageState::Discarded,
+            "fixture {name} must terminate its stage"
+        );
+        assert_eq!(
+            database.scan_job(&job.job_id).unwrap().state,
+            ScanJobState::Failed
+        );
+        at += 2;
+    }
+
+    // A well-formed relative_path still stages normally.
+    let job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, at)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("relative-path-session", at, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            "relative-path-session",
+            &lease.run.lease_token,
+            at,
+            &[staged_observation("good.flp", 1, 1, None)],
+        )
+        .unwrap();
+    assert_eq!(
+        database.scan_staging(&lease.run.id).unwrap().record_count,
+        1
+    );
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Running
+    );
+    assert!(
+        database
+            .list_published_locations(&root.id)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn migration_005_timestamp_guards_cover_locations_and_staging() {
+    // A legacy file_location row whose millisecond timestamp cannot be
+    // converted to nanoseconds must abort migration 005.
+    let location_directory = TestDirectory::new();
+    {
+        let fixture =
+            Database::open_with_migrations(location_directory.path(), &MIGRATIONS[..4]).unwrap();
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO project_file
+                 (id, display_filename, extension, byte_size, modified_at_ms,
+                  created_at_ms, updated_at_ms)
+                 VALUES ('project-guard', 'Guard.flp', '.flp', 1, 1, 1, 1)",
+                [],
+            )
+            .unwrap();
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO scan_root (id, display_name, canonical_path)
+                 VALUES ('root-guard', 'Guard', 'C:\\Guard')",
+                [],
+            )
+            .unwrap();
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO file_location
+                 (id, project_file_id, scan_root_id, detached_scan_root_id,
+                  normalized_path, relative_path, byte_size, modified_at_ms,
+                  presence, created_at_ms, updated_at_ms)
+                 VALUES ('location-guard', 'project-guard', 'root-guard', NULL,
+                    'Guard.flp', 'Guard.flp', 1, ?1, 'present', 1, 1)",
+                rusqlite::params![i64::MAX],
+            )
+            .unwrap();
+        drop(fixture);
+    }
+    assert!(matches!(
+        Database::open_with_migrations(location_directory.path(), MIGRATIONS),
+        Err(StorageError::MigrationFailed)
+    ));
+
+    // The same bound applies to legacy scan_stage_observation rows.
+    let stage_directory = TestDirectory::new();
+    {
+        let fixture =
+            Database::open_with_migrations(stage_directory.path(), &MIGRATIONS[..4]).unwrap();
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO scan_root (id, display_name, canonical_path)
+                 VALUES ('root-guard', 'Guard', 'C:\\Guard')",
+                [],
+            )
+            .unwrap();
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO scan_job
+                 (id, scan_root_id, kind, retry_chain_id, not_before_ms,
+                  created_at_ms, updated_at_ms)
+                 VALUES ('job-guard', 'root-guard', 'manual', 'chain-guard', 1, 1, 1)",
+                [],
+            )
+            .unwrap();
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO scan_run
+                 (id, scan_job_id, scan_root_id, generation, configuration_revision,
+                  retry_chain_id, attempt, session_id, lease_token, started_at_ms,
+                  lease_expires_at_ms)
+                 VALUES ('run-guard', 'job-guard', 'root-guard', 0, 0, 'chain-guard',
+                    1, 'session-guard', 'token-guard', 1, 100)",
+                [],
+            )
+            .unwrap();
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO scan_stage
+                 (run_id, scan_root_id, generation, configuration_revision,
+                  session_id, lease_token, created_at_ms, updated_at_ms)
+                 VALUES ('run-guard', 'root-guard', 0, 0, 'session-guard',
+                    'token-guard', 1, 1)",
+                [],
+            )
+            .unwrap();
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO scan_stage_observation
+                 (run_id, normalized_path, relative_path, byte_size, modified_at_ms)
+                 VALUES ('run-guard', 'guard.flp', 'guard.flp', 1, ?1)",
+                rusqlite::params![i64::MIN],
+            )
+            .unwrap();
+        drop(fixture);
+    }
+    assert!(matches!(
+        Database::open_with_migrations(stage_directory.path(), MIGRATIONS),
+        Err(StorageError::MigrationFailed)
+    ));
+}
+
+#[test]
+fn migration_005_keeps_only_canonical_u128_file_ids_at_the_39_digit_boundary() {
+    let directory = TestDirectory::new();
+    let root_id;
+    {
+        let fixture = Database::open_with_migrations(directory.path(), &MIGRATIONS[..4]).unwrap();
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO project_file
+                 (id, display_filename, extension, byte_size, modified_at_ms,
+                  created_at_ms, updated_at_ms)
+                 VALUES ('project-max', 'Max.flp', '.flp', 1, 1, 1, 1),
+                        ('project-overflow', 'Overflow.flp', '.flp', 1, 1, 1, 1),
+                        ('project-wide', 'Wide.flp', '.flp', 1, 1, 1, 1)",
+                [],
+            )
+            .unwrap();
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO scan_root (id, display_name, canonical_path)
+                 VALUES ('root-boundary', 'Boundary', 'C:\\Boundary')",
+                [],
+            )
+            .unwrap();
+        root_id = "root-boundary".to_owned();
+        // u128::MAX is exactly 39 digits and canonical: it must survive.
+        // u128::MAX + 1 is also 39 digits but out of range: it must be
+        // dropped. A 40-digit value is out of range by length.
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO file_location
+                 (id, project_file_id, scan_root_id, detached_scan_root_id,
+                  normalized_path, relative_path, byte_size, modified_at_ms,
+                  volume_id, filesystem_file_id, presence,
+                  created_at_ms, updated_at_ms)
+                 VALUES ('location-max', 'project-max', ?1, NULL,
+                    'Max.flp', 'Max.flp', 1, 1, 7,
+                    '340282366920938463463374607431768211455', 'present', 1, 1),
+                        ('location-overflow', 'project-overflow', ?1, NULL,
+                    'Overflow.flp', 'Overflow.flp', 1, 1, 7,
+                    '340282366920938463463374607431768211456', 'present', 1, 1),
+                        ('location-wide', 'project-wide', ?1, NULL,
+                    'Wide.flp', 'Wide.flp', 1, 1, 7,
+                    '9999999999999999999999999999999999999999', 'present', 1, 1)",
+                [&root_id],
+            )
+            .unwrap();
+        drop(fixture);
+    }
+
+    let database = Database::open(directory.path()).unwrap();
+    let locations = database.list_published_locations(&root_id).unwrap();
+    assert_eq!(locations.len(), 3);
+    let max = locations
+        .iter()
+        .find(|location| location.id == "location-max")
+        .unwrap();
+    assert_eq!(
+        max.identity,
+        Some(EncodedIdentity {
+            volume_serial: "7".to_owned(),
+            file_id: "340282366920938463463374607431768211455".to_owned(),
+        })
+    );
+    for legacy_id in ["location-overflow", "location-wide"] {
+        let dropped = locations
+            .iter()
+            .find(|location| location.id == legacy_id)
+            .unwrap();
+        assert_eq!(dropped.identity, None, "{legacy_id} must be quarantined");
     }
 }

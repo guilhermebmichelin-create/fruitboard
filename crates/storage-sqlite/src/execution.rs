@@ -1316,7 +1316,10 @@ impl Database {
             // validates and applies its run-scoped stage in the same
             // transaction as the completed ledger state. The compatibility
             // call below delegates when a stage exists; a bare completed row
-            // still cannot precede publication.
+            // still cannot precede publication. The delegate's error codes
+            // are deliberately not collapsed: `NotFound` means this run has
+            // no stage row at all (no open stage), while `Conflict` remains
+            // the stale-lease/revision/cancellation fence signal.
             if effective_outcome == ScanRunOutcome::Completed {
                 return super::publication::publish_scan_run_tx(
                     transaction,
@@ -1325,11 +1328,7 @@ impl Database {
                     lease_token,
                     now_ms,
                 )
-                .map(|_| ScanRunState::Completed)
-                .map_err(|error| match error {
-                    StorageError::NotFound => StorageError::Conflict,
-                    other => other,
-                });
+                .map(|_| ScanRunState::Completed);
             }
             super::publication::discard_staging_for_run_tx(transaction, run_id, now_ms)?;
             transaction.execute(
