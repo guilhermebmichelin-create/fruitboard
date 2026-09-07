@@ -65,6 +65,11 @@ type ActionState =
 
 const terminalStates = new Set(["cancelled", "failed", "interrupted"]);
 
+const cancelUnavailableMessage =
+  "The scan could not be cancelled safely. Refresh and try again.";
+
+const restartPaginationCooldownMs = 250;
+
 const scanErrorMessages: Readonly<Record<ScanErrorCode, string>> = {
   access_denied:
     "The folder could not be read. Previous committed results were kept.",
@@ -204,6 +209,7 @@ function ConnectedLibraryPage({
   const [pageAttempt, setPageAttempt] = useState(0);
   const [statusAttempt, setStatusAttempt] = useState(0);
   const [paginationNotice, setPaginationNotice] = useState<string | null>(null);
+  const [pageAnnouncement, setPageAnnouncement] = useState("");
   const [actionState, setActionState] = useState<ActionState>({ kind: "idle" });
   const mounted = useRef(true);
   const pageRequestSequence = useRef(0);
@@ -249,20 +255,38 @@ function ConnectedLibraryPage({
 
   const duplicateDisplayNames = useMemo(() => {
     const counts = new Map<string, number>();
+    const trackedRootIds = new Set<string>();
     for (const status of statuses) {
+      trackedRootIds.add(status.root.id);
       counts.set(
         status.root.displayName,
         (counts.get(status.root.displayName) ?? 0) + 1,
       );
+    }
+    if (pageState.kind === "ready") {
+      for (const record of pageState.page.records) {
+        // Records whose root is tracked are already counted through the
+        // status list; only detached historical records (removed roots)
+        // add a second source, so their colliding names disambiguate.
+        if (trackedRootIds.has(record.rootId)) continue;
+        counts.set(
+          record.rootDisplayName,
+          (counts.get(record.rootDisplayName) ?? 0) + 1,
+        );
+      }
     }
     return new Set(
       [...counts.entries()]
         .filter(([, count]) => count > 1)
         .map(([name]) => name),
     );
-  }, [statuses]);
+  }, [pageState, statuses]);
 
-  const restartPagination = useCallback((notice?: string) => {
+  const lastRestartAtReference = useRef(0);
+  const restartTimerReference = useRef<number | null>(null);
+  const pendingRestartNoticeReference = useRef<string | undefined>(undefined);
+
+  const performPaginationRestart = useCallback((notice?: string) => {
     pageRequestSequence.current += 1;
     pendingPageFocus.current = true;
     setPagePosition({ cursor: null, snapshotId: null });
@@ -274,6 +298,31 @@ function ConnectedLibraryPage({
     );
     setPageAttempt((attempt) => attempt + 1);
   }, []);
+
+  const restartPagination = useCallback(
+    (notice?: string) => {
+      if (restartTimerReference.current !== null) {
+        pendingRestartNoticeReference.current = notice;
+        return;
+      }
+      const elapsed = Date.now() - lastRestartAtReference.current;
+      if (elapsed >= restartPaginationCooldownMs) {
+        lastRestartAtReference.current = Date.now();
+        performPaginationRestart(notice);
+        return;
+      }
+      pendingRestartNoticeReference.current = notice;
+      restartTimerReference.current = window.setTimeout(() => {
+        restartTimerReference.current = null;
+        if (!mounted.current) return;
+        lastRestartAtReference.current = Date.now();
+        const pendingNotice = pendingRestartNoticeReference.current;
+        pendingRestartNoticeReference.current = undefined;
+        performPaginationRestart(pendingNotice);
+      }, restartPaginationCooldownMs - elapsed);
+    },
+    [performPaginationRestart],
+  );
 
   const selectRoot = useCallback(
     (rootId: string) => {
@@ -399,6 +448,18 @@ function ConnectedLibraryPage({
     }
   }, [focusLater, pageState]);
 
+  const pageNumber = cursorHistory.length + 1;
+  useEffect(() => {
+    if (pageState.kind !== "ready") return;
+    const count = pageState.page.records.length;
+    if (count === 0) return;
+    const announcement = `${count} committed ${count === 1 ? "location" : "locations"} on page ${pageNumber}`;
+    const timer = window.setTimeout(() => {
+      if (mounted.current) setPageAnnouncement(announcement);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [pageState, pageNumber]);
+
   const refreshAfterAction = useCallback(
     async (requestId: number) => {
       const isCurrentAction = () =>
@@ -455,11 +516,20 @@ function ConnectedLibraryPage({
   };
 
   const cancelScan = async (status: ScanStatus) => {
-    if (status.jobId === null) return;
+    const rootId = status.root.id;
+    if (status.jobId === null) {
+      setActionState({
+        kind: "error",
+        rootId,
+        message: cancelUnavailableMessage,
+      });
+      focusLater(() => cancelButtonReferences.current.get(rootId) ?? null);
+      void loadStatuses();
+      return;
+    }
     const requestId = ++actionSequence.current;
     const isCurrentAction = () =>
       mounted.current && actionSequence.current === requestId;
-    const rootId = status.root.id;
     const name = rootControlName(status, duplicateDisplayNames);
     setActionState({
       kind: "working",
@@ -484,8 +554,7 @@ function ConnectedLibraryPage({
       setActionState({
         kind: "error",
         rootId,
-        message:
-          "The scan could not be cancelled safely. Refresh and try again.",
+        message: cancelUnavailableMessage,
       });
       focusLater(() => cancelButtonReferences.current.get(rootId) ?? null);
     }
@@ -573,6 +642,9 @@ function ConnectedLibraryPage({
       data-library-state={libraryState}
       data-review-adapter="fake-or-proposed"
     >
+      <p aria-live="polite" className="library-visually-hidden" role="status">
+        {pageAnnouncement}
+      </p>
       <section
         aria-labelledby="library-content-title"
         className="library-intro"
@@ -760,7 +832,7 @@ function ConnectedLibraryPage({
                 File locations
               </h2>
             </div>
-            <p aria-live="polite">
+            <p>
               {page.records.length} committed{" "}
               {page.records.length === 1 ? "location" : "locations"} on page{" "}
               {cursorHistory.length + 1}

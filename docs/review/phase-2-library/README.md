@@ -51,13 +51,22 @@ Scan now, Cancel, and Retry, and asserts focus transitions:
   numerics, job-based queue and cancellation, retry, failed and interrupted
   scans, unavailable/unknown availability, page-read retry, reverse-order
   page/status subscription refreshes, adapter replacement, and unmount
-  safety.
+  safety. Review-round regressions: a queued status with a null `jobId`
+  surfaces a recoverable cancel error instead of a silent no-op, a rapid
+  burst of committed snapshots coalesces behind a restart cooldown instead of
+  looping page-one restarts, and detached-history records sharing an active
+  root's display name are disambiguated with the canonical path.
 - `LibraryPage.accessibility.test.tsx`: axe checks for populated, queued,
   running, cancelled, retry, and unavailable states, keyboard activation
   and focus recovery across queue/cancel/retry, keyboard-operable root
-  selector with duplicate disambiguation, and per-root snapshot restart.
-- Latest client run: 12 test files and 99 tests passed; lint and TypeScript
+  selector with duplicate disambiguation, and per-root snapshot restart. The
+  page-count line is static text; a visually hidden polite live region
+  announces only actual page changes, so unrelated re-renders stay silent.
+- Latest client run: 12 test files and 102 tests passed; lint and TypeScript
   checks passed; production build passed.
+- The 2026-09-07 rendered captures above were not regenerated for this
+  review round: the cancel-error, restart-cooldown, record-disambiguation,
+  and live-region fixes do not change any captured visible state.
 - Existing shell accessibility tests continue to cover the production route
   with no adapter. It renders the explicit integration-pending state with no
   nonfunctional scan controls.

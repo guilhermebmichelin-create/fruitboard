@@ -786,4 +786,123 @@ describe("LibraryPage", () => {
     );
     await settle(second.statusRequests[1]!, [makeStatus(secondRoot)]);
   });
+
+  it("surfaces a recoverable error when a queued status carries no job ID", async () => {
+    const harness = makeDeferredAdapter([rootA]);
+    renderLibrary(harness.adapter);
+    await waitFor(() => {
+      expect(harness.statusRequests).toHaveLength(1);
+    });
+    await settle(harness.statusRequests[0]!, [
+      makeStatus(rootA, "queued", null, null),
+    ]);
+    const cancel = await screen.findByRole("button", {
+      name: "Cancel scan Projects",
+    });
+    await userEvent.setup().click(cancel);
+
+    expect(
+      await screen.findByText(
+        "The scan could not be cancelled safely. Refresh and try again.",
+      ),
+    ).toBeTruthy();
+    expect(document.activeElement).toBe(cancel);
+  });
+
+  it("coalesces restarts during a rapid snapshot burst instead of looping", async () => {
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      pageLimit: 1,
+      files: [
+        makeRecord(rootA, "location-a", "First.flp", "First.flp"),
+        makeRecord(rootA, "location-b", "Second.flp", "Second.flp"),
+        makeRecord(rootA, "location-c", "Third.flp", "Third.flp"),
+      ],
+    });
+    renderLibrary(adapter);
+    await screen.findByRole("heading", { name: "First.flp" });
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Next library page" }));
+    await screen.findByRole("heading", { name: "Second.flp" });
+
+    act(() => {
+      adapter.completeScan(rootA.id);
+      adapter.completeScan(rootA.id);
+      adapter.completeScan(rootA.id);
+    });
+
+    await screen.findByRole("heading", { name: "First.flp" });
+    expect(screen.getByText("Page 1")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "The committed Library snapshot changed. Pagination restarted at page 1.",
+      ),
+    ).toBeTruthy();
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
+    const stableRequestCount = adapter.calls.pageRequests.length;
+    expect(stableRequestCount).toBeLessThan(12);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
+    expect(adapter.calls.pageRequests.length).toBe(stableRequestCount);
+    expect(screen.getByRole("heading", { name: "First.flp" })).toBeTruthy();
+    expect(screen.getByText("Page 1")).toBeTruthy();
+  });
+
+  it("disambiguates detached-history records that share an active root name", async () => {
+    const statuses = [makeStatus(rootA)];
+    const recordPage = page(rootA.id, "snapshot-union", [
+      makeRecord(rootA, "location-active", "Active.flp", "Active.flp"),
+      {
+        ...makeRecord(
+          rootA,
+          "location-detached",
+          "Detached.flp",
+          "Detached.flp",
+        ),
+        rootId: "root-detached-history",
+        rootDisplayName: rootA.displayName,
+        rootCanonicalPath: "E:\\Removed\\Projects",
+      },
+    ]);
+    const adapter: LibraryScanAdapter = {
+      getLibraryPage: () => Promise.resolve(recordPage),
+      listScanStatuses: () => Promise.resolve(statuses),
+      scanNow: (rootId) =>
+        Promise.resolve({
+          rootId,
+          jobId: "static-job",
+          runId: null,
+          outcome: "queued" as const,
+        }),
+      cancelScan: (jobId) =>
+        Promise.resolve({
+          rootId: rootA.id,
+          jobId,
+          runId: null,
+          outcome: "cancelled" as const,
+        }),
+      retryScan: (jobId) =>
+        Promise.resolve({
+          rootId: rootA.id,
+          jobId,
+          runId: null,
+          outcome: "queued" as const,
+        }),
+      subscribe: () => () => {},
+    };
+    renderLibrary(adapter);
+
+    await screen.findByRole("heading", { name: "Detached.flp" });
+    expect(
+      screen.getByLabelText("Root Projects (C:\\Synthetic\\Music\\Projects)"),
+    ).toBeTruthy();
+    expect(
+      screen.getByLabelText("Root Projects (E:\\Removed\\Projects)"),
+    ).toBeTruthy();
+  });
 });

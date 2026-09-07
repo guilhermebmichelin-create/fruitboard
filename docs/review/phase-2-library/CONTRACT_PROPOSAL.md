@@ -57,7 +57,12 @@ Required invariants:
   create new missing rows or publish partial positive updates.
 - Root display names are not unique. The UI may include the canonical path in
   Library/root-management labels when needed to distinguish equal names; that
-  path must not enter diagnostics or generic error text.
+  path must not enter diagnostics or generic error text. Disambiguation is
+  derived from the union of scan statuses and the current page records:
+  records whose root is tracked are counted through the status list, while
+  detached historical records (removed roots keep their history) count
+  separately, so a historical root sharing an active root's display name is
+  also labeled with its canonical path.
 
 ## Per-root bounded Library query
 
@@ -204,6 +209,18 @@ from an error.
 - Failed page refreshes retain the last page; failed, incomplete, cancelled,
   or unavailable scans retain the last committed dataset and never infer new
   missing locations.
+- Snapshot-driven pagination restarts are coalesced behind a short client
+  cooldown (leading restart plus at most one trailing restart per window). A
+  rapid sequence of committed snapshots cannot loop page-one restarts
+  indefinitely, and the trailing restart always re-reads the latest committed
+  snapshot, so no restart requirement is dropped.
+- Cancel is attempted only when the rendered status carries a job ID. A
+  queued/running status without a `jobId` is stale UI state: the client
+  surfaces a recoverable "could not cancel — refresh and try again" error
+  instead of silently doing nothing and refreshes statuses in the background.
+- The page-count line is static text. A separate visually hidden polite live
+  region announces only actual page changes (page number plus record count),
+  so status refreshes and unrelated re-renders do not re-announce.
 
 ## Integration checklist for the designated owners
 
