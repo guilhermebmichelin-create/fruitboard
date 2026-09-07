@@ -226,7 +226,8 @@ impl<M: RootIdMapping> WatcherFollowUpAdapter<M> {
             }
             None => return,
         };
-        self.generations.insert(root, RootWatchState::Ended(generation));
+        self.generations
+            .insert(root, RootWatchState::Ended(generation));
     }
 
     /// Cumulative overflow-driven follow-ups requested for `root`.
@@ -257,7 +258,8 @@ impl<M: RootIdMapping> WatcherFollowUpAdapter<M> {
         let state = self.generations.get(&root).copied();
         match state {
             None => {
-                self.generations.insert(root, RootWatchState::Active(generation));
+                self.generations
+                    .insert(root, RootWatchState::Active(generation));
                 true
             }
             Some(RootWatchState::Active(current)) => {
