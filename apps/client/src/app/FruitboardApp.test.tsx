@@ -104,9 +104,9 @@ describe("FruitboardApp", () => {
     loadingView.unmount();
 
     const emptyView = renderApp("/library");
-    expect(screen.getByText("No projects yet")).toBeTruthy();
+    expect(screen.getByText("Library scanning is not enabled")).toBeTruthy();
     expect(
-      emptyView.container.querySelector('[data-shell-state="empty"]'),
+      emptyView.container.querySelector('[data-library-state="disabled"]'),
     ).toBeTruthy();
     emptyView.unmount();
 
