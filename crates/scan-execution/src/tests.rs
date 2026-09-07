@@ -4,9 +4,15 @@ use enumeration::{
     FileMetadata, FilesystemPort, FilesystemQualification, NeverCancelled, OpenedDirectory,
     Outcome as EnumOutcome, PortError, QualifiedIdentity, RootMetadata,
 };
-use fruitboard_storage::{MAX_LIBRARY_PAGE_SIZE, ScanJobState, ScanRunState, ScanStageState};
+use fruitboard_filesystem_watcher::{
+    Coalescer, CoalescerConfig, HintKind, RootId, WatchHint, WatchOutcome, WatcherPort,
+};
+use fruitboard_storage::{
+    MAX_LIBRARY_PAGE_SIZE, ScanJobState, ScanKind, ScanRunState, ScanStageState,
+};
 use rusqlite::{Connection, params};
 use std::cell::{Cell, RefCell};
+use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
@@ -1372,6 +1378,812 @@ fn late_cancellation_after_commit_reports_completed_without_rollback() {
 #[test]
 #[ignore = "scale/perf budgets require the #41 benchmark harness and a reference machine; not a correctness gate"]
 fn large_tree_budget_measurement_requires_the_benchmark_harness() {}
+
+// --- Watcher follow-up wiring (#37, P2-09 storage half) ---
+
+const WATCH_ROOT: RootId = RootId(1);
+
+/// Scripted watcher port: raw activity and coverage-loss signals replayed
+/// into the real bounded coalescer under the caller's tick, exactly like the
+/// platform watcher does with its own clock. The host loop below is the same
+/// shape the desktop host will bind.
+struct ScriptedWatcher {
+    activity: VecDeque<(RootId, u64, u64)>,
+    lost: VecDeque<(RootId, u64, u64)>,
+    coalescer: Coalescer,
+}
+
+impl ScriptedWatcher {
+    fn new(config: CoalescerConfig) -> Self {
+        Self {
+            activity: VecDeque::new(),
+            lost: VecDeque::new(),
+            coalescer: Coalescer::new(config).expect("valid coalescer configuration"),
+        }
+    }
+
+    fn activity(mut self, root: RootId, generation: u64, at: u64) -> Self {
+        self.activity.push_back((root, generation, at));
+        self
+    }
+
+    fn lost(mut self, root: RootId, generation: u64, at: u64) -> Self {
+        self.lost.push_back((root, generation, at));
+        self
+    }
+}
+
+impl WatcherPort for ScriptedWatcher {
+    fn poll_hints(&mut self, now: u64) -> Vec<WatchHint> {
+        while let Some(&(root, generation, at)) = self.activity.front() {
+            if at > now {
+                break;
+            }
+            self.coalescer.record_activity(root, generation, at);
+            self.activity.pop_front();
+        }
+        while let Some(&(root, generation, at)) = self.lost.front() {
+            if at > now {
+                break;
+            }
+            self.coalescer.record_coverage_lost(root, generation);
+            self.lost.pop_front();
+        }
+        self.coalescer.poll(now)
+    }
+
+    fn outcome(&mut self) -> Option<WatchOutcome> {
+        None
+    }
+}
+
+/// Host-side watcher→storage root table: opaque watcher ids to opaque durable
+/// storage ids. The host owns this table together with watch lifecycle; the
+/// adapter never sees a path.
+#[derive(Clone, Debug, Default)]
+struct FakeMapping {
+    roots: BTreeMap<u64, String>,
+}
+
+impl FakeMapping {
+    fn track(root: RootId, storage_root_id: &str) -> Self {
+        let mut roots = BTreeMap::new();
+        roots.insert(root.0, storage_root_id.to_owned());
+        Self { roots }
+    }
+
+    fn forget(&mut self, root: RootId) {
+        self.roots.remove(&root.0);
+    }
+}
+
+impl RootIdMapping for FakeMapping {
+    fn storage_root_id(&self, root: RootId) -> Option<String> {
+        self.roots.get(&root.0).cloned()
+    }
+}
+
+fn adapter(harness: &Harness) -> WatcherFollowUpAdapter<FakeMapping> {
+    WatcherFollowUpAdapter::new(FakeMapping::track(WATCH_ROOT, &harness.root_id))
+}
+
+/// The host poll loop: drain the watcher port into the adapter at every tick.
+fn host_loop(
+    db: &mut Database,
+    port: &mut dyn WatcherPort,
+    follow_ups: &mut WatcherFollowUpAdapter<FakeMapping>,
+    clock: &dyn ScanClock,
+    end: u64,
+    step: u64,
+) -> Vec<FollowUpOutcome> {
+    let mut outcomes = Vec::new();
+    let mut now = 0;
+    while now <= end {
+        let hints = port.poll_hints(now);
+        if !hints.is_empty() {
+            outcomes.push(
+                follow_ups
+                    .process_hints(db, &hints, clock)
+                    .expect("adapter"),
+            );
+        }
+        now += step;
+    }
+    outcomes
+}
+
+// P2-09: a burst inside one coalescing window collapses into exactly one
+// follow-up request; the durable queue never grows beyond the one queued
+// follow-up, and later windows schedule fresh follow-ups only when work is no
+// longer pending.
+#[test]
+fn watcher_burst_yields_exactly_one_follow_up_per_window() {
+    let mut harness = Harness::new("followup-burst");
+    let tree = tree(vec![file_entry("a.flp", 101), file_entry("b.flp", 102)]);
+    let mut port = ScriptedWatcher::new(CoalescerConfig {
+        window: 100,
+        max_tracked_roots: 8,
+    })
+    .activity(WATCH_ROOT, 1, 10)
+    .activity(WATCH_ROOT, 1, 20)
+    .activity(WATCH_ROOT, 1, 30)
+    .activity(WATCH_ROOT, 1, 40)
+    .activity(WATCH_ROOT, 1, 210)
+    .activity(WATCH_ROOT, 1, 220)
+    .activity(WATCH_ROOT, 1, 230)
+    .activity(WATCH_ROOT, 1, 410);
+    let mut follow_ups = adapter(&harness);
+
+    // The first burst's window closes at 110: one hint, one follow-up.
+    let first = host_loop(
+        &mut harness.db,
+        &mut port,
+        &mut follow_ups,
+        &harness.clock,
+        120,
+        10,
+    );
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0].requests.len(), 1);
+    assert!(!first[0].requests[0].coalesced);
+    assert_eq!(first[0].requests[0].cause, FollowUpCause::ActivityBurst);
+    assert_eq!(harness.root_jobs().len(), 1, "a burst creates one job");
+    let job = &harness.root_jobs()[0];
+    assert_eq!(job.kind, ScanKind::Periodic);
+    assert_eq!(job.state, ScanJobState::Queued);
+
+    // The second burst's window closes at 310 while the follow-up is still
+    // queued: the hint coalesces onto the existing slot, queue unchanged.
+    let second = host_loop(
+        &mut harness.db,
+        &mut port,
+        &mut follow_ups,
+        &harness.clock,
+        320,
+        10,
+    );
+    assert_eq!(second.len(), 1);
+    assert_eq!(second[0].requests.len(), 1);
+    assert!(second[0].requests[0].coalesced);
+    assert_eq!(harness.root_jobs().len(), 1);
+
+    let completed = harness.drain(tree.clone()).expect("execution");
+    assert_eq!(completed.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        completed
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        2
+    );
+
+    // The third burst's window closes at 510; the queue is empty again, so
+    // the same watch schedules a fresh follow-up.
+    let third = host_loop(
+        &mut harness.db,
+        &mut port,
+        &mut follow_ups,
+        &harness.clock,
+        520,
+        10,
+    );
+    assert_eq!(third.len(), 1);
+    assert_eq!(third[0].requests.len(), 1);
+    assert!(!third[0].requests[0].coalesced);
+    assert_eq!(harness.root_jobs().len(), 2, "one completed, one queued");
+    assert_eq!(follow_ups.stale_generation_dropped(), 0);
+}
+
+// P2-09: a coverage-loss (overflow) signal schedules the same single
+// full-reconciliation follow-up with the overflow cause recorded, and is
+// never treated as absence evidence: the follow-up scans the entire root.
+#[test]
+fn coverage_lost_schedules_one_full_reconciliation_and_records_overflow() {
+    let mut harness = Harness::new("followup-overflow");
+    let mut follow_ups = adapter(&harness);
+    let hint = WatchHint {
+        root: WATCH_ROOT,
+        generation: 1,
+        kind: HintKind::CoverageLost,
+    };
+
+    let outcome = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(outcome.requests.len(), 1);
+    assert_eq!(outcome.requests[0].cause, FollowUpCause::Overflow);
+    assert!(!outcome.requests[0].coalesced);
+    assert_eq!(outcome.overflow, 1);
+    assert_eq!(follow_ups.overflow_follow_ups(WATCH_ROOT), 1);
+    assert_eq!(harness.root_jobs().len(), 1);
+    let job = &harness.root_jobs()[0];
+    assert_eq!(job.kind, ScanKind::Periodic);
+    assert_eq!(job.state, ScanJobState::Queued);
+    assert!(job.last_error_code.is_none());
+
+    // A second overflow within the same watch coalesces onto the same job.
+    let again = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(again.requests.len(), 1);
+    assert!(again.requests[0].coalesced);
+    assert_eq!(again.requests[0].cause, FollowUpCause::Overflow);
+    assert_eq!(
+        harness.root_jobs().len(),
+        1,
+        "overflow never grows the queue"
+    );
+    assert_eq!(follow_ups.overflow_follow_ups(WATCH_ROOT), 2);
+
+    // The overflow-driven follow-up is a full-root reconciliation: the whole
+    // tree is published, nothing is inferred as absent.
+    let execution = harness
+        .drain(tree(vec![
+            file_entry("a.flp", 101),
+            file_entry("b.flp", 102),
+        ]))
+        .expect("execution");
+    assert_eq!(execution.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        execution
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        2
+    );
+}
+
+// P2-09: a hint older than the current watch generation is dropped; replays
+// at the current generation are current and coalesce on storage; a strictly
+// newer generation reopens the root.
+#[test]
+fn stale_generation_hints_are_dropped_and_newer_generations_reopen() {
+    let mut harness = Harness::new("followup-stale-gen");
+    let mut follow_ups = adapter(&harness);
+    let hint = |generation: u64| WatchHint {
+        root: WATCH_ROOT,
+        generation,
+        kind: HintKind::ReconciliationRequested,
+    };
+
+    let first = follow_ups
+        .process_hints(&mut harness.db, &[hint(1)], &harness.clock)
+        .expect("adapter");
+    assert_eq!(first.requests.len(), 1);
+    assert!(!first.requests[0].coalesced);
+
+    let older = follow_ups
+        .process_hints(&mut harness.db, &[hint(0)], &harness.clock)
+        .expect("adapter");
+    assert_eq!(older.stale_generation_dropped, 1);
+    assert!(older.requests.is_empty());
+
+    let replay = follow_ups
+        .process_hints(&mut harness.db, &[hint(1)], &harness.clock)
+        .expect("adapter");
+    assert_eq!(replay.requests.len(), 1);
+    assert!(
+        replay.requests[0].coalesced,
+        "a replay at the current generation is current"
+    );
+
+    let newer = follow_ups
+        .process_hints(&mut harness.db, &[hint(2)], &harness.clock)
+        .expect("adapter");
+    assert_eq!(newer.requests.len(), 1);
+    assert!(
+        newer.requests[0].coalesced,
+        "a fresh watch still coalesces onto pending work"
+    );
+    assert_eq!(newer.stale_generation_dropped, 0);
+
+    let late_old = follow_ups
+        .process_hints(&mut harness.db, &[hint(1)], &harness.clock)
+        .expect("adapter");
+    assert_eq!(
+        late_old.stale_generation_dropped, 1,
+        "a late old-generation hint is dropped"
+    );
+    assert_eq!(follow_ups.stale_generation_dropped(), 2);
+    assert_eq!(harness.root_jobs().len(), 1, "the queue never grew");
+}
+
+// P2-09: when the host ends a watch, replayed hints are dropped idempotently
+// (double-discard) until a strictly newer generation starts a fresh watch.
+#[test]
+fn watch_ended_drops_replayed_hints_until_a_fresh_generation() {
+    let mut harness = Harness::new("followup-watch-ended");
+    let mut follow_ups = adapter(&harness);
+    let hint = |generation: u64| WatchHint {
+        root: WATCH_ROOT,
+        generation,
+        kind: HintKind::ReconciliationRequested,
+    };
+
+    follow_ups
+        .process_hints(&mut harness.db, &[hint(1)], &harness.clock)
+        .expect("adapter");
+    assert_eq!(harness.root_jobs().len(), 1);
+    follow_ups.watch_ended(WATCH_ROOT);
+    follow_ups.watch_ended(WATCH_ROOT);
+
+    let replay = follow_ups
+        .process_hints(&mut harness.db, &[hint(1)], &harness.clock)
+        .expect("adapter");
+    assert_eq!(replay.stale_generation_dropped, 1);
+    assert!(replay.requests.is_empty());
+    let replay = follow_ups
+        .process_hints(&mut harness.db, &[hint(1)], &harness.clock)
+        .expect("adapter");
+    assert_eq!(
+        replay.stale_generation_dropped, 1,
+        "double-discard is idempotent"
+    );
+    assert_eq!(
+        harness.root_jobs().len(),
+        1,
+        "replays after the end never schedule work"
+    );
+
+    let fresh = follow_ups
+        .process_hints(&mut harness.db, &[hint(2)], &harness.clock)
+        .expect("adapter");
+    assert_eq!(fresh.requests.len(), 1);
+    assert!(fresh.requests[0].coalesced);
+    assert_eq!(fresh.stale_generation_dropped, 0);
+    assert_eq!(harness.root_jobs().len(), 1);
+}
+
+// P2-09: disabled roots are suppressed by storage itself, not by the
+// adapter's mapping: the request reaches the storage boundary and storage
+// refuses it, and no overflow is recorded for a follow-up that was never
+// requested.
+#[test]
+fn disabled_root_suppresses_follow_ups_through_storage() {
+    let mut harness = Harness::new("followup-disabled");
+    let mut follow_ups = adapter(&harness);
+    harness
+        .db
+        .set_scan_root_enabled_at(&harness.root_id, false, harness.clock.now_ms())
+        .expect("disable root");
+
+    let hint = WatchHint {
+        root: WATCH_ROOT,
+        generation: 1,
+        kind: HintKind::CoverageLost,
+    };
+    let outcome = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(outcome.suppressed, 1);
+    assert!(outcome.requests.is_empty());
+    assert_eq!(outcome.overflow, 0, "a suppressed request is no follow-up");
+    assert_eq!(harness.root_jobs().len(), 0, "no job for a disabled root");
+    assert_eq!(follow_ups.suppressed(), 1);
+    assert_eq!(follow_ups.overflow_follow_ups(WATCH_ROOT), 0);
+
+    harness
+        .db
+        .set_scan_root_enabled_at(&harness.root_id, true, harness.clock.now_ms())
+        .expect("re-enable root");
+    let reenabled = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(reenabled.requests.len(), 1);
+    assert_eq!(reenabled.requests[0].cause, FollowUpCause::Overflow);
+    assert_eq!(harness.root_jobs().len(), 1);
+}
+
+// P2-09: hints for a removed root are dropped without errors — both when the
+// host mapping no longer knows the root and when storage reports it removed —
+// and repeated drops are idempotent.
+#[test]
+fn removed_root_hints_are_dropped_without_errors() {
+    let mut harness = Harness::new("followup-removed");
+    harness
+        .db
+        .remove_scan_root_at(&harness.root_id, harness.clock.now_ms())
+        .expect("remove root");
+    let mut mapping = FakeMapping::track(WATCH_ROOT, &harness.root_id);
+    let mut follow_ups = WatcherFollowUpAdapter::new(mapping.clone());
+    let hint = |kind: HintKind| WatchHint {
+        root: WATCH_ROOT,
+        generation: 1,
+        kind,
+    };
+
+    // The mapping still resolves, but storage no longer has the root.
+    let stale = follow_ups
+        .process_hints(
+            &mut harness.db,
+            &[hint(HintKind::ReconciliationRequested)],
+            &harness.clock,
+        )
+        .expect("adapter");
+    assert_eq!(stale.unknown_root_dropped, 1);
+    assert!(stale.requests.is_empty());
+    assert_eq!(follow_ups.unknown_root_dropped(), 1);
+    assert_eq!(follow_ups.overflow_follow_ups(WATCH_ROOT), 0);
+
+    // The host mapping forgets the root: the same drop through the mapping.
+    mapping.forget(WATCH_ROOT);
+    let mut follow_ups = WatcherFollowUpAdapter::new(mapping);
+    let dropped = follow_ups
+        .process_hints(
+            &mut harness.db,
+            &[
+                hint(HintKind::ReconciliationRequested),
+                hint(HintKind::CoverageLost),
+            ],
+            &harness.clock,
+        )
+        .expect("adapter");
+    assert_eq!(dropped.unknown_root_dropped, 2);
+    assert!(dropped.requests.is_empty());
+    assert_eq!(follow_ups.unknown_root_dropped(), 2);
+    assert!(harness.db.list_scan_roots().expect("roots").is_empty());
+    assert_eq!(harness.root_jobs().len(), 0);
+}
+
+// P2-09: a hint while work is running coalesces onto the running attempt's
+// follow-up flag; storage schedules exactly one follow-up after the attempt
+// is interrupted, and the queue never grows beyond it.
+#[test]
+fn running_work_coalesces_hints_onto_one_follow_up_request() {
+    let mut harness = Harness::new("followup-running");
+    let mut follow_ups = adapter(&harness);
+    let tree = tree(vec![file_entry("a.flp", 101), file_entry("b.flp", 102)]);
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+
+    let hint = WatchHint {
+        root: WATCH_ROOT,
+        generation: 1,
+        kind: HintKind::ReconciliationRequested,
+    };
+    let outcome = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(outcome.requests.len(), 1);
+    assert!(
+        outcome.requests[0].coalesced,
+        "running work owns the active slot"
+    );
+    assert_eq!(outcome.requests[0].job_id, scan.leased.run.scan_job_id);
+    assert_eq!(harness.root_jobs().len(), 1, "no new job while running");
+    let running = harness
+        .db
+        .scan_job(&scan.leased.run.scan_job_id)
+        .expect("job");
+    assert_eq!(running.state, ScanJobState::Running);
+    assert!(
+        running.follow_up_requested,
+        "the hint lands on the running job's follow-up flag"
+    );
+
+    let mut port = FakePort::new(tree.clone());
+    let execution = harness.worker.execute(
+        &mut harness.db,
+        scan,
+        &mut port,
+        &NeverCancelled,
+        &harness.clock,
+    );
+    assert_eq!(execution.status, ScanExecutionStatus::Interrupted);
+
+    let follow_up = harness.drain(tree).expect("follow-up execution");
+    assert_eq!(follow_up.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        follow_up
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        2
+    );
+    assert_eq!(
+        harness.root_jobs().len(),
+        2,
+        "one follow-up job, never more"
+    );
+}
+
+// P2-09: a cancelled chain is never revived, but a fresh trigger after the
+// cancellation starts a new chain.
+#[test]
+fn cancelled_chain_is_not_revived_but_a_new_trigger_starts_fresh_work() {
+    let mut harness = Harness::new("followup-cancelled");
+    let mut follow_ups = adapter(&harness);
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let queued = harness
+        .root_jobs()
+        .into_iter()
+        .find(|job| job.state == ScanJobState::Queued)
+        .unwrap();
+    let state = harness
+        .db
+        .cancel_scan_job(&queued.id, harness.clock.now_ms())
+        .expect("cancel");
+    assert_eq!(state, ScanJobState::Cancelled);
+
+    let hint = WatchHint {
+        root: WATCH_ROOT,
+        generation: 1,
+        kind: HintKind::ReconciliationRequested,
+    };
+    let outcome = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(outcome.requests.len(), 1);
+    assert!(
+        !outcome.requests[0].coalesced,
+        "a cancelled chain owns no active slot"
+    );
+    let jobs = harness.root_jobs();
+    assert_eq!(jobs.len(), 2, "cancelled job untouched, one fresh job");
+    assert!(jobs.iter().any(|job| job.state == ScanJobState::Cancelled));
+    assert!(jobs.iter().any(|job| job.state == ScanJobState::Queued));
+
+    let execution = harness.drain(tree(vec![file_entry("a.flp", 101)]));
+    assert_eq!(
+        execution.expect("execution").status,
+        ScanExecutionStatus::Published
+    );
+}
+
+// P2-09: replaying the same hint is idempotent at the durable boundary — the
+// queue never grows — and after the follow-up completes, the same signal is a
+// fresh window that schedules the next reconciliation. Hints are scheduling
+// signals; the durable queue state decides dedup.
+#[test]
+fn idempotent_replay_never_grows_the_queue() {
+    let mut harness = Harness::new("followup-replay");
+    let mut follow_ups = adapter(&harness);
+    let hint = WatchHint {
+        root: WATCH_ROOT,
+        generation: 1,
+        kind: HintKind::ReconciliationRequested,
+    };
+    let tree = tree(vec![file_entry("a.flp", 101)]);
+
+    let outcome = follow_ups
+        .process_hints(&mut harness.db, &[hint, hint, hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(outcome.requests.len(), 3);
+    assert!(!outcome.requests[0].coalesced);
+    assert!(outcome.requests[1].coalesced);
+    assert!(outcome.requests[2].coalesced);
+    assert_eq!(
+        harness.root_jobs().len(),
+        1,
+        "a burst never grows the queue"
+    );
+
+    let replay = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(replay.requests.len(), 1);
+    assert!(replay.requests[0].coalesced);
+    assert_eq!(harness.root_jobs().len(), 1);
+
+    let completed = harness.drain(tree).expect("execution");
+    assert_eq!(completed.status, ScanExecutionStatus::Published);
+
+    let fresh = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("adapter");
+    assert_eq!(fresh.requests.len(), 1);
+    assert!(
+        !fresh.requests[0].coalesced,
+        "after completion the same signal is a new window"
+    );
+    assert_eq!(
+        harness.root_jobs().len(),
+        2,
+        "one completed, one newly queued"
+    );
+}
+
+// P2-09: a watcher restart with a fresh generation (a new watcher per the #69
+// contract) drops late hints from the dead generation and schedules the
+// restart's own follow-up.
+#[test]
+fn watcher_restart_with_fresh_generation_drops_old_hints_and_reschedules() {
+    let mut harness = Harness::new("followup-restart");
+    let tree = tree(vec![file_entry("a.flp", 101)]);
+    let mut first_watch = ScriptedWatcher::new(CoalescerConfig {
+        window: 100,
+        max_tracked_roots: 8,
+    })
+    .activity(WATCH_ROOT, 1, 10);
+    let mut follow_ups = adapter(&harness);
+
+    let first = host_loop(
+        &mut harness.db,
+        &mut first_watch,
+        &mut follow_ups,
+        &harness.clock,
+        120,
+        10,
+    );
+    assert_eq!(first.len(), 1);
+    assert_eq!(first[0].requests.len(), 1);
+    assert_eq!(harness.root_jobs().len(), 1);
+    let completed = harness.drain(tree.clone()).expect("execution");
+    assert_eq!(completed.status, ScanExecutionStatus::Published);
+
+    // The host restarts the watch with a strictly newer generation.
+    let mut second_watch = ScriptedWatcher::new(CoalescerConfig {
+        window: 100,
+        max_tracked_roots: 8,
+    })
+    .activity(WATCH_ROOT, 2, 10);
+    let second = host_loop(
+        &mut harness.db,
+        &mut second_watch,
+        &mut follow_ups,
+        &harness.clock,
+        120,
+        10,
+    );
+    assert_eq!(second.len(), 1);
+    assert_eq!(second[0].requests.len(), 1);
+    assert!(
+        !second[0].requests[0].coalesced,
+        "the fresh generation schedules its own follow-up"
+    );
+    assert_eq!(harness.root_jobs().len(), 2);
+    let restarted = harness.drain(tree).expect("execution");
+    assert_eq!(restarted.status, ScanExecutionStatus::Published);
+
+    // A late hint from the dead generation is dropped by the fence.
+    let late = WatchHint {
+        root: WATCH_ROOT,
+        generation: 1,
+        kind: HintKind::ReconciliationRequested,
+    };
+    let stale = follow_ups
+        .process_hints(&mut harness.db, &[late], &harness.clock)
+        .expect("adapter");
+    assert_eq!(stale.stale_generation_dropped, 1);
+    assert!(stale.requests.is_empty());
+    assert_eq!(follow_ups.stale_generation_dropped(), 1);
+}
+
+/// The fake consumer proving the exact trait shape the desktop host binds:
+/// a `WatcherPort` polled on a loop, hints translated by the adapter, and the
+/// worker executing the durable follow-ups. This is the compiling contract
+/// for the host wiring slice (still out of scope here).
+struct FakeConsumer {
+    port: Box<dyn WatcherPort>,
+    follow_ups: WatcherFollowUpAdapter<FakeMapping>,
+}
+
+impl FakeConsumer {
+    fn tick(&mut self, db: &mut Database, now: u64, clock: &dyn ScanClock) -> FollowUpOutcome {
+        let hints = self.port.poll_hints(now);
+        if hints.is_empty() {
+            return FollowUpOutcome::default();
+        }
+        self.follow_ups
+            .process_hints(db, &hints, clock)
+            .expect("adapter")
+    }
+}
+
+// P2-09: the full host-loop shape end to end — bursts and an overflow signal
+// each become one durable follow-up, the worker reconciles every one of them,
+// and the library converges on the observed tree with no queue growth.
+#[test]
+fn fake_consumer_binds_the_host_loop_shape_end_to_end() {
+    let mut harness = Harness::new("followup-host-shape");
+    let tree = tree(vec![file_entry("a.flp", 101), file_entry("b.flp", 102)]);
+    let port = Box::new(
+        ScriptedWatcher::new(CoalescerConfig {
+            window: 100,
+            max_tracked_roots: 8,
+        })
+        .activity(WATCH_ROOT, 1, 10)
+        .activity(WATCH_ROOT, 1, 20)
+        .lost(WATCH_ROOT, 1, 200)
+        .activity(WATCH_ROOT, 1, 310),
+    ) as Box<dyn WatcherPort>;
+    let mut consumer = FakeConsumer {
+        port,
+        follow_ups: adapter(&harness),
+    };
+
+    let mut now = 0;
+    while now <= 450 {
+        consumer.tick(&mut harness.db, now, &harness.clock);
+        harness
+            .worker
+            .poll(
+                &mut harness.db,
+                &harness.session_id,
+                &mut FakePort::new(tree.clone()),
+                &NeverCancelled,
+                &harness.clock,
+            )
+            .expect("worker poll");
+        now += 10;
+    }
+
+    let rows = harness.committed();
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|row| row.present));
+    let jobs = harness.root_jobs();
+    assert_eq!(
+        jobs.len(),
+        3,
+        "burst, overflow and burst follow-ups each coalesce to one job"
+    );
+    assert!(jobs.iter().all(|job| job.state == ScanJobState::Completed));
+    assert_eq!(consumer.follow_ups.overflow_follow_ups(WATCH_ROOT), 1);
+}
+
+// P2-09/P2-10 privacy regression: no absolute path, no relative path, and no
+// display name can cross the watcher→storage boundary. The adapter's public
+// types are structurally incapable of carrying a path (only opaque ids and
+// counters), and the durable request lands on storage with the opaque root id
+// alone.
+#[test]
+fn follow_up_boundary_never_carries_path_data() {
+    let mut harness = Harness::new("followup-privacy");
+    let mut follow_ups = adapter(&harness);
+    let hints = [
+        WatchHint {
+            root: WATCH_ROOT,
+            generation: 1,
+            kind: HintKind::ReconciliationRequested,
+        },
+        WatchHint {
+            root: WATCH_ROOT,
+            generation: 1,
+            kind: HintKind::CoverageLost,
+        },
+    ];
+    let outcome = follow_ups
+        .process_hints(&mut harness.db, &hints, &harness.clock)
+        .expect("adapter");
+    assert_eq!(outcome.requests.len(), 2);
+
+    // Every public type renders without any path-like text: the type shapes
+    // carry no path field, and Debug is the only rendering surface.
+    let rendered = [
+        format!("{:?}", FollowUpCause::ActivityBurst),
+        format!("{:?}", FollowUpCause::Overflow),
+        format!("{:?}", outcome.requests[0]),
+        format!("{:?}", outcome.requests[1]),
+        format!("{:?}", outcome),
+        format!("{:?}", hints[0]),
+        format!("{:?}", follow_ups),
+    ];
+    for text in rendered {
+        assert!(
+            !text.contains('\\') && !text.contains('/'),
+            "path separator leaked: {text}"
+        );
+        assert!(!text.contains(".flp"), "file name leaked: {text}");
+        assert!(!text.contains("synthetic-root"), "root path leaked: {text}");
+    }
+
+    // The durable request reaches storage with the opaque root id only; the
+    // job carries ids and a trigger kind, never a path.
+    let job = &harness.root_jobs()[0];
+    assert_eq!(job.scan_root_id, harness.root_id);
+    assert_eq!(job.scan_root_id, outcome.requests[0].storage_root_id);
+    assert_eq!(job.kind, ScanKind::Periodic);
+    assert!(job.last_error_code.is_none());
+}
 
 #[cfg(windows)]
 mod ntfs {
