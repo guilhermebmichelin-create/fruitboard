@@ -126,7 +126,7 @@ surfaces as `queued` with the interrupted run retained in the durable ledger.
 | coalesced queued job | `already_queued` | — | `already_queued` |
 | job running | `already_running` (with runId) | `cancellation_requested` (with runId) | `already_running` (with runId) |
 | queued job cancelled | — | `cancelled` (runId null) | — |
-| running job, worker committed first | — | `already_completed` | — |
+| running job, worker committed its outcome first | `already_running` (with runId) | `already_completed` / `already_cancelled` / `already_failed` | `already_running` (with runId) |
 | terminal cancelled | — | `already_cancelled` | `conflict` error |
 | terminal completed | — | `already_completed` | `conflict` error |
 | terminal failed | — | `already_failed` | requeue → `queued`; exhausted budget → `conflict` error |
@@ -138,7 +138,12 @@ Notes: `retry_failed_scan_job` returns false for exhausted chains; the closed
 `ScanStartOutcome` union has no "already_failed", so the safe `conflict`
 error is used (documented divergence from the UI-only fake, which can always
 requeue). Cancelled chains are never revived (durable contract, not a fake
-behavior).
+behavior). Cancel/commit race: SQLite serializes the cancel write against the
+worker's terminal write, so whichever commits first decides the outcome. A
+first-time cancel of a running scan can therefore surface `already_cancelled`
+(or `already_completed`/`already_failed`) when the worker committed its
+outcome first; every `already_*` outcome is a terminal no-op for the UI and
+carries the recorded `runId` for reference.
 
 ### Error codes
 
@@ -185,13 +190,15 @@ survive, the counters do not (documented limitation of this slice).
   scan. This is a documented limitation of the single-owner connection; the
   durability and shape contracts are unaffected, and the adapter slice may
   revisit read concurrency.
-- Cancellation composition: the `cancel_scan` command durably commits the
-  cancellation first (the acknowledged authority) and then flips a scoped
-  in-memory mirror that the enumerator polls between entries and batches
-  (non-blocking per the `Cancellation` trait). Between batches the
-  scan-execution staging adapter independently re-reads the durable flags
-  from storage, so a cancelled run can never publish. The mirror is keyed by
-  job ID and replaced per claim, so no stale flag can abort a later chain.
+- Cancellation composition: the `cancel_scan` command flips a scoped
+  in-memory mirror first (it never blocks and never needs the database, so
+  the enumerator stops at its next cooperative poll between entries and
+  batches, non-blocking per the `Cancellation` trait), and then durably
+  commits the cancellation — the durable write is the acknowledged
+  authority. Between batches the scan-execution staging adapter
+  independently re-reads the durable flags from storage, so a cancelled run
+  can never publish. The mirror is keyed by job ID and replaced per claim,
+  so no stale flag can abort a later chain.
 - `get_scan_console_state` returns `{enabled: true}` only when the feature is
   on and the host installed (setup failure aborts startup).
 

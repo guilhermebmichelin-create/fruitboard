@@ -16,9 +16,11 @@
 //! The enumerator polls a [`Cancellation`] between entries and batches; the
 //! trait contract forbids blocking. The single SQLite connection cannot be
 //! re-entered while the worker holds it, so the host uses a scoped in-memory
-//! mirror: the `cancel_scan` command first sets the durable flag through
-//! storage (the acknowledged authority), then flips the mirror for the exact
-//! running job. Between batches the scan-execution staging adapter
+//! mirror: the `cancel_scan` command flips the mirror for the exact running
+//! job first — it never blocks and never needs the database, so the traversal
+//! stops at its next cooperative check — and then commits the durable
+//! cancellation flag through storage, which remains the acknowledged
+//! authority. Between batches the scan-execution staging adapter
 //! independently re-reads the durable cancellation flags from storage, so the
 //! run can never publish after a durable cancel even if the mirror were lost.
 //! The mirror is keyed by job ID and replaced on every claim, so a stale flag
@@ -63,12 +65,12 @@ struct PendingScan {
 }
 
 /// Cooperative cancellation mirror described in the module docs. Never
-/// blocks; only the cancel command (after the durable commit) flips it.
-struct DurableCancellation {
+/// blocks; only the cancel command flips it, before the durable commit.
+struct CancellationMirror {
     flag: Arc<AtomicBool>,
 }
 
-impl Cancellation for DurableCancellation {
+impl Cancellation for CancellationMirror {
     fn is_cancelled(&self) -> bool {
         self.flag.load(Ordering::Relaxed)
     }
@@ -132,7 +134,8 @@ impl ScanConsoleHost {
     }
 
     /// Flip the cancellation mirror for the running job, if any. Called by
-    /// the cancel command after it committed the durable request.
+    /// the cancel command before it commits the durable request; the durable
+    /// write remains the acknowledged authority.
     pub(crate) fn request_cancellation(&self, job_id: &str) {
         if let Some(active) = self
             .cancellation
@@ -319,7 +322,7 @@ impl ScanConsoleHost {
             &mut db,
             pending.scan,
             port,
-            &DurableCancellation { flag: pending.flag },
+            &CancellationMirror { flag: pending.flag },
             self.clock.as_ref(),
         );
         let state = state_from_execution(&execution, &db);

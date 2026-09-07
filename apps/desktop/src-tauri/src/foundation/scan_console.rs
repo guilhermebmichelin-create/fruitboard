@@ -411,9 +411,10 @@ impl ScanConsoleService {
 
     fn cancel_scan(&self, job_id: String) -> Result<CancelScanResult, AppError> {
         let host = self.host();
-        // The durable mirror is set first (never blocks, never needs the
-        // database) so the running traversal stops at its next cooperative
-        // check; the durable write below is the acknowledged authority.
+        // The in-memory cancellation mirror is set first (never blocks,
+        // never needs the database) so the running traversal stops at its
+        // next cooperative check; the durable write below is the
+        // acknowledged authority.
         host.request_cancellation(&job_id);
         let mut database = self.database.lock().map_err(|_| storage_failed())?;
         let job = database.scan_job(&job_id).map_err(map_scan_storage_error)?;
