@@ -110,6 +110,6 @@ against the #41 synthetic-tree benchmark harness.
 No content reads, hashing, hydration, or FLP parsing; no renderer/IPC
 exposure; no host wiring of the watcher adapter (watcher lifecycle, root
 mapping and activation stay in the desktop host behind its console flag, per
-#37); no DriveFS, FAT32, or non-NTFS qualification (#47/#48 remain open); no
-benchmark claims (#41). Production scanning stays hidden until P2-03 through
-P2-08 have integrated evidence.
+issue #37); no DriveFS, FAT32, or non-NTFS qualification (#47/#48 remain
+open); no benchmark claims (#41). Production scanning stays hidden until
+P2-03 through P2-08 have integrated evidence.
