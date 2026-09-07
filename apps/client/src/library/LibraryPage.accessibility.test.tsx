@@ -1,5 +1,5 @@
 import { MemoryRouter } from "react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { describe, expect, it } from "vitest";
@@ -17,6 +17,15 @@ const root: ScanRoot = {
   lastErrorCode: null,
 };
 
+const sibling: ScanRoot = {
+  id: "root-a11y-sibling",
+  displayName: "Accessible Projects",
+  canonicalPath: "D:\\Synthetic\\Accessible",
+  enabled: true,
+  availability: "available",
+  lastErrorCode: null,
+};
+
 const record: PublishedFileLocation = {
   locationId: "location-a11y",
   rootId: root.id,
@@ -24,8 +33,8 @@ const record: PublishedFileLocation = {
   rootCanonicalPath: root.canonicalPath,
   fileName: "Accessible.flp",
   relativePath: "Nested\\Accessible.flp",
-  byteSize: 2048,
-  modifiedAt: "2026-02-03T04:05:00.000Z",
+  byteSize: "2048",
+  modifiedAt: "2026-02-03T04:05:06.123456789Z",
   presence: "present",
 };
 
@@ -133,16 +142,58 @@ describe("LibraryPage accessibility", () => {
     );
   });
 
-  it("keeps refreshed combined pagination accessible after a snapshot restart", async () => {
+  it("keeps the per-root selector keyboard operable and disambiguates duplicates", async () => {
+    const user = userEvent.setup();
+    const siblingRecord: PublishedFileLocation = {
+      ...record,
+      locationId: "location-a11y-sibling",
+      rootId: sibling.id,
+      rootDisplayName: sibling.displayName,
+      rootCanonicalPath: sibling.canonicalPath,
+      fileName: "Sibling.flp",
+      relativePath: "Sibling.flp",
+    };
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [root, sibling],
+      files: [record, siblingRecord],
+    });
+    const view = renderLibrary(adapter);
+    await screen.findByRole("heading", { name: "Accessible.flp" });
+    await expectNoViolations(view.container);
+
+    const selector = screen.getByLabelText("Scan root");
+    const options = within(selector).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Accessible Projects (C:\\Synthetic\\Accessible)",
+      "Accessible Projects (D:\\Synthetic\\Accessible)",
+    ]);
+
+    selector.focus();
+    await user.selectOptions(selector, sibling.id);
+    await screen.findByRole("heading", { name: "Sibling.flp" });
+    expect(
+      screen.queryByRole("heading", { name: "Accessible.flp" }),
+    ).toBeNull();
+    await expectNoViolations(view.container);
+    expect(document.activeElement).toBe(selector);
+  });
+
+  it("keeps refreshed per-root pagination accessible after a snapshot restart", async () => {
     const secondRecord = {
       ...record,
       locationId: "location-a11y-second",
       fileName: "Second accessible.flp",
       relativePath: "Second accessible.flp",
     };
+    const thirdRecord = {
+      ...record,
+      locationId: "location-a11y-third",
+      fileName: "Third accessible.flp",
+      relativePath: "Third accessible.flp",
+    };
     const adapter = createFakeLibraryScanAdapter({
       roots: [root],
-      files: [record, secondRecord],
+      files: [record, secondRecord, thirdRecord],
       pageLimit: 1,
     });
     const user = userEvent.setup();

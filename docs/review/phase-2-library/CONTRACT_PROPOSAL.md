@@ -6,6 +6,16 @@ claim of production scanning. The client branch intentionally leaves
 `apps/client/src/platform/contracts.ts`, native commands, manifests, locks, and
 CI unchanged.
 
+> Superseded for this round: the earlier combined-root query and numeric
+> `byteSize` sketch are overridden by the authoritative storage integration
+> contract §5. Library pages read **one root per query**
+> (`LibraryPageRequest{rootId, limit 1..200, cursor}`,
+> `LibraryPage{rootId, snapshotId, records, nextCursor}`), and
+> `byteSize`/`modifiedAt` cross the boundary as exact decimal strings. The
+> client seam in
+> [`apps/client/src/library/contracts.ts`](../../../apps/client/src/library/contracts.ts)
+> already implements that shape.
+
 The client uses the local `LibraryScanAdapter` seam in
 `apps/client/src/library/contracts.ts` so the Library can be reviewed against
 typed data without pretending that the current Tauri adapter can scan. The
@@ -17,14 +27,16 @@ The read model publishes one row per tracked file location. It must not collapse
 hardlink aliases or infer a logical project.
 
 ```ts
+type DecimalString = string;
+
 interface PublishedFileLocation {
   locationId: string;
   rootId: string;
   rootDisplayName: string;
   rootCanonicalPath: string; // management display only; never diagnostics
   fileName: string;
-  relativePath: string; // normalized root-relative locator
-  byteSize: number; // validated safe integer
+  relativePath: string; // display spelling only; not a key or cursor input
+  byteSize: DecimalString; // canonical unsigned decimal string
   modifiedAt: string; // RFC 3339 / UTC
   presence: "present" | "missing";
 }
@@ -35,8 +47,9 @@ Required invariants:
 - `locationId` is stable for the tracked location, and `rootId` is never
   reused. A detached historical location remains addressable without being
   silently marked missing.
-- `relativePath` is already normalized and root-scoped by the boundary. The
-  renderer does not lowercase, canonicalize, enumerate, or check the path.
+- `relativePath` is a display-only, root-relative spelling supplied by the
+  boundary. The renderer does not lowercase, canonicalize, enumerate, or
+  check the path, and never uses it as a key or cursor input.
 - `byteSize` and `modifiedAt` are the last committed metadata. A missing row
   retains those values from its last committed observation.
 - `presence` changes only through an authoritative successful publication.
@@ -46,22 +59,23 @@ Required invariants:
   Library/root-management labels when needed to distinguish equal names; that
   path must not enter diagnostics or generic error text.
 
-## Combined bounded Library query
+## Per-root bounded Library query
 
-The client and publication owner agree on one combined dataset for the initial
-Library. Pagination is global across all enabled/tracked roots, not one page
-per root. The native query orders the combined committed rows by `rootId`,
-normalized `relativePath`, then `locationId`; the UI does not merge or sort
-pages itself.
+The authoritative storage integration contract §5 supersedes the earlier
+combined-root sketch. Each request reads exactly one tracked root, and the UI
+does not merge or sort pages itself. Native ordering is by
+`(locator_key BINARY, location_id)` within that root; `relativePath` remains
+display-only.
 
 ```ts
 interface LibraryPageRequest {
-  snapshotId: string | null; // null asks for the latest committed snapshot
-  cursor: string | null; // opaque continuation token
+  rootId: string; // exactly one tracked root
   limit: number; // caller asks for <= 200
+  cursor: string | null; // opaque continuation token
 }
 
 interface LibraryPage {
+  rootId: string;
   snapshotId: string; // opaque committed snapshot identity
   records: PublishedFileLocation[];
   nextCursor: string | null;
@@ -69,16 +83,18 @@ interface LibraryPage {
 ```
 
 The native owner clamps the requested limit to `1..200`, rejects malformed or
-expired cursors with a safe error, and reads only committed generations. A
-non-null cursor is valid only with the snapshot identity that produced it. The
-cursor must encode enough committed-generation/order information to prevent
-duplicate or skipped rows when a later scan publishes.
+expired cursors with a safe error, and reads only committed generations for the
+requested root. A non-null cursor is valid only with that root and the
+snapshot identity that produced it. The cursor must encode enough
+committed-generation/order information to prevent duplicate or skipped rows
+when a later scan publishes.
 
-If the adapter reports `stale_cursor`, or returns a page whose `snapshotId`
-does not match the requested non-null cursor snapshot, the renderer discards
-the cursor history and safely requests page one with `snapshotId: null`. It
-does not guess a new cursor or show a mixed-snapshot page. A new page-one read
-always asks for the latest committed snapshot.
+If the adapter reports `invalid_cursor` or `stale_cursor`, or returns a page
+for the wrong root or whose `snapshotId` does not match the requested non-null
+cursor snapshot, the renderer discards the cursor history and safely requests
+page one with the same `rootId` and `cursor: null`. It does not guess a new
+cursor or show a mixed-root/mixed-snapshot page. A new page-one read always
+asks for the latest committed snapshot for that root.
 
 ## Scan status, queue identity, and progress
 
@@ -135,6 +151,7 @@ with every update.
 scanNow(rootId): Promise<{
   rootId: string;
   jobId: string;
+  runId: string | null; // null while queued
   outcome: "queued" | "already_queued" | "already_running";
 }>;
 
@@ -163,13 +180,14 @@ Safe error codes should be a closed, versioned set:
 
 ```text
 access_denied | unavailable | unsupported | resource_limit |
-conflict | not_found | cancelled | internal | stale_cursor
+conflict | not_found | cancelled | internal | invalid_cursor | stale_cursor
 ```
 
-`stale_cursor` is a Library read-recovery condition; it is handled by restarting
-pagination and is not shown as a scan failure. The client maps other codes to
-fixed safe copy. It never displays an arbitrary native error message, SQL
-detail, correlation token, lease token, or full path from an error.
+`invalid_cursor` and `stale_cursor` are Library read-recovery conditions; they
+are handled by restarting pagination and are not shown as scan failures. The
+client maps other codes to fixed safe copy. It never displays an arbitrary
+native error message, SQL detail, correlation token, lease token, or full path
+from an error.
 
 ## Async ordering rules exercised by the client
 
@@ -192,8 +210,11 @@ detail, correlation token, lease token, or full path from an error.
 - [ ] #38 owner accepts the job/run/status/outcome shape, including a null
       queued `runId`, queued cancellation, queued follow-up, and cancellation
       race semantics.
-- [ ] #40 owner accepts the combined-root DTO, committed-snapshot read rule,
-      opaque cursor, `snapshotId`, 200-record bound, and stable ordering.
+- [ ] #40 owner accepts the per-root DTO, committed-snapshot read rule,
+      opaque snapshot-bound cursor with `invalid_cursor`/`stale_cursor`
+      semantics, `snapshotId`, 200-record bound, and stable per-root
+      ordering. (The earlier combined-root variant of this item is
+      superseded by §5 of the authoritative storage integration contract.)
 - [ ] #36/#40 owners confirm that incomplete coverage never becomes new
       `presence: "missing"` rows and that prior committed rows survive every
       failed/partial outcome.

@@ -1,5 +1,5 @@
 import { MemoryRouter } from "react-router";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { ScanRoot } from "../platform/contracts";
@@ -37,6 +37,7 @@ const makeRecord = (
   fileName: string,
   relativePath: string,
   presence: PublishedFileLocation["presence"] = "present",
+  byteSize = "1024",
 ): PublishedFileLocation => ({
   locationId,
   rootId: root.id,
@@ -44,8 +45,8 @@ const makeRecord = (
   rootCanonicalPath: root.canonicalPath,
   fileName,
   relativePath,
-  byteSize: 1024,
-  modifiedAt: "2026-01-02T03:04:00.000Z",
+  byteSize,
+  modifiedAt: "2026-01-02T03:04:05.123456789Z",
   presence,
 });
 
@@ -91,6 +92,7 @@ function makeStatus(
     state,
     jobId,
     runId,
+    cancellationRequested: false,
     counters: {
       filesObserved: 0,
       directoriesVisited: 0,
@@ -102,7 +104,8 @@ function makeStatus(
   };
 }
 
-function makeDeferredAdapter(root: ScanRoot) {
+function makeDeferredAdapter(roots: readonly ScanRoot[]) {
+  const primary = roots[0] ?? rootA;
   const pageRequests: DeferredPageRequest[] = [];
   const statusRequests: DeferredStatusRequest[] = [];
   const listeners = new Set<() => void>();
@@ -121,19 +124,21 @@ function makeDeferredAdapter(root: ScanRoot) {
       Promise.resolve({
         rootId,
         jobId: "deferred-job",
+        runId: null,
         outcome: "queued" as const,
       }),
     cancelScan: (jobId) =>
       Promise.resolve({
-        rootId: root.id,
+        rootId: primary.id,
         jobId,
         runId: null,
         outcome: "cancelled" as const,
       }),
     retryScan: (jobId) =>
       Promise.resolve({
-        rootId: root.id,
+        rootId: primary.id,
         jobId,
+        runId: null,
         outcome: "queued" as const,
       }),
     subscribe(listener) {
@@ -159,11 +164,12 @@ async function settle<T>(entry: Deferred<T>, value: T) {
 }
 
 function page(
+  rootId: string,
   snapshotId: string,
   records: readonly PublishedFileLocation[],
   nextCursor: string | null = null,
 ): LibraryPageData {
-  return { snapshotId, records, nextCursor };
+  return { rootId, snapshotId, records, nextCursor };
 }
 
 describe("LibraryPage", () => {
@@ -186,7 +192,7 @@ describe("LibraryPage", () => {
     expect(screen.getByText(/No scan roots are configured/)).toBeTruthy();
   });
 
-  it("loads a bounded, stable page and navigates back without losing focus", async () => {
+  it("loads a bounded per-root page and never mixes roots", async () => {
     const adapter = createFakeLibraryScanAdapter({
       roots: [rootA, rootB],
       pageLimit: 2,
@@ -201,20 +207,59 @@ describe("LibraryPage", () => {
     expect(
       await screen.findByRole("heading", { name: "Your FLP library" }),
     ).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "First.flp" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Second.flp" })).toBeTruthy();
-    expect(screen.getAllByText("Present")).toHaveLength(2);
-    expect(screen.getAllByText("1,024 bytes")).toHaveLength(2);
-    expect(screen.getAllByText(/Jan 2, 2026/)).toHaveLength(2);
-    expect(screen.getAllByText("Relative path")).toHaveLength(2);
-    expect(screen.queryByText("Missing")).toBeNull();
+    expect(
+      await screen.findByRole("heading", { name: "First.flp" }),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Second.flp" })).toBeNull();
+    expect(screen.getByText("Present")).toBeTruthy();
+    expect(screen.getByText("1,024 bytes")).toBeTruthy();
+    expect(screen.getAllByText(/Jan 2, 2026/)).not.toHaveLength(0);
     expect(
       screen.getByLabelText("Root Projects (C:\\Synthetic\\Music\\Projects)"),
     ).toBeTruthy();
-    expect(
-      screen.getByLabelText("Root Projects (D:\\Synthetic\\Archive\\Projects)"),
-    ).toBeTruthy();
     expect(adapter.calls.pages.every((limit) => limit <= 200)).toBe(true);
+    expect(
+      adapter.calls.pageRequests.every(
+        (request) => request.rootId === rootA.id && request.cursor === null,
+      ),
+    ).toBe(true);
+
+    const selector = screen.getByLabelText("Scan root");
+    const options = within(selector).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Projects (C:\\Synthetic\\Music\\Projects)",
+      "Projects (D:\\Synthetic\\Archive\\Projects)",
+    ]);
+
+    await userEvent.setup().selectOptions(selector, rootB.id);
+    expect(
+      await screen.findByRole("heading", { name: "Second.flp" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Third.flp" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "First.flp" })).toBeNull();
+    expect(screen.getByText("Missing")).toBeTruthy();
+    expect(
+      adapter.calls.pageRequests[adapter.calls.pageRequests.length - 1],
+    ).toEqual({ rootId: rootB.id, limit: 4, cursor: null });
+  });
+
+  it("navigates per-root pages back without losing focus", async () => {
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      pageLimit: 2,
+      files: [
+        makeRecord(rootA, "location-a", "First.flp", "First.flp"),
+        makeRecord(rootA, "location-b", "Second.flp", "Second.flp"),
+        makeRecord(rootA, "location-c", "Third.flp", "Third.flp", "missing"),
+      ],
+    });
+    renderLibrary(adapter);
+
+    expect(
+      await screen.findByRole("heading", { name: "First.flp" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Second.flp" })).toBeTruthy();
+    expect(screen.queryByText("Missing")).toBeNull();
 
     const next = screen.getByRole("button", { name: "Next library page" });
     await userEvent.setup().click(next);
@@ -240,6 +285,58 @@ describe("LibraryPage", () => {
         screen.getByRole("heading", { name: "File locations" }),
       );
     });
+  });
+
+  it("discards a stale response when switching roots while a request is pending", async () => {
+    const harness = makeDeferredAdapter([rootA, rootB]);
+    renderLibrary(harness.adapter);
+    await waitFor(() => {
+      expect(harness.pageRequests).toHaveLength(0);
+      expect(harness.statusRequests).toHaveLength(1);
+    });
+    await settle(harness.statusRequests[0]!, [
+      makeStatus(rootA),
+      makeStatus(rootB),
+    ]);
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(1));
+    expect(harness.pageRequests[0]!.request.rootId).toBe(rootA.id);
+    await settle(
+      harness.pageRequests[0]!.deferred,
+      page(rootA.id, "snapshot-a", [
+        makeRecord(rootA, "a", "RootA.flp", "RootA.flp"),
+      ]),
+    );
+    await screen.findByRole("heading", { name: "RootA.flp" });
+
+    harness.emit();
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(2));
+
+    await userEvent
+      .setup()
+      .selectOptions(screen.getByLabelText("Scan root"), rootB.id);
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(3));
+    expect(harness.pageRequests[2]!.request).toEqual({
+      rootId: rootB.id,
+      limit: 4,
+      cursor: null,
+    });
+
+    await settle(
+      harness.pageRequests[1]!.deferred,
+      page(rootA.id, "snapshot-a", [
+        makeRecord(rootA, "late", "LateRootA.flp", "LateRootA.flp"),
+      ]),
+    );
+    await settle(
+      harness.pageRequests[2]!.deferred,
+      page(rootB.id, "snapshot-b", [
+        makeRecord(rootB, "b", "RootB.flp", "RootB.flp"),
+      ]),
+    );
+
+    expect(screen.getByRole("heading", { name: "RootB.flp" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "LateRootA.flp" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "RootA.flp" })).toBeNull();
   });
 
   it("keeps committed results separate while a fake scan runs and cancels", async () => {
@@ -420,17 +517,44 @@ describe("LibraryPage", () => {
     expect(await screen.findByText("Queued")).toBeTruthy();
   });
 
+  it("renders maximum decimal numerics without precision loss", async () => {
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      files: [
+        {
+          ...makeRecord(rootA, "location-max", "Huge.flp", "Huge.flp"),
+          byteSize: "18446744073709551615",
+          modifiedAt: "2026-01-02T03:04:05.123456789Z",
+        },
+      ],
+    });
+    renderLibrary(adapter);
+
+    expect(
+      await screen.findByRole("heading", { name: "Huge.flp" }),
+    ).toBeTruthy();
+    expect(screen.getByText("18,446,744,073,709,551,615 bytes")).toBeTruthy();
+    expect(screen.getAllByText(/Jan 2, 2026/)).not.toHaveLength(0);
+  });
+
   it("ignores an older page subscription refresh that resolves after the newer one", async () => {
-    const harness = makeDeferredAdapter(rootA);
+    const harness = makeDeferredAdapter([rootA]);
     renderLibrary(harness.adapter);
     await waitFor(() => {
-      expect(harness.pageRequests).toHaveLength(1);
       expect(harness.statusRequests).toHaveLength(1);
     });
     await settle(harness.statusRequests[0]!, [makeStatus(rootA)]);
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(1));
+    expect(harness.pageRequests[0]!.request).toEqual({
+      rootId: rootA.id,
+      limit: 4,
+      cursor: null,
+    });
     await settle(
       harness.pageRequests[0]!.deferred,
-      page("snapshot-1", [makeRecord(rootA, "base", "Base.flp", "Base.flp")]),
+      page(rootA.id, "snapshot-1", [
+        makeRecord(rootA, "base", "Base.flp", "Base.flp"),
+      ]),
     );
     await screen.findByRole("heading", { name: "Base.flp" });
 
@@ -442,14 +566,16 @@ describe("LibraryPage", () => {
     });
     await settle(
       harness.pageRequests[2]!.deferred,
-      page("snapshot-1", [
+      page(rootA.id, "snapshot-1", [
         makeRecord(rootA, "new", "Newest.flp", "Newest.flp"),
       ]),
     );
     await screen.findByRole("heading", { name: "Newest.flp" });
     await settle(
       harness.pageRequests[1]!.deferred,
-      page("snapshot-1", [makeRecord(rootA, "old", "Older.flp", "Older.flp")]),
+      page(rootA.id, "snapshot-1", [
+        makeRecord(rootA, "old", "Older.flp", "Older.flp"),
+      ]),
     );
 
     expect(screen.getByRole("heading", { name: "Newest.flp" })).toBeTruthy();
@@ -457,14 +583,16 @@ describe("LibraryPage", () => {
   });
 
   it("invalidates a page-one response as soon as the cursor changes", async () => {
-    const harness = makeDeferredAdapter(rootA);
+    const harness = makeDeferredAdapter([rootA]);
     const user = userEvent.setup();
     renderLibrary(harness.adapter);
-    await waitFor(() => expect(harness.pageRequests).toHaveLength(1));
+    await waitFor(() => expect(harness.statusRequests).toHaveLength(1));
     await settle(harness.statusRequests[0]!, [makeStatus(rootA)]);
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(1));
     await settle(
       harness.pageRequests[0]!.deferred,
       page(
+        rootA.id,
         "snapshot-1",
         [makeRecord(rootA, "first", "First.flp", "First.flp")],
         "cursor-1",
@@ -476,9 +604,10 @@ describe("LibraryPage", () => {
     await user.click(screen.getByRole("button", { name: "Next library page" }));
     await waitFor(() => expect(harness.pageRequests).toHaveLength(3));
     expect(harness.pageRequests[2]!.request.cursor).toBe("cursor-1");
+    expect(harness.pageRequests[2]!.request.rootId).toBe(rootA.id);
     await settle(
       harness.pageRequests[2]!.deferred,
-      page("snapshot-1", [
+      page(rootA.id, "snapshot-1", [
         makeRecord(rootA, "second", "Second.flp", "Second.flp"),
       ]),
     );
@@ -486,6 +615,7 @@ describe("LibraryPage", () => {
     await settle(
       harness.pageRequests[1]!.deferred,
       page(
+        rootA.id,
         "snapshot-1",
         [
           makeRecord(
@@ -506,17 +636,19 @@ describe("LibraryPage", () => {
   });
 
   it("ignores an older status refresh that resolves after the newer one", async () => {
-    const harness = makeDeferredAdapter(rootA);
+    const harness = makeDeferredAdapter([rootA]);
     renderLibrary(harness.adapter);
     await waitFor(() => {
-      expect(harness.pageRequests).toHaveLength(1);
       expect(harness.statusRequests).toHaveLength(1);
     });
+    await settle(harness.statusRequests[0]!, [makeStatus(rootA)]);
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(1));
     await settle(
       harness.pageRequests[0]!.deferred,
-      page("snapshot-1", [makeRecord(rootA, "base", "Base.flp", "Base.flp")]),
+      page(rootA.id, "snapshot-1", [
+        makeRecord(rootA, "base", "Base.flp", "Base.flp"),
+      ]),
     );
-    await settle(harness.statusRequests[0]!, [makeStatus(rootA)]);
     await screen.findByRole("heading", { name: "Base.flp" });
 
     harness.emit();
@@ -532,13 +664,15 @@ describe("LibraryPage", () => {
     expect(screen.queryByText("Not scanned yet")).toBeNull();
   });
 
-  it("restarts combined pagination when a committed snapshot invalidates a cursor", async () => {
+  it("restarts per-root pagination when publication invalidates a cursor", async () => {
     const adapter = createFakeLibraryScanAdapter({
-      roots: [rootA],
+      roots: [rootA, rootB],
       pageLimit: 1,
       files: [
         makeRecord(rootA, "location-a", "First.flp", "First.flp"),
         makeRecord(rootA, "location-b", "Second.flp", "Second.flp"),
+        makeRecord(rootA, "location-d", "Third.flp", "Third.flp"),
+        makeRecord(rootB, "location-c", "Other.flp", "Other.flp"),
       ],
     });
     const user = userEvent.setup();
@@ -554,20 +688,51 @@ describe("LibraryPage", () => {
     const lastRequest =
       adapter.calls.pageRequests[adapter.calls.pageRequests.length - 1];
     expect(lastRequest).toEqual({
+      rootId: rootA.id,
       cursor: null,
       limit: 4,
-      snapshotId: null,
     });
   });
 
+  it("keeps a sibling root page valid when another root publishes", async () => {
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA, rootB],
+      pageLimit: 1,
+      files: [
+        makeRecord(rootA, "location-a", "First.flp", "First.flp"),
+        makeRecord(rootB, "location-b", "BFirst.flp", "BFirst.flp"),
+        makeRecord(rootB, "location-c", "BSecond.flp", "BSecond.flp"),
+        makeRecord(rootB, "location-d", "BThird.flp", "BThird.flp"),
+      ],
+    });
+    const user = userEvent.setup();
+    renderLibrary(adapter);
+    await screen.findByRole("heading", { name: "First.flp" });
+
+    await userEvent
+      .setup()
+      .selectOptions(screen.getByLabelText("Scan root"), rootB.id);
+    await screen.findByRole("heading", { name: "BFirst.flp" });
+    await user.click(screen.getByRole("button", { name: "Next library page" }));
+    await screen.findByRole("heading", { name: "BSecond.flp" });
+
+    adapter.completeScan(rootA.id);
+
+    expect(screen.getByRole("heading", { name: "BSecond.flp" })).toBeTruthy();
+    expect(screen.queryByText(/snapshot changed/i)).toBeNull();
+  });
+
   it("ignores deferred responses after the adapter changes or the page unmounts", async () => {
-    const first = makeDeferredAdapter(rootA);
+    const first = makeDeferredAdapter([rootA]);
     const secondRoot = { ...rootA, id: "root-b" };
-    const second = makeDeferredAdapter(secondRoot);
+    const second = makeDeferredAdapter([secondRoot]);
     const view = renderLibrary(first.adapter);
     await waitFor(() => {
-      expect(first.pageRequests).toHaveLength(1);
       expect(first.statusRequests).toHaveLength(1);
+    });
+    await settle(first.statusRequests[0]!, [makeStatus(rootA)]);
+    await waitFor(() => {
+      expect(first.pageRequests).toHaveLength(1);
     });
 
     view.rerender(
@@ -576,12 +741,15 @@ describe("LibraryPage", () => {
       </MemoryRouter>,
     );
     await waitFor(() => {
-      expect(second.pageRequests).toHaveLength(1);
       expect(second.statusRequests).toHaveLength(1);
+    });
+    await settle(second.statusRequests[0]!, [makeStatus(secondRoot)]);
+    await waitFor(() => {
+      expect(second.pageRequests).toHaveLength(1);
     });
     await settle(
       second.pageRequests[0]!.deferred,
-      page("snapshot-second", [
+      page(secondRoot.id, "snapshot-second", [
         makeRecord(
           secondRoot,
           "second",
@@ -590,12 +758,11 @@ describe("LibraryPage", () => {
         ),
       ]),
     );
-    await settle(second.statusRequests[0]!, [makeStatus(secondRoot)]);
     await screen.findByRole("heading", { name: "Second adapter.flp" });
 
     await settle(
       first.pageRequests[0]!.deferred,
-      page("snapshot-first", [
+      page(rootA.id, "snapshot-first", [
         makeRecord(rootA, "first", "First adapter.flp", "First adapter.flp"),
       ]),
     );
@@ -613,7 +780,10 @@ describe("LibraryPage", () => {
       expect(second.statusRequests).toHaveLength(2);
     });
     view.unmount();
-    await settle(second.pageRequests[1]!.deferred, page("snapshot-late", []));
+    await settle(
+      second.pageRequests[1]!.deferred,
+      page(secondRoot.id, "snapshot-late", []),
+    );
     await settle(second.statusRequests[1]!, [makeStatus(secondRoot)]);
   });
 });

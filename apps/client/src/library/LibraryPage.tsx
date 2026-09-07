@@ -16,8 +16,10 @@ import { Link } from "react-router";
 import {
   LIBRARY_PAGE_LIMIT,
   LibraryAdapterError,
+  formatByteSizeDecimal,
   isScanAvailabilityUnavailable,
   isScanAvailabilityUnknown,
+  type DecimalString,
   type LibraryPage as LibraryPageData,
   type LibraryScanAdapter,
   type PublishedFileLocation,
@@ -91,8 +93,13 @@ const formatDateTime = (value: string | null): string => {
   }).format(date)} UTC`;
 };
 
-const formatBytes = (bytes: number): string =>
-  `${new Intl.NumberFormat("en-US").format(bytes)} bytes`;
+const formatBytes = (bytes: DecimalString): string => {
+  try {
+    return formatByteSizeDecimal(bytes);
+  } catch {
+    return "Unavailable";
+  }
+};
 
 const formatAvailability = (
   availability: ScanStatus["root"]["availability"],
@@ -128,6 +135,9 @@ const statusNeedsPreviousResults = (status: ScanStatus): boolean =>
 
 const isStaleCursorError = (error: unknown): boolean =>
   error instanceof LibraryAdapterError && error.code === "stale_cursor";
+
+const isInvalidCursorError = (error: unknown): boolean =>
+  error instanceof LibraryAdapterError && error.code === "invalid_cursor";
 
 const adapterKeys = new WeakMap<object, number>();
 let nextAdapterKey = 0;
@@ -179,6 +189,7 @@ function ConnectedLibraryPage({
 }: {
   readonly adapter: LibraryScanAdapter;
 }) {
+  const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [pagePosition, setPagePosition] = useState<PagePosition>({
     cursor: null,
     snapshotId: null,
@@ -218,34 +229,93 @@ function ConnectedLibraryPage({
     };
   }, []);
 
-  const restartPagination = useCallback(() => {
+  const statuses = useMemo(
+    () => (statusState.kind === "ready" ? statusState.statuses : []),
+    [statusState],
+  );
+
+  /**
+   * The page always reads exactly one root. An explicit user choice wins
+   * while it is still tracked; otherwise the first tracked root is read.
+   * Derived during render so no effect needs to synchronize selection.
+   */
+  const resolvedRootId =
+    selectedRootId !== null &&
+    statuses.some((status) => status.root.id === selectedRootId)
+      ? selectedRootId
+      : (statuses[0]?.root.id ?? null);
+
+  const hasNoRoots = statusState.kind === "ready" && statuses.length === 0;
+
+  const duplicateDisplayNames = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const status of statuses) {
+      counts.set(
+        status.root.displayName,
+        (counts.get(status.root.displayName) ?? 0) + 1,
+      );
+    }
+    return new Set(
+      [...counts.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([name]) => name),
+    );
+  }, [statuses]);
+
+  const restartPagination = useCallback((notice?: string) => {
     pageRequestSequence.current += 1;
     pendingPageFocus.current = true;
     setPagePosition({ cursor: null, snapshotId: null });
     setCursorHistory([]);
     setPageState({ kind: "loading" });
     setPaginationNotice(
-      "The committed Library snapshot changed. Pagination restarted at page 1.",
+      notice ??
+        "The committed Library snapshot changed. Pagination restarted at page 1.",
     );
     setPageAttempt((attempt) => attempt + 1);
   }, []);
 
+  const selectRoot = useCallback(
+    (rootId: string) => {
+      if (rootId === resolvedRootId) return;
+      pageRequestSequence.current += 1;
+      pendingPageFocus.current = false;
+      setSelectedRootId(rootId);
+      setPagePosition({ cursor: null, snapshotId: null });
+      setCursorHistory([]);
+      setPaginationNotice(null);
+      setPageState({ kind: "loading" });
+      setPageAttempt((attempt) => attempt + 1);
+    },
+    [resolvedRootId],
+  );
+
   const loadPage = useCallback(async () => {
     const requestId = ++pageRequestSequence.current;
     const requestPosition = pagePosition;
+    const requestRootId = resolvedRootId;
     const isCurrentRequest = () =>
       mounted.current && pageRequestSequence.current === requestId;
 
+    if (requestRootId === null) return;
+
     try {
       const page = await adapter.getLibraryPage({
+        rootId: requestRootId,
         cursor: requestPosition.cursor,
-        snapshotId: requestPosition.snapshotId,
         limit: LIBRARY_PAGE_LIMIT,
       });
       if (!isCurrentRequest()) return;
+      if (page.rootId !== requestRootId) {
+        restartPagination(
+          "The Library returned a page for the wrong scan root. Pagination restarted at page 1.",
+        );
+        return;
+      }
       if (
         requestPosition.cursor !== null &&
-        page.snapshotId !== requestPosition.snapshotId
+        (requestPosition.snapshotId === null ||
+          page.snapshotId !== requestPosition.snapshotId)
       ) {
         restartPagination();
         return;
@@ -253,8 +323,15 @@ function ConnectedLibraryPage({
       setPageState({ kind: "ready", page, refreshError: false });
     } catch (error) {
       if (!isCurrentRequest()) return;
-      if (isStaleCursorError(error)) {
-        restartPagination();
+      if (
+        (isStaleCursorError(error) || isInvalidCursorError(error)) &&
+        requestPosition.cursor !== null
+      ) {
+        restartPagination(
+          isInvalidCursorError(error)
+            ? "The saved Library position was invalid. Pagination restarted at page 1."
+            : undefined,
+        );
         return;
       }
       setPageState((previous) =>
@@ -263,7 +340,7 @@ function ConnectedLibraryPage({
           : { kind: "error" },
       );
     }
-  }, [adapter, pagePosition, restartPagination]);
+  }, [adapter, pagePosition, resolvedRootId, restartPagination]);
 
   const loadStatuses = useCallback(async () => {
     const requestId = ++statusRequestSequence.current;
@@ -322,25 +399,6 @@ function ConnectedLibraryPage({
     }
   }, [focusLater, pageState]);
 
-  const statuses = useMemo(
-    () => (statusState.kind === "ready" ? statusState.statuses : []),
-    [statusState],
-  );
-  const duplicateDisplayNames = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const status of statuses) {
-      counts.set(
-        status.root.displayName,
-        (counts.get(status.root.displayName) ?? 0) + 1,
-      );
-    }
-    return new Set(
-      [...counts.entries()]
-        .filter(([, count]) => count > 1)
-        .map(([name]) => name),
-    );
-  }, [statuses]);
-
   const refreshAfterAction = useCallback(
     async (requestId: number) => {
       const isCurrentAction = () =>
@@ -377,7 +435,9 @@ function ConnectedLibraryPage({
       await refreshAfterAction(requestId);
       if (!isCurrentAction()) return;
       const code =
-        error instanceof LibraryAdapterError && error.code !== "stale_cursor"
+        error instanceof LibraryAdapterError &&
+        error.code !== "stale_cursor" &&
+        error.code !== "invalid_cursor"
           ? error.code
           : "internal";
       setActionState({
@@ -480,20 +540,32 @@ function ConnectedLibraryPage({
   const rootUnavailable = statuses.some((status) =>
     isScanAvailabilityUnavailable(status.root.availability),
   );
+  const showEmptyForMissingRoots = hasNoRoots && pageState.kind !== "error";
   const libraryState =
     pageState.kind === "error"
       ? "error"
-      : page === null
-        ? "loading"
-        : pageHasRecords && staleResults
-          ? "stale-results"
-          : !pageHasRecords && rootUnavailable
-            ? "unavailable"
-            : !pageHasRecords && staleResults
-              ? "stale-results"
-              : !pageHasRecords
-                ? "empty"
-                : "populated";
+      : showEmptyForMissingRoots
+        ? "empty"
+        : page === null
+          ? "loading"
+          : pageHasRecords && staleResults
+            ? "stale-results"
+            : !pageHasRecords && rootUnavailable
+              ? "unavailable"
+              : !pageHasRecords && staleResults
+                ? "stale-results"
+                : !pageHasRecords
+                  ? "empty"
+                  : "populated";
+
+  const selectedStatus =
+    resolvedRootId === null
+      ? null
+      : (statuses.find((status) => status.root.id === resolvedRootId) ?? null);
+  const selectedRootLabel =
+    selectedStatus === null
+      ? null
+      : rootControlName(selectedStatus, duplicateDisplayNames);
 
   return (
     <div
@@ -537,6 +609,40 @@ function ConnectedLibraryPage({
         cancelButtonReferences={cancelButtonReferences}
         statusState={statusState}
       />
+
+      {statusState.kind === "ready" && statuses.length > 0 && (
+        <section
+          aria-labelledby="library-root-select-title"
+          className="library-root-select"
+        >
+          <div>
+            <p className="eyebrow" id="library-root-select-title">
+              Per-root pages
+            </p>
+            <label
+              className="library-root-select__label"
+              htmlFor="library-root-select"
+            >
+              Scan root
+            </label>
+            <p className="library-root-select__hint">
+              Library pages read one root at a time from its own committed
+              snapshot. Switching roots discards the current page position.
+            </p>
+          </div>
+          <select
+            id="library-root-select"
+            onChange={(event) => selectRoot(event.target.value)}
+            value={resolvedRootId ?? ""}
+          >
+            {statuses.map((status) => (
+              <option key={status.root.id} value={status.root.id}>
+                {rootControlName(status, duplicateDisplayNames)}
+              </option>
+            ))}
+          </select>
+        </section>
+      )}
 
       {pageState.kind === "error" && (
         <section
@@ -602,40 +708,41 @@ function ConnectedLibraryPage({
         </section>
       )}
 
-      {pageState.kind === "ready" && !pageHasRecords && (
-        <section
-          aria-labelledby="library-empty-title"
-          className="library-state-panel"
-          data-library-state={libraryState}
-        >
-          {rootUnavailable ? (
-            <CircleSlash2
-              aria-hidden="true"
-              className="library-state-panel__icon"
-            />
-          ) : (
-            <FolderSearch
-              aria-hidden="true"
-              className="library-state-panel__icon"
-            />
-          )}
-          <h2 id="library-empty-title">
-            {rootUnavailable
-              ? "A scan root is unavailable"
-              : "No committed files yet"}
-          </h2>
-          <p>
-            {rootUnavailable
-              ? "The last committed results were not changed. Restore access or retry the root before expecting new locations."
-              : "Add and scan a root to discover FLP-named files. A run must complete authoritatively before anything is published here."}
-          </p>
-          {!rootUnavailable && (
-            <Link className="inline-action" to="/preferences">
-              Manage scan roots
-            </Link>
-          )}
-        </section>
-      )}
+      {(pageState.kind === "ready" || showEmptyForMissingRoots) &&
+        !pageHasRecords && (
+          <section
+            aria-labelledby="library-empty-title"
+            className="library-state-panel"
+            data-library-state={libraryState}
+          >
+            {rootUnavailable ? (
+              <CircleSlash2
+                aria-hidden="true"
+                className="library-state-panel__icon"
+              />
+            ) : (
+              <FolderSearch
+                aria-hidden="true"
+                className="library-state-panel__icon"
+              />
+            )}
+            <h2 id="library-empty-title">
+              {rootUnavailable
+                ? "A scan root is unavailable"
+                : "No committed files yet"}
+            </h2>
+            <p>
+              {rootUnavailable
+                ? "The last committed results were not changed. Restore access or retry the root before expecting new locations."
+                : "Add and scan a root to discover FLP-named files. A run must complete authoritatively before anything is published here."}
+            </p>
+            {!rootUnavailable && (
+              <Link className="inline-action" to="/preferences">
+                Manage scan roots
+              </Link>
+            )}
+          </section>
+        )}
 
       {pageState.kind === "ready" && pageHasRecords && (
         <section
@@ -657,6 +764,7 @@ function ConnectedLibraryPage({
               {page.records.length} committed{" "}
               {page.records.length === 1 ? "location" : "locations"} on page{" "}
               {cursorHistory.length + 1}
+              {selectedRootLabel === null ? "" : ` in ${selectedRootLabel}`}
             </p>
           </div>
 
