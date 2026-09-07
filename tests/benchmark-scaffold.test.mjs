@@ -55,13 +55,8 @@ test("the scaffold refuses to run without scanner integration", async (t) => {
   const fixtureDir = await makeTempDir("fixture");
   const reportDir = await makeTempDir("report");
   const emptyRoot = await makeTempDir("no-integration");
-  t.after(
-    () =>
-      Promise.all([
-        cleanup(fixtureDir),
-        cleanup(reportDir),
-        cleanup(emptyRoot),
-      ]),
+  t.after(() =>
+    Promise.all([cleanup(fixtureDir), cleanup(reportDir), cleanup(emptyRoot)]),
   );
   const manifestPath = await generateFixture(fixtureDir);
   const reportPath = path.join(reportDir, "report.json");
