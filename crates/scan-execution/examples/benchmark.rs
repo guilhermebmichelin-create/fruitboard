@@ -271,7 +271,15 @@ fn main() -> ExitCode {
     if let Some(delay_ms) = arguments.cancel_after_ms {
         let token = token.clone();
         thread::spawn(move || {
-            thread::sleep(Duration::from_millis(delay_ms));
+            // The settle window runs right after this thread is spawned, so
+            // this deadline fires `delay_ms` into the measured scan window.
+            let cancel_at = Instant::now()
+                .checked_add(Duration::from_millis(arguments.settle_ms + delay_ms))
+                .expect("cancel deadline fits in Instant range");
+            let now = Instant::now();
+            if cancel_at > now {
+                thread::sleep(cancel_at - now);
+            }
             token.cancel();
             emit("cancellation_requested", elapsed_ms(started_at), &[]);
         });

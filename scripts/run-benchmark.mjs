@@ -220,8 +220,10 @@ async function workingSetKb(pid) {
       { encoding: "utf8", windowsHide: true, timeout: 2_000 },
     );
     const fields = result.stdout?.trim().match(/"([^"]*)"/g) ?? [];
-    const usage = fields.pop()?.replace(/"/g, "").replace(/,/g, "");
-    const kilobytes = Number.parseInt(usage ?? "", 10);
+    const usage = fields.pop()?.replace(/"/g, "");
+    // The usage column is locale-formatted ("6.024 K" is 6024 KB in pt-BR;
+    // "12,345 K" in en-US). Strip every digit separator and parse KB.
+    const kilobytes = Number.parseInt((usage ?? "").replace(/[,.]/g, ""), 10);
     return Number.isFinite(kilobytes) && kilobytes > 0 ? kilobytes : null;
   } catch {
     return null;
@@ -336,6 +338,7 @@ function runRecord({
     errorCode: finished?.error_code ?? null,
     failureMessage: failure?.message ?? null,
     memory,
+    lines,
   };
   if (cancelRequestedMs !== null && finished !== null) {
     record.cancellationRequestedMs = cancelRequestedMs;
@@ -430,9 +433,23 @@ async function buildDriver(repoRoot, cargoCommand) {
       .join("\n");
     throw new Error(`cargo build failed (exit ${result.status ?? "spawn"}):\n${tail}`);
   }
+  let commit = "unknown";
+  try {
+    const git = spawnSync("git", ["rev-parse", "--short", "HEAD"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      windowsHide: true,
+    });
+    if (git.status === 0 && git.stdout?.trim().length > 0) {
+      commit = git.stdout.trim();
+    }
+  } catch {
+    // The build is still valid; the commit is recorded in the report notes.
+  }
   return {
     bin: path.join(repoRoot, "target", "release", "examples", "benchmark.exe"),
     buildMs,
+    commit,
   };
 }
 
@@ -671,12 +688,20 @@ export function parseBenchmarkArgs(argv) {
 }
 
 async function captureEnvironment({ fixtureDirectory, document }) {
+  const snapshot = captureMachineSnapshot();
   const volume = await captureFixtureVolume(fixtureDirectory);
   return {
     schema: MEASURED_REPORT_SCHEMA,
     role: "P2-11 measured scanner benchmark report (scripts/benchmark-scan.md protocol)",
     capturedAtIso: new Date().toISOString(),
-    machine: captureMachineSnapshot(),
+    machine: {
+      platform: snapshot.platform,
+      release: snapshot.release,
+      arch: snapshot.arch,
+      machine: snapshot.machine,
+    },
+    cpu: { model: snapshot.cpuModel, cores: snapshot.cpuCores },
+    memoryTotalBytes: snapshot.memoryTotalBytes,
     powerMode: detectPowerMode(),
     fixtureVolume: volume,
     fixture: buildFixtureSummary(document),
@@ -735,12 +760,12 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
   let fixtureDocument;
   let fixtureDirectory;
   let fixtureRoot;
-  let tempBase = null;
-  let generatedFixture = false;
+  let tempBase = await mkdtemp(path.join(os.tmpdir(), "fruitboard-benchmark-"));
   if (parsed.manifest !== null) {
     try {
       fixtureDocument = JSON.parse(readFileSync(parsed.manifest, "utf8"));
     } catch (error) {
+      await rm(tempBase, { recursive: true, force: true });
       return {
         code: 1,
         stdout,
@@ -751,6 +776,7 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
       allowPending: false,
     });
     if (!validated.ok) {
+      await rm(tempBase, { recursive: true, force: true });
       return {
         code: 1,
         stdout,
@@ -760,16 +786,14 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
     fixtureDirectory = path.dirname(path.resolve(parsed.manifest));
     fixtureRoot = fixtureDirectory;
   } else {
-    tempBase = await mkdtemp(path.join(os.tmpdir(), "fruitboard-benchmark-"));
     fixtureDirectory = path.join(tempBase, "fixture");
     try {
-      const hash = await generateFixture({
+      const { hash } = await generateFixture({
         size: parsed.size,
         files: parsed.files,
         seed: parsed.seed,
         destination: fixtureDirectory,
       });
-      generatedFixture = true;
       fixtureDocument = JSON.parse(
         readFileSync(path.join(fixtureDirectory, "manifest.json"), "utf8"),
       );
@@ -777,9 +801,7 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
         throw new Error("generated fixture manifest hash mismatch");
       }
     } catch (error) {
-      if (tempBase !== null && !parsed.keepFixture) {
-        await rm(tempBase, { recursive: true, force: true });
-      }
+      await rm(tempBase, { recursive: true, force: true });
       return {
         code: 1,
         stdout,
@@ -815,7 +837,7 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
     stdout.push(
       `environment report written: ${outPath} (no measurements; the harness needs the full cargo workspace)`,
     );
-    if (generatedFixture && !parsed.keepFixture && tempBase !== null) {
+    if (!parsed.keepFixture) {
       await rm(tempBase, { recursive: true, force: true });
     }
     return { code: 0, stdout, stderr };
@@ -850,10 +872,10 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
         command: "cargo build --release -p fruitboard-scan-execution --example benchmark --locked",
         toolchain: "pinned via rust-toolchain.toml (1.98.1)",
         buildMs: built.buildMs,
-        commit: "recorded in report notes from git rev-parse",
+        commit: built.commit,
       };
     } catch (error) {
-      if (generatedFixture && !parsed.keepFixture && tempBase !== null) {
+      if (!parsed.keepFixture) {
         await rm(tempBase, { recursive: true, force: true });
       }
       return { code: 1, stdout, stderr: [...stderr, error.message] };
@@ -862,7 +884,7 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
 
   // The committed database is shared by the warm-up and the measured
   // iterations so every iteration starts from the committed state.
-  const dbDirectory = path.join(tempBase ?? path.dirname(fixtureRoot), "db");
+  const dbDirectory = path.join(tempBase, "db");
   await mkdir(dbDirectory, { recursive: true });
 
   // Warm-up: the first discovery against an empty committed state. Reported
@@ -906,7 +928,7 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
   // Cancellation: fresh committed state per measurement, cancel fired
   // mid-run; observed stop latency is reported honestly.
   for (let index = 1; index <= parsed.cancelIterations; index += 1) {
-    const cancelDb = path.join(tempBase ?? path.dirname(fixtureRoot), `db-cancel-${index}`);
+    const cancelDb = path.join(tempBase, `db-cancel-${index}`);
     await mkdir(cancelDb, { recursive: true });
     const run = await runDriverProcess({
       bin: driver.bin,
@@ -970,7 +992,7 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
   }
   stdout.push(`report written: ${outPath}`);
 
-  if (generatedFixture && !parsed.keepFixture && tempBase !== null) {
+  if (!parsed.keepFixture) {
     await rm(tempBase, { recursive: true, force: true });
     stdout.push("temporary fixture removed after the run");
   }
