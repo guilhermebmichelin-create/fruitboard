@@ -76,10 +76,18 @@ impl Coalescer {
     /// activity inside an open window never extends it, so bursts collapse
     /// into at most one hint per window. Activity stamped with a different
     /// generation than the open window replaces it: a restart must never
-    /// inherit the previous watch's pending state.
+    /// inherit the previous watch's pending state. Callers must supply a
+    /// fresh generation per restart that is strictly greater than the
+    /// previous generation for the same root; downstream consumers key hints
+    /// by `(root, generation)` and discard stale-generation signals.
     pub fn record_activity(&mut self, root: RootId, generation: u64, now: u64) {
         if let Some(state) = self.windows.get_mut(&root) {
             if state.generation != generation {
+                debug_assert!(
+                    generation > state.generation,
+                    "watcher generations must be monotonic per root: got {generation} after {}",
+                    state.generation
+                );
                 *state = WindowState {
                     generation,
                     closes_at: now.saturating_add(self.window),
@@ -92,7 +100,12 @@ impl Coalescer {
             && lost_generation != generation
         {
             // Coverage loss from a dead generation is moot once a fresh
-            // generation observes activity.
+            // generation observes activity. Fresh means greater: restarts
+            // must never reuse a generation.
+            debug_assert!(
+                generation > lost_generation,
+                "watcher generations must be monotonic per root: got {generation} after {lost_generation}"
+            );
             self.lost.remove(&root);
         }
         if !self.windows.contains_key(&root)
