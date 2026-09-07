@@ -1,17 +1,20 @@
 //! Windows platform layer: one handle-bound `ReadDirectoryChangesW` watch
 //! per root, served by a dedicated worker thread feeding a bounded queue.
 //!
-//! Ownership model: `HandleBoundWatcher` owns the channel receiver, the
-//! worker `JoinHandle`, and the shared state. The worker owns every kernel
-//! handle (root, stop event, I/O event) exclusively and closes them on exit,
-//! so no raw handle crosses back onto the caller thread and `stop()` can
-//! never race a `CloseHandle`. `stop()` signals the manual-reset stop event,
-//! joins the worker (which cancels its own pending read), and then reads the
-//! typed outcome — no leaks, no panics, no cross-thread `CancelIoEx`.
+//! Ownership model: `HandleBoundWatcher` (the starter) owns the stop event
+//! exclusively via a `WorkerHandle` field and closes it only after joining
+//! the worker (in `Drop`, after `stop()` joins). The worker owns the root
+//! handle and the I/O event exclusively and closes them on exit, but only
+//! borrows the stop event (`StopBorrow`) for waiting — it never closes
+//! it. `stop()` signals the starter-owned event, joins the worker (which
+//! cancels its own pending read), and then reads the typed outcome. Because
+//! the starter's handle outlives the join, signaling after worker exit is a
+//! harmless no-op on a live event and can never touch a closed handle — no
+//! leaks, no panics, no cross-thread `CancelIoEx`, no use-after-close.
 
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
-use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender, TrySendError, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -19,8 +22,9 @@ use std::time::{Duration, Instant};
 
 use windows_sys::Win32::Foundation::{
     CloseHandle, ERROR_ACCESS_DENIED, ERROR_BAD_NET_NAME, ERROR_BAD_NETPATH, ERROR_DELETE_PENDING,
-    ERROR_IO_INCOMPLETE, ERROR_MORE_DATA, ERROR_NETNAME_DELETED, ERROR_NOT_READY,
-    ERROR_NOTIFY_ENUM_DIR, ERROR_OPERATION_ABORTED, GetLastError, INVALID_HANDLE_VALUE,
+    ERROR_DIRECTORY, ERROR_FILE_NOT_FOUND, ERROR_INVALID_HANDLE, ERROR_IO_INCOMPLETE,
+    ERROR_MORE_DATA, ERROR_NETNAME_DELETED, ERROR_NOT_READY, ERROR_NOTIFY_ENUM_DIR,
+    ERROR_OPERATION_ABORTED, ERROR_PATH_NOT_FOUND, GetLastError, HANDLE, INVALID_HANDLE_VALUE,
     WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
 use windows_sys::Win32::Storage::FileSystem::{
@@ -54,7 +58,12 @@ const MIN_VALIDITY_POLL_MS: u32 = 50;
 const MAX_VALIDITY_POLL_MS: u32 = 10_000;
 
 /// Configuration for one watch attempt. The generation must be freshly
-/// allocated by the caller for every restart; the watcher never reuses one.
+/// allocated by the caller for every restart — strictly greater than the
+/// previous generation for the same root (durable root generation contract).
+/// The watcher never reuses a generation; downstream consumers key hints by
+/// `(root, generation)` and must discard stale-generation signals (see
+/// README). In debug builds the coalescer asserts this monotonicity when a
+/// restart replaces pending state.
 #[derive(Clone, Copy, Debug)]
 pub struct WatcherConfig {
     /// Caller-owned monotonic generation (durable root generation contract).
@@ -113,11 +122,15 @@ pub(crate) struct Shared {
     pub(crate) root: RootId,
     pub(crate) generation: u64,
     pub(crate) queue_tx: SyncSender<RawEvent>,
-    pub(crate) stop_event: AtomicIsize,
     pub(crate) stopping: AtomicBool,
     pub(crate) armed: AtomicBool,
     pub(crate) coverage_lost: AtomicBool,
     pub(crate) outcome: Mutex<Option<WatchOutcome>>,
+    /// OS status code captured by the worker at the terminal failure point
+    /// (the `GetLastError` value that produced the outcome). Preserved so
+    /// `start()` can report a pre-arm `RootLost` as `RootUnavailable` without
+    /// losing the code. `0` means no failure code was recorded.
+    pub(crate) exit_os_code: AtomicU32,
     pub(crate) dropped_raw_events: AtomicU64,
     pub(crate) notify_buffer_overflows: AtomicU64,
     pub(crate) obscured_events: AtomicU64,
@@ -166,12 +179,24 @@ impl WorkerHandle {
 impl Drop for WorkerHandle {
     fn drop(&mut self) {
         if !self.0.is_null() && self.0 != INVALID_HANDLE_VALUE {
-            // SAFETY: the worker owns this handle exclusively and closes it
-            // exactly once, here.
+            // SAFETY: the owner closes this handle exclusively and exactly
+            // once, here.
             unsafe { CloseHandle(self.0) };
         }
     }
 }
+
+/// Borrowed view of the starter-owned stop event, transferred to the worker
+/// at spawn so it can wait on it. The worker never closes it; the starter
+/// (`HandleBoundWatcher`) closes it only after joining the worker, so the
+/// raw value is valid for the whole worker lifetime.
+#[derive(Clone, Copy)]
+struct StopBorrow(HANDLE);
+
+// SAFETY: a kernel handle value is process-global. The starter guarantees
+// the event outlives the worker thread (close-after-join) and the worker
+// never closes it, so sending this borrowed view to the worker is sound.
+unsafe impl Send for StopBorrow {}
 
 struct WorkerParams {
     shared: Arc<Shared>,
@@ -181,14 +206,18 @@ struct WorkerParams {
     buffer_bytes: usize,
     validity_poll: Duration,
     watch: WorkerHandle,
-    stop: WorkerHandle,
+    /// Borrowed view of the starter-owned stop event. The worker waits on it
+    /// but never closes it; the starter (`HandleBoundWatcher`) owns the
+    /// handle and closes it only after joining this thread.
+    stop: StopBorrow,
     io_event: WorkerHandle,
 }
 
 fn worker(params: WorkerParams) {
-    // The destructured `WorkerHandle` values stay alive until this function
-    // returns; their `Drop` impls then close every kernel handle exactly
-    // once, on this thread.
+    // The destructured `WorkerHandle` values (`watch`, `io_event`) stay alive
+    // until this function returns; their `Drop` impls then close those two
+    // handles exactly once, on this thread. `stop` is a borrowed view of the
+    // starter-owned event and is never closed here.
     let WorkerParams {
         shared,
         root_path,
@@ -199,7 +228,7 @@ fn worker(params: WorkerParams) {
         io_event,
     } = params;
     let watch = watch.get();
-    let stop_event = stop.get();
+    let stop_event: HANDLE = stop.0;
 
     // SAFETY: zero-initialization is the documented way to prepare an
     // OVERLAPPED; hEvent is set immediately below. The struct outlives every
@@ -242,7 +271,11 @@ fn worker(params: WorkerParams) {
                 outcome.reason = if code == ERROR_OPERATION_ABORTED {
                     EndReason::Stopped
                 } else {
-                    terminal_reason(code)
+                    let reason = terminal_reason(code);
+                    if matches!(reason, EndReason::RootLost) {
+                        shared.exit_os_code.store(code, Ordering::Release);
+                    }
+                    reason
                 };
                 break;
             }
@@ -253,7 +286,9 @@ fn worker(params: WorkerParams) {
             // watch being live when start returns.
             shared.armed.store(true, Ordering::Release);
         }
-        // SAFETY: both handles are live events owned by this thread.
+        // SAFETY: both handles stay live for the whole worker lifetime. The
+        // I/O event is worker-owned; the stop event is starter-owned and
+        // outlives the join, so waiting on it here is always valid.
         let wait = unsafe {
             WaitForMultipleObjects(2, handles.as_ptr(), 0, validity_poll.as_millis() as u32)
         };
@@ -297,7 +332,11 @@ fn worker(params: WorkerParams) {
                         outcome.reason = EndReason::Stopped;
                         break;
                     } else {
-                        outcome.reason = terminal_reason(code);
+                        let reason = terminal_reason(code);
+                        if matches!(reason, EndReason::RootLost) {
+                            shared.exit_os_code.store(code, Ordering::Release);
+                        }
+                        outcome.reason = reason;
                         break;
                     }
                 }
@@ -307,7 +346,8 @@ fn worker(params: WorkerParams) {
                 break;
             }
             WAIT_TIMEOUT => {
-                if !root_present(&root_path) {
+                if let Err(code) = root_present_code(&root_path) {
+                    shared.exit_os_code.store(code, Ordering::Release);
                     outcome.reason = EndReason::RootLost;
                     break;
                 }
@@ -337,28 +377,66 @@ fn worker(params: WorkerParams) {
 /// Classifies a terminal watch failure. Renamed/deleted/unreachable roots are
 /// reported as `RootLost`; anything else is an opaque OS status code. Both
 /// are observations about the watch, never about individual files.
-fn terminal_reason(os_code: u32) -> EndReason {
+///
+/// `RootLost` covers the OS codes that mean the configured path is gone or
+/// unreachable: access-denied on a revoked handle, pending delete, not-ready
+/// media, bad/net-deleted network names, plus file/path-not-found (renamed
+/// or deleted between opens), invalid handle (the handle's object is gone),
+/// and `ERROR_DIRECTORY` (the handle is no longer a directory, e.g. replaced
+/// by a file). Audit note: `ERROR_SHARING_VIOLATION` (32) deliberately stays
+/// `WatchFailed` — it signals a handle-open conflict, not a lost root, and
+/// must not trigger root-loss reconciliation.
+pub(crate) fn terminal_reason(os_code: u32) -> EndReason {
     match os_code {
         ERROR_ACCESS_DENIED
         | ERROR_DELETE_PENDING
         | ERROR_NOT_READY
         | ERROR_BAD_NETPATH
         | ERROR_BAD_NET_NAME
-        | ERROR_NETNAME_DELETED => EndReason::RootLost,
+        | ERROR_NETNAME_DELETED
+        | ERROR_FILE_NOT_FOUND
+        | ERROR_PATH_NOT_FOUND
+        | ERROR_INVALID_HANDLE
+        | ERROR_DIRECTORY => EndReason::RootLost,
         os_code => EndReason::WatchFailed { os_code },
     }
 }
 
-fn root_present(root_path: &[u16]) -> bool {
+/// Maps a pre-arm worker exit to the typed start error without losing the
+/// root-loss classification. `RootLost` becomes `RootUnavailable` with the
+/// worker-captured OS code preserved; `WatchFailed` keeps its code; anything
+/// else (clean `Stopped` or no outcome after the arm timeout) is a resource
+/// failure. Pure and unit-testable.
+pub(crate) fn classify_start_failure(reason: Option<EndReason>, exit_os_code: u32) -> StartError {
+    match reason {
+        Some(EndReason::WatchFailed { os_code }) => StartError::RootUnavailable { os_code },
+        Some(EndReason::RootLost) => StartError::RootUnavailable {
+            os_code: exit_os_code,
+        },
+        _ => StartError::ResourceUnavailable { os_code: 0 },
+    }
+}
+
+fn root_present_code(root_path: &[u16]) -> Result<(), u32> {
     // Any failure to observe the configured path (not found, access denied,
     // network drop, pending delete) means the root is not verifiably present.
     // That is the safe direction: the consumer reconciles instead of trusting
-    // a watch that cannot be validated.
+    // a watch that cannot be validated. The OS code is returned so the
+    // worker can preserve it for start-failure classification.
     // SAFETY: `root_path` is NUL-terminated and stays alive for the call.
-    unsafe { GetFileAttributesW(root_path.as_ptr()) != INVALID_FILE_ATTRIBUTES }
+    if unsafe { GetFileAttributesW(root_path.as_ptr()) } != INVALID_FILE_ATTRIBUTES {
+        Ok(())
+    } else {
+        // SAFETY: immediate failure reporting; no parameters.
+        Err(unsafe { GetLastError() })
+    }
 }
 
 /// One live handle-bound watch. Not `Sync`: drive it from one thread.
+///
+/// The starter-owned stop event lives in `stop` and is closed only after the
+/// worker is joined (see `stop()` and `Drop`), so signaling after worker
+/// exit can never touch a closed handle.
 pub struct HandleBoundWatcher {
     shared: Arc<Shared>,
     rx: Receiver<RawEvent>,
@@ -366,6 +444,7 @@ pub struct HandleBoundWatcher {
     root: RootId,
     generation: u64,
     join: Mutex<Option<JoinHandle<()>>>,
+    stop: WorkerHandle,
     ended: Option<WatchOutcome>,
     loss_signaled: bool,
 }
@@ -398,6 +477,16 @@ impl HandleBoundWatcher {
         // path component, so it can see reparse attributes that `CreateFileW`
         // (which opens through junctions) would hide. Reparse roots are a
         // policy exclusion, deliberately distinct from I/O failures.
+        //
+        // TOCTOU limitation (tied to #47/#48): this check races with
+        // `CreateFileW` below — the root could be replaced by a junction or
+        // symlink in between, and parent-directory junctions are followed by
+        // both calls. TODO(#47): consider opening with
+        // `FILE_FLAG_OPEN_REPARSE_POINT` plus a post-open reparse verify to
+        // close the final-component window; parent-junction pass-through
+        // would still need enumeration-boundary enforcement. No traversal
+        // safety is claimed here: nested reparse reports remain hints for
+        // the authoritative enumeration boundary.
         // SAFETY: `wide` is a NUL-terminated UTF-16 path.
         let attributes = unsafe { GetFileAttributesW(wide.as_ptr()) };
         if attributes == INVALID_FILE_ATTRIBUTES {
@@ -455,22 +544,25 @@ impl HandleBoundWatcher {
             root,
             generation: config.generation,
             queue_tx,
-            stop_event: AtomicIsize::new(stop.get() as isize),
             stopping: AtomicBool::new(false),
             armed: AtomicBool::new(false),
             coverage_lost: AtomicBool::new(false),
             outcome: Mutex::new(None),
+            exit_os_code: AtomicU32::new(0),
             dropped_raw_events: AtomicU64::new(0),
             notify_buffer_overflows: AtomicU64::new(0),
             obscured_events: AtomicU64::new(0),
         });
+        // The starter keeps ownership of `stop`; the worker gets only a
+        // borrowed view and never closes it.
+        let stop_borrow = StopBorrow(stop.get());
         let params = WorkerParams {
             shared: Arc::clone(&shared),
             root_path: Arc::from(wide.into_boxed_slice()),
             buffer_bytes,
             validity_poll,
             watch,
-            stop,
+            stop: stop_borrow,
             io_event,
         };
         let join = thread::Builder::new()
@@ -496,19 +588,20 @@ impl HandleBoundWatcher {
         }
         if !armed_seen {
             shared.stopping.store(true, Ordering::Release);
-            let stop_event =
-                shared.stop_event.load(Ordering::Acquire) as windows_sys::Win32::Foundation::HANDLE;
-            if !stop_event.is_null() {
-                // SAFETY: signaling a manual-reset event; harmless no-op if
-                // the worker already exited and closed it.
-                unsafe { SetEvent(stop_event) };
-            }
+            // SAFETY: `stop` is starter-owned and outlives the join below,
+            // so signaling is valid even though the worker already exited.
+            unsafe { SetEvent(stop.get()) };
             let _ = join.join();
             let outcome = shared.outcome.lock().ok().and_then(|mut slot| slot.take());
-            return Err(match outcome.map(|failed| failed.reason) {
-                Some(EndReason::WatchFailed { os_code }) => StartError::RootUnavailable { os_code },
-                _ => StartError::ResourceUnavailable { os_code: 0 },
-            });
+            let exit_os_code = shared.exit_os_code.load(Ordering::Acquire);
+            // `watch` and `io_event` were moved into the worker and closed
+            // there on exit. `stop` is still starter-owned here and drops
+            // (closes) only after the join above — the required order.
+            drop(stop);
+            return Err(classify_start_failure(
+                outcome.map(|failed| failed.reason),
+                exit_os_code,
+            ));
         }
         Ok(Self {
             shared,
@@ -517,23 +610,22 @@ impl HandleBoundWatcher {
             root,
             generation: config.generation,
             join: Mutex::new(Some(join)),
+            stop,
             ended: None,
             loss_signaled: false,
         })
     }
 
     /// Requests a clean stop and joins the worker. Idempotent: later calls
-    /// re-observe the same sticky outcome. The join happens before any
-    /// handle is considered released, so dropping the watcher is leak-free.
+    /// re-observe the same sticky outcome. The starter-owned stop event stays
+    /// valid across calls and is closed only after the join (on `Drop`), so
+    /// stopping an already-exited worker is a harmless signal on a live
+    /// event — never a use-after-close.
     pub fn stop(&mut self) -> Option<WatchOutcome> {
         self.shared.stopping.store(true, Ordering::Release);
-        let stop_event = self.shared.stop_event.load(Ordering::Acquire)
-            as windows_sys::Win32::Foundation::HANDLE;
-        if !stop_event.is_null() {
-            // SAFETY: signaling a manual-reset event; harmless no-op if the
-            // worker already exited and closed it.
-            unsafe { SetEvent(stop_event) };
-        }
+        // SAFETY: signaling the starter-owned manual-reset event, which
+        // outlives the join below even if the worker already exited.
+        unsafe { SetEvent(self.stop.get()) };
         if let Ok(mut slot) = self.join.lock()
             && let Some(join) = slot.take()
         {
@@ -573,7 +665,10 @@ impl HandleBoundWatcher {
 
 impl Drop for HandleBoundWatcher {
     fn drop(&mut self) {
-        // Best-effort clean stop; never panics.
+        // Best-effort clean stop; never panics. `stop()` joins the worker
+        // first; the starter-owned stop event in `self.stop` closes only
+        // afterwards when the fields drop — the required close-after-join
+        // order.
         let _ = self.stop();
     }
 }
@@ -615,4 +710,92 @@ pub fn monotonic_nanos() -> u64 {
     static START: OnceLock<Instant> = OnceLock::new();
     let start = START.get_or_init(Instant::now);
     u64::try_from(start.elapsed().as_nanos()).unwrap_or(u64::MAX)
+}
+
+#[cfg(test)]
+mod platform_unit_tests {
+    use super::{
+        ERROR_ACCESS_DENIED, ERROR_BAD_NET_NAME, ERROR_BAD_NETPATH, ERROR_DELETE_PENDING,
+        ERROR_DIRECTORY, ERROR_FILE_NOT_FOUND, ERROR_INVALID_HANDLE, ERROR_NETNAME_DELETED,
+        ERROR_NOT_READY, classify_start_failure, terminal_reason,
+    };
+    use crate::{EndReason, StartError};
+    use windows_sys::Win32::Foundation::{ERROR_PATH_NOT_FOUND, ERROR_SHARING_VIOLATION};
+
+    #[test]
+    fn terminal_reason_maps_root_lost_codes() {
+        for code in [
+            ERROR_ACCESS_DENIED,
+            ERROR_DELETE_PENDING,
+            ERROR_NOT_READY,
+            ERROR_BAD_NETPATH,
+            ERROR_BAD_NET_NAME,
+            ERROR_NETNAME_DELETED,
+            ERROR_FILE_NOT_FOUND,
+            ERROR_PATH_NOT_FOUND,
+            ERROR_INVALID_HANDLE,
+            ERROR_DIRECTORY,
+        ] {
+            assert_eq!(
+                terminal_reason(code),
+                EndReason::RootLost,
+                "os_code {code} must classify as RootLost"
+            );
+        }
+    }
+
+    #[test]
+    fn terminal_reason_keeps_sharing_violation_as_watch_failed() {
+        // Audit: a handle-open conflict is not a lost root and must not
+        // trigger root-loss reconciliation.
+        assert_eq!(
+            terminal_reason(ERROR_SHARING_VIOLATION),
+            EndReason::WatchFailed {
+                os_code: ERROR_SHARING_VIOLATION
+            }
+        );
+        assert_eq!(
+            terminal_reason(0xDEAD),
+            EndReason::WatchFailed { os_code: 0xDEAD }
+        );
+    }
+
+    #[test]
+    fn start_failure_preserves_root_lost_instead_of_resource_unavailable() {
+        // Pre-arm RootLost keeps the worker-captured code as RootUnavailable.
+        assert_eq!(
+            classify_start_failure(Some(EndReason::RootLost), ERROR_FILE_NOT_FOUND),
+            StartError::RootUnavailable {
+                os_code: ERROR_FILE_NOT_FOUND
+            }
+        );
+        assert_eq!(
+            classify_start_failure(Some(EndReason::RootLost), ERROR_DIRECTORY),
+            StartError::RootUnavailable {
+                os_code: ERROR_DIRECTORY
+            }
+        );
+        // WatchFailed keeps its own code.
+        assert_eq!(
+            classify_start_failure(
+                Some(EndReason::WatchFailed {
+                    os_code: ERROR_SHARING_VIOLATION
+                }),
+                0
+            ),
+            StartError::RootUnavailable {
+                os_code: ERROR_SHARING_VIOLATION
+            }
+        );
+        // Clean stop or no outcome stays a resource failure, never a
+        // misclassified root loss.
+        assert_eq!(
+            classify_start_failure(Some(EndReason::Stopped), 0),
+            StartError::ResourceUnavailable { os_code: 0 }
+        );
+        assert_eq!(
+            classify_start_failure(None, 0),
+            StartError::ResourceUnavailable { os_code: 0 }
+        );
+    }
 }

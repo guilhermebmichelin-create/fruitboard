@@ -25,12 +25,19 @@
 //! - Lifecycle is typed and leak-free: [`EndReason::Stopped`],
 //!   [`EndReason::RootLost`], or [`EndReason::WatchFailed`]; `stop()` is
 //!   idempotent, joins the worker thread, and a restart opens a fresh handle
-//!   with a fresh generation.
+//!   with a fresh caller-supplied generation that must be strictly greater
+//!   than the previous generation for the same root. Hints are keyed by
+//!   `(root, generation)` so downstream consumers can discard
+//!   stale-generation signals.
 //! - Reparse points are policy exclusions, distinct from I/O failures: a
-//!   reparse-point root is refused with [`StartError::ReparseRootExcluded`]
-//!   without any I/O claim. The watcher performs no traversal of its own and
-//!   no per-event I/O; enforcement of nested reparse exclusions belongs to
-//!   the authoritative enumeration boundary.
+//!   reparse-point root observed at start is refused with
+//!   [`StartError::ReparseRootExcluded`] without any I/O claim. Limitation
+//!   (tied to #47/#48): the pre-check races with the handle open
+//!   (GetFileAttributesW-to-CreateFileW window), parent-directory junctions
+//!   are followed by the OS open, and nested reparse activity inside the
+//!   subtree still arrives as hints. No traversal safety is claimed; the
+//!   watcher performs no per-event I/O and enforcement of nested reparse
+//!   exclusions belongs to the authoritative enumeration boundary.
 //! - Privacy: no public type can carry an absolute path. Notification names
 //!   are validated to be root-relative and relative bytes are redacted from
 //!   `Debug`. Errors never echo the root path. This crate performs no
@@ -75,6 +82,8 @@ pub enum HintKind {
 
 /// One coalesced hint, keyed by root id and the watch generation that
 /// produced it so consumers can discard stale-generation signals.
+/// Generations are caller-supplied and must be strictly monotonic per root
+/// across restarts; a restart replaces all pending state for that root.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WatchHint {
     pub root: RootId,
@@ -109,8 +118,10 @@ pub struct WatchOutcome {
 /// A typed start failure. Variants never echo the root path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StartError {
-    /// The root path could not be opened as a directory watch handle. This is
-    /// an I/O failure classification.
+    /// The root path could not be opened as a directory watch handle, or the
+    /// watch failed before arming because the root was lost (the
+    /// worker-captured OS code is preserved). This is an I/O failure
+    /// classification, deliberately distinct from resource exhaustion.
     RootUnavailable { os_code: u32 },
     /// The opened handle is not a directory. This is an I/O failure
     /// classification.
