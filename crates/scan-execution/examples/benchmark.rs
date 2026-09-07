@@ -234,7 +234,10 @@ fn main() -> ExitCode {
     // Reuse the root when the durable database already tracks this fixture
     // path (warm iterations share one committed state); add it otherwise.
     let root = match db.list_scan_roots() {
-        Ok(roots) => match roots.into_iter().find(|root| root.canonical_path == arguments.root) {
+        Ok(roots) => match roots
+            .into_iter()
+            .find(|root| root.canonical_path == arguments.root)
+        {
             Some(existing) => existing,
             None => match db.add_scan_root("benchmark-fixture", &arguments.root) {
                 Ok(root) => root,
@@ -340,10 +343,16 @@ fn emit_finished(finished_at: i64, execution: &ScanExecution, scan_started_at: i
         ("scan_ms", Field::Signed(scan_ms)),
         ("status", Field::Text(status_name(execution.status))),
         ("authoritative", Field::Flag(execution.authoritative)),
-        ("outcome", outcome_name(execution.enumeration_outcome.as_ref())),
+        (
+            "outcome",
+            outcome_name(execution.enumeration_outcome.as_ref()),
+        ),
         ("run_id", Field::Text(&execution.run_id)),
         ("job_id", Field::Text(&execution.job_id)),
-        ("error_code", field_from_option(execution.error_code.as_deref())),
+        (
+            "error_code",
+            field_from_option(execution.error_code.as_deref()),
+        ),
     ];
     match &execution.publication {
         Some(publication) => {
@@ -358,7 +367,10 @@ fn emit_finished(finished_at: i64, execution: &ScanExecution, scan_started_at: i
             fields.push(("changes_added", Field::Count(changes.added)));
             fields.push(("changes_modified", Field::Count(changes.modified)));
             fields.push(("changes_replaced", Field::Count(changes.replaced)));
-            fields.push(("changes_identity_uncertain", Field::Count(changes.identity_uncertain)));
+            fields.push((
+                "changes_identity_uncertain",
+                Field::Count(changes.identity_uncertain),
+            ));
             fields.push(("changes_missing", Field::Count(changes.missing)));
             fields.push(("changes_restored", Field::Count(changes.restored)));
             fields.push(("changes_renames", Field::Count(changes.renames)));

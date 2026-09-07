@@ -69,14 +69,16 @@ export const BUDGETS = Object.freeze([
   {
     id: "cancel-stop",
     area: "Cancellation",
-    metric: "cooperative worker stop p95 (UI ack budget does not bind the worker)",
+    metric:
+      "cooperative worker stop p95 (UI ack budget does not bind the worker)",
     unit: "ms",
     targetMs: 1_000,
   },
   {
     id: "working-memory",
     area: "Working memory",
-    metric: "incremental private memory (measured on the baseline set, not the 100k set)",
+    metric:
+      "incremental private memory (measured on the baseline set, not the 100k set)",
     unit: "MiB",
     targetMiB: 128,
   },
@@ -264,7 +266,12 @@ function startMemorySampler(pid, intervalMs) {
   };
 }
 
-function summarizeMemory(samples, spawnStartedAt, scanStartedMs, scanFinishedMs) {
+function summarizeMemory(
+  samples,
+  spawnStartedAt,
+  scanStartedMs,
+  scanFinishedMs,
+) {
   if (samples.length === 0) {
     return null;
   }
@@ -286,7 +293,10 @@ function summarizeMemory(samples, spawnStartedAt, scanStartedMs, scanFinishedMs)
   }
   const idleKb = idleWindow.length > 0 ? Math.max(...idleWindow) : null;
   const fallbackIdleKb = idleKb ?? Math.min(...samples.map((s) => s.kilobytes));
-  const peakKb = scanWindow.length > 0 ? Math.max(...scanWindow) : Math.max(...samples.map((s) => s.kilobytes));
+  const peakKb =
+    scanWindow.length > 0
+      ? Math.max(...scanWindow)
+      : Math.max(...samples.map((s) => s.kilobytes));
   return {
     idleMb: round(fallbackIdleKb / 1024),
     peakMb: round(peakKb / 1024),
@@ -383,9 +393,12 @@ async function runDriverProcess({
   sampler.stop();
   const spawnFinishedAt = Date.now();
   const lines = parseDriverLines(stdout);
-  const cancelLine = lines.find((line) => line.phase === "cancellation_requested") ?? null;
-  const startedLine = lines.find((line) => line.phase === "scan_started") ?? null;
-  const finishedLine = lines.find((line) => line.phase === "scan_finished") ?? null;
+  const cancelLine =
+    lines.find((line) => line.phase === "cancellation_requested") ?? null;
+  const startedLine =
+    lines.find((line) => line.phase === "scan_started") ?? null;
+  const finishedLine =
+    lines.find((line) => line.phase === "scan_finished") ?? null;
   const memory = summarizeMemory(
     sampler.samples,
     spawnStartedAt,
@@ -431,7 +444,9 @@ async function buildDriver(repoRoot, cargoCommand) {
       .split("\n")
       .slice(-12)
       .join("\n");
-    throw new Error(`cargo build failed (exit ${result.status ?? "spawn"}):\n${tail}`);
+    throw new Error(
+      `cargo build failed (exit ${result.status ?? "spawn"}):\n${tail}`,
+    );
   }
   let commit = "unknown";
   try {
@@ -454,7 +469,10 @@ async function buildDriver(repoRoot, cargoCommand) {
 }
 
 async function generateFixture({ size, files, seed, destination }) {
-  const preset = { baseline: [10_000, 1_000], qualification: [100_000, 10_000] };
+  const preset = {
+    baseline: [10_000, 1_000],
+    qualification: [100_000, 10_000],
+  };
   let plan;
   if (size === "custom") {
     if (!Number.isInteger(files) || files < 1) {
@@ -490,7 +508,9 @@ function buildFixtureSummary(document) {
 }
 
 function budgetResults({ warmUp, iterations, cancellation }) {
-  const authoritative = iterations.filter((iteration) => iteration.authoritative);
+  const authoritative = iterations.filter(
+    (iteration) => iteration.authoritative,
+  );
   const scanTimes = authoritative
     .map((iteration) => iteration.scanMs)
     .filter((value) => value !== null);
@@ -670,13 +690,20 @@ export function parseBenchmarkArgs(argv) {
     return parsed;
   }
   if (parsed.manifest === null && parsed.size === null) {
-    throw new Error(`--manifest is required (or --size to generate a fixture)\n${usage}`);
+    throw new Error(
+      `--manifest is required (or --size to generate a fixture)\n${usage}`,
+    );
   }
   if (parsed.manifest !== null && parsed.size !== null) {
     throw new Error("--manifest and --size are mutually exclusive");
   }
-  if (parsed.size !== null && !["baseline", "qualification", "custom"].includes(parsed.size)) {
-    throw new Error(`--size must be baseline, qualification or custom\n${usage}`);
+  if (
+    parsed.size !== null &&
+    !["baseline", "qualification", "custom"].includes(parsed.size)
+  ) {
+    throw new Error(
+      `--size must be baseline, qualification or custom\n${usage}`,
+    );
   }
   if (parsed.size === "custom" && parsed.files === null) {
     throw new Error(`--files is required with --size custom\n${usage}`);
@@ -769,7 +796,10 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
       return {
         code: 1,
         stdout,
-        stderr: [...stderr, `fixture manifest is not readable JSON: ${error.message}`],
+        stderr: [
+          ...stderr,
+          `fixture manifest is not readable JSON: ${error.message}`,
+        ],
       };
     }
     const validated = validateSyntheticManifest(fixtureDocument, {
@@ -780,7 +810,10 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
       return {
         code: 1,
         stdout,
-        stderr: ["fixture manifest failed validation:", ...validated.errors.map((error) => `- ${error}`)],
+        stderr: [
+          "fixture manifest failed validation:",
+          ...validated.errors.map((error) => `- ${error}`),
+        ],
       };
     }
     fixtureDirectory = path.dirname(path.resolve(parsed.manifest));
@@ -826,7 +859,8 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
       volume,
     });
     const outPath = path.resolve(
-      parsed.out ?? path.join(os.tmpdir(), "fruitboard-benchmark-environment.json"),
+      parsed.out ??
+        path.join(os.tmpdir(), "fruitboard-benchmark-environment.json"),
     );
     await mkdir(path.dirname(outPath), { recursive: true });
     writeFileSync(outPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
@@ -869,7 +903,8 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
       environment.build = {
         captured: true,
         prebuilt: false,
-        command: "cargo build --release -p fruitboard-scan-execution --example benchmark --locked",
+        command:
+          "cargo build --release -p fruitboard-scan-execution --example benchmark --locked",
         toolchain: "pinned via rust-toolchain.toml (1.98.1)",
         buildMs: built.buildMs,
         commit: built.commit,
@@ -985,7 +1020,8 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
   for (const row of results.rows) {
     const verdict =
       row.pass === null ? "not-measured" : row.pass ? "PASS" : "FAIL";
-    const measured = row.measured === null ? "n/a" : `${row.measured} ${row.unit}`;
+    const measured =
+      row.measured === null ? "n/a" : `${row.measured} ${row.unit}`;
     stdout.push(
       `  [${verdict}] ${row.id}: ${row.metric} -> ${measured} (target ${row.target} ${row.unit})${row.note ? `; ${row.note}` : ""}`,
     );
