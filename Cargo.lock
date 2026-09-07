@@ -910,6 +910,16 @@ name = "fruitboard-reconciliation"
 version = "0.1.0"
 
 [[package]]
+name = "fruitboard-scan-execution"
+version = "0.1.0"
+dependencies = [
+ "fruitboard-filesystem-enumeration",
+ "fruitboard-reconciliation",
+ "fruitboard-storage",
+ "rusqlite",
+]
+
+[[package]]
 name = "fruitboard-storage"
 version = "0.1.0"
 dependencies = [
