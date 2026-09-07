@@ -62,7 +62,7 @@ A reparse-point root (junction or symlink) observed at start is refused with
 `StartError::ReparseRootExcluded` — a policy exclusion consistent with the
 enumeration contract, deliberately separate from the I/O failure
 classifications (`RootUnavailable`, `NotADirectory`). Limitation tied to
-#47/#48: the pre-check races with the handle open
+issues #47/#48: the pre-check races with the handle open
 (`GetFileAttributesW`-to-`CreateFileW` window, see `platform.rs`
 TODO(#47)), parent-directory junctions are followed by the OS open, and the
 OS may still report activity beneath reparse directories inside the watched
