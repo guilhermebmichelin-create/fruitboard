@@ -610,16 +610,40 @@ pub trait RunScopedStorage {
 /// Adapts the agreed run-ID staging/invalidation interface to the enumerator's
 /// bounded batch sink. It intentionally has no commit method: the storage
 /// publication transaction owns the final generation/lease/cancellation fence.
-pub struct RunScopedSinkAdapter<'a, S: ?Sized> {
+///
+/// The adapter is panic-safe: while it holds armed, un-invalidated staging, its
+/// `Drop` implementation calls `invalidate_run`, so a panic after `stage_batch`
+/// cannot leave in-flight provisional batches eligible for publication. A
+/// caller that wants to keep a `Complete` run staged must call
+/// [`Self::release`] before dropping the adapter.
+pub struct RunScopedSinkAdapter<'a, S: RunScopedStorage + ?Sized> {
     storage: &'a mut S,
     run_id: String,
+    /// `true` while accepted staging is still provisional; drop invalidates.
+    armed: bool,
 }
 
-impl<'a, S: ?Sized> RunScopedSinkAdapter<'a, S> {
+impl<'a, S: RunScopedStorage + ?Sized> RunScopedSinkAdapter<'a, S> {
     pub fn new(storage: &'a mut S, run_id: impl Into<String>) -> Self {
         Self {
             storage,
             run_id: run_id.into(),
+            armed: true,
+        }
+    }
+
+    /// Releases the staging guard without invalidating the run. Only an
+    /// authoritative `Complete` outcome may call this: the storage publication
+    /// transaction still fences generation/lease/cancellation afterwards.
+    pub fn release(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl<S: RunScopedStorage + ?Sized> Drop for RunScopedSinkAdapter<'_, S> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.storage.invalidate_run(&self.run_id);
         }
     }
 }
@@ -631,6 +655,7 @@ impl<S: RunScopedStorage + ?Sized> BatchSink for RunScopedSinkAdapter<'_, S> {
 
     fn discard(&mut self) {
         self.storage.invalidate_run(&self.run_id);
+        self.armed = false;
     }
 }
 
@@ -1117,6 +1142,10 @@ where
 /// non-authoritative outcome, including cancellation, a rejected batch, root
 /// replacement, and a late final-root failure. A `Complete` report leaves
 /// accepted batches staged for the publication owner to fence and commit.
+///
+/// The guard is also panic-safe: if the traversal panics after staging a
+/// batch, the adapter's `Drop` invalidates the run during unwind, so no
+/// in-flight staging can survive a failed call.
 pub fn enumerate_into_run<P, S, C, R>(
     port: &mut P,
     root: &Path,
@@ -1133,7 +1162,11 @@ where
     R: ProgressSink,
 {
     let mut sink = RunScopedSinkAdapter::new(storage, run_id);
-    enumerate(port, root, limits, cancellation, &mut sink, progress)
+    let report = enumerate(port, root, limits, cancellation, &mut sink, progress);
+    if report.authoritative {
+        sink.release();
+    }
+    report
 }
 
 struct DirectoryWork {
@@ -1324,7 +1357,21 @@ where
                     }
                 };
                 if metadata.reparse_point {
-                    self.add_exclusion(display_path, ExclusionReason::ReparsePoint);
+                    // A leaf entry whose own metadata says reparse point is a
+                    // policy exclusion. A directory that turns out to be a
+                    // junction at metadata time is not one: its subtree was
+                    // never enumerated, so the run must stay non-authoritative
+                    // or storage could mark the skipped subtree's files
+                    // missing.
+                    if metadata.kind == EntryKind::Directory {
+                        self.add_failure(
+                            Some(display_path.clone()),
+                            CoverageFailureKind::DirectoryChanged,
+                            Outcome::Partial,
+                        );
+                    } else {
+                        self.add_exclusion(display_path, ExclusionReason::ReparsePoint);
+                    }
                     self.emit_progress(false, None);
                     continue;
                 }
@@ -1808,7 +1855,15 @@ where
                 Outcome::Partial,
             ),
             PortError::ReparsePoint => {
-                self.add_exclusion(display.clone(), ExclusionReason::ReparsePoint)
+                // Metadata was not obtained: a reparse indication without full
+                // metadata is a swap observed during the metadata window, not
+                // a policy exclusion. Treat it like a directory swap so the
+                // skipped content can never be covered authoritatively.
+                self.add_failure(
+                    Some(display.clone()),
+                    CoverageFailureKind::DirectoryChanged,
+                    Outcome::Partial,
+                )
             }
             PortError::Changed => self.add_failure(
                 Some(display.clone()),
@@ -2103,6 +2158,12 @@ mod windows_port {
             volume_path_name: *mut u16,
             buffer_length: u32,
         ) -> i32;
+    }
+
+    // The Nt* routines live in ntdll and are not re-exported by kernel32;
+    // without an explicit import library the link is host-dependent.
+    #[link(name = "ntdll")]
+    unsafe extern "system" {
         fn NtCreateFile(
             file_handle: *mut *mut c_void,
             desired_access: u32,
@@ -2198,15 +2259,13 @@ mod windows_port {
                         }
                         return Ok(Some(DirectoryEntry::new(name)));
                     }
-                    STATUS_BUFFER_OVERFLOW => {
-                        let information = status.information.min(self.buffer.len());
-                        let name = parse_file_names_information(&self.buffer, information)?;
-                        if name == OsStr::new(".") || name == OsStr::new("..") {
-                            continue;
-                        }
-                        return Ok(Some(DirectoryEntry::new(name)));
-                    }
                     STATUS_NO_MORE_FILES => return Ok(None),
+                    // A truncated reply leaves `information` unconstrained, so
+                    // the buffered bytes are not trustworthy input. The 64 KiB
+                    // buffer makes this status practically unreachable; the
+                    // caller records a non-authoritative coverage failure
+                    // instead of parsing unvalidated bytes.
+                    STATUS_BUFFER_OVERFLOW => return Err(PortError::Other),
                     _ => return Err(map_nt_status(result)),
                 }
             }

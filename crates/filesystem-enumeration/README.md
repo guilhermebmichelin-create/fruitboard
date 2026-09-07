@@ -1,9 +1,13 @@
 # Fruitboard filesystem enumeration (#36)
 
-This is the isolated Windows metadata-enumeration boundary for Issue #36. It
-does not belong to the production Cargo workspace yet: the crate is standalone
-so this PR does not change the shared manifest, lockfile, SQLite code, queue,
-publication path, watcher, client, or cross-agent contracts.
+This is the isolated Windows metadata-enumeration boundary for Issue #36. It is
+now a member of the shared Cargo workspace (`crates/filesystem-enumeration`,
+crate `fruitboard-filesystem-enumeration`) and has a dedicated Windows CI job
+(`enumeration-windows` in `.github/workflows/foundation.yml`) that runs fmt,
+clippy, and the crate's own tests. The shared lockfile only gained this crate
+and its pinned dependencies; no other workspace member changed. Storage
+publication, the queue, the watcher, and the client remain owned by other
+agents and are not touched by this slice.
 
 The implementation is deliberately an enumeration producer, not a scanner
 activation. It discovers `.flp` names case-insensitively, obtains filesystem
@@ -40,9 +44,14 @@ errors without touching a real source tree. `OpenedDirectory` owns the
 directory capability and its metadata/case-mode decision. The Windows port
 enumerates with `NtQueryDirectoryFile` against that handle, opens child
 metadata with `NtCreateFile` relative to the parent handle, and uses
-`FILE_OPEN_REPARSE_POINT` for every open. It requests directory listing and
-attribute access only, with read/write/delete sharing; it never requests file
-content access.
+`FILE_OPEN_REPARSE_POINT` for every open. The `Nt*` imports are linked
+against `ntdll.lib` explicitly so the link does not depend on the build host.
+It requests directory listing and attribute access only, with read/write/delete
+sharing; it never requests file content access. A truncated
+`STATUS_BUFFER_OVERFLOW` reply is treated as a non-authoritative error
+(`PortError::Other`), never parsed: the 64 KiB per-cursor buffer makes the
+status practically unreachable, and the buffered bytes are not trustworthy
+input when it does occur.
 
 ### Replacement and reparse safety
 
@@ -53,6 +62,16 @@ cursor. A child directory is opened only from its parent handle, with
 not a directory, or has an identity different from the preceding metadata
 inspection. A reparse discovered during this inspection/open window is a
 `DirectoryChanged` coverage failure, not a successful policy exclusion.
+
+The same rule applies when a directory entry turns out to be a
+junction/reparse point while its metadata is read. A reparse-point **file**
+(leaf entry) is a policy exclusion: it has no subtree, so excluding it cannot
+hide coverage. A directory that turns out to be a junction at metadata time is
+classified as a `DirectoryChanged` coverage failure with a non-authoritative
+outcome instead: its subtree was never enumerated, and a policy exclusion
+there would let the run finish `Complete` while storage marked the skipped
+subtree's files missing. A reparse indication returned by a failed metadata
+read (without complete metadata) is classified the same non-authoritative way.
 
 Each child cursor retains a bounded chain of parent handles and expected
 identities. It revalidates that chain before metadata, child-open, and each
@@ -109,6 +128,25 @@ remain usable with `identity = None`, but the absence of identity never
 establishes a move or logical-project relationship. Placeholder/recall-marked
 entries do not receive an identity handle, avoiding intentional hydration.
 
+The authority policy is intentionally asymmetric between entries and
+directories, and the reason is structural:
+
+- For a **file** observation, identity is a comparison/lookup signal. When the
+  identity query fails (access denied, unsupported, other error) the file still
+  gets its full path/size/mtime observation with `identity = None`, the count
+  is reported in `identity_unavailable`, and the run can remain authoritative:
+  a qualified-identity miss only weakens move/replacement evidence, it cannot
+  hide coverage of the file's location.
+- For a **directory**, the qualified identity is required traversal state: the
+  handle-bound validation chain uses it to detect ancestor and child swaps.
+  Without it the enumerator cannot prove it is enumerating the same directory
+  it inspected, so the child is recorded as `DirectoryIdentityUnavailable` with
+  a non-authoritative outcome.
+
+Both sides follow one rule: identity is never a requirement where its absence
+only weakens evidence, and it is required where traversal continuation depends
+on it. Neither case ever proves a move or a merge on its own.
+
 The timestamp conversion is exact at the source precision: signed Windows
 FILETIME ticks are converted with
 `(ticks - 116444736000000000) * 100` to signed Unix nanoseconds. The identity
@@ -125,9 +163,24 @@ precision, and signed `i64` endpoints plus all-zero/all-one identity bytes.
 examined, FLP observations, path bytes, diagnostic entries, batch records,
 batch bytes, and emitted batch count. The default observation batch is at most
 512 records and the default batch quota is 256 MiB, matching the provisional
-Phase 2 budget. Traversal is streaming: directory cursors/handles, pending
-directory work, validation links, and the current batch are bounded; the
-complete observation set is never accumulated in memory. Exceeding any limit
+Phase 2 budget. Traversal is streaming: the complete observation set is never
+accumulated in memory, and every work structure is bounded — but bounded is
+not the same as small. The measured worst-case bounds are:
+
+- Each open Windows directory cursor retains a fixed 64 KiB query buffer plus
+  its validation chain. Pending directories stay open until visited, so the
+  default `max_pending_directories` of 4096 cursors holds up to
+  4096 × 64 KiB ≈ 256 MiB of cursor buffers (plus handles) before traversal
+  exceeds the pending-directory limit and reports `ResourceLimit`. Meeting the
+  provisional 128 MiB working-memory budget on wide trees therefore depends on
+  this limit configuration, not on streaming alone; lowering
+  `max_pending_directories` trades cursor memory for more `ResourceLimit`
+  outcomes on deep trees. This is the measured structure of the current
+  implementation, not a target reached by design.
+- Accepted-but-unflushed batch bytes and the sink's staged batches are bounded
+  by the batch quota; `estimated_bytes` and `pending_bytes` are tracked.
+
+Exceeding any limit
 yields `ResourceLimit`, and the enumerator invokes `BatchSink::discard()` for
 the accepted and pending provisional work before returning a
 non-authoritative report.
@@ -145,9 +198,12 @@ update.
 
 ### Exclusions, coverage, and authority
 
-Reparse-point files/directories and unsupported non-file entries are
+Reparse-point files (leaf entries) and unsupported non-file entries are
 `PolicyExclusion`s. They are not coverage failures and are never traversed.
-Non-FLP regular files are a format filter, not an error. Denied directories,
+A directory junction discovered at metadata time is deliberately NOT a policy
+exclusion; see "Replacement and reparse safety" — it is a `DirectoryChanged`
+coverage failure with a non-authoritative outcome. Non-FLP regular files are a
+format filter, not an error. Denied directories,
 disappearing entries, failed required metadata, root loss/change, duplicate
 locators, sink rejection, cancellation, and resource exhaustion are
 `CoverageFailure`s or non-authoritative outcomes. A child failure is isolated
@@ -167,7 +223,11 @@ run; this crate does not write SQLite.
 `RunScopedSinkAdapter` is the integration seam for that rule. It maps
 `BatchSink::accept` to `RunScopedStorage::stage_batch(run_id, batch)` and maps
 the enumerator's non-authoritative `discard` call to
-`RunScopedStorage::invalidate_run(run_id)`. `enumerate_into_run` owns the
+`RunScopedStorage::invalidate_run(run_id)`. The adapter is also panic-safe:
+while staging is provisional and un-invalidated, `Drop` invalidates the run,
+so a panic after `stage_batch` cannot leave in-flight batches eligible; an
+authoritative `Complete` run calls `release()` first and stays staged.
+`enumerate_into_run` owns the
 adapter lifetime, so a recording/fake storage test can assert that a failed
 run has no retained staging while a successful empty run remains eligible for
 the publication transaction. The adapter deliberately has no commit method.
@@ -177,13 +237,14 @@ the publication transaction. The adapter deliberately has no commit method.
 1. Review the interface above with Agent 1/storage and keep the exact
    case-preserving locator serialization, per-directory case decision, signed
    Unix-nanosecond timestamp, and qualified identity conversions aligned.
-2. Add this crate to the root Cargo workspace in a separate shared-manifest
-   change; do not copy its standalone `[workspace]` section into the root.
+2. Done: the crate is a member of the root Cargo workspace and
+   `enumeration-windows` CI gates it on windows-latest.
 3. Wire `Observation` fields to the storage staging DTO without making the
    identity tuple unique. Keep one location row per locator.
 4. Use `enumerate_into_run` with a run-scoped sink that stages by run ID.
    `Complete` leaves batches eligible for the storage fence; every other
-   outcome is already invalidated before the report is returned.
+   outcome is already invalidated before the report is returned, and a panic
+   during traversal invalidates in-flight staging during unwind.
 5. Map `Complete` to the reconciler's absence-authority input only after the
    storage checks. Map all other outcomes to retained prior committed results.
 6. Keep production scan activation hidden until #40 publication and the
@@ -199,36 +260,38 @@ ancestor replacement detected by a bound cursor before its next entry; each
 asserts zero out-of-root access and identifies whether a cursor was returned.
 Case-sensitive-directory serialization and timestamp/identity boundary tests
 are also deterministic. Windows fixture tests use disposable files only and
-check Unicode/long paths, mixed-case extensions, hardlink aliases, reparse
-exclusions, marker-byte preservation, and real handle-bound metadata
+check Unicode/long paths, mixed-case extensions, hardlink aliases, junction
+refusal, marker-byte preservation, and real handle-bound metadata
 traversal. ACL-based denial and DriveFS/streamed-placeholder behavior are
 environment-dependent; they are documented as unavailable/ignored when the
 host cannot provide them, not reported as passing qualification evidence.
 
 Local evidence on the available Windows host with the pinned Rust 1.98.1
-toolchain:
+toolchain, now against the shared workspace:
 
 ```text
-cargo test --manifest-path crates/filesystem-enumeration/Cargo.toml
-39 passed; 2 ignored; 0 failed
-cargo clippy --manifest-path crates/filesystem-enumeration/Cargo.toml --all-targets -- -D warnings
+cargo test -p fruitboard-filesystem-enumeration --locked
+43 passed; 2 ignored; 0 failed
+cargo clippy -p fruitboard-filesystem-enumeration --all-targets --locked -- -D warnings
 passed
-cargo fmt --manifest-path crates/filesystem-enumeration/Cargo.toml -- --check
+cargo fmt --all -- --check
 passed
 ```
 
 The two ignored tests are the ACL-denied fixture (requires a disposable ACL
 policy setup) and DriveFS/streamed placeholders (not installed or available on
-this host). The local NTFS Unicode/long-path, mixed-case, hardlink, junction,
+this host); they remain explicit unverified gates, never passing silently.
+The local NTFS Unicode/long-path, mixed-case, hardlink, junction-refusal,
 metadata-only marker, cancellation, replacement-race, case-mode,
-timestamp/identity, run-invalidation, disappearance, denial-injection, and
+timestamp/identity, run-invalidation, run-invalidation-on-unwind,
+disappearance, denial-injection, and
 resource-bound tests ran successfully. This is correctness evidence for the
-isolated crate, not a DriveFS, non-NTFS, ACL, benchmark, or production-scan
+crate, not a DriveFS, non-NTFS, ACL, benchmark, or production-scan
 claim.
 
-On this shell the pinned Rust binaries were invoked from
-`C:\Users\guilh\.cargo\bin` because `cargo` is not on `PATH`; the commands
-above are the reproducible equivalents once the pinned toolchain is on `PATH`.
+On the development shell the pinned Rust binaries were invoked from the local
+rustup toolchain directory because `cargo` is not on `PATH`; the commands above
+are the reproducible equivalents once the pinned toolchain is on `PATH`.
 The real Windows tests ran on local NTFS. No case-sensitive NTFS directory
 fixture, ACL fixture, DriveFS volume, FAT32 volume, network share, or streamed
 placeholder was available; case-sensitive behavior is covered by the
@@ -242,5 +305,6 @@ sufficient temporary/build space.
 
 This slice does not qualify DriveFS, FAT32, cross-volume identity, network
 shares, watcher delivery, parser behavior, SQLite staging/publication, crash
-recovery, benchmarks, or production activation. Those remain owned by #47/#48,
-#37, #40, #41, and the designated storage/execution owners.
+recovery, benchmarks, or production activation. Those remain owned by the
+issues #47/#48, #37, #40, and #41 and by the designated storage/execution
+owners.

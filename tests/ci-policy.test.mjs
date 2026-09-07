@@ -62,7 +62,7 @@ test("workflow permissions and third-party execution fail closed", () => {
   const disabledCredentialCount = (
     workflow.match(/^\s+persist-credentials: false$/gm) ?? []
   ).length;
-  assert.equal(checkoutCount, 6);
+  assert.equal(checkoutCount, 7);
   assert.equal(disabledCredentialCount, checkoutCount);
 });
 

@@ -380,6 +380,17 @@ fn file_metadata(file_id: u128, byte_size: u64) -> FileMetadata {
     }
 }
 
+fn reparse_file_metadata() -> FileMetadata {
+    FileMetadata {
+        kind: EntryKind::File,
+        byte_size: 0,
+        modified_unix_ns: 100,
+        identity: None,
+        reparse_point: true,
+        recall_or_offline: false,
+    }
+}
+
 fn reparse_directory_metadata() -> FileMetadata {
     FileMetadata {
         kind: EntryKind::Directory,
@@ -702,7 +713,7 @@ fn reparse_points_are_excluded_without_being_traversed() {
     let root = root_path();
     let mut port = FakePort::new(&root);
     port.add_directory(".", vec![file_entry("alias")]);
-    port.add_file("alias", Ok(reparse_directory_metadata()));
+    port.add_file("alias", Ok(reparse_file_metadata()));
     let mut sink = RecordingSink::default();
 
     let report = enumerate(
@@ -723,6 +734,34 @@ fn reparse_points_are_excluded_without_being_traversed() {
             .any(|exclusion| exclusion.reason == ExclusionReason::ReparsePoint)
     );
     assert!(report.coverage_failures.is_empty());
+}
+
+#[test]
+fn a_directory_that_turns_into_a_junction_at_metadata_time_stays_non_authoritative() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.add_directory(".", vec![file_entry("sub")]);
+    port.add_file("sub", Ok(reparse_directory_metadata()));
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::Partial);
+    assert!(!report.authoritative);
+    assert!(report.exclusions.is_empty());
+    assert!(
+        report
+            .coverage_failures
+            .iter()
+            .any(|failure| failure.kind == CoverageFailureKind::DirectoryChanged)
+    );
 }
 
 #[test]
@@ -875,6 +914,42 @@ fn run_scoped_storage_invalidates_provisional_batches_on_failure() {
     assert!(!report.authoritative);
     assert!(!storage.staged.contains_key("run-resource-limit"));
     assert_eq!(storage.invalidated, vec!["run-resource-limit"]);
+}
+
+#[test]
+fn run_scoped_adapter_invalidates_in_flight_staging_when_dropped_armed() {
+    let mut storage = RecordingRunStorage::default();
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut sink = RunScopedSinkAdapter::new(&mut storage, "run-panic");
+        let _ = sink.accept(ObservationBatch {
+            sequence: 0,
+            records: Vec::new(),
+            estimated_bytes: 0,
+        });
+        panic!("simulated traversal panic after stage_batch");
+    }));
+
+    assert!(result.is_err());
+    assert!(!storage.staged.contains_key("run-panic"));
+    assert_eq!(storage.invalidated, vec!["run-panic"]);
+}
+
+#[test]
+fn run_scoped_adapter_release_keeps_a_complete_run_staged_without_invalidation() {
+    let mut storage = RecordingRunStorage::default();
+    {
+        let mut sink = RunScopedSinkAdapter::new(&mut storage, "run-complete");
+        let _ = sink.accept(ObservationBatch {
+            sequence: 0,
+            records: Vec::new(),
+            estimated_bytes: 0,
+        });
+        sink.release();
+    }
+
+    assert!(storage.invalidated.is_empty());
+    assert!(storage.staged.contains_key("run-complete"));
 }
 
 #[test]
@@ -2063,13 +2138,12 @@ mod windows_fixtures {
     }
 
     #[test]
-    fn ntfs_fixture_keeps_hardlink_aliases_per_path_and_excludes_junctions() {
+    fn ntfs_fixture_keeps_hardlink_aliases_per_path() {
         let fixture = Fixture::new("aliases");
         let alias_source = fixture.root.join("alias-source.FLP");
         let alias = fixture.root.join("alias-second.flp");
         fs::hard_link(&fixture.marker_path, &alias_source).expect("create hardlink source");
         fs::hard_link(&alias_source, &alias).expect("create hardlink alias");
-        let junction = fixture.create_junction();
         let mut port = WindowsFilesystemPort::new();
         let mut sink = RecordingSink::default();
         let report = enumerate(
@@ -2100,20 +2174,43 @@ mod windows_fixtures {
             .collect::<Vec<_>>();
         assert_eq!(aliases.len(), 2);
         assert_eq!(aliases[0].identity, aliases[1].identity);
+    }
+
+    #[test]
+    fn ntfs_fixture_junction_subtree_is_non_authoritative() {
+        let fixture = Fixture::new("junction");
+        let junction = fixture.create_junction();
+        let mut port = WindowsFilesystemPort::new();
+        let mut sink = RecordingSink::default();
+        let report = enumerate(
+            &mut port,
+            &fixture.root,
+            &EnumerationLimits {
+                progress_interval: std::time::Duration::ZERO,
+                ..EnumerationLimits::default()
+            },
+            &NeverCancelled,
+            &mut sink,
+            &mut NoProgress,
+        );
+
+        assert_eq!(report.outcome, Outcome::Partial);
+        assert!(!report.authoritative);
         let junction_relative = junction
             .strip_prefix(&fixture.root)
             .expect("junction under fixture")
             .to_string_lossy()
             .replace('/', "\\");
-        assert!(report.exclusions.iter().any(|exclusion| {
+        // The junction itself is a metadata-time directory swap, not a policy
+        // exclusion: the skipped subtree must never be covered authoritatively.
+        assert!(report.coverage_failures.iter().any(|failure| {
+            failure.display_path.as_ref().map(|path| path.as_str())
+                == Some(junction_relative.as_str())
+                && failure.kind == CoverageFailureKind::DirectoryChanged
+        }));
+        assert!(!report.exclusions.iter().any(|exclusion| {
             exclusion.display_path.as_str() == junction_relative
                 && exclusion.reason == ExclusionReason::ReparsePoint
-        }));
-        assert!(!observations.iter().any(|observation| {
-            observation
-                .display_path
-                .as_str()
-                .starts_with(&format!("{junction_relative}\\"))
         }));
     }
 
