@@ -4,19 +4,23 @@
 //! then drive `sync_roots`, `poll`, and `shutdown` with a fake clock. They do
 //! not reimplement supervisor state or open native handles.
 
+use super::watcher_supervisor::WatchRootConfig;
 use super::watcher_supervisor::{WatchFactory, WatchHandle, WatcherSupervisor};
 use fruitboard_filesystem_watcher::{
     Coalescer, CoalescerConfig, EndReason, RootId, StartError, WatchHint, WatchOutcome,
     WatcherConfig, WatcherPort,
 };
-use fruitboard_scan_execution::{FollowUpOutcome, ScanClock};
-use fruitboard_storage::{Database, ScanRoot, StorageError};
+use fruitboard_scan_execution::{FollowUpOutcome, ScanClock, ScanWorker, WorkerConfig};
+use fruitboard_storage::{Database, ScanJobState, ScanRoot, StorageError};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
 const NOW_MS: i64 = 1_700_000_000_000;
+const FIRST_RETRY_NS: u64 = 250_000_000;
+const SECOND_RETRY_NS: u64 = 750_000_000;
 
 struct Clock;
 
@@ -72,6 +76,13 @@ impl FakeHandleState {
             .lock()
             .unwrap()
             .record_activity(root, generation, now);
+    }
+
+    fn record_coverage_lost(&self, root: RootId, generation: u64) {
+        self.coalescer
+            .lock()
+            .unwrap()
+            .record_coverage_lost(root, generation);
     }
 
     fn end(&self, root: RootId, generation: u64) {
@@ -154,6 +165,22 @@ struct Harness {
     supervisor: WatcherSupervisor<FakeFactory>,
 }
 
+struct DatabaseBlocker {
+    release: Option<Sender<()>>,
+    join: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for DatabaseBlocker {
+    fn drop(&mut self) {
+        if let Some(release) = self.release.take() {
+            let _ = release.send(());
+        }
+        if let Some(join) = self.join.take() {
+            join.join().unwrap();
+        }
+    }
+}
+
 impl Harness {
     fn new() -> Self {
         let directory = TestDirectory::new();
@@ -161,10 +188,20 @@ impl Harness {
         let root = database
             .add_scan_root("Synthetic", r"C:\synthetic-watcher-supervisor")
             .unwrap();
+        let configuration_revision = database
+            .scan_root_execution(&root.id)
+            .unwrap()
+            .configuration_revision;
         let database = Arc::new(Mutex::new(database));
         let factory = FakeFactory::default();
         let mut supervisor = WatcherSupervisor::new(factory.clone());
-        supervisor.sync_roots(&[root.clone()], 0);
+        supervisor.sync_roots(
+            &[WatchRootConfig {
+                root: root.clone(),
+                configuration_revision,
+            }],
+            0,
+        );
         Self {
             directory,
             database,
@@ -179,7 +216,10 @@ impl Harness {
         let root_id = self.root.id.clone();
         self.supervisor
             .deliver_pending_with(&root_id, move |adapter, hint| {
-                let mut database = database.lock().unwrap();
+                let mut database = match database.lock() {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
                 adapter.process_hints(&mut database, &[hint], &Clock)
             })
     }
@@ -196,22 +236,101 @@ impl Harness {
             Err(poisoned) => poisoned.into_inner(),
         };
         let roots = database.list_scan_roots().unwrap();
-        self.supervisor.sync_roots(&roots, now_ns);
+        let configs = roots
+            .iter()
+            .map(|root| WatchRootConfig {
+                root: root.clone(),
+                configuration_revision: database
+                    .scan_root_execution(&root.id)
+                    .unwrap()
+                    .configuration_revision,
+            })
+            .collect::<Vec<_>>();
+        self.supervisor.sync_roots(&configs, now_ns);
     }
 
     fn jobs(&self) -> usize {
-        self.database
-            .lock()
-            .unwrap()
-            .list_scan_jobs()
-            .unwrap()
-            .len()
+        match self.database.lock() {
+            Ok(database) => database.list_scan_jobs().unwrap().len(),
+            Err(poisoned) => poisoned.into_inner().list_scan_jobs().unwrap().len(),
+        }
+    }
+
+    fn jobs_for(&self, root_id: &str) -> usize {
+        match self.database.lock() {
+            Ok(database) => database
+                .list_scan_jobs()
+                .unwrap()
+                .into_iter()
+                .filter(|job| job.scan_root_id == root_id)
+                .count(),
+            Err(poisoned) => poisoned
+                .into_inner()
+                .list_scan_jobs()
+                .unwrap()
+                .into_iter()
+                .filter(|job| job.scan_root_id == root_id)
+                .count(),
+        }
+    }
+
+    fn set_enabled(&self, enabled: bool, now_ms: i64) {
+        let mut database = match self.database.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        database
+            .set_scan_root_enabled_at(&self.root.id, enabled, now_ms)
+            .unwrap();
+    }
+
+    fn config(&self, root: &ScanRoot) -> WatchRootConfig {
+        let database = match self.database.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        WatchRootConfig {
+            root: root.clone(),
+            configuration_revision: database
+                .scan_root_execution(&root.id)
+                .unwrap()
+                .configuration_revision,
+        }
+    }
+
+    fn poll(&mut self, now_ns: u64) {
+        self.supervisor.poll(&self.database, &Clock, now_ns);
+    }
+
+    fn block_database(&self) -> DatabaseBlocker {
+        let database = self.database.clone();
+        let (ready_tx, ready_rx): (Sender<()>, Receiver<()>) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let join = std::thread::spawn(move || {
+            let _guard = database.lock().unwrap();
+            ready_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+        });
+        ready_rx.recv().unwrap();
+        DatabaseBlocker {
+            release: Some(release_tx),
+            join: Some(join),
+        }
     }
 }
 
 #[test]
 fn failed_hint_delivery_retains_one_pending_request_until_retry() {
     let mut harness = Harness::new();
+    let handle = harness.factory.handles().into_iter().next().unwrap();
+    let watcher_root = harness
+        .supervisor
+        .watcher_root_for(&harness.root.id)
+        .unwrap();
+    handle.record_coverage_lost(watcher_root, 1);
+    let blocker = harness.block_database();
+    harness.poll(0);
+    drop(blocker);
     assert!(harness.supervisor.pending_for(&harness.root.id).is_some());
 
     assert!(matches!(harness.fail_delivery(), Err(StorageError::Io)));
@@ -227,35 +346,39 @@ fn failed_hint_delivery_retains_one_pending_request_until_retry() {
 #[test]
 fn durable_disable_suppresses_pending_hint_before_configuration_catches_up() {
     let mut harness = Harness::new();
-    harness
-        .database
-        .lock()
-        .unwrap()
-        .set_scan_root_enabled_at(&harness.root.id, false, NOW_MS)
+    let handle = harness.factory.handles().into_iter().next().unwrap();
+    let watcher_root = harness
+        .supervisor
+        .watcher_root_for(&harness.root.id)
         .unwrap();
+    handle.record_coverage_lost(watcher_root, 1);
+    harness.set_enabled(false, NOW_MS);
 
+    let blocker = harness.block_database();
+    harness.poll(0);
+    drop(blocker);
     let outcome = harness.deliver_pending().unwrap().unwrap();
     assert_eq!(outcome.suppressed, 1);
     assert!(outcome.requests.is_empty());
     assert!(harness.supervisor.pending_for(&harness.root.id).is_none());
     assert_eq!(harness.jobs(), 0);
 
-    harness
-        .database
-        .lock()
-        .unwrap()
-        .set_scan_root_enabled_at(&harness.root.id, true, NOW_MS + 1)
-        .unwrap();
     harness.sync(1);
-    let outcome = harness.deliver_pending().unwrap().unwrap();
-    assert_eq!(outcome.requests.len(), 1);
-    assert_eq!(harness.jobs(), 1);
+    harness.set_enabled(true, NOW_MS + 1);
+    harness.sync(2);
+    let fresh = harness.factory.handles().into_iter().last().unwrap();
+    let fresh_watcher_root = harness
+        .supervisor
+        .watcher_root_for(&harness.root.id)
+        .unwrap();
+    fresh.record_coverage_lost(fresh_watcher_root, 2);
+    harness.poll(u64::MAX);
+    assert_eq!(harness.jobs_for(&harness.root.id), 1);
 }
 
 #[test]
-fn ended_watch_restarts_with_a_new_generation_and_reconciles() {
+fn ended_watch_restarts_with_a_new_generation_without_duplicate_queue() {
     let mut harness = Harness::new();
-    let _ = harness.deliver_pending().unwrap();
     let first = harness.factory.handles().into_iter().next().unwrap();
     let watcher_root = harness
         .supervisor
@@ -267,19 +390,21 @@ fn ended_watch_restarts_with_a_new_generation_and_reconciles() {
     assert!(!harness.supervisor.is_watching(&harness.root.id));
     assert_eq!(harness.supervisor.generation_for(&harness.root.id), Some(1));
     assert_eq!(first.stop_count(), 1);
+    assert_eq!(harness.jobs(), 1);
 
     harness.sync(u64::MAX);
     assert!(harness.supervisor.is_watching(&harness.root.id));
     assert_eq!(harness.supervisor.generation_for(&harness.root.id), Some(2));
-    let outcome = harness.deliver_pending().unwrap().unwrap();
-    assert_eq!(outcome.overflow, 1);
-    assert_eq!(outcome.requests.len(), 1);
+    // The first end reconciliation owns the queued slot. Reconnect does not
+    // create a second queue entry while that durable work is still queued.
+    harness.poll(u64::MAX);
+    assert_eq!(harness.jobs(), 1);
 }
 
 #[test]
 fn future_generation_replay_is_dropped_before_adapter_promotion() {
     let mut harness = Harness::new();
-    let _ = harness.deliver_pending().unwrap();
+    harness.poll(0);
     let current = harness.factory.handles().into_iter().next().unwrap();
     let watcher_root = harness
         .supervisor
@@ -314,23 +439,44 @@ fn start_failures_back_off_and_consume_strictly_new_generations() {
     // independent in the deterministic test.
     let factory = harness.factory.clone();
     let mut supervisor = WatcherSupervisor::new(factory.clone());
-    supervisor.sync_roots(&[harness.root.clone()], 0);
-    supervisor.sync_roots(&[harness.root.clone()], u64::MAX);
-    supervisor.sync_roots(&[harness.root.clone()], u64::MAX);
+    let config = harness.config(&harness.root);
+    supervisor.sync_roots(std::slice::from_ref(&config), 0);
+    assert_eq!(factory.starts().len(), 2);
+    supervisor.sync_roots(std::slice::from_ref(&config), FIRST_RETRY_NS - 1);
+    assert_eq!(factory.starts().len(), 2);
+    supervisor.sync_roots(std::slice::from_ref(&config), FIRST_RETRY_NS);
+    assert_eq!(factory.starts().len(), 3);
+    supervisor.sync_roots(std::slice::from_ref(&config), SECOND_RETRY_NS - 1);
+    assert_eq!(factory.starts().len(), 3);
+    supervisor.sync_roots(std::slice::from_ref(&config), SECOND_RETRY_NS);
     let starts = factory.starts();
+    assert_eq!(starts.len(), 4);
     assert!(
         starts
             .iter()
             .any(|(_, generation)| *generation > first_generation)
     );
     assert!(supervisor.is_watching(&harness.root.id));
-    assert!(supervisor.pending_for(&harness.root.id).is_some());
+    supervisor.poll(&harness.database, &Clock, u64::MAX);
+    assert_eq!(harness.jobs(), 1);
 }
 
 #[test]
 fn burst_activity_produces_one_durable_follow_up() {
     let mut harness = Harness::new();
-    let _ = harness.deliver_pending().unwrap();
+    let worker = ScanWorker::new(WorkerConfig::default()).unwrap();
+    let active = {
+        let mut database = harness.database.lock().unwrap();
+        let session = worker.start_session(&mut database, &Clock).unwrap();
+        worker
+            .request_manual_scan(&mut database, &harness.root.id, &Clock)
+            .unwrap();
+        worker
+            .claim(&mut database, &session.id, &Clock)
+            .unwrap()
+            .unwrap()
+    };
+    let job_id = active.leased.run.scan_job_id.clone();
     let current = harness.factory.handles().into_iter().next().unwrap();
     let watcher_root = harness
         .supervisor
@@ -342,10 +488,189 @@ fn burst_activity_produces_one_durable_follow_up() {
     harness
         .supervisor
         .poll(&harness.database, &Clock, 1_000_000_000);
+    let database = harness.database.lock().unwrap();
+    let job = database.scan_job(&job_id).unwrap();
+    assert_eq!(job.state, ScanJobState::Running);
+    assert!(job.follow_up_requested);
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+}
+
+#[test]
+fn coverage_loss_precedes_activity_in_the_real_supervisor_poll() {
+    let mut harness = Harness::new();
+    let current = harness.factory.handles().into_iter().next().unwrap();
+    let watcher_root = harness
+        .supervisor
+        .watcher_root_for(&harness.root.id)
+        .unwrap();
+    current.record_activity(watcher_root, 1, 0);
+    current.record_coverage_lost(watcher_root, 1);
+    let blocker = harness.block_database();
+    harness.poll(1_000_000_000);
+    drop(blocker);
+
+    let pending = harness.supervisor.pending_for(&harness.root.id).unwrap();
+    assert_eq!(
+        pending.kind,
+        fruitboard_filesystem_watcher::HintKind::CoverageLost
+    );
+    let outcome = harness.deliver_pending().unwrap().unwrap();
+    assert_eq!(outcome.overflow, 1);
     assert_eq!(harness.jobs(), 1);
+}
+
+#[test]
+fn running_scan_receives_one_follow_up_without_publication() {
+    let mut harness = Harness::new();
+    let worker = ScanWorker::new(WorkerConfig::default()).unwrap();
+    let active = {
+        let mut database = harness.database.lock().unwrap();
+        let session = worker.start_session(&mut database, &Clock).unwrap();
+        worker
+            .request_manual_scan(&mut database, &harness.root.id, &Clock)
+            .unwrap();
+        worker
+            .claim(&mut database, &session.id, &Clock)
+            .unwrap()
+            .unwrap()
+    };
+    let job_id = active.leased.run.scan_job_id.clone();
+    let current = harness.factory.handles().into_iter().next().unwrap();
+    let watcher_root = harness
+        .supervisor
+        .watcher_root_for(&harness.root.id)
+        .unwrap();
+    current.record_coverage_lost(watcher_root, 1);
+    harness.poll(0);
+
+    let database = harness.database.lock().unwrap();
+    let job = database.scan_job(&job_id).unwrap();
+    assert_eq!(job.state, ScanJobState::Running);
+    assert!(job.follow_up_requested);
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+}
+
+#[test]
+fn startup_gap_does_not_revive_a_cancelled_scan_chain() {
+    let mut harness = Harness::new();
+    let worker = ScanWorker::new(WorkerConfig::default()).unwrap();
+    let job_id = {
+        let mut database = harness.database.lock().unwrap();
+        worker.start_session(&mut database, &Clock).unwrap();
+        worker
+            .request_manual_scan(&mut database, &harness.root.id, &Clock)
+            .unwrap()
+            .job_id
+    };
+    harness
+        .database
+        .lock()
+        .unwrap()
+        .cancel_scan_job(&job_id, NOW_MS + 1)
+        .unwrap();
+
+    harness.poll(0);
+    let database = harness.database.lock().unwrap();
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+    assert_eq!(
+        database.scan_job(&job_id).unwrap().state,
+        ScanJobState::Cancelled
+    );
+    drop(database);
+    assert!(harness.supervisor.pending_for(&harness.root.id).is_none());
+}
+
+#[test]
+fn disable_reenable_remove_readd_uses_fresh_storage_identity_and_fences_old_hints() {
+    let mut harness = Harness::new();
+    harness.poll(0);
+    let old_root = harness.root.clone();
+    let old_watcher = harness.supervisor.watcher_root_for(&old_root.id).unwrap();
+
+    let mut disabled = old_root.clone();
+    disabled.enabled = false;
+    harness
+        .database
+        .lock()
+        .unwrap()
+        .set_scan_root_enabled_at(&old_root.id, false, NOW_MS)
+        .unwrap();
+    let disabled_config = harness.config(&disabled);
     harness
         .supervisor
-        .poll(&harness.database, &Clock, 2_000_000_000);
+        .sync_roots(std::slice::from_ref(&disabled_config), 1);
+    assert!(!harness.supervisor.is_watching(&old_root.id));
+
+    harness
+        .database
+        .lock()
+        .unwrap()
+        .set_scan_root_enabled_at(&old_root.id, true, NOW_MS + 1)
+        .unwrap();
+    let enabled_config = harness.config(&old_root);
+    harness
+        .supervisor
+        .sync_roots(std::slice::from_ref(&enabled_config), 2);
+    assert_eq!(harness.supervisor.generation_for(&old_root.id), Some(2));
+    assert!(harness.supervisor.is_watching(&old_root.id));
+
+    harness
+        .database
+        .lock()
+        .unwrap()
+        .remove_scan_root_at(&old_root.id, NOW_MS + 2)
+        .unwrap();
+    harness.supervisor.sync_roots(&[], 3);
+    assert!(harness.supervisor.watcher_root_for(&old_root.id).is_none());
+
+    let replacement = harness
+        .database
+        .lock()
+        .unwrap()
+        .add_scan_root("Replacement", r"C:\synthetic-replacement")
+        .unwrap();
+    assert_ne!(replacement.id, old_root.id);
+    let replacement_config = harness.config(&replacement);
+    harness
+        .supervisor
+        .sync_roots(std::slice::from_ref(&replacement_config), 4);
+    assert_eq!(
+        harness.supervisor.watcher_root_for(&replacement.id),
+        Some(old_watcher)
+    );
+    assert_eq!(harness.supervisor.generation_for(&replacement.id), Some(3));
+
+    let current = harness.factory.handles().into_iter().last().unwrap();
+    current.record_activity(old_watcher, 1, 0);
+    current.record_coverage_lost(old_watcher, 1);
+    harness
+        .supervisor
+        .poll(&harness.database, &Clock, 1_000_000_000);
+    assert_eq!(harness.jobs_for(&replacement.id), 1);
+}
+
+#[test]
+fn disable_then_reenable_between_polls_fences_the_old_generation_hint() {
+    let mut harness = Harness::new();
+    let current = harness.factory.handles().into_iter().next().unwrap();
+    let watcher_root = harness
+        .supervisor
+        .watcher_root_for(&harness.root.id)
+        .unwrap();
+    current.record_coverage_lost(watcher_root, 1);
+
+    // Both durable mutations happen before the native supervisor observes
+    // either one. A bool-only configuration comparison would leave generation
+    // one live and enqueue this terminal hint for a root that was disabled in
+    // between; the host must fence the old configuration snapshot.
+    harness.set_enabled(false, NOW_MS);
+    harness.set_enabled(true, NOW_MS + 1);
+    harness.poll(0);
+    assert_eq!(harness.jobs(), 0);
+
+    harness.sync(u64::MAX);
+    assert_eq!(harness.supervisor.generation_for(&harness.root.id), Some(2));
+    harness.poll(u64::MAX);
     assert_eq!(harness.jobs(), 1);
 }
 
@@ -357,19 +682,15 @@ fn terminal_coverage_delivery_error_survives_end_and_reconnect() {
         .supervisor
         .watcher_root_for(&harness.root.id)
         .unwrap();
-    assert!(matches!(harness.fail_delivery(), Err(StorageError::Io)));
+    first.record_coverage_lost(watcher_root, 1);
     first.end(watcher_root, 1);
 
-    // Poisoning is a deterministic database delivery failure. The supervisor
+    // Holding the shared database lock is a deterministic delivery failure. The supervisor
     // must retain the pending terminal obligation while it fences the ended
     // generation and stops the handle.
-    let poisoned = harness.database.clone();
-    let _ = std::thread::spawn(move || {
-        let _guard = poisoned.lock().unwrap();
-        panic!("intentional database delivery barrier");
-    })
-    .join();
+    let blocker = harness.block_database();
     harness.supervisor.poll(&harness.database, &Clock, 0);
+    drop(blocker);
     assert!(!harness.supervisor.is_watching(&harness.root.id));
     assert!(harness.supervisor.pending_for(&harness.root.id).is_some());
 
@@ -412,6 +733,14 @@ fn terminal_coverage_delivery_error_survives_end_and_reconnect() {
 fn shutdown_stops_each_handle_once_and_drops_pending_work() {
     let mut harness = Harness::new();
     let first = harness.factory.handles().into_iter().next().unwrap();
+    let watcher_root = harness
+        .supervisor
+        .watcher_root_for(&harness.root.id)
+        .unwrap();
+    first.record_coverage_lost(watcher_root, 1);
+    let blocker = harness.block_database();
+    harness.poll(0);
+    drop(blocker);
     assert!(harness.supervisor.pending_for(&harness.root.id).is_some());
 
     harness.supervisor.shutdown();
