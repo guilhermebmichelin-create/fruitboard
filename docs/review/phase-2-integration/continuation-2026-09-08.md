@@ -209,3 +209,70 @@ implementation, independent fault verification, and installed-app journey
 preparation. Start that wave from this continuation's merged commit after its
 required checks pass. The pre-integration local snapshot above is historical;
 the PR and GitHub merge record provide the eventual commit and CI provenance.
+
+## Merged continuation and next-wave baseline
+
+PR #81 merged the continuation as
+`e5e777d3c192d4d3da35284e6e3c8e5af3ec3f58`. The earlier local/unpublished
+statements above describe the pre-merge review snapshot. Post-merge
+[Foundation CI run 34218497618](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618)
+passed for that exact commit. Its
+[Windows foundation job](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618/job/102035821402)
+passed the integrated Windows gate, enabled scan-console tests, and enabled
+warnings-denied Clippy. The merged capability includes only event listen and
+unlisten permissions for the subscription correction.
+
+This establishes the starting boundary for the next parallel agent wave.
+Supervisor implementation and independent fault verification are in progress;
+their combined commit and CI result remain pending. Installed-app observations,
+F1–F3 decisions, platform scope decisions, and owner acceptance remain pending.
+This baseline record does not activate production scanning or promote an
+acceptance criterion.
+
+## Local next-wave integration
+
+The parallel wave ran from merged `e5e777d` in separate worktrees: GPT 5.6
+Luna max owned the native host, and GPT 5.6 Luna xhigh owned independent
+failure verification and installed-app journey preparation. The parent
+integrated the lanes on `wave/watcher-integration`. The final code snapshot is
+local commit `4e72d06`; it is not a merged-main or installed-app result.
+
+The feature-gated host now owns separate scan and watcher loops over the same
+database, capacity-one wake channels, configured-root revision fences,
+monotonic native generations, bounded reconnect backoff, and one retained
+coalesced hint per root. Coverage loss takes precedence over activity. A
+terminal hint whose delivery fails stays pending across reconnect failures;
+it is delivered after a fresh native watch starts. Root commands notify the
+host after their durable transaction has returned. Shutdown joins both loops
+and interrupts owned work for restart recovery while preserving user
+cancellation, including a cancellation mirror set before its durable write.
+If the shutdown fence cannot be written, the active traversal may finish
+naturally before the join completes rather than becoming a false cancellation.
+
+The parent review corrected transient configuration-read handling, wakeup
+bounds, the disable/re-enable-between-polls race, startup recovery versus
+native coverage-loss handling, thread-start error cleanup, host ownership on
+exit, and shutdown/cancellation ordering. Independent tests exercise the real
+supervisor with injected watcher handles, clocks, and database contention.
+Separate host tests execute the real empty-root threads and check joins,
+idempotence, and release of the host reference. These tests do not qualify an
+installed app or a configured native watch inside the installed host.
+
+Local validation:
+
+- Pinned Windows `pnpm.cmd check` passed at `7f42dd7`, including 77 repository
+  policy tests, 128 client tests, workspace Rust checks, and the default release
+  build. Watcher and scan-execution crate tests passed; ignored environment
+  fixtures remain unverified.
+- After the final feature-gated cancellation correction at `4e72d06`,
+  `cargo test -p fruitboard-desktop --features scan-console --locked` passed
+  86 tests, and enabled Clippy with `--all-targets --locked -- -D warnings`
+  passed. The correction touches only enabled host code and its tests.
+- The [installed-app checklist](installed-app-journey-checklist.md) records
+  pinned feature-enabled packaging, separate disposable fixtures and database
+  handling, expected behavior, and an empty observation table.
+
+The wave's owner merge and post-merge feature-on CI remain pending. Remote
+`main` is still `e5e777d` at this record. Installed-app acceptance, F1–F3,
+the #47/#48 and other platform scope decisions, production scanning, parser work,
+and Phase 3 remain gated. No acceptance ID or provisional budget is promoted.

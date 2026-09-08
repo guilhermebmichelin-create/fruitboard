@@ -11,11 +11,11 @@ referenced by issues.
 
 ## Current status
 
-Pre-integration status snapshot (2026-09-08): remote `main` was `dbabb50` (PR #80), and its
-[Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34177098425)
-passed. The local `feat/41-phase2-continuation` branch started at `34ce4fc`, an
-unpublished continuation commit; local-only evidence is not merged evidence
-and does not promote an acceptance status.
+Merged-wave status snapshot (2026-09-08): baseline `e5e777d` (PR #81) is
+merged on `main`. Its [Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618)
+passed, including `scan-console` feature-enabled desktop tests and
+warnings-denied Clippy. This is build and contract evidence; it does not prove
+the installed application, native watcher supervisor, or owner acceptance.
 
 | State | Work | Evidence or next action |
 | --- | --- | --- |
@@ -26,12 +26,12 @@ and does not promote an acceptance status.
 | Delivered (integration pending) | #38 durable scan execution foundation | PRs #60/#61 and [durable execution evidence](PHASE_2_DURABLE_EXECUTION.md); #70 composes the hidden worker and #73 adds the feature-gated command surface; P2-04/P2-05 remain Partial |
 | Decision pending | Inline Preferences onboarding instead of a separate first-run route | Implementation documented; owner review remains separate from the accepted scanner contracts |
 | Implemented (integration evidence pending) | #40 staging/publication/read model plus #77 responsive staged batches | PR #62 and PR #77; atomic publication, bounded batches, and the short-transaction concurrency fix are merged; P2-03/P2-06/P2-07/P2-08 integrated evidence remains open |
-| Implemented (feature-gated; acceptance pending) | #73 scan-console IPC and #78 native Library scan adapter | PR #73 and PR #78; six typed commands, capability permissions, and the native adapter are behind `scan-console`; event listen/unlisten permissions and feature-enabled CI checks are implemented in the local working tree, while merge/green remote CI and installed-app evidence remain open |
-| Implemented (host integration pending) | #37 watcher foundation and durable follow-up adapter | PRs #68/#69/#71 provide bounded NTFS watching and durable follow-ups; host lifecycle, root mapping, and activation remain next. Local `34ce4fc` adds continuation tests only and is unpublished |
-| Evidence in local continuation (unmerged) | #39 no-parser boundary and additional #37 guards | `34ce4fc` adds static no-parser/no-content-I/O policy guards plus separate synthetic-fixture source-byte preservation assertions; these checks are not an installed-app proof or a runtime content-read spy, and the commit is unpublished |
+| Implemented (feature-gated; acceptance pending) | #73 scan-console IPC and #78 native Library scan adapter | PR #73, PR #78, and merged PR #81; six typed commands, scoped event listen/unlisten permissions, and the native adapter are behind `scan-console`; the linked feature-enabled CI is green, while installed-app evidence remains open |
+| Implemented (host integration pending) | #37 watcher foundation and durable follow-up adapter | PRs #68/#69/#71 and the deterministic continuation harness in merged PR #81 provide the bounded watcher/follow-up seams; the native supervisor, root mapping, activation, and combined rerun remain next |
+| Delivered (integrated checks; acceptance pending) | #39 no-parser boundary and additional #37 guards | Merged PR #81 adds static no-parser/no-content-I/O policy guards plus separate synthetic-fixture source-byte preservation assertions; these checks are not an installed-app proof or a runtime content-read spy |
 | Measured (owner decision pending) | #41/P2-11 benchmark and #79 budget/governance brief | [Benchmark report](review/phase-2-integration/benchmark-2026-09-07.md) and [decision brief](review/phase-2-integration/budget-decision-brief.md) record F1 (10,005 observations vs 10,000 quota), F2 (warm p95 32.876 s vs 10 s), and F3 (100k set unqualified); no budget or acceptance promotion |
 | Recorded (owner acceptance pending) | #41/P2-12 checkpoint (#80) | [Checkpoint](review/phase-2-integration/checkpoint-2026-09-07.md) remains the historical evidence aggregation; the continuation plan is in [the 2026-09-08 review](review/phase-2-integration/continuation-2026-09-08.md) |
-| Next (parallel lanes) | Native watcher host integration; feature-enabled CI; docs/status | Follow [the prioritized continuation lanes](review/phase-2-integration/continuation-2026-09-08.md); keep production scanning hidden until P2-03 through P2-08 have integrated evidence |
+| Next (parallel lanes) | Native watcher host integration; independent fault verification; installed-app preparation | A/B still need the combined supervisor commit and feature-enabled rerun; C has prepared the [installed-app journey checklist](review/phase-2-integration/installed-app-journey-checklist.md). Keep production scanning hidden until P2-03 through P2-08 have integrated evidence |
 | Blocked/unverified | DriveFS modes (#47), cross-volume/FAT32 identity (#48) | #42/#43 closed with partial findings, not blanket platform qualification |
 | Deferred | Parsing (#39), logical grouping, Kanban, playback, sync, PWA | Phase 2 is filesystem-only; bounded independent Rust-parser spike follows accepted MVP |
 
@@ -250,17 +250,22 @@ findings. Drive modes and non-NTFS identity remain unverified under #47/#48.
 Before claiming support, land their evidence or obtain an explicit owner scope
 exclusion; do not reinterpret unavailable environments as passing tests.
 
-The current continuation uses three parallel lanes: (1) connect the merged
-watcher and durable follow-up crates to the desktop host lifecycle, root
-mapping, and feature-gated activation; (2) land and run the locally implemented
-feature-enabled CI for the native scan-console/client path while retaining the
-default feature-off gates; and (3) keep the README, this status table, and the review record
-aligned with merged evidence. The first two lanes are implementation and CI
-work; this documentation lane records their results without promoting an
-acceptance criterion from local tests.
+The starting boundary for this wave is merged baseline `e5e777d` (PR #81) and
+its green [Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618).
+The parallel lanes are: (1) connect the merged watcher and durable follow-up
+crates to the desktop host lifecycle, root mapping, feature-gated activation,
+and explicit shutdown; (2) independently verify delivery failure, ended-watch,
+stale-generation, bounded-wakeup, and shutdown behavior; and (3) prepare the
+installed-app checklist and keep this plan and the review record aligned with
+merged evidence. The first two lanes still require a combined supervisor commit
+and feature-enabled rerun. The documentation lane records preparation and CI
+provenance without promoting an acceptance criterion from local or deterministic
+tests.
 
-After those lanes, run the installed-app Windows journey against the native
-surface, then resolve the benchmark decisions in order: F1 (10,005 observed
+After the combined supervisor commit and green rerun, run the installed-app
+Windows journey against the native surface using the
+[journey checklist](review/phase-2-integration/installed-app-journey-checklist.md).
+Only then resolve the benchmark decisions in order: F1 (10,005 observed
 locations versus the 10,000 staging quota), F2 (warm p95 32.876 s versus the
 10 s target), and F3 (the 100,000-entry qualification set is unqualified
 under the current quota). Profile or re-run before any re-budgeting. Keep
