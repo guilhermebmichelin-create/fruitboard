@@ -24,11 +24,7 @@ const okEnvelope = (data: unknown) => ({
   data,
 });
 
-const errorEnvelope = (
-  code: string,
-  message: string,
-  retryable: boolean,
-) => ({
+const errorEnvelope = (code: string, message: string, retryable: boolean) => ({
   status: "error",
   schemaVersion: 1,
   correlationId,
@@ -201,9 +197,7 @@ describe("native scan-now seam", () => {
   });
 
   it("rejects empty root and job IDs without invoking native code", async () => {
-    const { transport, invoke } = transportWith(() =>
-      okEnvelope({}),
-    );
+    const { transport, invoke } = transportWith(() => okEnvelope({}));
     const adapter = createNativeLibraryScanAdapter(transport);
     await expectCode(adapter.scanNow(""), "not_found");
     await expectCode(adapter.cancelScan(""), "not_found");
@@ -310,17 +304,15 @@ describe("native status list seam", () => {
     const { transport, invoke } = transportWith(() =>
       okEnvelope([{ ...baseStatus }, second]),
     );
-    const statuses = await createNativeLibraryScanAdapter(
-      transport,
-    ).listScanStatuses();
+    const statuses =
+      await createNativeLibraryScanAdapter(transport).listScanStatuses();
     expect(statuses.map((status) => status.root.id)).toEqual([
       "root-1",
       "root-2",
     ]);
-    expect(invoke).toHaveBeenCalledExactlyOnceWith(
-      LIST_SCAN_STATUSES_COMMAND,
-      { request: { schemaVersion: 1 } },
-    );
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(LIST_SCAN_STATUSES_COMMAND, {
+      request: { schemaVersion: 1 },
+    });
   });
 
   it("keeps running counters with an honest null total", async () => {
@@ -338,9 +330,8 @@ describe("native status list seam", () => {
         },
       ]),
     );
-    const [status] = await createNativeLibraryScanAdapter(
-      transport,
-    ).listScanStatuses();
+    const [status] =
+      await createNativeLibraryScanAdapter(transport).listScanStatuses();
     expect(status?.counters).toEqual({
       filesObserved: 2,
       directoriesVisited: 0,
@@ -352,8 +343,16 @@ describe("native status list seam", () => {
     for (const patch of [
       { runId: "run-1" },
       { errorCode: "internal" },
-      { counters: { filesObserved: 1.5, directoriesVisited: 0, totalFiles: null } },
-      { counters: { filesObserved: 0, directoriesVisited: 0, totalFiles: 10.5 } },
+      {
+        counters: {
+          filesObserved: 1.5,
+          directoriesVisited: 0,
+          totalFiles: null,
+        },
+      },
+      {
+        counters: { filesObserved: 0, directoriesVisited: 0, totalFiles: 10.5 },
+      },
     ]) {
       const { transport } = transportWith(() =>
         okEnvelope([{ ...baseStatus, ...patch }]),
@@ -368,14 +367,19 @@ describe("native status list seam", () => {
   it("rejects malformed statuses without trusting them", async () => {
     for (const status of [
       { ...baseStatus, state: "scanning" },
-      { ...baseStatus, counters: { filesObserved: -1, directoriesVisited: 0, totalFiles: null } },
+      {
+        ...baseStatus,
+        counters: {
+          filesObserved: -1,
+          directoriesVisited: 0,
+          totalFiles: null,
+        },
+      },
       { ...baseStatus, lastOutcomeAt: "1717386245123456789" },
       { ...baseStatus, lastOutcomeAt: "2026-01-02T03:04:05.1234567890Z" },
       { ...baseStatus, errorCode: "future_error" },
     ]) {
-      const { transport } = transportWith(() =>
-        okEnvelope([status]),
-      );
+      const { transport } = transportWith(() => okEnvelope([status]));
       await expectCode(
         createNativeLibraryScanAdapter(transport).listScanStatuses(),
         "internal",
@@ -398,19 +402,20 @@ describe("native library page seam", () => {
       }),
     );
     const adapter = createNativeLibraryScanAdapter(transport);
-    await adapter.getLibraryPage({ rootId: "root-1", limit: 500, cursor: null });
-    expect(invoke).toHaveBeenCalledExactlyOnceWith(
-      GET_LIBRARY_PAGE_COMMAND,
-      {
-        request: {
-          schemaVersion: 1,
-          rootId: "root-1",
-          limit: 200,
-          cursor: null,
-          snapshotId: null,
-        },
+    await adapter.getLibraryPage({
+      rootId: "root-1",
+      limit: 500,
+      cursor: null,
+    });
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(GET_LIBRARY_PAGE_COMMAND, {
+      request: {
+        schemaVersion: 1,
+        rootId: "root-1",
+        limit: 200,
+        cursor: null,
+        snapshotId: null,
       },
-    );
+    });
   });
 
   it("returns per-root records verbatim without merging or sorting", async () => {
@@ -423,9 +428,9 @@ describe("native library page seam", () => {
         nextCursor: "cursor-2",
       }),
     );
-    const page = await createNativeLibraryScanAdapter(
-      transport,
-    ).getLibraryPage({ rootId: "root-1", limit: 4, cursor: null });
+    const page = await createNativeLibraryScanAdapter(transport).getLibraryPage(
+      { rootId: "root-1", limit: 4, cursor: null },
+    );
     // Native order is kept; the adapter never sorts by display spelling.
     expect(page.records.map((record) => record.locationId)).toEqual([
       "location-2",
@@ -500,13 +505,11 @@ describe("native library page seam", () => {
         nextCursor: null,
       }),
     );
-    const page = await createNativeLibraryScanAdapter(
-      transport,
-    ).getLibraryPage({ rootId: "root-1", limit: 4, cursor: null });
-    expect(page.records[0]?.byteSize).toBe("9223372036854775807");
-    expect(page.records[0]?.modifiedAt).toBe(
-      "2026-01-02T03:04:05.123456789Z",
+    const page = await createNativeLibraryScanAdapter(transport).getLibraryPage(
+      { rootId: "root-1", limit: 4, cursor: null },
     );
+    expect(page.records[0]?.byteSize).toBe("9223372036854775807");
+    expect(page.records[0]?.modifiedAt).toBe("2026-01-02T03:04:05.123456789Z");
     expect(page.snapshotId).toBe("snapshot-1");
   });
 });

@@ -51,7 +51,8 @@ const LIBRARY_ERROR_MESSAGES: Readonly<Record<LibraryErrorCode, string>> = {
   not_found: "The requested item is no longer available.",
   cancelled: "The operation was cancelled.",
   internal: "Fruitboard could not complete the request.",
-  invalid_cursor: "The page continuation is not valid; start from the first page.",
+  invalid_cursor:
+    "The page continuation is not valid; start from the first page.",
   stale_cursor: "The list changed; start again from the first page.",
 };
 
@@ -183,7 +184,11 @@ const SCAN_ERROR_CODES = new Set<ScanErrorCode>([
   "internal",
 ]);
 
-const SCAN_START_OUTCOMES = new Set(["queued", "already_queued", "already_running"]);
+const SCAN_START_OUTCOMES = new Set([
+  "queued",
+  "already_queued",
+  "already_running",
+]);
 
 const CANCEL_OUTCOMES = new Set([
   "cancelled",
@@ -206,10 +211,11 @@ function parseCounters(value: unknown): ScanStatus["counters"] {
   const directoriesVisitedValue: unknown = value["directoriesVisited"];
   const totalFilesValue: unknown = value["totalFiles"];
   const isSafeCount = (entry: unknown): entry is number =>
-    typeof entry === "number" &&
-    Number.isSafeInteger(entry) &&
-    entry >= 0;
-  if (!isSafeCount(filesObservedValue) || !isSafeCount(directoriesVisitedValue)) {
+    typeof entry === "number" && Number.isSafeInteger(entry) && entry >= 0;
+  if (
+    !isSafeCount(filesObservedValue) ||
+    !isSafeCount(directoriesVisitedValue)
+  ) {
     throw new LibraryAdapterError("internal");
   }
   let totalFiles: number | null;
@@ -401,7 +407,10 @@ function parseRecord(value: unknown): PublishedFileLocation {
     throw new LibraryAdapterError("internal");
   }
   // Decimal-string byte sizes round-trip exactly; never a JSON number.
-  if (typeof byteSize !== "string" || validateByteSizeDecimal(byteSize).ok !== true) {
+  if (
+    typeof byteSize !== "string" ||
+    validateByteSizeDecimal(byteSize).ok !== true
+  ) {
     throw new LibraryAdapterError("internal");
   }
   // RFC 3339 with nanosecond precision retained verbatim.
