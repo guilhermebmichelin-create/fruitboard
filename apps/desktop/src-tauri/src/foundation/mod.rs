@@ -11,6 +11,10 @@ pub(crate) mod scan_console;
 pub(crate) mod scan_console_host;
 #[cfg(all(test, feature = "scan-console"))]
 mod watcher_lifecycle;
+#[cfg(all(feature = "scan-console", windows))]
+pub(crate) mod watcher_supervisor;
+#[cfg(all(test, feature = "scan-console", windows))]
+mod watcher_supervisor_tests;
 
 pub use command::{COMMAND_SCHEMA_VERSION, CommandEnvelope};
 pub use errors::{ErrorCode, UserFacingError};

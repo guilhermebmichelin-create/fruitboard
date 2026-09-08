@@ -239,6 +239,10 @@ impl NativeFoundation {
             scan_console,
         })
     }
+
+    fn shutdown(&self) {
+        self.scan_console.shutdown();
+    }
 }
 
 fn invalid_request() -> AppError {
@@ -486,12 +490,26 @@ fn list_scan_roots(
     handle_list_scan_roots(&state.commands, &state.scan_roots, request)
 }
 
+fn notify_scan_configuration_changed<T>(
+    scan_console: &ScanConsoleService,
+    response: &CommandEnvelope<T>,
+) {
+    if matches!(response, CommandEnvelope::Ok { .. }) {
+        // The root command has returned from its database transaction before
+        // this wake is sent. The supervisor can therefore reconfigure native
+        // handles without extending the command's database critical section.
+        scan_console.configuration_changed();
+    }
+}
+
 #[tauri::command]
 fn add_scan_root(
     request: Option<Value>,
     state: tauri::State<'_, NativeFoundation>,
 ) -> CommandEnvelope<ScanRoot> {
-    handle_add_scan_root(&state.commands, &state.scan_roots, request)
+    let response = handle_add_scan_root(&state.commands, &state.scan_roots, request);
+    notify_scan_configuration_changed(&state.scan_console, &response);
+    response
 }
 
 #[tauri::command]
@@ -499,7 +517,9 @@ fn remove_scan_root(
     request: Option<Value>,
     state: tauri::State<'_, NativeFoundation>,
 ) -> CommandEnvelope<ScanRootRemoved> {
-    handle_remove_scan_root(&state.commands, &state.scan_roots, request)
+    let response = handle_remove_scan_root(&state.commands, &state.scan_roots, request);
+    notify_scan_configuration_changed(&state.scan_console, &response);
+    response
 }
 
 #[tauri::command]
@@ -507,7 +527,9 @@ fn set_scan_root_display_name(
     request: Option<Value>,
     state: tauri::State<'_, NativeFoundation>,
 ) -> CommandEnvelope<ScanRoot> {
-    handle_set_scan_root_display_name(&state.commands, &state.scan_roots, request)
+    let response = handle_set_scan_root_display_name(&state.commands, &state.scan_roots, request);
+    notify_scan_configuration_changed(&state.scan_console, &response);
+    response
 }
 
 #[tauri::command]
@@ -515,7 +537,9 @@ fn set_scan_root_enabled(
     request: Option<Value>,
     state: tauri::State<'_, NativeFoundation>,
 ) -> CommandEnvelope<ScanRoot> {
-    handle_set_scan_root_enabled(&state.commands, &state.scan_roots, request)
+    let response = handle_set_scan_root_enabled(&state.commands, &state.scan_roots, request);
+    notify_scan_configuration_changed(&state.scan_console, &response);
+    response
 }
 
 #[tauri::command]
@@ -620,7 +644,7 @@ pub fn run() -> tauri::Result<()> {
     let builder = builder.plugin(tauri_plugin_shell::init());
     let builder = builder.plugin(tauri_plugin_dialog::init());
 
-    builder
+    let app = builder
         .setup(|app| {
             let log_directory = app.path().app_log_dir().ok();
             let data_directory = app.path().app_local_data_dir()?;
@@ -690,7 +714,13 @@ pub fn run() -> tauri::Result<()> {
             get_library_page,
             get_scan_console_state
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?;
+    app.run(|app_handle, event| {
+        if matches!(event, tauri::RunEvent::Exit) {
+            app_handle.state::<NativeFoundation>().shutdown();
+        }
+    });
+    Ok(())
 }
 
 #[cfg(test)]
