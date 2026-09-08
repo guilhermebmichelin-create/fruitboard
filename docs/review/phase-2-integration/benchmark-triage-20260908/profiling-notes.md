@@ -57,7 +57,7 @@ Derived batch arithmetic for the quota-fitting 10k set (10,000 observations):
   (`to_scan_observation` + `staged_observation`, in-memory); (d) one
   `stage_scan_observations` durable transaction.
 - Per run commit-path transaction count (derived): ~20 staging transactions
-  + 1 atomic `publish_scan_run` transaction + ~40 fence row-reads + ~2-3
+  plus 1 atomic `publish_scan_run` transaction + ~40 fence row-reads + ~2-3
   lease renewals. Every write transaction runs under `synchronous = FULL`
   (fsync per commit on this host's NVMe volume).
 - No `NORMAL`-vs-`FULL` comparison was run (that would be a source change).
