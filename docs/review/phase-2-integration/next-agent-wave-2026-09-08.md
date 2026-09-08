@@ -5,6 +5,15 @@ after the current continuation is reviewed and landed. It does not activate
 production scanning, promote an acceptance ID, change a provisional budget, or
 claim installed-app evidence.
 
+Execution record: the starting continuation merged as `e5e777d` (PR #81),
+and its [Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618)
+passed, including the feature-enabled Windows tests and Clippy. The assignments
+below are the original handoff. Their local implementation and validation are
+recorded in the [continuation addendum](continuation-2026-09-08.md#local-next-wave-integration).
+The wave's owner merge and post-merge feature-on CI remain pending. The
+[installed-app checklist](installed-app-journey-checklist.md) is preparation
+only; observations and owner decisions remain pending.
+
 ## Starting boundary
 
 The parent agent owns the current continuation review and its merge. The
