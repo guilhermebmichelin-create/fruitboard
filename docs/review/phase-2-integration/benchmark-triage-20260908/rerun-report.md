@@ -319,7 +319,7 @@ measurement and is not claimed against the 100k budget.
 ## 9. Reproducibility
 
 From `chore/benchmark-triage-20260908` at `51f45af`, with
-`C:\Users\guilh\.cargo\bin` on `PATH` (harness spawns `cargo`):
+`C:\Users\artist\.cargo\bin` on `PATH` (harness spawns `cargo`):
 
 ```text
 cargo build --release -p fruitboard-scan-execution --example benchmark --locked

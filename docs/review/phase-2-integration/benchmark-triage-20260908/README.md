@@ -49,7 +49,7 @@ Provenance of the folded-in draft (preserved verbatim from its
 header):
 
 - Baseline: `origin/main` `51f45af` (PR #84 merged). Verified in
-  `C:\Users\guilh\fruitboard` via `git fetch origin` +
+  `C:\Users\artist\fruitboard` via `git fetch origin` +
   `git rev-parse HEAD` / `git rev-parse origin/main` (both `51f45af`).
 - Worktree/branch of that draft: `bench/triage-51f45af` (worktree
   `.tools/worktrees/bench-triage-51f45af`), created from `51f45af`.
