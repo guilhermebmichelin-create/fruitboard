@@ -209,3 +209,22 @@ implementation, independent fault verification, and installed-app journey
 preparation. Start that wave from this continuation's merged commit after its
 required checks pass. The pre-integration local snapshot above is historical;
 the PR and GitHub merge record provide the eventual commit and CI provenance.
+
+## Merged continuation and next-wave baseline
+
+PR #81 merged the continuation as
+`e5e777d3c192d4d3da35284e6e3c8e5af3ec3f58`. The earlier local/unpublished
+statements above describe the pre-merge review snapshot. Post-merge
+[Foundation CI run 34218497618](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618)
+passed for that exact commit. Its
+[Windows foundation job](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618/job/102035821402)
+passed the integrated Windows gate, enabled scan-console tests, and enabled
+warnings-denied Clippy. The merged capability includes only event listen and
+unlisten permissions for the subscription correction.
+
+This establishes the starting boundary for the next parallel agent wave.
+Supervisor implementation and independent fault verification are in progress;
+their combined commit and CI result remain pending. Installed-app observations,
+F1–F3 decisions, platform scope decisions, and owner acceptance remain pending.
+This baseline record does not activate production scanning or promote an
+acceptance criterion.
