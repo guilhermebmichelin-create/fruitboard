@@ -44,7 +44,7 @@ use fruitboard_filesystem_enumeration::{
 use fruitboard_scan_execution::{
     ActiveScan, ScanClock, ScanExecution, ScanExecutionStatus, ScanWorker,
 };
-use fruitboard_storage::{Database, ScanJobState, StorageError};
+use fruitboard_storage::{Database, ScanJobState, ScanRunOutcome, StorageError};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, mpsc};
@@ -53,8 +53,12 @@ use std::time::Duration;
 #[cfg(windows)]
 use super::watcher_supervisor::{SupervisorSignal, run_native_supervisor};
 
+#[derive(Clone)]
 struct ActiveCancellation {
     job_id: String,
+    run_id: String,
+    session_id: String,
+    lease_token: String,
     flag: Arc<AtomicBool>,
 }
 
@@ -117,6 +121,8 @@ pub(crate) struct ScanConsoleHost {
     worker_join: Mutex<Option<std::thread::JoinHandle<()>>>,
     #[cfg(windows)]
     watcher_join: Mutex<Option<std::thread::JoinHandle<()>>>,
+    lifecycle: Mutex<()>,
+    shutdown_requested: Arc<AtomicBool>,
     stopping: Arc<AtomicBool>,
 }
 
@@ -148,6 +154,8 @@ impl ScanConsoleHost {
             worker_join: Mutex::new(None),
             #[cfg(windows)]
             watcher_join: Mutex::new(None),
+            lifecycle: Mutex::new(()),
+            shutdown_requested: Arc::new(AtomicBool::new(false)),
             stopping: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -174,13 +182,16 @@ impl ScanConsoleHost {
         }
     }
 
-    fn register_cancellation(&self, job_id: String) -> Arc<AtomicBool> {
+    fn register_cancellation(&self, scan: &ActiveScan) -> Arc<AtomicBool> {
         let flag = Arc::new(AtomicBool::new(false));
         *self
             .cancellation
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = Some(ActiveCancellation {
-            job_id,
+            job_id: scan.leased.run.scan_job_id.clone(),
+            run_id: scan.leased.run.id.clone(),
+            session_id: scan.leased.run.session_id.clone(),
+            lease_token: scan.leased.run.lease_token.clone(),
             flag: flag.clone(),
         });
         flag
@@ -282,18 +293,28 @@ impl ScanConsoleHost {
         }
     }
 
-    /// Stop both lifecycle loops and join them. Repeated calls are idempotent.
-    /// The watcher loop owns native handles and joins each one before it
-    /// exits; the scan loop receives a cooperative cancellation signal first.
-    pub(crate) fn shutdown(&self) {
-        self.stopping.store(true, Ordering::Release);
-        if let Some(active) = self
-            .cancellation
+    /// Fence an active lease as interrupted, stop both lifecycle loops, and
+    /// join them. Repeated calls are idempotent. The durable fence happens
+    /// before the global stop flag reaches the traversal cancellation mirror,
+    /// so closing the host preserves restart recovery instead of recording a
+    /// user cancellation.
+    pub(crate) fn shutdown(&self, database: &Mutex<Database>) {
+        let _lifecycle = self
+            .lifecycle
             .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .as_ref()
-        {
-            active.flag.store(true, Ordering::Relaxed);
+            .unwrap_or_else(PoisonError::into_inner);
+        self.shutdown_requested.store(true, Ordering::Release);
+        let fence_succeeded = self.fence_active_run(database);
+        if fence_succeeded {
+            self.stopping.store(true, Ordering::Release);
+            if let Some(active) = self
+                .cancellation
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .as_ref()
+            {
+                active.flag.store(true, Ordering::Relaxed);
+            }
         }
         if let Some(sender) = self
             .worker_signal
@@ -329,6 +350,13 @@ impl ScanConsoleHost {
         {
             let _ = join.join();
         }
+        if !fence_succeeded {
+            // The worker was asked to stop through the independent lifecycle
+            // flag, but its traversal mirror was left untouched. It can
+            // therefore finish naturally instead of turning an unavailable
+            // shutdown fence into a false user cancellation.
+            self.stopping.store(true, Ordering::Release);
+        }
     }
 
     /// Start the scan poll-loop and, on Windows, the independent native
@@ -338,7 +366,12 @@ impl ScanConsoleHost {
         self: &Arc<Self>,
         database: Arc<Mutex<Database>>,
     ) -> Result<(), StorageError> {
+        let lifecycle = self
+            .lifecycle
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if self.stopping.load(Ordering::Acquire)
+            || self.shutdown_requested.load(Ordering::Acquire)
             || self
                 .worker_join
                 .lock()
@@ -375,7 +408,7 @@ impl ScanConsoleHost {
                 .unwrap_or_else(PoisonError::into_inner) = Some(watcher_sender);
             let watcher_database = database.clone();
             let watcher_clock = self.clock.clone();
-            let watcher_stopping = self.stopping.clone();
+            let watcher_shutdown_requested = self.shutdown_requested.clone();
             let watcher_join = std::thread::Builder::new()
                 .name("fruitboard-watcher-supervisor".to_owned())
                 .spawn(move || {
@@ -383,13 +416,14 @@ impl ScanConsoleHost {
                         watcher_database,
                         watcher_clock,
                         watcher_receiver,
-                        watcher_stopping,
+                        watcher_shutdown_requested,
                     )
                 });
             let join = match watcher_join {
                 Ok(join) => join,
                 Err(_) => {
-                    self.shutdown();
+                    drop(lifecycle);
+                    self.shutdown(&database);
                     return Err(StorageError::Io);
                 }
             };
@@ -399,12 +433,13 @@ impl ScanConsoleHost {
                 .unwrap_or_else(PoisonError::into_inner) = Some(join);
         }
         let host = self.clone();
+        let worker_database = database.clone();
         let worker_join = std::thread::Builder::new()
             .name("fruitboard-scan-console".to_owned())
             .spawn(move || {
                 let mut port = WindowsFilesystemPort::new();
-                while !host.stopping.load(Ordering::Acquire) {
-                    host.tick(&database, &mut port);
+                while !host.shutdown_requested.load(Ordering::Acquire) {
+                    host.tick(&worker_database, &mut port);
                     match worker_receiver
                         .recv_timeout(Duration::from_millis(SCAN_CONSOLE_POLL_INTERVAL_MS))
                     {
@@ -418,7 +453,8 @@ impl ScanConsoleHost {
         let join = match worker_join {
             Ok(join) => join,
             Err(_) => {
-                self.shutdown();
+                drop(lifecycle);
+                self.shutdown(&database);
                 return Err(StorageError::Io);
             }
         };
@@ -426,6 +462,7 @@ impl ScanConsoleHost {
             .worker_join
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = Some(join);
+        drop(lifecycle);
         Ok(())
     }
 
@@ -435,14 +472,20 @@ impl ScanConsoleHost {
     /// Both durable steps are short transactions; no filesystem I/O holds the
     /// database mutex.
     pub(crate) fn claim_due(&self, database: &Mutex<Database>) -> bool {
-        if self.stopping.load(Ordering::Acquire) {
+        let _lifecycle = self
+            .lifecycle
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if self.stopping.load(Ordering::Acquire) || self.shutdown_requested.load(Ordering::Acquire)
+        {
             return false;
         }
         let worker = self.clone_worker();
         let Ok(mut db) = database.lock() else {
             return false;
         };
-        if self.stopping.load(Ordering::Acquire) {
+        if self.stopping.load(Ordering::Acquire) || self.shutdown_requested.load(Ordering::Acquire)
+        {
             return false;
         }
         if worker
@@ -459,7 +502,7 @@ impl ScanConsoleHost {
         };
         let job_id = scan.leased.run.scan_job_id.clone();
         let root_id = scan.leased.run.scan_root_id.clone();
-        let flag = self.register_cancellation(job_id.clone());
+        let flag = self.register_cancellation(&scan);
         // A new attempt has no outcome yet: the previous error no longer
         // describes the current work.
         self.clear_error(&root_id);
@@ -522,6 +565,30 @@ impl ScanConsoleHost {
     pub(crate) fn tick<P: FilesystemPort>(&self, database: &Mutex<Database>, port: &mut P) {
         self.claim_due(database);
         self.execute_pending(database, port);
+    }
+
+    fn fence_active_run(&self, database: &Mutex<Database>) -> bool {
+        let Ok(mut database) = database.lock() else {
+            return false;
+        };
+        let Some(active) = self
+            .cancellation
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+        else {
+            return true;
+        };
+        match database.finish_scan_run(
+            &active.run_id,
+            &active.session_id,
+            &active.lease_token,
+            self.clock.now_ms(),
+            ScanRunOutcome::Interrupted,
+        ) {
+            Ok(_) | Err(StorageError::Conflict | StorageError::NotFound) => true,
+            Err(_) => false,
+        }
     }
 }
 
@@ -611,3 +678,11 @@ pub(crate) fn build_host(
     let session = worker.start_session(database, clock.as_ref())?;
     Ok(ScanConsoleHost::new(worker, session.id, clock, sink))
 }
+
+#[cfg(test)]
+#[path = "scan_console_host_tests.rs"]
+mod tests;
+
+#[cfg(test)]
+#[path = "scan_console_host_recovery_tests.rs"]
+mod recovery_tests;

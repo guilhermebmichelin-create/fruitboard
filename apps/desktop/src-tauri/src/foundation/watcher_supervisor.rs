@@ -611,10 +611,10 @@ pub(crate) fn run_native_supervisor(
     database: Arc<Mutex<Database>>,
     clock: Arc<dyn ScanClock + Send + Sync>,
     receiver: mpsc::Receiver<SupervisorSignal>,
-    stopping: Arc<std::sync::atomic::AtomicBool>,
+    shutdown_requested: Arc<std::sync::atomic::AtomicBool>,
 ) {
     let mut supervisor = WatcherSupervisor::new(NativeWatchFactory);
-    while !stopping.load(std::sync::atomic::Ordering::Acquire) {
+    while !shutdown_requested.load(std::sync::atomic::Ordering::Acquire) {
         let now_ns = monotonic_nanos();
         let roots_result: Result<Vec<WatchRootConfig>, StorageError> = match database.try_lock() {
             Ok(db) => db.list_scan_roots().and_then(|roots| {
@@ -633,7 +633,7 @@ pub(crate) fn run_native_supervisor(
             Err(std::sync::TryLockError::Poisoned(_)) => Err(StorageError::Io),
             Err(std::sync::TryLockError::WouldBlock) => Err(StorageError::Busy),
         };
-        if stopping.load(std::sync::atomic::Ordering::Acquire) {
+        if shutdown_requested.load(std::sync::atomic::Ordering::Acquire) {
             break;
         }
         // A transient read failure leaves the last known configuration in
@@ -643,7 +643,7 @@ pub(crate) fn run_native_supervisor(
         if let Ok(roots) = roots_result {
             supervisor.sync_roots(&roots, now_ns);
         }
-        if stopping.load(std::sync::atomic::Ordering::Acquire) {
+        if shutdown_requested.load(std::sync::atomic::Ordering::Acquire) {
             break;
         }
         supervisor.poll(&database, clock.as_ref(), now_ns);

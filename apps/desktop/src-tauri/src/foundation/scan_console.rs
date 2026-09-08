@@ -413,7 +413,7 @@ impl ScanConsoleService {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take();
         if let Some(host) = host {
-            host.shutdown();
+            host.shutdown(&self.database);
         }
     }
 
