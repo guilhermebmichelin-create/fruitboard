@@ -43,6 +43,8 @@ use fruitboard_storage::{
 use fruitboard_storage::{LibraryQuery, MAX_LIBRARY_PAGE_SIZE, ScanJobState, ScanRootPublication};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
+#[cfg(feature = "scan-console")]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 /// Maximum accepted size of an opaque cursor/snapshot token. Bounds decode
@@ -290,6 +292,8 @@ pub(crate) struct ScanConsoleService {
     clock: Arc<dyn fruitboard_scan_execution::ScanClock + Send + Sync>,
     #[cfg(feature = "scan-console")]
     host: Mutex<Option<Arc<super::scan_console_host::ScanConsoleHost>>>,
+    #[cfg(feature = "scan-console")]
+    initialization_started: AtomicBool,
 }
 
 #[cfg(not(feature = "scan-console"))]
@@ -331,6 +335,12 @@ impl ScanConsoleService {
     fn get_scan_console_state(&self) -> Result<ScanConsoleState, AppError> {
         Ok(ScanConsoleState { enabled: false })
     }
+
+    /// Configuration mutations have no watcher side effect when the feature
+    /// is disabled. The command remains a recoverable unavailable surface.
+    pub(crate) fn configuration_changed(&self) {}
+
+    pub(crate) fn shutdown(&self) {}
 }
 
 #[cfg(feature = "scan-console")]
@@ -340,6 +350,7 @@ impl ScanConsoleService {
             database,
             clock: Arc::new(fruitboard_scan_execution::SystemClock),
             host: Mutex::new(None),
+            initialization_started: AtomicBool::new(false),
         }
     }
 
@@ -349,6 +360,9 @@ impl ScanConsoleService {
         &self,
         app: tauri::AppHandle,
     ) -> Result<(), fruitboard_storage::StorageError> {
+        if self.initialization_started.swap(true, Ordering::AcqRel) {
+            return Err(fruitboard_storage::StorageError::Conflict);
+        }
         let mut database = self
             .database
             .lock()
@@ -360,27 +374,54 @@ impl ScanConsoleService {
         )?;
         drop(database);
         let host = Arc::new(host);
+        host.spawn(self.database.clone())?;
         *self
             .host
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(host.clone());
-        host.spawn(self.database.clone());
         Ok(())
     }
 
-    fn host(&self) -> Arc<super::scan_console_host::ScanConsoleHost> {
+    fn host(&self) -> Result<Arc<super::scan_console_host::ScanConsoleHost>, AppError> {
         self.host
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
-            .expect("the scan console host is installed during setup")
+            .ok_or_else(|| {
+                AppError::new(ErrorCode::Unavailable, DiagnosticCode::ScanConsoleDisabled)
+            })
+    }
+
+    /// Wake the independent watcher and scan lifecycle loops after a durable
+    /// root mutation. Callers invoke this only after releasing the database
+    /// mutex, so configuration acknowledgement never waits on host work.
+    pub(crate) fn configuration_changed(&self) {
+        if let Some(host) = self
+            .host
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+        {
+            host.wake();
+        }
+    }
+
+    pub(crate) fn shutdown(&self) {
+        let host = self
+            .host
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        if let Some(host) = host {
+            host.shutdown(&self.database);
+        }
     }
 
     fn scan_now(&self, root_id: String) -> Result<ScanStartResult, AppError> {
-        let host = self.host();
+        let host = self.host()?;
+        let worker = host.clone_worker();
         let mut database = self.database.lock().map_err(|_| storage_failed())?;
-        let result = host
-            .worker()
+        let result = worker
             .request_manual_scan(&mut database, &root_id, self.clock.as_ref())
             .map_err(map_enqueue_storage_error)?;
         let job = latest_job_for_root(&database, &root_id).map_err(map_enqueue_storage_error)?;
@@ -410,7 +451,7 @@ impl ScanConsoleService {
     }
 
     fn cancel_scan(&self, job_id: String) -> Result<CancelScanResult, AppError> {
-        let host = self.host();
+        let host = self.host()?;
         // The in-memory cancellation mirror is set first (never blocks,
         // never needs the database) so the running traversal stops at its
         // next cooperative check; the durable write below is the
@@ -465,7 +506,7 @@ impl ScanConsoleService {
     }
 
     fn retry_scan(&self, job_id: String) -> Result<ScanStartResult, AppError> {
-        let host = self.host();
+        let host = self.host()?;
         let mut database = self.database.lock().map_err(|_| storage_failed())?;
         let job = database.scan_job(&job_id).map_err(map_scan_storage_error)?;
         match job.state {
@@ -511,7 +552,7 @@ impl ScanConsoleService {
     }
 
     fn list_scan_statuses(&self) -> Result<Vec<ScanStatus>, AppError> {
-        let host = self.host();
+        let host = self.host()?;
         let database = self.database.lock().map_err(|_| storage_failed())?;
         let roots = database.list_scan_roots().map_err(map_scan_storage_error)?;
         let jobs = database.list_scan_jobs().map_err(map_scan_storage_error)?;
@@ -589,6 +630,13 @@ impl ScanConsoleService {
 
     fn get_scan_console_state(&self) -> Result<ScanConsoleState, AppError> {
         Ok(ScanConsoleState { enabled: true })
+    }
+}
+
+#[cfg(feature = "scan-console")]
+impl Drop for ScanConsoleService {
+    fn drop(&mut self) {
+        self.shutdown();
     }
 }
 

@@ -9,31 +9,46 @@
         "step": "Tab reaches Scan now",
         "focus": "Scan now Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
-        "viewport": [1280, 1600]
+        "viewport": [
+          1280,
+          1600
+        ]
       },
       {
         "step": "Enter queues scan",
         "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
-        "viewport": [1280, 1600]
+        "viewport": [
+          1280,
+          1600
+        ]
       },
       {
         "step": "Fake adapter advances to running",
         "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
-        "viewport": [1280, 1600]
+        "viewport": [
+          1280,
+          1600
+        ]
       },
       {
         "step": "Cancel retains previous committed results",
         "focus": "Retry scan Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
-        "viewport": [1280, 1600]
+        "viewport": [
+          1280,
+          1600
+        ]
       },
       {
         "step": "Enter retries scan",
         "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
-        "viewport": [1280, 1600]
+        "viewport": [
+          1280,
+          1600
+        ]
       }
     ]
   },
@@ -47,31 +62,46 @@
         "step": "Tab reaches Scan now",
         "focus": "Scan now Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
       },
       {
         "step": "Enter queues scan",
         "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
       },
       {
         "step": "Fake adapter advances to running",
         "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
       },
       {
         "step": "Cancel retains previous committed results",
         "focus": "Retry scan Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
       },
       {
         "step": "Enter retries scan",
         "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
-        "viewport": [390, 844]
+        "viewport": [
+          390,
+          844
+        ]
       }
     ]
   }

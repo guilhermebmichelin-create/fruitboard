@@ -185,11 +185,19 @@ survive, the counters do not (documented limitation of this slice).
   (`WindowsFilesystemPort`) and idles on a 1 s `recv_timeout`; action events
   (`scan_now`, `cancel_scan`, `retry_scan`) wake it immediately through an
   unbounded channel. No busy spin, no wall-clock sleeps anywhere in the host.
-- The single SQLite connection is non-reentrant and the worker holds it for
-  the duration of a traversal, so console commands serialize behind a running
-  scan. This is a documented limitation of the single-owner connection; the
-  durability and shape contracts are unaffected, and the adapter slice may
-  revisit read concurrency.
+- The single SQLite connection is non-reentrant, but the worker never holds
+  it across filesystem I/O. Traversal runs lock-free; the shared-mutex
+  staging adapter (`SharedStagingAdapter` in `crates/scan-execution`) acquires
+  short per-batch transactions (`<=512` records, re-checked by storage's
+  `MAX_STAGED_BATCH_RECORDS` fence) for lease renewal, fence re-read, and
+  staging write, plus short transactions for the pre-publication fence,
+  change-plan page reads, and the final atomic `publish_scan_run`. Every
+  staging and publication call still revalidates generation, revision, lease
+  token, and durable cancellation flags inside storage's transaction, so the
+  cancel/commit race keeps SQLite serialization as the winner. `claim_due`
+  and `execute_pending` are short-lock only, and the worker mutex is cloned
+  before executing, so `list_scan_statuses`/`get_library_page` stay
+  responsive mid-scan while the durability and shape contracts are unchanged.
 - Cancellation composition: the `cancel_scan` command flips a scoped
   in-memory mirror first (it never blocks and never needs the database, so
   the enumerator stops at its next cooperative poll between entries and
@@ -229,12 +237,27 @@ the typed unavailable envelope and `{enabled: false}`.
 
 ## 7. Remaining P2-08 checklist (owner acceptance pending)
 
+- [x] Concurrency follow-up (#38/#40, P2-08 native, P2-04/P2-05): worker/host
+      release the DB connection between batches (short per-batch staging
+      transactions `<=512` records + final atomic publication), preserving
+      generation/revision/lease/cancellation validation, cancel/commit race
+      semantics, mirror-first cancel order, and per-claim job-ID-keyed mirror.
+      Proven by deterministic `claim_due`/`execute_pending` tests with a fake
+      port + fake clock (no sleeps): statuses/pages succeed while durably
+      running and mid-traversal, cancel mid-batches leaves prior snapshots
+      untouched.
+- [x] Flagged test gaps closed: counters honesty (restart drops in-memory
+      counters, durable statuses/library survive), retry-exhausted → `conflict`
+      divergence from the fake, `Busy` → `unavailable`, `invalid_cursor` vs
+      `stale_cursor` mismatch, event/error privacy (no paths/tokens/SQL).
 - [ ] Owner accepts the native command/event surface against the client seam
       (`apps/client/src/library/contracts.ts` on the draft PR branch).
 - [ ] Client-adapter flip: the draft PR's `PlatformPort`/`LibraryScanAdapter`
       native implementation wires `scanNow/cancelScan/retryScan/
       listScanStatuses/getLibraryPage` to these commands and parses the
-      typed errors (incl. `stale_cursor`/`invalid_cursor` restart).
+      typed errors (incl. `stale_cursor`/`invalid_cursor` restart). Safe only
+      after this wave's responsiveness proof; #63 flip is still gated on owner
+      acceptance.
 - [ ] Tauri capability/permission flip for the six commands once the adapter
       lands (commands are registered but not permitted today).
 - [ ] Client-side typed IPC integration tests over the native seam.
@@ -242,4 +265,5 @@ the typed unavailable envelope and `{enabled: false}`.
       against real native statuses/pages.
 - [ ] Counters note: a future slice may surface the enumeration report
       (`directoriesVisited`, final totals) through the worker API; nothing is
-      fabricated meanwhile.
+      fabricated meanwhile (`directoriesVisited=0`, `totalFiles=null`,
+      in-memory reset on restart remain documented).

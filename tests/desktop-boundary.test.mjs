@@ -47,7 +47,7 @@ const startupViews = [
   ["preferences", "Preferences"],
 ];
 
-test("desktop capability exposes only health, preference, and scan-root commands", () => {
+test("desktop capability exposes only health, preference, scan-root, and scan-console commands", () => {
   const capability = JSON.parse(
     readRootFile("apps/desktop/src-tauri/capabilities/main.json"),
   );
@@ -59,6 +59,9 @@ test("desktop capability exposes only health, preference, and scan-root commands
   );
   const scanRootsPermission = readRootFile(
     "apps/desktop/src-tauri/permissions/scan-roots.toml",
+  );
+  const scanConsolePermission = readRootFile(
+    "apps/desktop/src-tauri/permissions/scan-console.toml",
   );
 
   assert.equal(capability.local, true);
@@ -74,6 +77,14 @@ test("desktop capability exposes only health, preference, and scan-root commands
     "allow-pick-scan-root",
     "allow-set-scan-root-display-name",
     "allow-set-scan-root-enabled",
+    "allow-scan-now",
+    "allow-cancel-scan",
+    "allow-retry-scan",
+    "allow-list-scan-statuses",
+    "allow-get-library-page",
+    "allow-get-scan-console-state",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
   ]);
   assert.match(permission, /commands\.allow = \["get_app_health"\]/);
   assert.match(
@@ -97,9 +108,57 @@ test("desktop capability exposes only health, preference, and scan-root commands
       new RegExp(`commands\\.allow = \\["${command}"\\]`),
     );
   }
+  for (const command of [
+    "scan_now",
+    "cancel_scan",
+    "retry_scan",
+    "list_scan_statuses",
+    "get_library_page",
+    "get_scan_console_state",
+  ]) {
+    assert.match(
+      scanConsolePermission,
+      new RegExp(`commands\\.allow = \\["${command}"\\]`),
+    );
+  }
   assert.doesNotMatch(
-    `${JSON.stringify(capability)}\n${permission}\n${preferencesPermission}\n${scanRootsPermission}`,
+    `${JSON.stringify(capability)}\n${permission}\n${preferencesPermission}\n${scanRootsPermission}\n${scanConsolePermission}`,
     /(?:dialog|fs|shell|sql|process|opener):/,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(capability.permissions),
+    /core:event:allow-(?:emit|emit-to)/,
+  );
+});
+
+test("native scan subscriptions have scoped listen and unlisten capabilities", () => {
+  const capability = JSON.parse(
+    readRootFile("apps/desktop/src-tauri/capabilities/main.json"),
+  );
+  const tauriAdapter = readRootFile("apps/client/src/platform/tauri.ts");
+  const nativeLibraryAdapter = readRootFile(
+    "apps/client/src/library/native.ts",
+  );
+
+  assert.deepEqual(
+    capability.permissions.filter((permission) =>
+      permission.startsWith("core:event:"),
+    ),
+    ["core:event:allow-listen", "core:event:allow-unlisten"],
+  );
+  assert.match(
+    tauriAdapter,
+    /import \{ listen \} from "@tauri-apps\/api\/event";/,
+  );
+  assert.match(tauriAdapter, /listen\(event, \(\) => handler\(\)\)/);
+  assert.match(
+    nativeLibraryAdapter,
+    /transport\.listen\(SCAN_STATUS_CHANGED_EVENT/,
+  );
+  assert.match(nativeLibraryAdapter, /if \(unlisten !== null\) unlisten\(\)/);
+  assert.doesNotMatch(
+    JSON.stringify(capability.permissions),
+    /(?:core:event:allow-(?:emit|emit-to)|(?:^|:)(?:shell|fs):)/,
   );
 });
 

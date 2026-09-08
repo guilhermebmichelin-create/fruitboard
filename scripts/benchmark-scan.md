@@ -1,13 +1,13 @@
 # Scanner benchmark methodology (P2-11 prep, #41)
 
-Status: **scaffold for methodology only.** This document defines how the
+Status: **integrated harness; first measurements recorded.** This document defines how the
 accepted provisional budgets from
 `docs/PHASE_2_EXECUTION_PLAN.md` ("Proposed targets accepted as provisional
-budgets") must be measured once the integrated scanner exists. It records no
-measurements, contains no benchmark numbers, and makes no performance claims.
-The integrating PR extends `scripts/run-benchmark.mjs` to execute this
-protocol; until then the scaffold only validates fixtures and captures the
-environment report.
+budgets") are measured by `scripts/run-benchmark.mjs` and the native
+`crates/scan-execution/examples/benchmark.rs` driver. The
+[first measured report](../docs/review/phase-2-integration/benchmark-2026-09-07.md)
+records results and limitations; this methodology does not amend budgets or
+qualify installed-app behavior.
 
 ## Scope
 
@@ -19,17 +19,20 @@ Present today:
   10,000 leaf directories), including Unicode names, long paths near the
   Windows MAX_PATH limit, Windows-only hardlink alias cases, empty
   directories and nested directories.
-- `scripts/run-benchmark.mjs`, which validates a generated fixture manifest,
-  recomputes its manifest SHA-256, and captures the environment report
-  described below. It runs nothing scanner-related and exits with a clear
-  error while the integration marker `crates/scan-worker/Cargo.toml` is
-  absent.
+- `scripts/run-benchmark.mjs`, which validates or generates a fixture,
+  recomputes its manifest SHA-256, captures the environment, builds the
+  release driver, and executes the scan and cancellation protocol below.
+- The native driver composes the real Windows filesystem port, scan worker,
+  and durable database. Working-set samples describe the driver process;
+  they are not a measurement of incremental private memory in the desktop app.
 
-Not present yet, and therefore not measured by anything in this repository:
+Not established by this harness:
 
-- an integrated worker to drive enumerate + stage + final apply against a
-  root, cancellation-acknowledgement timing, working-memory observation,
-  progress/list pacing, or any comparison against the budgets.
+- rendered UI cancellation acknowledgement, renderer progress/list pacing,
+  installed-app behavior, or 100,000-entry memory qualification. The accepted
+  baseline generates 10,005 locations including aliases, exceeding the
+  current 10,000-record quota. The first report's quota-fitting comparison
+  fixture does not replace the accepted baseline. Findings F1-F3 remain open.
 
 ## Reference machine profile
 
@@ -93,8 +96,10 @@ For each budget being measured, on an otherwise idle host:
 5. Record failures, cancellations and anomalies alongside the durations. A
    failed iteration is reported as a failure, not discarded silently.
 
-The scaffold does not perform steps 2 through 5 yet: the measured-operation
-harness lands with the integrating PR wired to `crates/scan-worker`.
+The harness performs these steps with one fresh driver process per iteration
+and the same committed database for warm-up and measured scans. Cancellation
+measurements use separate databases. This is driver-process restart evidence;
+it does not exercise closing and reopening the desktop app.
 
 ## Statistics and reporting
 
@@ -139,22 +144,32 @@ not results:
 CI correctness tests use deterministic clocks and invariants, never
 hardware-sensitive absolute timing assertions, per the accepted plan.
 
-## Scaffold behavior
+## Harness behavior
 
 `node scripts/run-benchmark.mjs --manifest <fixture>/manifest.json
 [--out <report.json>]`:
 
-- exits with a clear error while `crates/scan-worker/Cargo.toml` is absent;
-  nothing scanner-related is executed;
 - validates the fixture manifest (relative POSIX paths, ascending order,
   counts consistent with entries, hardlink groups complete when support is
   `created`, case-insensitive `.flp` naming) and recomputes its SHA-256;
-- writes the sanitized environment report described above, with the
-  measurement section explicitly marked pending.
+- builds with `cargo build --release -p fruitboard-scan-execution --example
+benchmark --locked`, timing the build separately;
+- runs one warm-up and ten measured scans by default, plus three cancellation
+  measurements, recording failures alongside successful results;
+- samples process working set every 100 ms by default and reports scan and
+  cancellation statistics with the environment and provisional budget table;
+- refuses to run when the integration marker
+  `crates/scan-execution/Cargo.toml` is absent; when that marker exists but the
+  complete Cargo workspace is unavailable, falls back to an explicitly
+  unmeasured environment report.
 
-The integrating PR must keep the probe honest: if the integration point moves,
-update `INTEGRATION_MARKER` in the same PR that moves it, and never allow the
-scaffold to emit numbers without executing the full protocol in this document.
+Use `--size baseline --seed 0` instead of `--manifest` to generate a disposable
+fixture. `--size custom --files 9995 --seed 0` reproduces the quota-fitting
+comparison when five hardlink aliases are created; verify the manifest counts.
+Generated fixtures are removed unless `--keep-fixture` is supplied. `--bin`
+skips the build and therefore requires independently recording the binary's
+release-build provenance. Protocol overrides are exploratory runs unless they
+satisfy the accepted iteration and environment requirements above.
 
 ## Evidence home and open gates
 

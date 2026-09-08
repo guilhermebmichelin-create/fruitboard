@@ -13,6 +13,14 @@
     "allow-remove-scan-root",
     "allow-pick-scan-root",
     "allow-set-scan-root-display-name",
-    "allow-set-scan-root-enabled"
+    "allow-set-scan-root-enabled",
+    "allow-scan-now",
+    "allow-cancel-scan",
+    "allow-retry-scan",
+    "allow-list-scan-statuses",
+    "allow-get-library-page",
+    "allow-get-scan-console-state",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
   ]
 }
