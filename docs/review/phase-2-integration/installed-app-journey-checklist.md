@@ -40,7 +40,11 @@ $toolCandidates = @(
   (Join-Path $repositoryRoot "..\..")
 )
 $reviewTools = $toolCandidates |
-  Where-Object { Test-Path -LiteralPath $_ -PathType Container } |
+  Where-Object {
+    (Test-Path -LiteralPath (Join-Path $_ "cargo-home\bin\cargo.exe") -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $_ "node-v24.20.0-win-x64\node.exe") -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $_ "uv-0.12.9\uv.exe") -PathType Leaf)
+  } |
   Select-Object -First 1
 if ($null -eq $reviewTools) {
   throw "The shared .tools directory was not found relative to the checkout."
@@ -76,10 +80,11 @@ pnpm.cmd --filter @fruitboard/desktop exec tauri build --ci --no-sign `
 ```
 
 The Tauri CLI accepts comma-separated features. The resulting unsigned NSIS
-installer is under `target\release\bundle\nsis`. The existing
+installer is under `target\release\bundle\nsis`; use the exact installer path
+printed by that completed build when installing. The existing
 `pnpm.cmd package:windows:smoke` command enables only `packaging-smoke`; it is
 the Phase 1 packaging smoke and is not the feature-enabled scanner package.
-Record the exact installer filename and SHA-256 before installation.
+Do not select an arbitrary newest artifact when stale bundles are present.
 
 ## Disposable fixture and database setup
 
@@ -98,7 +103,6 @@ $fixtureRoot = Join-Path $journeyRoot "fixture"
 New-Item -ItemType Directory -Path $journeyRoot | Out-Null
 node scripts/generate-synthetic-tree.mjs --size baseline --seed 20260908 --out $fixtureRoot
 $scanRoot = Join-Path $fixtureRoot "roots\shard-0000-sunset-beat"
-$cancelRoot = Join-Path $fixtureRoot "roots"
 if (-not (Test-Path -LiteralPath $scanRoot -PathType Container)) {
   throw "The deterministic baseline leaf was not generated."
 }
@@ -106,13 +110,24 @@ Get-ChildItem -LiteralPath $scanRoot -File | Select-Object Name,Length
 ```
 
 Record the generator's printed `manifest sha-256`, seed `20260908`, the
-relative scan roots `roots/shard-0000-sunset-beat` and (if needed for a longer
-cancellation observation) `roots`, and the generated manifest file. The first
-root has ten FLP-named files and exercises the four-record Library page size;
-the second root is a larger quota-fitting synthetic tree for a transient
-cancellation observation. Neither root changes the benchmark fixture or its
-open F1 decision. The fixture contains only synthetic marker bytes; do not add
-private FLP files or source content.
+relative scan root `roots/shard-0000-sunset-beat`, and the generated manifest
+file. The leaf has ten FLP-named files and exercises the four-record Library
+page size. The fixture contains only synthetic marker bytes; do not add private
+FLP files or source content.
+
+If a longer cancellation window is needed, generate a separate fixture and
+record its own seed and manifest hash. Keep it outside the first fixture so a
+registered Library root and its retained rows are never an ancestor of the
+cancellation root:
+
+```powershell
+$cancelFixtureRoot = Join-Path $journeyRoot "cancellation-fixture"
+node scripts/generate-synthetic-tree.mjs --size baseline --seed 20260909 --out $cancelFixtureRoot
+$cancelRoot = Join-Path $cancelFixtureRoot "roots"
+if (-not (Test-Path -LiteralPath $cancelRoot -PathType Container)) {
+  throw "The separate cancellation fixture was not generated."
+}
+```
 
 The package config uses identifier `com.fruitboard.desktop.foundation-smoke`,
 so Tauri stores this disposable app's database at:
@@ -131,10 +146,18 @@ pattern as the existing Windows packaging smoke:
 
 ```powershell
 $installRoot = Join-Path $journeyRoot "Installed Fruitboard"
-$installerName = "fruitboard-foundation-smoke_0.1.0_x64-setup.exe"
-$installerPath = Join-Path "target\release\bundle\nsis" $installerName
-if (-not (Test-Path -LiteralPath $installerPath -PathType Leaf)) {
-  throw "The expected NSIS artifact was not produced: $installerName"
+$installerPath = Read-Host "Exact NSIS installer path printed by the completed build"
+if ([string]::IsNullOrWhiteSpace($installerPath)) {
+  throw "An exact NSIS installer path is required."
+}
+$installerPath = (Resolve-Path -LiteralPath $installerPath).Path
+$installerPathIsFile = Test-Path -LiteralPath $installerPath -PathType Leaf
+if (-not $installerPathIsFile) {
+  throw "The supplied installer path is not a file."
+}
+$bundleDirectory = (Resolve-Path -LiteralPath "target\release\bundle\nsis").Path.TrimEnd("\") + "\"
+if (-not $installerPath.StartsWith($bundleDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
+  throw "The installer must be inside target\release\bundle\nsis."
 }
 Get-FileHash -LiteralPath $installerPath -Algorithm SHA256
 $installProcess = Start-Process -FilePath $installerPath `
