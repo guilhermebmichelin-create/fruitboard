@@ -11,11 +11,16 @@ referenced by issues.
 
 ## Current status
 
-Merged-wave status snapshot (2026-09-08): baseline `e5e777d` (PR #81) is
-merged on `main`. Its [Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618)
-passed, including `scan-console` feature-enabled desktop tests and
-warnings-denied Clippy. This is build and contract evidence; it does not prove
-the installed application, native watcher supervisor, or owner acceptance.
+Merged-wave status snapshot (2026-09-08): baseline `05d39ff` (PR #82) is
+merged on `main` (squash-merge 2026-09-08T15:58:03Z from
+`wave/watcher-integration`; prior baseline `e5e777d` PR #81). Its post-merge
+[Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34248128449)
+completed `success`, including the
+[Windows foundation job](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34248128449/job/102135306455)
+with `scan-console` feature-enabled desktop tests and warnings-denied Clippy.
+This is build and contract evidence; it does not prove the installed
+application, installed-app journey, F1–F3 decisions, #47/#48 scope, or owner
+acceptance.
 
 | State | Work | Evidence or next action |
 | --- | --- | --- |

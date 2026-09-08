@@ -276,3 +276,33 @@ The wave's owner merge and post-merge feature-on CI remain pending. Remote
 `main` is still `e5e777d` at this record. Installed-app acceptance, F1–F3,
 the #47/#48 and other platform scope decisions, production scanning, parser work,
 and Phase 3 remain gated. No acceptance ID or provisional budget is promoted.
+
+## Post-merge addendum — PR #82 (2026-09-08)
+
+Owner merge is done: PR #82 merged as
+`05d39ff074ab6c568d998175744551561928de89` on 2026-09-08T15:58:03Z
+(squash-merge from `wave/watcher-integration`,
+"feat(#37): integrate native watcher supervision and shutdown recovery (#82)").
+
+Post-merge [Foundation CI run 34248128449](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34248128449)
+for the merged commit `05d39ff` completed `success`. Its
+[Windows foundation job](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34248128449/job/102135306455)
+passed the integrated Windows gate, the enabled scan-console suite
+(`cargo test -p fruitboard-desktop --features scan-console --locked`), and
+enabled warnings-denied Clippy
+(`cargo clippy -p fruitboard-desktop --features scan-console --all-targets --locked -- -D warnings`).
+A green default build alone was not used as evidence.
+
+Required checks on `main` are docs-policy, client, rust-portable, migration,
+windows-foundation, security, windows-packaging-smoke, enumeration-windows,
+filesystem-watcher-windows, and scan-execution-windows. The post-merge
+Foundation run covers 9/9 Foundation jobs on `05d39ff`; `windows-packaging-smoke`
+runs only on `pull_request` (plus schedule/dispatch), so its evidence for this
+wave is PR run
+[34236211276](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34236211276)
+(`success` on PR head `445f4dd`), not a post-merge push run.
+
+Installed-app journey observations, F1–F3 decisions, #47/#48 scope decisions,
+and owner acceptance remain pending. This addendum does not promote an
+acceptance ID, amend a budget or quota, claim installed-app evidence, or
+activate production scanning.
