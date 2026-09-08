@@ -805,6 +805,17 @@ fn enqueue_scan_tx(
     })
 }
 
+/// Invalidate every lease and staged batch for one root.
+///
+/// P2-05 close-out: both configuration entry points
+/// (`set_scan_root_enabled_at` for disable, `remove_scan_root_at` for remove)
+/// call this inside the same immediate transaction that bumps the
+/// generation/revision (disable) or detaches history and deletes the root
+/// row (remove). Leases are fenced by that generation/revision/enabled
+/// check on every later staging, renewal, finish, and publication call, so a
+/// mid-queue or mid-run disable/remove can never publish stale rows. A
+/// re-added path mints a fresh root ID whose Library starts empty; source
+/// markers (byte sizes) are never mutated by the scan itself.
 fn cancel_root_work(transaction: &Transaction<'_>, root_id: &str, now_ms: i64) -> Result<()> {
     super::publication::discard_staging_for_root_tx(transaction, root_id, now_ms)?;
     transaction.execute(

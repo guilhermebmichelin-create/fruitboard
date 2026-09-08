@@ -131,6 +131,50 @@ snapshot invalidation. The v4-to-V1 quarantine migration is covered by a
 populated-fixture regression (legacy keys quarantined, timestamps and
 identities backfilled under guards, first V1 scan retains projects).
 
+### Wave 5 durability close-out (P2-03/P2-05/P2-06/P2-07, #36+#40)
+
+Worker-level close-out lives in `crates/scan-execution/src/tests.rs`; each
+case compares committed rows PLUS the root success marker as byte-identical
+before/after blobs (`committed_state` / `assert_committed_unchanged`).
+
+- P2-03 fault injection: `p2_03_offline_*`, `p2_03_root_denied_*`,
+  `p2_03_partial_disappearance_*`, `p2_03_unsupported_filesystem_*`,
+  `p2_03_cooperative_cancel_*`, `p2_03_durable_cancel_*`,
+  `p2_03_resource_limit_*`, and `p2_03_sink_failed_*` seed two committed
+  rows, inject each non-authoritative outcome
+  (offline/denied/cancelled/limited/ResourceLimit plus Partial,
+  UnsupportedFilesystem, and SinkFailed/Invalid), and assert rows+snapshot
+  byte-identical with staging `Discarded` and no publication.
+- P2-06 atomicity: `p2_06_crash_before_staging_*` (claim then drop before any
+  batch), `p2_06_crash_after_staging_before_apply_*` (stage batches then drop
+  before publish), and `p2_06_crash_during_apply_*` (injected SQL failure
+  inside the publication transaction) each assert rollback with no partial
+  Library rows and ledger consistency, then prove the requeued chain
+  converges. `p2_06_backup_recovery_*` backs up with open staging in flight,
+  recovers to a fresh location, and asserts the committed dataset and marker
+  are preserved byte-identical while the inflight run is `Interrupted` with
+  staging `Discarded`. Migration rollback stays covered by the existing
+  storage fixtures (`failed_migration_rolls_back_schema_data_and_ledger`,
+  `killed_migration_recovers_the_original_committed_database`); no new schema
+  migration was required for this close-out, so none was added.
+- P2-07 hardlinks: `p2_07_hardlink_delete_one_*` publishes two
+  `file_location` rows sharing one `(volume_id, filesystem_file_id)` identity
+  under distinct paths, deletes one alias, and asserts the survivor stays
+  `present` with identity and `project_file_id` intact while the deleted path
+  becomes `missing` history (then restores). `p2_07_rename_replacement_*`
+  asserts rename targets keep the record on unambiguous evidence,
+  same-path replacements mint a fresh record, every path stays its own row,
+  and there is no Phase-4 grouping.
+- P2-05 re-enable: `p2_05_disable_invalidates_lease_and_staging_*` disables
+  mid-run and asserts leases+staging are invalidated in the same transaction
+  (renew/publish fence with `Conflict`, worker reports `Cancelled`, no stale
+  publication), then re-enables to a fresh generation that converges.
+  `p2_05_remove_then_readd_*` removes mid-run, asserts the run is
+  `Cancelled` with staging gone, re-adds the same canonical path, and asserts
+  a fresh root ID with an empty Library, no stale rows, and unchanged source
+  markers (byte sizes). `p2_05_queued_work_invalidated_*` covers the
+  mid-queue path.
+
 The storage crate still does no traversal, watcher activation, parser/content
 read, renderer scan activation, or source-file mutation. DriveFS, cross-volume,
 and FAT32 identity support remain unverified under #47/#48.
