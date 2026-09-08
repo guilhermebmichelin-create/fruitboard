@@ -10,9 +10,15 @@ and its [Foundation CI run](https://github.com/guilhermebmichelin-create/fruitbo
 passed, including the feature-enabled Windows tests and Clippy. The assignments
 below are the original handoff. Their local implementation and validation are
 recorded in the [continuation addendum](continuation-2026-09-08.md#local-next-wave-integration).
-The wave's owner merge and post-merge feature-on CI remain pending. The
+Owner merge is done: the wave merged as `05d39ff` (PR #82) on
+2026-09-08T15:58:03Z, and its post-merge
+[Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34248128449)
+completed `success`, including the
+[Windows foundation job](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34248128449/job/102135306455)
+with feature-on scan-console tests and warnings-denied Clippy. The
 [installed-app checklist](installed-app-journey-checklist.md) is preparation
-only; observations and owner decisions remain pending.
+only; installed-app observations, F1–F3 decisions, #47/#48 scope, and owner
+acceptance remain pending.
 
 ## Starting boundary
 
