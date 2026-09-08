@@ -1,10 +1,14 @@
 # Phase 2 Library/scan client contract proposal
 
-Status: **UI-only proposal for the #38 execution and #40 publication owners.**
-This document is not an accepted shared contract, native implementation, or
-claim of production scanning. The client branch intentionally leaves
-`apps/client/src/platform/contracts.ts`, native commands, manifests, locks, and
-CI unchanged.
+Status: **UI-only proposal for the #38 execution and #40 publication owners,
+with the native implementation now landed behind it in this branch.**
+This document remains the proposal record, not the accepted shared contract;
+the authoritative shapes are the storage integration contract §5 and the
+scan-console IPC surface (`docs/review/phase-2-ipc/README.md` §2–§4), mapped
+1:1 by `apps/client/src/library/native.ts`. The client branch now wires the
+native adapter (`apps/client/src/platform/tauri.ts`,
+`apps/client/src/entries/desktop.tsx`) and the six-command Tauri capability;
+`fake.ts` stays as test/rendered-evidence harness code only.
 
 > Superseded for this round: the earlier combined-root query and numeric
 > `byteSize` sketch are overridden by the authoritative storage integration

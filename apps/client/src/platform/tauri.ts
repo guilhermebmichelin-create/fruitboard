@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   NATIVE_COMMAND_SCHEMA_VERSION,
   parseAppHealth,
@@ -10,6 +11,12 @@ import {
   type PlatformPort,
   type StartupView,
 } from "./contracts";
+import {
+  createNativeLibraryScanAdapter,
+  SCAN_STATUS_CHANGED_EVENT,
+  type NativeLibraryTransport,
+} from "../library/native";
+import type { LibraryScanAdapter } from "../library/contracts";
 
 export const GET_APP_HEALTH_COMMAND = "get_app_health";
 export const GET_APP_HEALTH_ARGUMENTS = Object.freeze({
@@ -82,6 +89,49 @@ export const createSetStartupViewArguments = (startupView: StartupView) =>
       startupView,
     }),
   });
+
+export const SCAN_CONSOLE_COMMANDS = Object.freeze([
+  "scan_now",
+  "cancel_scan",
+  "retry_scan",
+  "list_scan_statuses",
+  "get_library_page",
+  "get_scan_console_state",
+] as const);
+
+export type ScanConsoleCommand = (typeof SCAN_CONSOLE_COMMANDS)[number];
+
+export function createTauriLibraryTransport(
+  invokeCommand: NativeLibraryTransport["invoke"] = (command, arguments_) =>
+    invoke(command, arguments_),
+  listenEvent: NativeLibraryTransport["listen"] = (event, handler) =>
+    listen(event, () => handler()),
+): NativeLibraryTransport {
+  return {
+    invoke: invokeCommand,
+    listen: listenEvent,
+  };
+}
+
+/**
+ * Native `LibraryScanAdapter` behind the scan-console IPC surface.
+ *
+ * Production wiring for `entries/desktop.tsx`: the six scan-console
+ * commands are permitted in `capabilities/main.json` (all other commands
+ * keep `removeUnusedCommands=true`). With the `scan-console` cargo feature
+ * off every command returns the typed `unavailable` envelope, which the
+ * adapter surfaces as a recoverable `LibraryAdapterError("unavailable")`
+ * for the existing Library refresh/error UI. Subscription uses the typed
+ * `scan-status-changed` event; unsubscription is safe on route changes and
+ * unmount (see `LibraryPage` mount/adapter-lifetime cleanup).
+ */
+export function createTauriLibraryScanAdapter(
+  transport: NativeLibraryTransport = createTauriLibraryTransport(),
+): LibraryScanAdapter {
+  return createNativeLibraryScanAdapter(transport);
+}
+
+export { SCAN_STATUS_CHANGED_EVENT };
 
 type InvokeCommand = (
   command: string,

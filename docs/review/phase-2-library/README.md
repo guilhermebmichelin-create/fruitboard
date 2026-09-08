@@ -62,7 +62,21 @@ Scan now, Cancel, and Retry, and asserts focus transitions:
   selector with duplicate disambiguation, and per-root snapshot restart. The
   page-count line is static text; a visually hidden polite live region
   announces only actual page changes, so unrelated re-renders stay silent.
-- Latest client run: 12 test files and 102 tests passed; lint and TypeScript
+- `native.test.ts`: typed IPC integration tests over the native seam
+  (`apps/client/src/library/native.ts`). Covers queued `runId: null` with
+  `jobId` set, `already_queued`/`already_running` coalescing, terminal
+  cancel `already_*` no-ops carrying the recorded `runId`,
+  `not_found`/`conflict`/`unavailable`/`internal` codes (feature-off
+  `unavailable` surfaces as recoverable), `invalid_cursor`/`stale_cursor`
+  for the renderer's page-one restart (`cursor: null`, same `rootId`),
+  `limit` clamp `1..200`, decimal-string `byteSize` with SQLite-bound
+  validation, RFC 3339-ns `modifiedAt` retention, per-root pages with no
+  cross-root merge or sort, strict envelope/message/retryable hardening
+  (`invalid_request` and unknown codes map to `internal`; transport
+  failures map to recoverable `unavailable`), and the typed
+  `scan-status-changed` subscription with safe unsubscribe and
+  dispose-before-resolve.
+- Latest client run: 13 test files and 128 tests passed; lint and TypeScript
   checks passed; production build passed.
 - The 2026-09-07 rendered captures above were not regenerated for this
   review round: the cancel-error, restart-cooldown, record-disambiguation,
@@ -78,22 +92,61 @@ job has a job ID and no run ID until `advanceRun` simulates leasing.
 
 ## Native integration checklist
 
-1. Have the #38 execution and #40 publication owners accept the per-root
-   Library query, cursor restart semantics (`invalid_cursor` vs
+1. [x] Per-root Library query, cursor restart semantics (`invalid_cursor` vs
    `stale_cursor`), job/run identity with null queued `runId`, published
    DTO fields with decimal-string numerics, progress counters, safe
-   outcomes/codes, and separate freshness/availability semantics. The
-   combined-root pagination and numeric `byteSize` in the UI-only
+   outcomes/codes, and separate freshness/availability semantics are
+   implemented 1:1 against `docs/review/phase-2-ipc/README.md` §2–§4 in
+   `apps/client/src/library/native.ts` (`scan_now`, `cancel_scan`,
+   `retry_scan`, `list_scan_statuses`, `get_library_page` plus the
+   `scan-status-changed` subscription). Queued results keep `jobId` with a
+   null `runId`; `already_queued`/`already_running` coalesce; terminal
+   cancel `already_*` outcomes are no-ops carrying the recorded `runId`;
+   `not_found`/`conflict`/`unavailable`/`internal` map to the closed
+   library codes; `invalid_cursor`/`stale_cursor` surface for the
+   renderer's existing page-one restart (`cursor: null`, same `rootId`);
+   `limit` clamps to `1..200`; `byteSize` stays a canonical decimal string
+   (SQLite-bound validated) and `modifiedAt` stays RFC 3339-ns verbatim;
+   pages never merge or sort across roots. The combined-root pagination
+   and numeric `byteSize` in the UI-only
    [`CONTRACT_PROPOSAL.md`](CONTRACT_PROPOSAL.md) are superseded by §5 of
-   the authoritative storage integration contract for this round.
-2. Add versioned native/platform methods and parsers in a coordinated change;
-   this UI branch deliberately does not edit the shared `PlatformPort` or
-   Tauri adapter.
-3. Wire statuses to durable #38 runs and Library records to atomic #40
-   publication. Verify restart fencing, cancellation races, retry budgets,
-   incomplete traversal, root disable/removal, and hardlink aliases.
-4. Repeat desktop/narrow keyboard, axe, overflow, and source-byte/privacy
-   checks against the integrated adapter.
-5. Only after the integrated P2-03–P2-08 evidence is accepted should production
-   scanning controls be enabled. Do not treat these captures as native or
-   filesystem qualification evidence.
+   the authoritative storage integration contract for this round — the
+   native adapter follows §5, not the proposal sketch. Owner acceptance of
+   this UI seam is requested; this branch is not merged until accepted.
+2. [x] Versioned native/platform methods and parsers landed in this branch:
+   `apps/client/src/library/native.ts` (transport-injected parsing, no
+   Tauri import) plus `apps/client/src/platform/tauri.ts`
+   (`createTauriLibraryScanAdapter` wiring the real `invoke`/`listen`,
+   `SCAN_CONSOLE_COMMANDS` for the six commands). The shared
+   `PlatformPort` scan-root surface is unchanged; `fake.ts` stays as the
+   test/rendered-evidence harness only.
+3. [x] Statuses and Library records flow from the durable scan-console
+   backend through the typed envelopes; the renderer keeps all #63
+   behaviors (null-`jobId` cancel recoverable error with background
+   refresh, snapshot-burst cooldown with leading plus one trailing
+   restart, union(statuses, pages) disambiguation, static page-count text
+   with hidden polite live region on page change only, and
+   mount/adapter-lifetime/subscription cleanup). Production entry
+   `apps/client/src/entries/desktop.tsx` mounts the native adapter;
+   `capabilities/main.json` plus `permissions/scan-console.toml` permit
+   only the six scan-console commands (`removeUnusedCommands` stays true
+   for everything else). With the `scan-console` cargo feature off every
+   command returns the typed `unavailable` envelope, which the adapter
+   surfaces as recoverable UI state through the existing refresh/error
+   paths. Restart fencing, cancellation races, retry budgets, incomplete
+   traversal, root disable/removal, and hardlink aliases remain covered by
+   the native backend's own suite; the client never invents cursors,
+   merges roots, or fabricates counters.
+4. [x] Desktop/narrow keyboard, axe, overflow, and source-byte/privacy
+   checks re-run against this branch: `capture.mjs` regenerates the
+   desktop/narrow PNGs (1280×1600 + 390×844) and `keyboard-trace.json`
+   (Tab/Enter Scan→Cancel→Retry→Cancel, no `%` while `totalFiles` is
+   null, no horizontal overflow); the axe suite in
+   `LibraryPage.accessibility.test.tsx` passes; `native.test.ts` covers
+   the integrated adapter's typed envelopes. Rendered captures remain
+   fake-adapter harness evidence (no filesystem, SQLite, permissions, or
+   production execution); the native seam is evidenced by the typed
+   integration tests plus the capability flip.
+5. Only after the integrated P2-03–P2-08 evidence is accepted should this
+   branch merge. Do not treat these captures as native or filesystem
+   qualification evidence.

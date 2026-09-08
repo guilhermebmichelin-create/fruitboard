@@ -1,0 +1,31 @@
+"$schema" = "../gen/schemas/schema.json"
+
+[[permission]]
+identifier = "allow-scan-now"
+description = "Allows the local main window to queue a scan for one tracked root."
+commands.allow = ["scan_now"]
+
+[[permission]]
+identifier = "allow-cancel-scan"
+description = "Allows the local main window to cancel a queued or running scan by job ID."
+commands.allow = ["cancel_scan"]
+
+[[permission]]
+identifier = "allow-retry-scan"
+description = "Allows the local main window to retry a terminal scan by job ID."
+commands.allow = ["retry_scan"]
+
+[[permission]]
+identifier = "allow-list-scan-statuses"
+description = "Allows the local main window to list per-root scan statuses."
+commands.allow = ["list_scan_statuses"]
+
+[[permission]]
+identifier = "allow-get-library-page"
+description = "Allows the local main window to read one per-root committed Library page."
+commands.allow = ["get_library_page"]
+
+[[permission]]
+identifier = "allow-get-scan-console-state"
+description = "Allows the local main window to read whether the scan console is enabled."
+commands.allow = ["get_scan_console_state"]
