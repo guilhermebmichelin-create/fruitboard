@@ -55,6 +55,7 @@ struct Entry {
     identity: Option<u128>,
     children: Vec<Entry>,
     deny_open: bool,
+    open_error: Option<PortError>,
 }
 
 impl Entry {
@@ -95,6 +96,7 @@ fn file_entry_sized(name: &str, file_id: u128, size: u64) -> Entry {
         identity: Some(file_id),
         children: Vec::new(),
         deny_open: false,
+        open_error: None,
     }
 }
 
@@ -107,6 +109,22 @@ fn dir_entry(name: &str, file_id: u128, children: Vec<Entry>) -> Entry {
         identity: Some(file_id),
         children,
         deny_open: false,
+        open_error: None,
+    }
+}
+
+fn vanishing_dir_entry(name: &str, file_id: u128, children: Vec<Entry>) -> Entry {
+    Entry {
+        name: name.to_owned(),
+        kind: EntryKind::Directory,
+        size: 0,
+        mtime: DEFAULT_MTIME_NS,
+        identity: Some(file_id),
+        children,
+        deny_open: false,
+        // Simulates a directory that disappears mid-traversal: the enumerator
+        // records a Partial (non-authoritative) outcome, never a publication.
+        open_error: Some(PortError::NotFound),
     }
 }
 
@@ -119,6 +137,7 @@ fn tree(children: Vec<Entry>) -> Entry {
         identity: Some(ROOT_FILE_ID),
         children,
         deny_open: false,
+        open_error: None,
     }
 }
 
@@ -132,8 +151,9 @@ type Hook = Rc<RefCell<dyn FnMut(&str)>>;
 
 /// Deterministic `FilesystemPort` over the scripted tree. `root_error`
 /// scripts offline/unsupported roots; `deny_open` scripts access denial in
-/// the middle of traversal; the optional hook observes every metadata read so
-/// tests can commit durable changes mid-traversal.
+/// the middle of traversal; `open_error` on an entry scripts a Partial
+/// (disappeared/changed) directory; the optional hook observes every metadata
+/// read so tests can commit durable changes mid-traversal.
 struct FakePort {
     root: Entry,
     root_error: Option<PortError>,
@@ -153,6 +173,14 @@ impl FakePort {
         Self {
             root: tree,
             root_error: Some(PortError::NotFound),
+            hook: None,
+        }
+    }
+
+    fn with_root_error(tree: Entry, error: PortError) -> Self {
+        Self {
+            root: tree,
+            root_error: Some(error),
             hook: None,
         }
     }
@@ -231,6 +259,9 @@ impl DirectoryCursor for FakeCursor {
     fn open_directory(&mut self, entry: &DirectoryEntry) -> Result<OpenedDirectory, PortError> {
         let name = entry.name.to_string_lossy().into_owned();
         let child = self.directory.child(&name);
+        if let Some(error) = child.open_error {
+            return Err(error);
+        }
         if child.deny_open {
             return Err(PortError::AccessDenied);
         }
@@ -277,6 +308,7 @@ struct CommittedRow {
     locator_key: String,
     relative_path: String,
     byte_size: u64,
+    modified_at_ns: i64,
     present: bool,
     project_file_id: String,
     identity: Option<(String, String)>,
@@ -300,6 +332,7 @@ fn committed_rows(db: &Database, root_id: &str) -> Vec<CommittedRow> {
                 locator_key: location.locator_key.clone(),
                 relative_path: location.relative_path.clone(),
                 byte_size: location.byte_size,
+                modified_at_ns: location.modified_at_ns,
                 present: location.presence == FilePresence::Present,
                 project_file_id: location.project_file_id.clone(),
                 identity: location
@@ -315,6 +348,54 @@ fn committed_rows(db: &Database, root_id: &str) -> Vec<CommittedRow> {
         snapshot = Some(page.snapshot);
     }
     rows
+}
+
+/// Committed rows plus the root success marker, serialized deterministically
+/// for byte-identical before/after comparison. Rows are already in stable
+/// `(locator_key, id)` order via `query_library`; the marker is the Library
+/// snapshot that pagination binds to.
+fn committed_snapshot_bytes(
+    rows: &[CommittedRow],
+    marker: &fruitboard_storage::ScanRootPublication,
+) -> Vec<u8> {
+    format!("{rows:?}|{marker:?}").into_bytes()
+}
+
+fn committed_state(
+    harness: &Harness,
+) -> (
+    Vec<CommittedRow>,
+    fruitboard_storage::ScanRootPublication,
+    Vec<u8>,
+) {
+    let rows = harness.committed();
+    let marker = harness
+        .db
+        .scan_root_publication(&harness.root_id)
+        .expect("publication marker");
+    let bytes = committed_snapshot_bytes(&rows, &marker);
+    (rows, marker, bytes)
+}
+
+fn assert_committed_unchanged(
+    before_rows: &[CommittedRow],
+    before_marker: &fruitboard_storage::ScanRootPublication,
+    before_bytes: &[u8],
+    harness: &Harness,
+) {
+    let (after_rows, after_marker, after_bytes) = committed_state(harness);
+    assert_eq!(
+        after_rows, before_rows,
+        "non-authoritative run must leave committed rows identical"
+    );
+    assert_eq!(
+        after_marker, *before_marker,
+        "non-authoritative run must leave the success marker identical"
+    );
+    assert_eq!(
+        after_bytes, before_bytes,
+        "rows+snapshot must be byte-identical before/after"
+    );
 }
 
 struct Harness {
@@ -2471,4 +2552,758 @@ mod ntfs {
         assert_eq!(third.status, ScanExecutionStatus::Published);
         assert!(harness.committed().iter().all(|row| row.present));
     }
+}
+
+// --- Wave 5 durability close-out (P2-03/P2-05/P2-06/P2-07) ---
+//
+// Every test below compares committed rows PLUS the root success marker as
+// byte-identical before/after blobs. Row equality alone would miss a marker
+// advance; marker equality alone would miss a partial apply. The pair is the
+// durable Library snapshot.
+
+fn seed_two_files(label: &str) -> (Harness, Vec<CommittedRow>) {
+    let mut harness = Harness::new(label);
+    let tree = tree(vec![
+        file_entry("kept.flp", 101),
+        file_entry("other.flp", 102),
+    ]);
+    let first = harness.scan(tree);
+    assert_eq!(first.status, ScanExecutionStatus::Published);
+    let before = harness.committed();
+    assert_eq!(before.len(), 2);
+    assert!(before.iter().all(|row| row.present));
+    (harness, before)
+}
+
+// P2-03: offline (RootUnavailable) leaves rows+snapshot byte-identical.
+#[test]
+fn p2_03_offline_preserves_rows_and_snapshot_byte_identical() {
+    let (mut harness, _) = seed_two_files("p2-03-offline");
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+    let failed = harness.scan_offline(tree(vec![file_entry("kept.flp", 101)]));
+    assert_eq!(failed.status, ScanExecutionStatus::Failed);
+    assert_eq!(
+        failed.enumeration_outcome,
+        Some(EnumOutcome::RootUnavailable)
+    );
+    assert!(!failed.authoritative);
+    assert!(failed.publication.is_none());
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+    assert_eq!(
+        harness.staging_state(&failed.run_id),
+        ScanStageState::Discarded
+    );
+}
+
+// P2-03: root-level denial leaves rows+snapshot byte-identical.
+#[test]
+fn p2_03_root_denied_preserves_rows_and_snapshot_byte_identical() {
+    let (mut harness, _) = seed_two_files("p2-03-root-denied");
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+    let mut port = FakePort::with_root_error(
+        tree(vec![file_entry("kept.flp", 101)]),
+        PortError::AccessDenied,
+    );
+    let execution = harness.scan_with_port(&mut port);
+    assert_eq!(execution.status, ScanExecutionStatus::Failed);
+    assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Denied));
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+    assert_eq!(
+        harness.staging_state(&execution.run_id),
+        ScanStageState::Discarded
+    );
+}
+
+// P2-03: a disappeared directory (Partial) never publishes partial results.
+#[test]
+fn p2_03_partial_disappearance_preserves_rows_and_snapshot_byte_identical() {
+    let (mut harness, _) = seed_two_files("p2-03-partial");
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+    let partial_tree = tree(vec![
+        file_entry("kept.flp", 101),
+        vanishing_dir_entry("gone", 201, vec![file_entry("inner.flp", 301)]),
+    ]);
+    let mut port = FakePort::new(partial_tree);
+    let execution = harness.scan_with_port(&mut port);
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+    assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Partial));
+    assert_eq!(execution.status, ScanExecutionStatus::Failed);
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+    assert_eq!(
+        harness.staging_state(&execution.run_id),
+        ScanStageState::Discarded
+    );
+}
+
+// P2-03: unsupported filesystems are non-authoritative and preserve state.
+#[test]
+fn p2_03_unsupported_filesystem_preserves_rows_and_snapshot_byte_identical() {
+    let (mut harness, _) = seed_two_files("p2-03-unsupported");
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+    let mut port = FakePort::with_root_error(
+        tree(vec![file_entry("kept.flp", 101)]),
+        PortError::Unsupported,
+    );
+    let execution = harness.scan_with_port(&mut port);
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+    assert_eq!(
+        execution.enumeration_outcome,
+        Some(EnumOutcome::UnsupportedFilesystem)
+    );
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+}
+
+// P2-03: cooperative cancellation with prior committed rows preserves them.
+#[test]
+fn p2_03_cooperative_cancel_with_prior_rows_preserves_snapshot_byte_identical() {
+    let (mut harness, _) = seed_two_files("p2-03-cancel-token");
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let token = CancellationToken::new();
+    token.cancel();
+    let mut port = FakePort::new(tree(vec![file_entry("kept.flp", 101)]));
+    let execution =
+        harness
+            .worker
+            .execute(&mut harness.db, scan, &mut port, &token, &harness.clock);
+    assert_eq!(execution.status, ScanExecutionStatus::Cancelled);
+    assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Cancelled));
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+    assert_eq!(
+        harness.staging_state(&execution.run_id),
+        ScanStageState::Discarded
+    );
+}
+
+// P2-03: durable cancellation with prior rows preserves rows+snapshot.
+#[test]
+fn p2_03_durable_cancel_with_prior_rows_preserves_snapshot_byte_identical() {
+    let (mut harness, _) = seed_two_files("p2-03-durable-cancel");
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let run_id = scan.leased.run.id.clone();
+    harness
+        .db
+        .request_scan_cancellation(&run_id, harness.clock.now_ms())
+        .expect("durable cancellation");
+    let mut port = FakePort::new(tree(vec![file_entry("kept.flp", 101)]));
+    let execution = harness.worker.execute(
+        &mut harness.db,
+        scan,
+        &mut port,
+        &NeverCancelled,
+        &harness.clock,
+    );
+    assert_eq!(execution.status, ScanExecutionStatus::Cancelled);
+    assert!(execution.publication.is_none());
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+    assert_eq!(
+        harness.staging_state(&execution.run_id),
+        ScanStageState::Discarded
+    );
+}
+
+// P2-03: enumeration resource limits (limited/ResourceLimit) preserve state.
+#[test]
+fn p2_03_resource_limit_preserves_rows_and_snapshot_byte_identical() {
+    let mut config = WorkerConfig::default();
+    config.enumeration_limits.max_observations = 2;
+    let mut harness = Harness::with_config("p2-03-limited", config, r"C:\synthetic-root");
+    let first = harness.scan(tree(many_files(2)));
+    assert_eq!(first.status, ScanExecutionStatus::Published);
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+    assert_eq!(before_rows.len(), 2);
+
+    let second = harness.scan(tree(many_files(4)));
+    assert_eq!(second.status, ScanExecutionStatus::Failed);
+    assert_eq!(second.enumeration_outcome, Some(EnumOutcome::ResourceLimit));
+    assert!(!second.authoritative);
+    assert!(second.publication.is_none());
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+    assert_eq!(
+        harness.staging_state(&second.run_id),
+        ScanStageState::Discarded
+    );
+}
+
+// P2-03: a staging-level rejection (invalid observation) never marks the
+// uncovered files missing and leaves the snapshot identical.
+#[test]
+fn p2_03_sink_failed_preserves_rows_and_snapshot_byte_identical() {
+    let (mut harness, _) = seed_two_files("p2-03-sink-failed");
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+    // ':' is rejected by the staging boundary (`relative_path` shape guard),
+    // so the enumerator stays non-authoritative and the worker discards.
+    let bad_tree = tree(vec![
+        file_entry("kept.flp", 101),
+        file_entry("bad:name.flp", 102),
+    ]);
+    let mut port = FakePort::new(bad_tree);
+    let execution = harness.scan_with_port(&mut port);
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+    assert!(
+        execution.enumeration_outcome == Some(EnumOutcome::SinkFailed)
+            || execution.enumeration_outcome == Some(EnumOutcome::Invalid),
+        "invalid input must stay non-authoritative, got {:?}",
+        execution.enumeration_outcome
+    );
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+}
+
+// P2-06: crash before any staging batches leaves no partial Library rows.
+#[test]
+fn p2_06_crash_before_staging_leaves_no_partial_rows() {
+    let mut harness = Harness::new("p2-06-crash-before");
+    let (empty_rows, empty_marker, empty_bytes) = committed_state(&harness);
+    assert!(empty_rows.is_empty());
+
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let crashed = harness.claim();
+    let crashed_run = crashed.leased.run.id.clone();
+    drop(crashed); // crash after claim, before any batch is staged
+
+    harness.restart();
+    assert_eq!(harness.run(&crashed_run).state, ScanRunState::Interrupted);
+    assert_eq!(
+        harness.staging_state(&crashed_run),
+        ScanStageState::Discarded
+    );
+    assert_committed_unchanged(&empty_rows, &empty_marker, &empty_bytes, &harness);
+
+    // The requeued chain converges on the next attempt with no residue.
+    harness.clock.advance(1_001);
+    let recovered = harness
+        .drain(tree(vec![file_entry("a.flp", 101)]))
+        .expect("execution");
+    assert_eq!(recovered.status, ScanExecutionStatus::Published);
+    assert_eq!(harness.committed().len(), 1);
+}
+
+// P2-06: crash after staging but before apply rolls back with no partial rows.
+#[test]
+fn p2_06_crash_after_staging_before_apply_rolls_back() {
+    let mut harness = Harness::new("p2-06-crash-staged");
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let run_id = scan.leased.run.id.clone();
+    let session_id = scan.leased.run.session_id.clone();
+    let lease_token = scan.leased.run.lease_token.clone();
+    // Simulate the worker having staged complete batches, then crashing
+    // before the atomic publication transaction.
+    harness
+        .db
+        .stage_scan_observations(
+            &run_id,
+            &session_id,
+            &lease_token,
+            harness.clock.now_ms(),
+            &[
+                fruitboard_storage::ScanObservation {
+                    locator_key: "v1:i:staged.flp".to_owned(),
+                    relative_path: "staged.flp".to_owned(),
+                    byte_size: 10,
+                    modified_at_ns: DEFAULT_MTIME_NS,
+                    identity: None,
+                },
+                fruitboard_storage::ScanObservation {
+                    locator_key: "v1:i:second.flp".to_owned(),
+                    relative_path: "second.flp".to_owned(),
+                    byte_size: 20,
+                    modified_at_ns: DEFAULT_MTIME_NS,
+                    identity: None,
+                },
+            ],
+        )
+        .expect("stage batches");
+    drop(scan); // crash before publish_scan_run
+    let (empty_rows, empty_marker, empty_bytes) = committed_state(&harness);
+    assert!(
+        empty_rows.is_empty(),
+        "staging must stay invisible to Library reads"
+    );
+
+    harness.restart();
+    assert_eq!(harness.staging_state(&run_id), ScanStageState::Discarded);
+    assert_committed_unchanged(&empty_rows, &empty_marker, &empty_bytes, &harness);
+
+    harness.clock.advance(1_001);
+    let recovered = harness
+        .drain(tree(vec![file_entry("a.flp", 101)]))
+        .expect("execution");
+    assert_eq!(recovered.status, ScanExecutionStatus::Published);
+    // Only the recovery scan's observation is committed; the crashed staging
+    // never leaked a partial row.
+    let rows = harness.committed();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].relative_path, "a.flp");
+}
+
+// P2-06: a failure during the apply transaction rolls back visible rows and
+// the ledger together; retry converges with no partial state.
+#[test]
+fn p2_06_crash_during_apply_rolls_back_rows_and_ledger() {
+    let mut harness = Harness::new("p2-06-during-apply");
+    let first = harness.scan(tree(vec![file_entry("old.flp", 101)]));
+    assert_eq!(first.status, ScanExecutionStatus::Published);
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+
+    let trigger = Connection::open(harness.db_path()).expect("fixture connection");
+    trigger
+        .execute_batch(
+            "CREATE TRIGGER fruitboard_test_p2_06_apply_abort
+             BEFORE UPDATE OF last_successful_at_ms ON scan_root
+             WHEN NEW.last_successful_at_ms IS NOT NULL
+             BEGIN
+                 SELECT RAISE(ABORT, 'injected_p2_06_apply_failure');
+             END;",
+        )
+        .expect("arm injected apply failure");
+
+    let failed = harness.scan(tree(vec![
+        file_entry("old.flp", 101),
+        file_entry("new.flp", 102),
+    ]));
+    assert!(failed.publication.is_none());
+    assert!(failed.status != ScanExecutionStatus::Published);
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+    // The failed attempt holds no publishable staging for a later stale
+    // publication.
+    assert_eq!(
+        harness.staging_state(&failed.run_id),
+        ScanStageState::Discarded
+    );
+
+    trigger
+        .execute_batch("DROP TRIGGER fruitboard_test_p2_06_apply_abort;")
+        .expect("disarm injected failure");
+    let job = harness.db.scan_job(&failed.job_id).expect("job");
+    harness.clock.set(ScanWorker::retry_eligible_at(&job));
+    assert_eq!(
+        harness
+            .worker
+            .service_retries(&mut harness.db, &harness.clock)
+            .expect("retries"),
+        1
+    );
+    let recovered = harness
+        .drain(tree(vec![
+            file_entry("old.flp", 101),
+            file_entry("new.flp", 102),
+        ]))
+        .expect("execution");
+    assert_eq!(recovered.status, ScanExecutionStatus::Published);
+    assert_eq!(harness.committed().len(), 2);
+}
+
+// P2-06: backup recovery preserves the committed dataset and discards open
+// staging; the recovered database resumes without partial rows.
+#[test]
+fn p2_06_backup_recovery_preserves_committed_rows_and_discards_staging() {
+    let mut harness = Harness::new("p2-06-backup");
+    let first = harness.scan(tree(vec![
+        file_entry("a.flp", 101),
+        file_entry("b.flp", 102),
+    ]));
+    assert_eq!(first.status, ScanExecutionStatus::Published);
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+
+    // Leave one run with open staging, then back up: recovery must fence it.
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let inflight = harness.claim();
+    let inflight_run = inflight.leased.run.id.clone();
+    let backup = harness.db.create_backup().expect("backup");
+
+    let recovery_dir = TestDir::new("p2-06-recovery");
+    let recovered = Database::recover_to(&backup, &recovery_dir.0).expect("recover");
+    let recovered_rows = committed_rows(&recovered, &harness.root_id);
+    assert_eq!(
+        recovered_rows, before_rows,
+        "recovery preserves committed rows"
+    );
+    assert_eq!(
+        recovered
+            .scan_root_publication(&harness.root_id)
+            .expect("marker"),
+        before_marker
+    );
+    assert_eq!(
+        committed_snapshot_bytes(&recovered_rows, &before_marker),
+        before_bytes
+    );
+    assert_eq!(
+        recovered
+            .scan_staging(&inflight_run)
+            .expect("staging")
+            .state,
+        ScanStageState::Discarded
+    );
+    assert_eq!(
+        recovered.scan_run(&inflight_run).expect("run").state,
+        ScanRunState::Interrupted
+    );
+    drop(inflight);
+}
+
+// P2-07: two file_location rows may share one (volume, file) identity under
+// distinct paths; deleting one leaves the other present with identity intact.
+#[test]
+fn p2_07_hardlink_delete_one_preserves_other_with_identity_intact() {
+    let mut harness = Harness::new("p2-07-hardlink");
+    // Same qualified identity (500) at two distinct paths: hardlink aliases.
+    // Locations stay per-path; the physical record is shared.
+    let first = harness.scan(tree(vec![
+        file_entry("a.flp", 500),
+        file_entry("b.flp", 500),
+    ]));
+    assert_eq!(first.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        first
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        2
+    );
+    let before = harness.committed();
+    assert_eq!(before.len(), 2);
+    let a = before
+        .iter()
+        .find(|row| row.relative_path == "a.flp")
+        .unwrap();
+    let b = before
+        .iter()
+        .find(|row| row.relative_path == "b.flp")
+        .unwrap();
+    assert!(a.present && b.present);
+    assert_eq!(
+        a.project_file_id, b.project_file_id,
+        "aliases share one physical record"
+    );
+    assert_eq!(a.identity, b.identity);
+    assert!(a.identity.is_some());
+
+    // Delete one alias: only that path goes missing; the survivor stays
+    // present with the same identity and physical record.
+    let second = harness.scan(tree(vec![file_entry("b.flp", 500)]));
+    assert_eq!(second.status, ScanExecutionStatus::Published);
+    let after_delete = harness.committed();
+    assert_eq!(
+        after_delete.len(),
+        2,
+        "missing rows are retained, not deleted"
+    );
+    let missing = after_delete
+        .iter()
+        .find(|row| row.relative_path == "a.flp")
+        .unwrap();
+    let survivor = after_delete
+        .iter()
+        .find(|row| row.relative_path == "b.flp")
+        .unwrap();
+    assert!(
+        !missing.present,
+        "the deleted alias is missing, not removed"
+    );
+    assert!(survivor.present);
+    assert_eq!(survivor.project_file_id, b.project_file_id);
+    assert_eq!(survivor.identity, b.identity);
+
+    // Restoring the deleted alias converges without duplicating the physical
+    // record.
+    let third = harness.scan(tree(vec![
+        file_entry("a.flp", 500),
+        file_entry("b.flp", 500),
+    ]));
+    assert_eq!(third.status, ScanExecutionStatus::Published);
+    let restored = harness.committed();
+    assert!(restored.iter().all(|row| row.present));
+    assert!(
+        restored
+            .iter()
+            .all(|row| row.project_file_id == b.project_file_id)
+    );
+}
+
+// P2-07: rename evidence is conservative and replacements mint a fresh
+// physical record; locations are never collapsed or grouped (no Phase-4
+// grouping: every path stays its own file_location row).
+#[test]
+fn p2_07_rename_replacement_is_conservative_without_grouping() {
+    let mut harness = Harness::new("p2-07-rename");
+    let first = harness.scan(tree(vec![
+        file_entry("old.flp", 600),
+        file_entry("survivor.flp", 600),
+        file_entry("replace.flp", 600),
+    ]));
+    assert_eq!(first.status, ScanExecutionStatus::Published);
+    let before = harness.committed();
+    assert_eq!(before.len(), 3);
+    let shared = before[0].project_file_id.clone();
+    assert!(before.iter().all(|row| row.project_file_id == shared));
+
+    // Same scan: old.flp renamed to moved.flp (same identity 600),
+    // survivor.flp unchanged (same identity), replace.flp overwritten with a
+    // different identity (601) at the same path.
+    let second = harness.scan(tree(vec![
+        file_entry("moved.flp", 600),
+        file_entry("survivor.flp", 600),
+        file_entry("replace.flp", 601),
+    ]));
+    assert_eq!(second.status, ScanExecutionStatus::Published);
+    let after = harness.committed();
+    assert_eq!(after.len(), 4, "one missing history row plus three present");
+    let old = after
+        .iter()
+        .find(|row| row.relative_path == "old.flp")
+        .unwrap();
+    let moved = after
+        .iter()
+        .find(|row| row.relative_path == "moved.flp")
+        .unwrap();
+    let survivor = after
+        .iter()
+        .find(|row| row.relative_path == "survivor.flp")
+        .unwrap();
+    let replaced = after
+        .iter()
+        .find(|row| row.relative_path == "replace.flp")
+        .unwrap();
+    assert!(!old.present, "the rename source is missing history");
+    assert_eq!(old.project_file_id, shared);
+    assert!(moved.present && survivor.present);
+    assert_eq!(
+        moved.project_file_id, shared,
+        "rename target keeps the physical record"
+    );
+    assert_eq!(survivor.project_file_id, shared);
+    assert!(replaced.present);
+    assert_ne!(
+        replaced.project_file_id, shared,
+        "same-path replacement is conservative: fresh physical record"
+    );
+    // No grouping: every observed path is its own row.
+    let present_paths: Vec<_> = after
+        .iter()
+        .filter(|row| row.present)
+        .map(|row| row.relative_path.as_str())
+        .collect();
+    assert_eq!(present_paths.len(), 3);
+    assert!(present_paths.contains(&"moved.flp"));
+    assert!(present_paths.contains(&"survivor.flp"));
+    assert!(present_paths.contains(&"replace.flp"));
+}
+
+// P2-05: disabling mid-queue/running invalidates leases+staging in one
+// transaction; the stale run can never publish afterwards.
+#[test]
+fn p2_05_disable_invalidates_lease_and_staging_in_same_txn_without_stale_publish() {
+    let (mut harness, _) = seed_two_files("p2-05-disable");
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let stale_run = scan.leased.run.id.clone();
+    let stale_token = scan.leased.run.lease_token.clone();
+    let stale_session = scan.leased.run.session_id.clone();
+
+    // Disable is one configuration transaction: staging discarded, queued and
+    // running work cancelled, generation+revision bumped for lease fencing.
+    harness
+        .db
+        .set_scan_root_enabled_at(&harness.root_id, false, harness.clock.now_ms())
+        .expect("disable root");
+    assert_eq!(harness.staging_state(&stale_run), ScanStageState::Discarded);
+    assert_eq!(harness.run(&stale_run).state, ScanRunState::Cancelled);
+    // The stale lease is fenced everywhere in the same state.
+    assert!(
+        harness
+            .db
+            .renew_scan_lease(
+                &stale_run,
+                &stale_session,
+                &stale_token,
+                harness.clock.now_ms(),
+                30_000,
+            )
+            .is_err()
+    );
+    assert!(
+        harness
+            .db
+            .publish_scan_run(
+                &stale_run,
+                &stale_session,
+                &stale_token,
+                harness.clock.now_ms(),
+            )
+            .is_err()
+    );
+
+    let mut port = FakePort::new(tree(vec![file_entry("kept.flp", 101)]));
+    let execution = harness.worker.execute(
+        &mut harness.db,
+        scan,
+        &mut port,
+        &NeverCancelled,
+        &harness.clock,
+    );
+    assert_eq!(execution.status, ScanExecutionStatus::Cancelled);
+    assert!(execution.publication.is_none());
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+
+    // Re-enabling runs a fresh generation: no stale publication leaks through
+    // and the next authoritative scan converges.
+    harness
+        .db
+        .set_scan_root_enabled_at(&harness.root_id, true, harness.clock.now_ms())
+        .expect("re-enable root");
+    assert!(
+        harness
+            .db
+            .publish_scan_run(
+                &stale_run,
+                &stale_session,
+                &stale_token,
+                harness.clock.now_ms(),
+            )
+            .is_err()
+    );
+    let fresh = harness.scan(tree(vec![
+        file_entry("kept.flp", 101),
+        file_entry("other.flp", 102),
+    ]));
+    assert_eq!(fresh.status, ScanExecutionStatus::Published);
+    assert_eq!(harness.committed(), before_rows);
+}
+
+// P2-05: removing mid-queue/running detaches history; re-adding the same path
+// gets a fresh root ID with no stale publication and unchanged source markers.
+#[test]
+fn p2_05_remove_then_readd_gets_fresh_id_without_stale_publication() {
+    let mut harness = Harness::new("p2-05-remove");
+    let first = harness.scan(tree(vec![file_entry("a.flp", 101)]));
+    assert_eq!(first.status, ScanExecutionStatus::Published);
+    let before = harness.committed();
+    assert_eq!(before.len(), 1);
+    let marker_sizes: Vec<u64> = before.iter().map(|row| row.byte_size).collect();
+    let old_root = harness.root_id.clone();
+    let old_path = harness
+        .db
+        .list_scan_roots()
+        .expect("roots")
+        .into_iter()
+        .find(|root| root.id == old_root)
+        .expect("root")
+        .canonical_path;
+
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let stale_run = scan.leased.run.id.clone();
+    harness
+        .db
+        .remove_scan_root_at(&harness.root_id, harness.clock.now_ms())
+        .expect("remove root");
+    assert!(harness.db.list_scan_roots().expect("roots").is_empty());
+    assert_eq!(harness.run(&stale_run).state, ScanRunState::Cancelled);
+    assert!(harness.db.scan_staging(&stale_run).is_err());
+
+    let mut port = FakePort::new(tree(vec![file_entry("a.flp", 101)]));
+    let execution = harness.worker.execute(
+        &mut harness.db,
+        scan,
+        &mut port,
+        &NeverCancelled,
+        &harness.clock,
+    );
+    assert_eq!(execution.status, ScanExecutionStatus::Cancelled);
+    assert!(execution.publication.is_none());
+
+    // Re-adding the same canonical path mints a fresh root ID; history does
+    // not leak into the new root and source markers are unchanged.
+    let replacement = harness
+        .db
+        .add_scan_root("Synthetic", &old_path)
+        .expect("re-add");
+    assert_ne!(replacement.id, old_root);
+    harness.root_id = replacement.id.clone();
+    assert!(
+        harness.committed().is_empty(),
+        "a re-added root starts with no stale Library rows"
+    );
+    let fresh = harness.scan(tree(vec![file_entry("a.flp", 101)]));
+    assert_eq!(fresh.status, ScanExecutionStatus::Published);
+    let after = harness.committed();
+    assert_eq!(after.len(), 1);
+    assert_eq!(
+        after.iter().map(|row| row.byte_size).collect::<Vec<_>>(),
+        marker_sizes,
+        "source markers (byte sizes) are unchanged by remove/re-add"
+    );
+    assert!(after[0].present);
+}
+
+// P2-05: queued work is invalidated by disable and never leased afterwards;
+// re-enable schedules fresh work with a new generation.
+#[test]
+fn p2_05_queued_work_invalidated_by_disable_never_leased_after_reenable() {
+    let mut harness = Harness::new("p2-05-queued");
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let queued_id = harness.root_jobs()[0].id.clone();
+    harness
+        .db
+        .set_scan_root_enabled_at(&harness.root_id, false, harness.clock.now_ms())
+        .expect("disable root");
+    assert_eq!(
+        harness.db.scan_job(&queued_id).expect("job").state,
+        ScanJobState::Cancelled
+    );
+    assert!(
+        harness
+            .worker
+            .claim(&mut harness.db, &harness.session_id, &harness.clock)
+            .expect("claim")
+            .is_none(),
+        "disabled roots lease nothing"
+    );
+    harness
+        .db
+        .set_scan_root_enabled_at(&harness.root_id, true, harness.clock.now_ms())
+        .expect("re-enable root");
+    let fresh = harness.scan(tree(vec![file_entry("a.flp", 101)]));
+    assert_eq!(fresh.status, ScanExecutionStatus::Published);
+    assert_ne!(fresh.job_id, queued_id);
+    assert_eq!(harness.committed().len(), 1);
 }

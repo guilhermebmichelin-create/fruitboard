@@ -875,6 +875,21 @@ fn identities_differ(previous: &ExistingLocation, current: Option<&QualifiedIden
 /// are deliberately excluded from this lookup. Exact-path continuity remains
 /// separate so a missing path can be restored without making a different new
 /// path inherit its historical physical record.
+///
+/// P2-07 close-out: hardlink aliases stay per-path `file_location` rows that
+/// may share one `(volume, file)` identity and one `project_file_id`. Deleting
+/// one alias marks only that path `missing`; the survivor keeps its identity
+/// and physical record. Rename targets reuse the record only on unambiguous
+/// current evidence; same-path replacements mint a fresh record. Conflicting
+/// evidence also mints fresh rather than choosing by traversal or SQL order.
+/// There is deliberately no Phase-4 grouping: locations are never collapsed
+/// by identity for display or counting.
+///
+/// P2-06 close-out: this planning phase performs no writes. The caller
+/// applies every planned row inside the same immediate SQLite transaction as
+/// the marker and ledger updates, so a crash before staging, after
+/// staging-before-apply, or during apply rolls back with no partial Library
+/// rows. Staging stays invisible to `query_library` until that commit.
 fn plan_observations(
     transaction: &Transaction<'_>,
     root_id: &str,
@@ -1085,6 +1100,17 @@ fn apply_planned_observation(
     Ok(())
 }
 
+/// Atomic publication: one immediate transaction validates ownership, plans
+/// every association, applies all rows, advances the success marker, and
+/// completes the run/job/ledger together.
+///
+/// P2-03 close-out: only an authoritative enumeration reaches this path (the
+/// worker discards staging for every non-authoritative outcome —
+/// offline/denied/cancelled/limited/ResourceLimit/Partial/Unsupported/Sink —
+/// and `finish_scan_run` leaves committed rows and the marker untouched).
+/// Any validation or SQL failure returns without committing, so the prior
+/// dataset and marker stay byte-identical. Restart and backup recovery
+/// discard open staging before resuming eligible work.
 pub(crate) fn publish_scan_run_tx(
     transaction: &Transaction<'_>,
     run_id: &str,
