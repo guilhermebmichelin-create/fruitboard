@@ -9,6 +9,8 @@ pub(crate) mod packaging_smoke;
 pub(crate) mod scan_console;
 #[cfg(feature = "scan-console")]
 pub(crate) mod scan_console_host;
+#[cfg(all(test, feature = "scan-console"))]
+mod watcher_lifecycle;
 
 pub use command::{COMMAND_SCHEMA_VERSION, CommandEnvelope};
 pub use errors::{ErrorCode, UserFacingError};

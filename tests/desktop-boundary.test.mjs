@@ -83,6 +83,8 @@ test("desktop capability exposes only health, preference, scan-root, and scan-co
     "allow-list-scan-statuses",
     "allow-get-library-page",
     "allow-get-scan-console-state",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
   ]);
   assert.match(permission, /commands\.allow = \["get_app_health"\]/);
   assert.match(
@@ -122,6 +124,41 @@ test("desktop capability exposes only health, preference, scan-root, and scan-co
   assert.doesNotMatch(
     `${JSON.stringify(capability)}\n${permission}\n${preferencesPermission}\n${scanRootsPermission}\n${scanConsolePermission}`,
     /(?:dialog|fs|shell|sql|process|opener):/,
+  );
+  assert.doesNotMatch(
+    JSON.stringify(capability.permissions),
+    /core:event:allow-(?:emit|emit-to)/,
+  );
+});
+
+test("native scan subscriptions have scoped listen and unlisten capabilities", () => {
+  const capability = JSON.parse(
+    readRootFile("apps/desktop/src-tauri/capabilities/main.json"),
+  );
+  const tauriAdapter = readRootFile("apps/client/src/platform/tauri.ts");
+  const nativeLibraryAdapter = readRootFile(
+    "apps/client/src/library/native.ts",
+  );
+
+  assert.deepEqual(
+    capability.permissions.filter((permission) =>
+      permission.startsWith("core:event:"),
+    ),
+    ["core:event:allow-listen", "core:event:allow-unlisten"],
+  );
+  assert.match(
+    tauriAdapter,
+    /import \{ listen \} from "@tauri-apps\/api\/event";/,
+  );
+  assert.match(tauriAdapter, /listen\(event, \(\) => handler\(\)\)/);
+  assert.match(
+    nativeLibraryAdapter,
+    /transport\.listen\(SCAN_STATUS_CHANGED_EVENT/,
+  );
+  assert.match(nativeLibraryAdapter, /if \(unlisten !== null\) unlisten\(\)/);
+  assert.doesNotMatch(
+    JSON.stringify(capability.permissions),
+    /(?:core:event:allow-(?:emit|emit-to)|(?:^|:)(?:shell|fs):)/,
   );
 });
 
