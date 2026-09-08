@@ -579,12 +579,17 @@ impl ScanConsoleHost {
         else {
             return true;
         };
+        let outcome = if active.flag.load(Ordering::Relaxed) {
+            ScanRunOutcome::Cancelled
+        } else {
+            ScanRunOutcome::Interrupted
+        };
         match database.finish_scan_run(
             &active.run_id,
             &active.session_id,
             &active.lease_token,
             self.clock.now_ms(),
-            ScanRunOutcome::Interrupted,
+            outcome,
         ) {
             Ok(_) | Err(StorageError::Conflict | StorageError::NotFound) => true,
             Err(_) => false,

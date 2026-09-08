@@ -137,6 +137,39 @@ fn shutdown_preserves_a_durable_user_cancellation() {
 }
 
 #[test]
+fn shutdown_preserves_mirror_only_user_cancellation_before_durable_commit() {
+    let (_directory, database, host, job_id) = active_host();
+    host.request_cancellation(&job_id);
+
+    host.shutdown(&database);
+
+    {
+        let database = database.lock().expect("database lock");
+        let job = database.scan_job(&job_id).expect("cancelled job");
+        let run = database
+            .list_scan_runs()
+            .expect("scan runs")
+            .into_iter()
+            .find(|run| run.scan_job_id == job_id)
+            .expect("cancelled scan");
+        assert_eq!(job.state, ScanJobState::Cancelled);
+        assert!(job.cancellation_requested);
+        assert_eq!(run.state, ScanRunState::Cancelled);
+        assert!(run.cancellation_requested);
+    }
+
+    let worker = ScanWorker::new(WorkerConfig::default()).expect("worker config");
+    let mut database = database.lock().expect("database lock");
+    worker
+        .start_session(&mut database, &SystemClock)
+        .expect("restart session");
+    assert_eq!(
+        database.scan_job(&job_id).expect("cancelled job").state,
+        ScanJobState::Cancelled
+    );
+}
+
+#[test]
 fn a_cancellation_registered_after_stop_is_seen_by_the_mirror() {
     let (_directory, database, host, _job_id) = active_host();
     let scan = host
