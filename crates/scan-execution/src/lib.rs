@@ -51,6 +51,7 @@ use reconciliation::{
     Observation as PlanObservation, Outcome as PlanOutcome, reconcile,
 };
 use std::path::Path;
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod followups;
@@ -284,6 +285,111 @@ impl ScanWorker {
         }
     }
 
+    /// Enumerate, stage and publish one claimed scan without holding the
+    /// database mutex across filesystem I/O.
+    ///
+    /// Filesystem traversal runs with no database lock held; the mutex is
+    /// acquired only for short per-batch staging transactions (each batch is
+    /// bounded to `<=512` records by the enumerator and re-checked by
+    /// storage's `MAX_STAGED_BATCH_RECORDS` fence) and for the final atomic
+    /// publication. Every staging and publication call still revalidates the
+    /// generation, revision, lease token and durable cancellation flags
+    /// inside storage's transaction, and the staging adapter re-reads the
+    /// durable flags between batches so a cancelled run never publishes.
+    pub fn execute_shared<P: FilesystemPort, C: Cancellation>(
+        &self,
+        db: &Mutex<Database>,
+        scan: ActiveScan,
+        port: &mut P,
+        cancellation: &C,
+        clock: &dyn ScanClock,
+    ) -> ScanExecution {
+        let now = clock.now_ms();
+        match self.fence_state_shared(db, &scan, now) {
+            FenceState::Unreadable => {
+                return self.execution(&scan, ScanExecutionStatus::Fenced, None, None, None);
+            }
+            FenceState::Invalidated => {
+                return self.resolve_shared(db, &scan, clock, false, None);
+            }
+            FenceState::Held => {}
+        }
+        let Some(root_path) = root_path_shared(db, &scan.leased.run.scan_root_id) else {
+            // Same removal case as `execute`: the run was detached already.
+            return self.resolve_shared(db, &scan, clock, false, None);
+        };
+
+        let mut adapter = SharedStagingAdapter {
+            db,
+            clock,
+            run_id: scan.leased.run.id.clone(),
+            job_id: scan.leased.run.scan_job_id.clone(),
+            session_id: scan.leased.run.session_id.clone(),
+            lease_token: scan.leased.run.lease_token.clone(),
+            lease_duration_ms: self.config.lease_duration_ms,
+            renewal_interval_ms: self.config.lease_renewal_interval_ms,
+            next_renewal_ms: now.saturating_add(self.config.lease_renewal_interval_ms),
+            plan: PlanBuffer::default(),
+        };
+        let mut progress = enumeration::NoProgress;
+        let report = enumeration::enumerate_into_run(
+            port,
+            Path::new(&root_path),
+            &self.config.enumeration_limits,
+            cancellation,
+            &mut adapter,
+            scan.leased.run.id.clone(),
+            &mut progress,
+        );
+        let plan = adapter.plan;
+        let outcome = report.outcome;
+
+        if !report.authoritative {
+            let forced_cancel = outcome == enumeration::Outcome::Cancelled;
+            return self.resolve_shared(db, &scan, clock, forced_cancel, Some(outcome));
+        }
+
+        // Pre-publication fence before any staged record can be published.
+        let now = clock.now_ms();
+        match self.fence_state_shared(db, &scan, now) {
+            FenceState::Unreadable => {
+                return self.execution(
+                    &scan,
+                    ScanExecutionStatus::Fenced,
+                    Some(outcome),
+                    None,
+                    None,
+                );
+            }
+            FenceState::Invalidated => {
+                return self.resolve_shared(db, &scan, clock, false, Some(outcome));
+            }
+            FenceState::Held => {}
+        }
+        let changes = change_plan_shared(db, &scan.leased.run.scan_root_id, &plan);
+        let publish = {
+            let Ok(mut guard) = db.lock() else {
+                return self.resolve_shared(db, &scan, clock, false, Some(outcome));
+            };
+            guard.publish_scan_run(
+                &scan.leased.run.id,
+                &scan.leased.run.session_id,
+                &scan.leased.run.lease_token,
+                clock.now_ms(),
+            )
+        };
+        match publish {
+            Ok(publication) => self.execution(
+                &scan,
+                ScanExecutionStatus::Published,
+                Some(outcome),
+                Some(publication),
+                changes,
+            ),
+            Err(_) => self.resolve_shared(db, &scan, clock, false, Some(outcome)),
+        }
+    }
+
     /// One worker tick: claim and execute the next due scan, if any.
     pub fn poll<P: FilesystemPort, C: Cancellation>(
         &self,
@@ -407,6 +513,83 @@ impl ScanWorker {
         }
     }
 
+    fn fence_state_shared(&self, db: &Mutex<Database>, scan: &ActiveScan, now: i64) -> FenceState {
+        let Ok(guard) = db.lock() else {
+            return FenceState::Unreadable;
+        };
+        let (Ok(run), Ok(job)) = (
+            guard.scan_run(&scan.leased.run.id),
+            guard.scan_job(&scan.leased.run.scan_job_id),
+        ) else {
+            return FenceState::Unreadable;
+        };
+        if run.state != ScanRunState::Running
+            || job.state != ScanJobState::Running
+            || run.cancellation_requested
+            || job.cancellation_requested
+            || job.follow_up_requested
+            || run.lease_expires_at_ms <= now
+        {
+            return FenceState::Invalidated;
+        }
+        FenceState::Held
+    }
+
+    /// Shared-mutex variant of [`Self::resolve`]: each durable step is its own
+    /// short transaction so filesystem I/O never holds the lock. The final
+    /// `finish_scan_run` still validates lease, revision and cancellation
+    /// atomically, so the cancel/commit race keeps SQLite serialization as the
+    /// winner.
+    fn resolve_shared(
+        &self,
+        db: &Mutex<Database>,
+        scan: &ActiveScan,
+        clock: &dyn ScanClock,
+        forced_cancel: bool,
+        outcome: Option<enumeration::Outcome>,
+    ) -> ScanExecution {
+        let now = clock.now_ms();
+        let (run, job) = {
+            let Ok(guard) = db.lock() else {
+                return self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
+            };
+            let (Ok(run), Ok(job)) = (
+                guard.scan_run(&scan.leased.run.id),
+                guard.scan_job(&scan.leased.run.scan_job_id),
+            ) else {
+                return self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
+            };
+            (run, job)
+        };
+        if run.state != ScanRunState::Running {
+            return self.execution(scan, status_from_state(run.state), outcome, None, None);
+        }
+        let terminal = if forced_cancel || run.cancellation_requested || job.cancellation_requested
+        {
+            ScanRunOutcome::Cancelled
+        } else if job.follow_up_requested {
+            ScanRunOutcome::Interrupted
+        } else {
+            ScanRunOutcome::Failed
+        };
+        let finished = {
+            let Ok(mut guard) = db.lock() else {
+                return self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
+            };
+            guard.finish_scan_run(
+                &scan.leased.run.id,
+                &scan.leased.run.session_id,
+                &scan.leased.run.lease_token,
+                now,
+                terminal,
+            )
+        };
+        match finished {
+            Ok(state) => self.execution(scan, status_from_state(state), outcome, None, None),
+            Err(error) => self.execution_fenced(scan, outcome, &error),
+        }
+    }
+
     fn execution(
         &self,
         scan: &ActiveScan,
@@ -505,6 +688,11 @@ fn root_path(db: &Database, root_id: &str) -> Option<String> {
         .map(|root| root.canonical_path)
 }
 
+fn root_path_shared(db: &Mutex<Database>, root_id: &str) -> Option<String> {
+    let guard = db.lock().ok()?;
+    root_path(&guard, root_id)
+}
+
 /// Bounded in-memory mirror of the observations this worker staged, used only
 /// to derive the advisory reconciliation change summary after an
 /// authoritative traversal. It is capped at the durable staging quota.
@@ -598,6 +786,52 @@ fn change_plan(db: &Database, root_id: &str, buffer: &PlanBuffer) -> Option<Chan
                 snapshot: snapshot.clone(),
             })
             .ok()?;
+        for location in &page.locations {
+            previous.push(plan_location(location));
+        }
+        if !page.has_more {
+            break;
+        }
+        if previous.len() > PlanBuffer::CAPACITY {
+            return None;
+        }
+        cursor = page.next_cursor;
+        snapshot = Some(page.snapshot);
+    }
+    if previous.len().saturating_add(buffer.observations.len()) > PlanBuffer::CAPACITY {
+        return None;
+    }
+    let plan = reconcile(&previous, &buffer.observations, PlanOutcome::Complete).ok()?;
+    Some(ChangeSummary::from_plan(&plan))
+}
+
+/// Shared-mutex variant of [`change_plan`]: each library page is its own
+/// short read transaction so a concurrent status or page query can interleave.
+/// No concurrent publication for the same root is possible while its run is
+/// `running` (storage refuses a second lease), so the snapshot stays stable.
+fn change_plan_shared(
+    db: &Mutex<Database>,
+    root_id: &str,
+    buffer: &PlanBuffer,
+) -> Option<ChangeSummary> {
+    if buffer.truncated {
+        return None;
+    }
+    let mut previous = Vec::new();
+    let mut cursor = None;
+    let mut snapshot = None;
+    loop {
+        let page = {
+            let guard = db.lock().ok()?;
+            guard
+                .query_library(&LibraryQuery {
+                    scan_root_id: root_id.to_owned(),
+                    page_size: MAX_LIBRARY_PAGE_SIZE,
+                    cursor: cursor.clone(),
+                    snapshot: snapshot.clone(),
+                })
+                .ok()?
+        };
         for location in &page.locations {
             previous.push(plan_location(location));
         }
@@ -728,6 +962,100 @@ impl StagingAdapter<'_> {
             self.db.scan_run(&self.run_id),
             self.db.scan_job(&self.job_id),
         ) else {
+            return true;
+        };
+        run.state != ScanRunState::Running
+            || job.state != ScanJobState::Running
+            || run.cancellation_requested
+            || job.cancellation_requested
+            || job.follow_up_requested
+            || run.lease_expires_at_ms <= now
+    }
+}
+
+/// Shared-mutex staging adapter for [`ScanWorker::execute_shared`]: the same
+/// bounded DTO conversion and per-batch fence revalidation as
+/// [`StagingAdapter`], but each durable step is its own short transaction.
+/// The database mutex is never held across filesystem I/O — it is acquired
+/// for lease renewal, then released, then re-acquired for the fence read,
+/// then released, then re-acquired for the staging write — so console reads
+/// interleave between batches. A poisoned or busy mutex maps to
+/// `SinkError::Unavailable`, which ends the run non-authoritative exactly
+/// like a fence violation.
+struct SharedStagingAdapter<'a> {
+    db: &'a Mutex<Database>,
+    clock: &'a dyn ScanClock,
+    run_id: String,
+    job_id: String,
+    session_id: String,
+    lease_token: String,
+    lease_duration_ms: i64,
+    renewal_interval_ms: i64,
+    next_renewal_ms: i64,
+    plan: PlanBuffer,
+}
+
+impl RunScopedStorage for SharedStagingAdapter<'_> {
+    fn stage_batch(&mut self, _run_id: &str, batch: ObservationBatch) -> Result<(), SinkError> {
+        let now = self.clock.now_ms();
+        if now >= self.next_renewal_ms {
+            let renewed = {
+                let Ok(mut guard) = self.db.lock() else {
+                    return Err(SinkError::Unavailable);
+                };
+                guard.renew_scan_lease(
+                    &self.run_id,
+                    &self.session_id,
+                    &self.lease_token,
+                    now,
+                    self.lease_duration_ms,
+                )
+            };
+            renewed.map_err(|_| SinkError::Unavailable)?;
+            self.next_renewal_ms = now.saturating_add(self.renewal_interval_ms);
+        }
+        if self.fence_violated(now) {
+            return Err(SinkError::Unavailable);
+        }
+        let mut observations = Vec::with_capacity(batch.records.len());
+        for record in &batch.records {
+            match record.to_scan_observation() {
+                Ok(observation) => observations.push(staged_observation(&observation)),
+                Err(_) => return Err(SinkError::Rejected),
+            }
+        }
+        self.plan.absorb(&batch.records);
+        let staged = {
+            let Ok(mut guard) = self.db.lock() else {
+                return Err(SinkError::Unavailable);
+            };
+            guard.stage_scan_observations(
+                &self.run_id,
+                &self.session_id,
+                &self.lease_token,
+                now,
+                &observations,
+            )
+        };
+        match staged {
+            Ok(_) => Ok(()),
+            Err(StorageError::StagingRejected) => Err(SinkError::Rejected),
+            Err(_) => Err(SinkError::Unavailable),
+        }
+    }
+
+    fn invalidate_run(&mut self, _run_id: &str) {
+        // Same deliberate no-op as `StagingAdapter::invalidate_run`.
+    }
+}
+
+impl SharedStagingAdapter<'_> {
+    fn fence_violated(&self, now: i64) -> bool {
+        let Ok(guard) = self.db.lock() else {
+            return true;
+        };
+        let (Ok(run), Ok(job)) = (guard.scan_run(&self.run_id), guard.scan_job(&self.job_id))
+        else {
             return true;
         };
         run.state != ScanRunState::Running
