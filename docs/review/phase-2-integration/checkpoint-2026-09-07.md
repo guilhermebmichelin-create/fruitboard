@@ -428,3 +428,175 @@ Closing #41 is recommended once this checkpoint merges; closing epic #33
 requires every unchecked box above to be explicitly accepted or scoped out
 by the owner. No performance, platform, or production-activation claim
 beyond what §§1-6 record is made here.
+
+## 9. Wave 5 Agent 3 addendum — P2-09 watcher + P2-10 no-parser (#37 + #39)
+
+Status: **evidence recorded, no status promoted, no budget amended**.
+This section only appends evidence; §§1-8 are unchanged. Production
+scanning stays hidden per the accepted execution plan.
+
+- Base: `origin/main` at `dbabb50` (tree-identical to `1b6f65e` for every
+  scanner path: `dbabb50` adds only the P2-12 checkpoint, the budget
+  decision brief, and client/scan-console slices — no
+  `crates/filesystem-watcher/**`, `crates/scan-execution/src/followups.rs`,
+  or `crates/scan-execution/src/tests.rs` behavior change versus
+  `1b6f65e`).
+- Branch: `feat/w5-watcher-noparser`.
+- Scope (only): `crates/filesystem-watcher/**`,
+  `crates/scan-execution/src/followups.rs`,
+  `crates/scan-execution/src/tests.rs` (follow-up section only),
+  `tests/no-parser.test.mjs` (new), this section (§9 only). No changes to
+  `foundation/scan_console_host.rs`, `storage-sqlite/publication.rs`, or
+  `apps/client/**`.
+
+### 9.1 P2-09 evidence (watcher bursts/overflow/event loss converge)
+
+`cargo test -p fruitboard-filesystem-watcher -p fruitboard-scan-execution
+--locked`: watcher 32 passed / 4 ignored, scan-execution 39 passed /
+1 ignored. Bounded coalescing is enforced by the pure fake-clock
+coalescer (`CoalescerConfig { window, max_tracked_roots }`): a burst
+collapses into at most one `ReconciliationRequested` hint per root per
+fixed non-extending window, coverage loss is sticky and immediate, and
+signals beyond the bound are rejected and counted, never queued.
+
+Watcher crate (`crates/filesystem-watcher`):
+
+- `burst_inside_one_window_collapses_into_exactly_one_hint`,
+  `sustained_activity_yields_at_most_one_hint_per_window`,
+  `coverage_lost_is_immediate_and_never_windowed`,
+  `coverage_lost_takes_precedence_and_subsumes_the_pending_window`,
+  `generation_restart_replaces_state_and_drops_stale_loss`,
+  `stale_generation_loss_for_a_tracked_root_is_ignored`,
+  `tracking_bound_rejects_and_counts_without_panicking`,
+  `tracking_bound_rejects_coverage_lost_without_growth` (new: the loss
+  path respects the same bound, rejected losses never fire, the freed
+  slot accepts the next root),
+  `poll_order_is_deterministic_ascending_by_root`,
+  `identical_scripts_produce_identical_hint_sequences`,
+  `fake_consumer_receives_at_most_one_reconcile_per_root_per_window`,
+  `coalescer_implements_the_watcher_port_contract`,
+  `privacy_regression_no_public_type_can_carry_absolute_paths`.
+- Windows live (NTFS temp tree, no DriveFS):
+  `live_watch_delivers_coalesced_hints_and_stops_cleanly`,
+  `overflow_surfaces_as_an_immediate_coverage_lost_hint`,
+  `renaming_the_root_ends_the_watch_with_a_typed_root_lost_outcome`,
+  `deleting_the_root_ends_the_watch_with_a_typed_root_lost_outcome`,
+  `policy_exclusions_are_typed_and_distinct_from_io_failures`,
+  `restart_uses_a_fresh_handle_and_generation`,
+  `raw_queue_drop_policy_counts_and_flags_coverage_loss`,
+  `stop_after_worker_exit_is_safe_and_sticky`,
+  `start_failure_after_thread_spawn_never_touches_a_closed_handle`.
+
+Follow-up adapter (`crates/scan-execution/src/followups.rs` +
+`tests.rs` follow-up section, `ScanKind::Periodic` dedup authority):
+
+- `watcher_burst_yields_exactly_one_follow_up_per_window` (burst per
+  window, queued coalescing, fresh follow-up after completion),
+- `coverage_lost_schedules_one_full_reconciliation_and_records_overflow`
+  (same full reconciliation, overflow cause recorded, never absence
+  evidence),
+- `burst_and_overflow_in_one_window_subsume_to_a_single_follow_up` (new:
+  burst + loss in one window subsume to one `Overflow` follow-up, queue
+  stays at one job),
+- `stale_generation_hints_are_dropped_and_newer_generations_reopen`,
+- `watch_ended_drops_replayed_hints_until_a_fresh_generation`
+  (double-discard idempotent),
+- `disabled_root_suppresses_follow_ups_through_storage` (storage
+  `Conflict`, no overflow recorded),
+- `removed_root_hints_are_dropped_without_errors` (mapping + `NotFound`,
+  idempotent),
+- `running_work_coalesces_hints_onto_one_follow_up_request`,
+- `cancelled_chain_is_not_revived_but_a_new_trigger_starts_fresh_work`,
+- `idempotent_replay_never_grows_the_queue`,
+- `watcher_restart_with_fresh_generation_drops_old_hints_and_reschedules`,
+- `unseeded_adapter_drops_hints_until_the_host_seeds_the_watch`,
+- `seeded_adapter_fences_replayed_hints_from_a_dead_generation`,
+- `fake_consumer_binds_the_host_loop_shape_end_to_end`,
+- `follow_up_boundary_never_carries_path_data` (opaque ids/counters
+  only).
+
+P2-09 stays Pending per instruction: host wiring (watcher lifecycle,
+root mapping, activation) remains in the desktop host, not in the
+crates above.
+
+### 9.2 P2-10 evidence (no parsing, hydration, or source mutation)
+
+`node --test tests/*.test.mjs`: 75 passed, 0 failed (71 before + 4 new
+in `tests/no-parser.test.mjs`).
+
+- Dependency check (no PyFLP): `tests/no-parser.test.mjs`
+  `dependency manifests contain no PyFLP dependency` asserts fourteen
+  manifests (`pyproject.toml`, `uv.lock`, `Cargo.toml`, `Cargo.lock`,
+  `package.json`, `pnpm-lock.yaml`, client/desktop/UI manifests, and the
+  five scanner-adjacent crate manifests) contain no `pyflp`
+  (case-insensitive). The existing
+  `research environment contains no PyFLP dependency`
+  (`tests/workspace-policy.test.mjs`) continues to pass. `cargo tree`
+  for `fruitboard-scan-execution` shows only `fruitboard-storage`,
+  `fruitboard-filesystem-enumeration`, `fruitboard-filesystem-watcher`,
+  and `fruitboard-reconciliation`; no parser, archive, audio, or FLP
+  crate appears.
+- Content-read spy (zero file-content reads during discovery):
+  `tests/no-parser.test.mjs`
+  `discovery sources perform zero file-content reads` forbids
+  `NtReadFile`, `ReadFile`, `parse_flp`, `pyflp`, `CfHydrate`,
+  `HydratePlaceholder`, `std::fs::read`, `std::fs::read_to_string`,
+  and `tokio::fs` in the seven production discovery sources
+  (`filesystem-enumeration/src/lib.rs`,
+  `scan-execution/src/lib.rs`, `scan-execution/src/followups.rs`,
+  `filesystem-watcher/src/lib.rs`, `coalescer.rs`, `path.rs`,
+  `platform.rs`), and forbids `std::fs::write` there (no source
+  mutation). `enumeration uses only handle-bound metadata APIs`
+  positively pins the allowed path: `CreateFileW`, `NtCreateFile`,
+  `NtQueryDirectoryFile` present, `ReadFile`/`NtReadFile` absent.
+  Fixture byte I/O lives only in the four test sources, never in
+  production discovery code.
+- Source-byte preservation (fixture hashes before/after):
+  `tests/no-parser.test.mjs`
+  `source-byte preservation fixtures hash before and after` pins the
+  existing Rust assertions: enumeration
+  `ntfs_fixture_discovers_unicode_long_mixed_case_and_preserves_markers`
+  snapshots `read marker before scan`, re-reads `read marker after
+  scan`, and asserts `assert_eq!(before, after)`; scan-execution
+  `ntfs_worker_publishes_authoritative_rows_and_preserves_sources`
+  snapshots `marker_before`/`marker_after` and asserts `source bytes
+  are never read or written` with committed `byte_size` equal to the
+  pre-scan marker length.
+
+P2-10 stays Pending per instruction: the checks above are dependency,
+spy, and preservation evidence, not a promotion.
+
+### 9.3 F1/F2 owner-decision links (no budget edits)
+
+No budget, quota, fixture, or plan value is amended here. Findings
+F1-F3 and the provisional budget table in §6 stand exactly as written.
+Owner decisions live in
+`docs/review/phase-2-integration/budget-decision-brief.md`:
+
+- F1 (quota vs baseline fixture) and F3 (100k unmeasurable): brief §3.3.
+- F2 (warm-p95 miss, recomputed median 12875.5 ms / p95 32876 ms, n =
+  10, hypotheses ranked contention first): brief §§3.1-3.2.
+- Owner options without amending budgets (D first, then C, then A/B):
+  brief §3.4. Exact copy-paste approval sentences: brief §5
+  (`F1-quota` / `F1-fixture`, `F2-budget` / `F2-host` / `F2-rerun` /
+  `F2-optimize`, `F3-100k`).
+
+### 9.4 Explicitly unverified carry-over (#47/#48)
+
+- DriveFS modes (#47) stay manual-only and unverified: the watcher
+  crate never runs DriveFS in CI; the only DriveFS seam is the
+  `#[ignore]`d `drivefs_root_watch_fixture_is_unverified` fixture
+  carrying the explicit `manual-only` label, requiring a manually
+  provisioned Google Drive filesystem root via
+  `FRUITBOARD_WATCHER_DRIVEFS_ROOT` observed by a human operator
+  (`crates/filesystem-watcher/README.md`, `src/tests_windows.rs`).
+  No DriveFS claim is made here.
+- FAT32/cross-volume identity (#48), network-share roots, ACL
+  revocation mid-watch, and real OS buffer-overflow timing remain
+  unverified with `#[ignore]`d fixtures that must never be counted as
+  support (`network_root_watch_fixture_is_unverified`,
+  `acl_revocation_fixture_is_unverified`,
+  `real_buffer_overflow_fixture_is_unverified`).
+- Installed-app scan evidence: none. The journey in §§3-6 remains
+  hidden worker/driver evidence plus labeled fake-adapter rendering;
+  DriveFS/FAT32 exclusions from §5 carry over unchanged.

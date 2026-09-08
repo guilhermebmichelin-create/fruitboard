@@ -1641,6 +1641,51 @@ fn coverage_lost_schedules_one_full_reconciliation_and_records_overflow() {
     );
 }
 
+// P2-09: a burst and an overflow inside one coalescing window subsume to a
+// single durable follow-up with the overflow cause. The coalescer delivers
+// the coverage-loss hint immediately and drops the pending window, so the
+// adapter sees exactly one hint and the queue never grows beyond one job.
+#[test]
+fn burst_and_overflow_in_one_window_subsume_to_a_single_follow_up() {
+    let mut harness = Harness::new("followup-burst-overflow");
+    let mut port = ScriptedWatcher::new(CoalescerConfig {
+        window: 100,
+        max_tracked_roots: 8,
+    })
+    .activity(WATCH_ROOT, 1, 10)
+    .activity(WATCH_ROOT, 1, 20)
+    .lost(WATCH_ROOT, 1, 30);
+    let mut follow_ups = adapter(&harness);
+
+    let outcomes = host_loop(
+        &mut harness.db,
+        &mut port,
+        &mut follow_ups,
+        &harness.clock,
+        200,
+        10,
+    );
+    assert_eq!(outcomes.len(), 1, "one coalesced poll delivers hints once");
+    assert_eq!(outcomes[0].requests.len(), 1);
+    assert_eq!(outcomes[0].requests[0].cause, FollowUpCause::Overflow);
+    assert!(!outcomes[0].requests[0].coalesced);
+    assert_eq!(outcomes[0].overflow, 1);
+    assert_eq!(harness.root_jobs().len(), 1, "burst + loss is one job");
+
+    let execution = harness
+        .drain(tree(vec![file_entry("a.flp", 101)]))
+        .expect("execution");
+    assert_eq!(execution.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        execution
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        1
+    );
+}
+
 // P2-09: a hint older than the current watch generation is dropped; replays
 // at the current generation are current and coalesce on storage; a strictly
 // newer generation reopens the root.

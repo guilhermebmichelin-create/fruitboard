@@ -197,6 +197,35 @@ fn tracking_bound_rejects_and_counts_without_panicking() {
 }
 
 #[test]
+fn tracking_bound_rejects_coverage_lost_without_growth() {
+    // P2-09 bounded coalescing: the coverage-loss path respects the same
+    // tracking bound as activity. A loss for an untracked root beyond the
+    // bound is rejected and counted, never queued, so memory cannot grow
+    // with overflow volume.
+    let mut coalescer = coalescer(1_000, 1);
+    coalescer.record_activity(RootId(1), 1, 0);
+    coalescer.record_coverage_lost(RootId(2), 1);
+    assert_eq!(coalescer.rejected_signals(), 1);
+    assert_eq!(coalescer.open_windows(), 1);
+    // Only the tracked root's window is due; the rejected loss never fires.
+    let hints = coalescer.poll(1_000);
+    assert_eq!(hints.len(), 1);
+    assert_eq!(hints[0].root, RootId(1));
+    assert_eq!(hints[0].kind, HintKind::ReconciliationRequested);
+    // Draining frees the slot: a later loss for the new root is accepted.
+    coalescer.record_coverage_lost(RootId(2), 1);
+    assert_eq!(coalescer.rejected_signals(), 1);
+    assert_eq!(
+        coalescer.poll(1_000),
+        [WatchHint {
+            root: RootId(2),
+            generation: 1,
+            kind: HintKind::CoverageLost
+        }]
+    );
+}
+
+#[test]
 fn poll_order_is_deterministic_ascending_by_root() {
     let mut coalescer = coalescer(1_000, 8);
     for root in [RootId(3), RootId(1), RootId(2)] {
