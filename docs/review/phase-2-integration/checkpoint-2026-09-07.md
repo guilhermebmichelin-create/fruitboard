@@ -536,9 +536,9 @@ in `tests/no-parser.test.mjs`).
   `fruitboard-filesystem-enumeration`, `fruitboard-filesystem-watcher`,
   and `fruitboard-reconciliation`; no parser, archive, audio, or FLP
   crate appears.
-- Content-read spy (zero file-content reads during discovery):
+- Static source policy (forbidden content-read API patterns):
   `tests/no-parser.test.mjs`
-  `discovery sources perform zero file-content reads` forbids
+  `discovery source policy forbids known content-read APIs` forbids
   `NtReadFile`, `ReadFile`, `parse_flp`, `pyflp`, `CfHydrate`,
   `HydratePlaceholder`, `std::fs::read`, `std::fs::read_to_string`,
   and `tokio::fs` in the seven production discovery sources
@@ -551,9 +551,9 @@ in `tests/no-parser.test.mjs`).
   `NtQueryDirectoryFile` present, `ReadFile`/`NtReadFile` absent.
   Fixture byte I/O lives only in the four test sources, never in
   production discovery code.
-- Source-byte preservation (fixture hashes before/after):
+- Source-byte preservation (fixture byte equality before/after):
   `tests/no-parser.test.mjs`
-  `source-byte preservation fixtures hash before and after` pins the
+  `source-byte preservation fixtures assert equality before and after` pins the
   existing Rust assertions: enumeration
   `ntfs_fixture_discovers_unicode_long_mixed_case_and_preserves_markers`
   snapshots `read marker before scan`, re-reads `read marker after
@@ -564,7 +564,8 @@ in `tests/no-parser.test.mjs`).
   pre-scan marker length.
 
 P2-10 stays Pending per instruction: the checks above are dependency,
-spy, and preservation evidence, not a promotion.
+static source-policy, and preservation evidence, not a runtime content-read
+spy or an acceptance promotion.
 
 ### 9.3 F1/F2 owner-decision links (no budget edits)
 

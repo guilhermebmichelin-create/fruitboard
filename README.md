@@ -12,13 +12,21 @@ enabled on `main` (2026-09-07; see [DEVELOPMENT.md](DEVELOPMENT.md#enforced-bran
 **Phase 1 is
 accepted**: the reproducible Tauri/React shell now includes Rust-owned local
 SQLite, one persisted startup-view preference, automated quality/security
-gates, and a Windows packaging smoke. It still has no scanner, parser, project
-workflow, sync, or PWA. Phase 2 proceeds under epic #33: scan-root storage with
-a native folder picker (#34), root settings with inline Preferences onboarding
-(#35), the bounded reconciliation reference core (#36), and the durable
-execution foundation (#38) and the fenced staging/publication storage boundary
-for #40 have landed. Filesystem traversal, watcher integration, the Library
-journey, production scanning, and parser work remain ahead.
+gates, and a Windows packaging smoke. It still has no parser, project workflow,
+sync, or PWA. Phase 2 proceeds under epic #33. The 2026-09-08 review baseline
+is `dbabb50` (PR #80): #77 keeps status and Library reads responsive between
+staged batches, #78 wires the native Library scan adapter behind the
+feature-gated `scan-console` surface, #79 records the budget and governance
+decision brief, and #80 records the P2-12 checkpoint. The bounded enumeration,
+watcher/follow-up foundations, durable worker, and native scan-console surface
+are implemented behind the remaining integration gates. Production scanning
+remains hidden until P2-03 through P2-08 have integrated evidence. The
+installed-app journey, desktop watcher host integration, budget decisions, and
+owner acceptance remain open. The
+[2026-09-08 continuation review](docs/review/phase-2-integration/continuation-2026-09-08.md)
+tracks local feature-enabled CI and event subscription permission fixes,
+pending merge and CI evidence. DriveFS modes and FAT32/cross-volume identity
+remain manual and unverified under #47/#48.
 
 Tracking starts at
 [Phase 2 epic #33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)

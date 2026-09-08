@@ -14,6 +14,7 @@ packaging-smoke = ["dep:tauri-plugin-shell"]
 scan-console = [
   "dep:fruitboard-scan-execution",
   "dep:fruitboard-filesystem-enumeration",
+  "dep:fruitboard-filesystem-watcher",
 ]
 
 [lib]
@@ -27,6 +28,7 @@ tauri-build.workspace = true
 fruitboard-storage.workspace = true
 fruitboard-scan-execution = { path = "../../../crates/scan-execution", optional = true }
 fruitboard-filesystem-enumeration = { path = "../../../crates/filesystem-enumeration", optional = true }
+fruitboard-filesystem-watcher = { path = "../../../crates/filesystem-watcher", optional = true }
 regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true

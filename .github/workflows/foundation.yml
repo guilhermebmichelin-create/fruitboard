@@ -228,6 +228,10 @@ jobs:
         run: pnpm.cmd install --frozen-lockfile --ignore-scripts
       - name: Run the integrated Windows gate
         run: pnpm.cmd check
+      - name: Run the enabled scan-console suite
+        run: cargo test -p fruitboard-desktop --features scan-console --locked
+      - name: Lint enabled scan-console code
+        run: cargo clippy -p fruitboard-desktop --features scan-console --all-targets --locked -- -D warnings
 
   security:
     name: security

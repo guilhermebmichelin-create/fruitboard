@@ -42,11 +42,15 @@ test("dependency manifests contain no PyFLP dependency", () => {
 
   for (const manifest of manifests) {
     const content = readRootFile(manifest);
-    assert.doesNotMatch(content, /pyflp/i, `${manifest} must not reference PyFLP`);
+    assert.doesNotMatch(
+      content,
+      /pyflp/i,
+      `${manifest} must not reference PyFLP`,
+    );
   }
 });
 
-test("discovery sources perform zero file-content reads", () => {
+test("discovery source policy forbids known content-read APIs", () => {
   // Windows content-read entry points must never appear in discovery code.
   // Handle-bound metadata + directory listing (CreateFileW, NtCreateFile,
   // NtQueryDirectoryFile, GetFileInformationByHandleEx,
@@ -64,7 +68,11 @@ test("discovery sources perform zero file-content reads", () => {
   for (const source of PRODUCTION_SOURCES) {
     const content = readRootFile(source);
     for (const pattern of forbiddenContentReads) {
-      assert.doesNotMatch(content, pattern, `${source} must not contain ${pattern}`);
+      assert.doesNotMatch(
+        content,
+        pattern,
+        `${source} must not contain ${pattern}`,
+      );
     }
     // No standard-library file-content reads in production discovery code.
     // Fixture byte checks live only in the test sources below.
@@ -91,11 +99,13 @@ test("enumeration uses only handle-bound metadata APIs", () => {
   assert.doesNotMatch(enumeration, /ReadFile/, "no content reads");
 });
 
-test("source-byte preservation fixtures hash before and after", () => {
+test("source-byte preservation fixtures assert equality before and after", () => {
   // The authoritative scan and enumeration fixtures snapshot marker bytes
-  // before discovery and assert byte equality afterwards: discovery never
-  // reads or writes source bytes beyond handle-bound metadata.
-  const enumerationTests = readRootFile("crates/filesystem-enumeration/src/tests.rs");
+  // before discovery and assert byte equality afterwards. This static check
+  // verifies fixture assertions exist; it cannot detect runtime content reads.
+  const enumerationTests = readRootFile(
+    "crates/filesystem-enumeration/src/tests.rs",
+  );
   assert.match(
     enumerationTests,
     /read marker before scan/,
