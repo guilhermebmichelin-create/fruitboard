@@ -4,11 +4,12 @@
 //!
 //! The host is only compiled with the `scan-console` cargo feature. It shares
 //! the single native `Database` owner behind the same `Arc<Mutex<Database>>`
-//! as the command layer; because the worker holds that lock for the full
-//! duration of a traversal (the storage connection is single-owner and
-//! non-reentrant), console commands serialize behind a running scan. The
-//! typed command shapes and the durability semantics are the contract; the
-//! concurrency limits of the single-connection design are documented in
+//! as the command layer; filesystem traversal runs with no database lock
+//! held and the mutex is acquired only for short per-batch staging
+//! transactions (`<=512` records) and for the final atomic publication, so
+//! `list_scan_statuses` and `get_library_page` stay responsive mid-scan.
+//! The typed command shapes and the durability semantics are the contract;
+//! the single-connection design is documented in
 //! `docs/review/phase-2-ipc/README.md`.
 //!
 //! ## Cancellation composition
@@ -129,8 +130,11 @@ impl ScanConsoleHost {
         }
     }
 
-    pub(crate) fn worker(&self) -> std::sync::MutexGuard<'_, ScanWorker> {
-        self.worker.lock().unwrap_or_else(PoisonError::into_inner)
+    pub(crate) fn clone_worker(&self) -> ScanWorker {
+        self.worker
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// Flip the cancellation mirror for the running job, if any. Called by
@@ -267,11 +271,13 @@ impl ScanConsoleHost {
     /// Service retries, claim the oldest due job, and register the
     /// cancellation mirror. Keeps the claimed scan in `pending` so tests can
     /// interleave commands before execution. Returns whether a scan is due.
+    /// Both durable steps are short transactions; no filesystem I/O holds the
+    /// database mutex.
     pub(crate) fn claim_due(&self, database: &Mutex<Database>) -> bool {
+        let worker = self.clone_worker();
         let Ok(mut db) = database.lock() else {
             return false;
         };
-        let worker = self.worker();
         if worker
             .service_retries(&mut db, self.clock.as_ref())
             .is_err()
@@ -301,6 +307,11 @@ impl ScanConsoleHost {
     }
 
     /// Execute the pending scan (if any) and emit its terminal transition.
+    /// Filesystem traversal runs with no database mutex held; the worker
+    /// acquires short per-batch staging transactions (`<=512` records) and
+    /// one final atomic publication transaction, so `list_scan_statuses` and
+    /// `get_library_page` stay responsive mid-scan. The worker mutex is also
+    /// released during traversal (the worker is cloned before executing).
     pub(crate) fn execute_pending<P: FilesystemPort>(
         &self,
         database: &Mutex<Database>,
@@ -314,22 +325,22 @@ impl ScanConsoleHost {
         else {
             return false;
         };
-        let Ok(mut db) = database.lock() else {
-            return false;
-        };
-        let worker = self.worker();
-        let execution = worker.execute(
-            &mut db,
+        let worker = self.clone_worker();
+        let execution = worker.execute_shared(
+            database,
             pending.scan,
             port,
             &CancellationMirror { flag: pending.flag },
             self.clock.as_ref(),
         );
-        let state = state_from_execution(&execution, &db);
+        // Short read for the fenced-state fallback only; every other status
+        // maps without touching the database.
+        let state = match database.lock() {
+            Ok(db) => state_from_execution(&execution, &db),
+            Err(_) => state_from_execution_fallback(&execution),
+        };
         let files_observed = files_observed_from_execution(&execution);
         let error = error_from_execution(&execution);
-        drop(worker);
-        drop(db);
         self.clear_cancellation(&pending.job_id);
         self.record_counters(&pending.root_id, files_observed);
         self.record_error(&pending.root_id, error);
@@ -363,6 +374,19 @@ fn state_from_execution(execution: &ScanExecution, database: &Database) -> ScanE
             },
             Err(_) => ScanExecutionState::Interrupted,
         },
+    }
+}
+
+/// Fallback when the database mutex itself is poisoned: non-fenced statuses
+/// map without the database; a fenced run cannot be resolved, so it reports
+/// the honest `interrupted` fallback (same as the unreadable-job branch).
+fn state_from_execution_fallback(execution: &ScanExecution) -> ScanExecutionState {
+    match execution.status {
+        ScanExecutionStatus::Published => ScanExecutionState::Completed,
+        ScanExecutionStatus::Failed => ScanExecutionState::Failed,
+        ScanExecutionStatus::Cancelled => ScanExecutionState::Cancelled,
+        ScanExecutionStatus::Interrupted => ScanExecutionState::Interrupted,
+        ScanExecutionStatus::Fenced => ScanExecutionState::Interrupted,
     }
 }
 

@@ -378,9 +378,9 @@ impl ScanConsoleService {
 
     fn scan_now(&self, root_id: String) -> Result<ScanStartResult, AppError> {
         let host = self.host();
+        let worker = host.clone_worker();
         let mut database = self.database.lock().map_err(|_| storage_failed())?;
-        let result = host
-            .worker()
+        let result = worker
             .request_manual_scan(&mut database, &root_id, self.clock.as_ref())
             .map_err(map_enqueue_storage_error)?;
         let job = latest_job_for_root(&database, &root_id).map_err(map_enqueue_storage_error)?;
