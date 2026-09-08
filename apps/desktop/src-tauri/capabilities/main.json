@@ -19,6 +19,8 @@
     "allow-retry-scan",
     "allow-list-scan-statuses",
     "allow-get-library-page",
-    "allow-get-scan-console-state"
+    "allow-get-scan-console-state",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
   ]
 }

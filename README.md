@@ -12,13 +12,24 @@ enabled on `main` (2026-09-07; see [DEVELOPMENT.md](DEVELOPMENT.md#enforced-bran
 **Phase 1 is
 accepted**: the reproducible Tauri/React shell now includes Rust-owned local
 SQLite, one persisted startup-view preference, automated quality/security
-gates, and a Windows packaging smoke. It still has no scanner, parser, project
-workflow, sync, or PWA. Phase 2 proceeds under epic #33: scan-root storage with
-a native folder picker (#34), root settings with inline Preferences onboarding
-(#35), the bounded reconciliation reference core (#36), and the durable
-execution foundation (#38) and the fenced staging/publication storage boundary
-for #40 have landed. Filesystem traversal, watcher integration, the Library
-journey, production scanning, and parser work remain ahead.
+gates, and a Windows packaging smoke. It still has no parser, project workflow,
+sync, or PWA. Phase 2 proceeds under epic #33. The 2026-09-08 merged review
+baseline is `e5e777d` (PR #81): #77 keeps status and Library reads responsive
+between staged batches, #78 wires the native Library scan adapter behind the
+feature-gated `scan-console` surface, #79 records the budget and governance
+decision brief, #80 records the P2-12 checkpoint, and #81 adds the scoped event
+subscription permissions plus deterministic continuation guards. The
+[Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618)
+is green, including the enabled desktop tests and warnings-denied Clippy. The
+bounded enumeration, watcher/follow-up foundations, durable worker, and native
+scan-console surface remain behind the host-integration and acceptance gates.
+Production scanning remains hidden until P2-03 through P2-08 have integrated
+evidence. The installed-app journey, desktop watcher supervisor, F1-F3 budget
+decisions, and owner acceptance remain open. The
+[2026-09-08 continuation review](docs/review/phase-2-integration/continuation-2026-09-08.md)
+and [installed-app journey checklist](docs/review/phase-2-integration/installed-app-journey-checklist.md)
+track the remaining gates. DriveFS modes and FAT32/cross-volume identity remain
+manual and unverified under #47/#48.
 
 Tracking starts at
 [Phase 2 epic #33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)

@@ -84,9 +84,13 @@ hints only and never decide file state.
 
 ## Explicitly unverified
 
-DriveFS (#47), non-NTFS volumes (#48), network-share roots, ACL revocation
-mid-watch, and real OS buffer-overflow timing are not qualified by this
-crate. The corresponding `#[ignore]`d test fixtures are labeled unverified
+DriveFS (#47) stays manual-only: it is not qualified by this crate, never
+runs in CI, and any future DriveFS claim requires a manually provisioned
+Google Drive filesystem root via `FRUITBOARD_WATCHER_DRIVEFS_ROOT` observed
+by a human operator. Non-NTFS volumes (#48), network-share roots, ACL
+revocation mid-watch, and real OS buffer-overflow timing are likewise not
+qualified by this crate. The corresponding `#[ignore]`d test fixtures are
+labeled unverified (the DriveFS fixture carries the `manual-only` label)
 and must never be counted as support; `RootLost` treats an unreachability
 observation honestly without claiming recovery behavior for those
 environments.

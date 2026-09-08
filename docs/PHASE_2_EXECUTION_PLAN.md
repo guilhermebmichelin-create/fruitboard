@@ -11,16 +11,32 @@ referenced by issues.
 
 ## Current status
 
+Merged-wave status snapshot (2026-09-08): baseline `05d39ff` (PR #82) is
+merged on `main` (squash-merge 2026-09-08T15:58:03Z from
+`wave/watcher-integration`; prior baseline `e5e777d` PR #81). Its post-merge
+[Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34248128449)
+completed `success`, including the
+[Windows foundation job](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34248128449/job/102135306455)
+with `scan-console` feature-enabled desktop tests and warnings-denied Clippy.
+This is build and contract evidence; it does not prove the installed
+application, installed-app journey, F1–F3 decisions, #47/#48 scope, or owner
+acceptance.
+
 | State | Work | Evidence or next action |
 | --- | --- | --- |
 | Delivered | Phase 1 foundation, accepted; #34 native picker/root storage | PRs #20-32 and #44; installed picker evidence in `docs/review/issue-34/` via #54 |
 | Delivered | #35 persistent rename/enabled settings, inline onboarding, failure/focus fixes | PRs #55/#56/#58; CI and regression tests; not scanner execution |
 | Delivered | #35 rendered desktop/narrow keyboard verification | [Evidence](review/issue-35/README.md) and PR #58; fake-adapter rendering is labeled separately from installed-app evidence |
-| Delivered | #36 bounded reconciliation reference core | PR #59 and `crates/reconciliation/README.md`; deterministic in-memory foundation only, not filesystem enumeration or production scanning |
-| Delivered | #38 durable scan execution foundation | PRs #60/#61 and [durable execution evidence](PHASE_2_DURABLE_EXECUTION.md); migrations, jobs, runs, leases and recovery fencing only |
+| Implemented (hidden path) | #36 bounded reconciliation, #64 Windows enumeration, and #70 scan worker | PRs #59/#64/#70; deterministic reconciliation, bounded handle-bound enumeration, and the end-to-end worker are merged, but production host activation and P2-02/P2-03 acceptance remain open |
+| Delivered (integration pending) | #38 durable scan execution foundation | PRs #60/#61 and [durable execution evidence](PHASE_2_DURABLE_EXECUTION.md); #70 composes the hidden worker and #73 adds the feature-gated command surface; P2-04/P2-05 remain Partial |
 | Decision pending | Inline Preferences onboarding instead of a separate first-run route | Implementation documented; owner review remains separate from the accepted scanner contracts |
-| In progress | #40 durable staging/publication storage slice | [Publication evidence](PHASE_2_DURABLE_PUBLICATION.md); migration 004 and typed storage APIs; traversal, Library UI and production scanning remain open |
-| Next | Integrate bounded #36 enumeration and the minimal Library journey | Keep production scanning hidden until incomplete-run, restart and atomic-publication tests pass |
+| Implemented (integration evidence pending) | #40 staging/publication/read model plus #77 responsive staged batches | PR #62 and PR #77; atomic publication, bounded batches, and the short-transaction concurrency fix are merged; P2-03/P2-06/P2-07/P2-08 integrated evidence remains open |
+| Implemented (feature-gated; acceptance pending) | #73 scan-console IPC and #78 native Library scan adapter | PR #73, PR #78, and merged PR #81; six typed commands, scoped event listen/unlisten permissions, and the native adapter are behind `scan-console`; the linked feature-enabled CI is green, while installed-app evidence remains open |
+| Implemented (host integration pending) | #37 watcher foundation and durable follow-up adapter | PRs #68/#69/#71 and the deterministic continuation harness in merged PR #81 provide the bounded watcher/follow-up seams; the native supervisor, root mapping, activation, and combined rerun remain next |
+| Delivered (integrated checks; acceptance pending) | #39 no-parser boundary and additional #37 guards | Merged PR #81 adds static no-parser/no-content-I/O policy guards plus separate synthetic-fixture source-byte preservation assertions; these checks are not an installed-app proof or a runtime content-read spy |
+| Measured (owner decision pending) | #41/P2-11 benchmark and #79 budget/governance brief | [Benchmark report](review/phase-2-integration/benchmark-2026-09-07.md) and [decision brief](review/phase-2-integration/budget-decision-brief.md) record F1 (10,005 observations vs 10,000 quota), F2 (warm p95 32.876 s vs 10 s), and F3 (100k set unqualified); no budget or acceptance promotion |
+| Recorded (owner acceptance pending) | #41/P2-12 checkpoint (#80) | [Checkpoint](review/phase-2-integration/checkpoint-2026-09-07.md) remains the historical evidence aggregation; the continuation plan is in [the 2026-09-08 review](review/phase-2-integration/continuation-2026-09-08.md) |
+| Next (parallel lanes) | Native watcher host integration; independent fault verification; installed-app preparation | A/B still need the combined supervisor commit and feature-enabled rerun; C has prepared the [installed-app journey checklist](review/phase-2-integration/installed-app-journey-checklist.md). Keep production scanning hidden until P2-03 through P2-08 have integrated evidence |
 | Blocked/unverified | DriveFS modes (#47), cross-volume/FAT32 identity (#48) | #42/#43 closed with partial findings, not blanket platform qualification |
 | Deferred | Parsing (#39), logical grouping, Kanban, playback, sync, PWA | Phase 2 is filesystem-only; bounded independent Rust-parser spike follows accepted MVP |
 
@@ -239,12 +255,31 @@ findings. Drive modes and non-NTFS identity remain unverified under #47/#48.
 Before claiming support, land their evidence or obtain an explicit owner scope
 exclusion; do not reinterpret unavailable environments as passing tests.
 
-Sequence: accepted planning contracts -> #59 bounded #36 reconciliation core ->
-PR #60 durable #38 execution foundation -> #40 staging/publication and read-model
-slices against the contracts -> bounded enumeration and integrated manual scan
-journey -> #37 watcher integration -> #41 owner checkpoint. Schema and port work
-may precede consumers; issue numbering is not a strict coding order. Keep
-production scanning hidden until P2-03 through P2-08 are integrated.
+The starting boundary for this wave is merged baseline `e5e777d` (PR #81) and
+its green [Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618).
+The parallel lanes are: (1) connect the merged watcher and durable follow-up
+crates to the desktop host lifecycle, root mapping, feature-gated activation,
+and explicit shutdown; (2) independently verify delivery failure, ended-watch,
+stale-generation, bounded-wakeup, and shutdown behavior; and (3) prepare the
+installed-app checklist and keep this plan and the review record aligned with
+merged evidence. The first two lanes still require a combined supervisor commit
+and feature-enabled rerun. The documentation lane records preparation and CI
+provenance without promoting an acceptance criterion from local or deterministic
+tests.
+
+After the combined supervisor commit and green rerun, run the installed-app
+Windows journey against the native surface using the
+[journey checklist](review/phase-2-integration/installed-app-journey-checklist.md).
+Only then resolve the benchmark decisions in order: F1 (10,005 observed
+locations versus the 10,000 staging quota), F2 (warm p95 32.876 s versus the
+10 s target), and F3 (the 100,000-entry qualification set is unqualified
+under the current quota). Profile or re-run before any re-budgeting. Keep
+DriveFS (#47) and FAT32/cross-volume identity (#48) as manual limitations until
+their evidence lands or the owner explicitly excludes those environments.
+Finish with the owner's P2 checklist decisions; no budget, platform, or
+acceptance promotion follows from the parallel lanes alone. Schema and port
+work may precede consumers, and issue numbering is not a strict coding order.
+Keep production scanning hidden until P2-03 through P2-08 are integrated.
 
 Issue #39 records the chosen filesystem-only path and its no-parser evidence; it is
 not blocked waiting for a parser and does not authorize a production adapter.

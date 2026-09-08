@@ -875,6 +875,7 @@ name = "fruitboard-desktop"
 version = "0.1.0"
 dependencies = [
  "fruitboard-filesystem-enumeration",
+ "fruitboard-filesystem-watcher",
  "fruitboard-scan-execution",
  "fruitboard-storage",
  "regex",
@@ -900,7 +901,7 @@ dependencies = [
 name = "fruitboard-filesystem-watcher"
 version = "0.1.0"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

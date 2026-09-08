@@ -462,8 +462,8 @@ fn network_root_watch_fixture_is_unverified() {
 }
 
 #[test]
-#[ignore = "unverified (#47): DriveFS is not qualified; requires a manually \
-           provisioned Google Drive filesystem root"]
+#[ignore = "manual-only, unverified (#47): DriveFS is not qualified; requires a manually \
+           provisioned Google Drive filesystem root via FRUITBOARD_WATCHER_DRIVEFS_ROOT"]
 fn drivefs_root_watch_fixture_is_unverified() {
     let Some(root) = env_root("FRUITBOARD_WATCHER_DRIVEFS_ROOT") else {
         return;

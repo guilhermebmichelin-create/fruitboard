@@ -7,6 +7,17 @@ const readRootFile = (path) =>
 
 const workflow = readRootFile(".github/workflows/foundation.yml");
 
+const workflowJob = (name) => {
+  const marker = `  ${name}:\n`;
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, `${name} job must be present`);
+
+  const bodyStart = start + marker.length;
+  const nextJob = workflow.slice(bodyStart).match(/^  [A-Za-z0-9_.-]+:\n/m);
+  const end = nextJob ? bodyStart + nextJob.index : workflow.length;
+  return workflow.slice(start, end);
+};
+
 test("foundation CI exposes stable, always-present checks", () => {
   for (const job of [
     "docs-policy",
@@ -90,6 +101,22 @@ test("CI commands cover locked client, portable storage, migrations, and Windows
   assert.match(workflow, /pnpm\.cmd check/);
   assert.match(workflow, /uv python install 3\.11\.16/);
   assert.match(workflow, /uv sync --frozen --python 3\.11\.16/);
+});
+
+test("required Windows foundation runs both feature-off and feature-on desktop checks", () => {
+  const windowsFoundation = workflowJob("windows-foundation");
+
+  assert.match(windowsFoundation, /^        run: pnpm\.cmd check$/m);
+  assert.match(
+    windowsFoundation,
+    /^        run: cargo test -p fruitboard-desktop --features scan-console --locked$/m,
+  );
+  assert.match(
+    windowsFoundation,
+    /^        run: cargo clippy -p fruitboard-desktop --features scan-console --all-targets --locked -- -D warnings$/m,
+  );
+  assert.doesNotMatch(windowsFoundation, /^\s+if:/m);
+  assert.doesNotMatch(windowsFoundation, /^\s+continue-on-error:/m);
 });
 
 test("security checks cover repository privacy and both dependency locks", () => {
