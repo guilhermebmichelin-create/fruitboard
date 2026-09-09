@@ -17,6 +17,12 @@ export const MAX_LIBRARY_PAGE_LIMIT = 200;
 export type LibraryFilePresence = "present" | "missing";
 
 /**
+ * Identifies the surface that owns the Library rendering. The review harness
+ * opts in explicitly; the native product surface is the default.
+ */
+export type LibraryRenderContext = "native" | "review-harness";
+
+/**
  * Canonical unsigned decimal encoding of a Rust integer (u64/u128 bound).
  * No leading zeroes except `"0"` itself; never a JSON number, so values
  * beyond JavaScript's exact-integer range round-trip exactly.
@@ -195,6 +201,8 @@ export interface ScanStatus {
   readonly runId: string | null;
   /** Durably set once a leased cancellation is requested. */
   readonly cancellationRequested: boolean;
+  /** True only for an enabled failed job below its durable retry budget. */
+  readonly retryAvailable: boolean;
   readonly counters: ScanProgressCounters;
   readonly lastSuccessfulScanAt: string | null;
   readonly lastOutcomeAt: string | null;

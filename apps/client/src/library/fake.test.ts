@@ -217,4 +217,38 @@ describe("fake per-root pages", () => {
       state: "queued",
     });
   });
+
+  it("keeps cancellation terminal and reserves retry for failed work", async () => {
+    const adapter = createFakeLibraryScanAdapter({ roots: [rootA] });
+    const first = await adapter.scanNow(rootA.id);
+    await adapter.cancelScan(first.jobId);
+
+    const cancelled = (await adapter.listScanStatuses())[0]!;
+    expect(cancelled).toMatchObject({
+      state: "cancelled",
+      jobId: first.jobId,
+      retryAvailable: false,
+    });
+    await expectErrorCode(adapter.retryScan(first.jobId), "conflict");
+
+    const fresh = await adapter.scanNow(rootA.id);
+    expect(fresh.jobId).not.toBe(first.jobId);
+    expect(fresh.outcome).toBe("queued");
+
+    adapter.advanceRun(rootA.id);
+    adapter.failScan(rootA.id, "unavailable");
+    const failed = (await adapter.listScanStatuses())[0]!;
+    expect(failed.retryAvailable).toBe(true);
+    await expect(adapter.retryScan(fresh.jobId)).resolves.toMatchObject({
+      outcome: "queued",
+      jobId: fresh.jobId,
+    });
+  });
+
+  it("rejects explicit scans for disabled roots", async () => {
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [{ ...rootA, enabled: false }],
+    });
+    await expectErrorCode(adapter.scanNow(rootA.id), "conflict");
+  });
 });

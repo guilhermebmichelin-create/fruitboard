@@ -89,7 +89,7 @@ describe("LibraryPage accessibility", () => {
     await screen.findByText("Cancelled");
     await expectNoViolations(view.container);
     await user.click(
-      screen.getByRole("button", { name: "Retry scan Accessible Projects" }),
+      screen.getByRole("button", { name: "Scan now Accessible Projects" }),
     );
     await screen.findByText("Queued");
     await expectNoViolations(view.container);
@@ -126,10 +126,10 @@ describe("LibraryPage accessibility", () => {
 
     await user.keyboard("{Enter}");
     await screen.findByText("Cancelled");
-    const retry = screen.getByRole("button", {
-      name: "Retry scan Accessible Projects",
+    const scanAgain = screen.getByRole("button", {
+      name: "Scan now Accessible Projects",
     });
-    await waitFor(() => expect(document.activeElement).toBe(retry));
+    await waitFor(() => expect(document.activeElement).toBe(scanAgain));
 
     await user.keyboard("{Enter}");
     await screen.findByText("Queued");

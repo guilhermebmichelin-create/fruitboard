@@ -1,7 +1,10 @@
 import { StrictMode, useEffect, useState } from "react";
 import { RouterProvider } from "react-router/dom";
 import type { PlatformPort, StartupView } from "../platform/contracts";
-import type { LibraryScanAdapter } from "../library/contracts";
+import type {
+  LibraryRenderContext,
+  LibraryScanAdapter,
+} from "../library/contracts";
 import { createFruitboardHashRouter } from "./router";
 
 const startupPaths: Readonly<Record<StartupView, string>> = {
@@ -23,15 +26,17 @@ function ReadyFruitboard({
   onError,
   platform,
   libraryAdapter,
+  libraryRenderContext,
   startupView,
 }: {
   readonly onError: () => undefined;
   readonly platform: PlatformPort;
   readonly libraryAdapter: LibraryScanAdapter | undefined;
+  readonly libraryRenderContext: LibraryRenderContext;
   readonly startupView: StartupView | null;
 }) {
   const [router] = useState(() =>
-    createFruitboardHashRouter(platform, libraryAdapter),
+    createFruitboardHashRouter(platform, libraryAdapter, libraryRenderContext),
   );
 
   useEffect(() => {
@@ -51,10 +56,12 @@ export function StartupRouter({
   onError,
   platform,
   libraryAdapter,
+  libraryRenderContext = "native",
 }: {
   readonly onError: () => undefined;
   readonly platform: PlatformPort;
   readonly libraryAdapter?: LibraryScanAdapter | undefined;
+  readonly libraryRenderContext?: LibraryRenderContext;
 }) {
   const [loadPreference] = useState(() => !hasExplicitRoute());
   const [attempt, setAttempt] = useState(0);
@@ -91,6 +98,7 @@ export function StartupRouter({
       <ReadyFruitboard
         onError={onError}
         libraryAdapter={libraryAdapter}
+        libraryRenderContext={libraryRenderContext}
         platform={platform}
         startupView={state.startupView}
       />

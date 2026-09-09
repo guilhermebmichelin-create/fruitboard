@@ -34,7 +34,7 @@
       },
       {
         "step": "Cancel retains previous committed results",
-        "focus": "Retry scan Projects (C:\\Synthetic\\Music\\Projects)",
+        "focus": "Scan now Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
         "viewport": [
           1280,
@@ -42,7 +42,7 @@
         ]
       },
       {
-        "step": "Enter retries scan",
+        "step": "Enter starts a fresh scan after cancellation",
         "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
         "viewport": [
@@ -87,7 +87,7 @@
       },
       {
         "step": "Cancel retains previous committed results",
-        "focus": "Retry scan Projects (C:\\Synthetic\\Music\\Projects)",
+        "focus": "Scan now Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
         "viewport": [
           390,
@@ -95,7 +95,7 @@
         ]
       },
       {
-        "step": "Enter retries scan",
+        "step": "Enter starts a fresh scan after cancellation",
         "focus": "Cancel scan Projects (C:\\Synthetic\\Music\\Projects)",
         "pageOverflow": false,
         "viewport": [
