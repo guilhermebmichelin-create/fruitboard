@@ -6,10 +6,12 @@ live GitHub PR/issue/CI records, merged source and tests, the benchmark re-run,
 and the owner decisions that are actually recorded. It does not close an issue,
 change a feature gate, amend a budget, or supply an owner decision.
 
-The installed-app checklist, benchmark evidence and raw JSON files, platform
-research, application code, and production gates were not edited. Historical
-checkpoint, continuation, acceptance-preparation, benchmark, post-merge, and
-platform-research records remain historical records.
+This reconciliation does not edit the installed-app checklist, benchmark
+evidence and raw JSON files, platform research, application code, or production
+gates. The checklist observations are recorded in unmerged PR #92; the platform
+reports are in unmerged PR #90; and the diagnostic profile is in unmerged PR #93.
+Historical checkpoint, continuation, acceptance-preparation, benchmark,
+post-merge, and platform-research records remain historical records.
 
 ## Executive result
 
@@ -21,15 +23,24 @@ platform-research records remain historical records.
   P2-05, P2-06, and P2-07, but they do not provide installed-app observations
   or owner acceptance.
 - The P2-08 `Complete` statement introduced by PR #85 is not supportable
-  as an acceptance claim. The reconciled status is Partial: native and
-  automated seam evidence exists, while the installed journey and explicit
-  full-criterion owner acceptance do not.
+  as an acceptance claim. The reconciled status is Partial: native,
+  automated-seam, and partial installed evidence exist, while D1/D2/D3,
+  durable queued observation, independent watcher-burst counting, and explicit
+  full-criterion owner acceptance remain open.
 - PR #86 is the current performance evidence source. It reproduces F1, leaves
   F2 failing at a 14,267 ms warm p95 against the provisional 10 s target, and
   leaves F3 unmeasured. No budget or fixture decision was made.
-- The installed-app observation table is still empty. #47 and #48 remain open;
-  PR #89 records that this host has no qualifying writable FAT32/cross-volume
-  target, which is a blocker, not a qualification.
+- The installed journey was observed from a feature-enabled package built from
+  `main` `0b7612d`: persistence, paging, watcher follow-up convergence,
+  cancellation retention, and interrupted-work recovery were observed. The
+  evidence record remains in unmerged PR #92; durable queued observation and
+  independent watcher-burst counting remain unverified. #47 and #48 remain
+  open; PR #90 records their blockers, which are not qualifications.
+- Unmerged PR #93 adds contended filesystem-port profiling. It identifies a
+  measured cost center but is not an idle-host performance pass. PR #92's
+  Foundation CI and packaging rerun are green; its first packaging attempt
+  recorded `The installed sidecar smoke timed out`, which remains a provenance
+  incident rather than a product-fix or acceptance result.
 - No explicit full Phase 2 or P2-08 acceptance decision is recorded. Epic #33,
   child issues #36-#41, and platform follow-ups #47/#48 remain open.
   Production scanning stays hidden under the accepted P2-03 through P2-08
@@ -58,9 +69,10 @@ The latest first-parent sequence is:
 | `e5e777d` | [#81](https://github.com/guilhermebmichelin-create/fruitboard/pull/81) | Native subscriptions and continuation lifecycle |
 
 Live GitHub showed these open issues: #33, #36, #37, #38, #39, #40, #41,
-issues #47 and #48. There were no open pull requests at the audit point. The exact
-issue links are in the [integration index](README.md) and the parent
-[Phase 2 epic](https://github.com/guilhermebmichelin-create/fruitboard/issues/33).
+issues #47 and #48. It also showed open draft PRs #90, #91, #92, and #93; no
+reviews or comments were recorded on those four PRs at the audit point. The
+exact issue and PR links are in the [integration index](README.md) and the
+parent [Phase 2 epic](https://github.com/guilhermebmichelin-create/fruitboard/issues/33).
 
 ### CI provenance
 
@@ -71,13 +83,16 @@ to `main`.
 
 | Evidence target | Exact commit or head | Live result |
 | --- | --- | --- |
-| Current `origin/main` | `0b7612db3570e6235d4d2c86a678dd9004264f30` | [Foundation run 34293250231](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34293250231): success, all nine jobs |
+| Current `origin/main` application/build baseline | [`0b7612db3570e6235d4d2c86a678dd9004264f30`](https://github.com/guilhermebmichelin-create/fruitboard/commit/0b7612db3570e6235d4d2c86a678dd9004264f30) | [Foundation run 34293250231](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34293250231): success, all nine jobs; this is the commit used for the installed application in PR #92 |
 | PR #82 merge | `05d39ff074ab6c568d998175744551561928de89` | [Foundation run 34248128449](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34248128449): success, all nine jobs; Windows feature-on tests and warnings-denied Clippy passed |
 | PR #85 merge | `c05f4b6a82c5b3469900a408b19b8c979bc4974b` | [Foundation run 34281613081](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34281613081): success, all nine jobs |
 | PR #86 merge | `4218e413be7dc27422eab9a45252bcdd1ca74359` | [Foundation run 34290753717](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34290753717): success, all nine jobs |
 | PR #87 merge | `e9464be404744a91071343c0e7d32f79f5485fa2` | [Foundation run 34291338301](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34291338301): success, all nine jobs |
 | PR #88 head | `ddeac9025dcdd9f1f65c9236a3120ef4057420f1` | [Foundation run 34291358030](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34291358030) and [packaging run 34291358010](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34291358010): both success |
 | PR #89 head | `289609511e1cb3359a2a30418a1fde56e8463dc9` | [Foundation run 34292846030](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34292846030) and [packaging run 34292846032](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34292846032): both success |
+| PR #90 head (unmerged platform reports) | [`17e571742634eceb16f09b166edd3d77b57fcf61`](https://github.com/guilhermebmichelin-create/fruitboard/commit/17e571742634eceb16f09b166edd3d77b57fcf61) | [Foundation run 34296963183](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34296963183) and [packaging run 34296963219](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34296963219): both success |
+| PR #92 head (unmerged installed record) | [`49a5e649c688ae767c9189801dd033f2288b61f5`](https://github.com/guilhermebmichelin-create/fruitboard/commit/49a5e649c688ae767c9189801dd033f2288b61f5) | [Foundation run 34299680195](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34299680195): success; [packaging attempt 1](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34299680193/job/102303731791) failed with `The installed sidecar smoke timed out`, and [rerun attempt 2](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34299680193/job/102314720612) passed; preserve the incident without inferring a product fix or acceptance |
+| PR #93 head (unmerged diagnostic profile) | [`59faefc2806a725368a59e7b6fc9be7f863f4fec`](https://github.com/guilhermebmichelin-create/fruitboard/commit/59faefc2806a725368a59e7b6fc9be7f863f4fec) | [Foundation run 34301751666](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34301751666) and [packaging run 34301751625](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34301751625): both success; profile is contended shared-host diagnostics, not an idle-host pass |
 
 The push run for merged commit `c8d8255` was cancelled when the next
 `main` push arrived. Therefore the #88 PR-head checks are cited for that
@@ -143,18 +158,18 @@ columns.
   cover the merged settings surface. The rendered #35 evidence is explicitly
   fake-adapter evidence.
 - **Installed-app observations:** Historical #34 installed-picker evidence is
-  recorded under `docs/review/issue-34/`. It does not re-confirm the
-  complete scanner journey at the current merged baseline. The current
-  installed-app checklist table remains empty.
+  recorded under `docs/review/issue-34/`. The unmerged [PR #92 run record](https://github.com/guilhermebmichelin-create/fruitboard/blob/49a5e649c688ae767c9189801dd033f2288b61f5/docs/review/phase-2-integration/installed-journey/run-20260908.md)
+  additionally records current-main installed picker cancellation, root
+  selection, settings persistence, and clean restart survival. It does not
+  itself establish criterion acceptance.
 - **Performance qualification:** Not applicable to this criterion; no scanner
   benchmark qualifies it.
 - **Platform qualification:** The picker record is Windows evidence for the
   picker slice only. It is not a DriveFS, FAT32, or scanner platform claim.
 - **Owner acceptance:** Phase 1 is accepted, but no separate current Phase 2
   P2-01 acceptance line was found.
-- **Reconciled status/gate:** Evidence present; not promoted. Re-confirm
-  selection, cancellation, and restart survival in the combined installed
-  journey or obtain an explicit owner decision on the existing evidence.
+- **Reconciled status/gate:** Evidence present; not promoted. Review the
+  current-main run record and obtain explicit P2-01 owner acceptance.
 
 ### P2-02 - Unchanged tree and add/modify/rename convergence
 
@@ -167,16 +182,19 @@ columns.
   Windows enumeration and hidden-worker fixture tests cover add, modify,
   rename, missing, and restore cases. The exact current Foundation run is
   green.
-- **Installed-app observations:** No packaged-app add/modify/rename
-  observation is recorded; the checklist row is empty.
+- **Installed-app observations:** The unmerged #92 record observes native
+  add, rename, metadata modification, remove, and restore follow-ups. The new
+  path was Present while the old renamed path stayed Missing, and the restored
+  path returned to Present. This was captured from the package built at
+  `main` `0b7612d`; it is not a broader platform qualification.
 - **Performance qualification:** No P2-02 performance qualification is
   claimed. The benchmark driver exercises a hidden worker and is P2-11
   evidence, not installed-app evidence.
 - **Platform qualification:** Windows/NTFS fixture coverage exists in CI;
   #47/#48 remain outside that qualification.
 - **Owner acceptance:** No explicit P2-02 owner acceptance was found.
-- **Reconciled status/gate:** Partial. Run the installed convergence cases and
-  retain the broader platform limitation.
+- **Reconciled status/gate:** Partial. Review the installed convergence record,
+  retain the broader platform limitation, and obtain owner acceptance.
 
 ### P2-03 - Non-authoritative traversal never marks files missing
 
@@ -189,8 +207,10 @@ columns.
   committed rows, compares rows plus the root success marker byte-for-byte,
   asserts no publication, and checks discarded staging. The exact merged
   evidence is [Foundation run 34281613081](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34281613081), with the current tree rechecked by [run 34293250231](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34293250231).
-- **Installed-app observations:** No installed cancellation, unavailable-root,
-  denial, or resource-limit retention observation is recorded.
+- **Installed-app observations:** The unmerged #92 record observes native
+  cancellation and unavailable-root retention: the previous committed rows
+  remained visible and no incomplete work published a replacement list. Denied
+  and resource-limit installed cases were not run.
 - **Performance qualification:** The cooperative stop samples in the
   benchmark are P2-11 worker measurements only; they do not qualify the
   installed cancellation or UI acknowledgement requirement here.
@@ -199,8 +219,8 @@ columns.
   and DriveFS/non-NTFS behavior remains unverified.
 - **Owner acceptance:** PR #85 says the close-out does not promote an
   acceptance ID. No explicit P2-03 acceptance was found.
-- **Reconciled status/gate:** Partial. Add the integrated installed retention
-  observation and owner review.
+- **Reconciled status/gate:** Partial. Review the installed retention record,
+  keep denied/resource-limit coverage open, and obtain owner acceptance.
 
 ### P2-04 - Durable generations, deduplication, leases, backoff, and cancellation
 
@@ -211,16 +231,20 @@ columns.
   restart/backup transition matrices. The feature-enabled desktop host tests
   cover lifecycle recovery and joined loops. The exact-current and PR #85
   Foundation runs are green.
-- **Installed-app observations:** No installed retry, cancellation, queue,
-  lease, or restart observation is recorded.
+- **Installed-app observations:** The unmerged #92 record observes persisted
+  root/settings state, native running/cancellation behavior, and restart
+  recovery. A durable queued state was not captured. Retry after cancellation
+  remained non-actionable (D2), and Retry after an exhausted unavailable-root
+  chain remained non-actionable (D3); both are defects until fixed and
+  reverified.
 - **Performance qualification:** The re-run reports cooperative worker stop
   p95 of 22 ms over six samples, but has no renderer and does not exercise the
   250 ms UI acknowledgement budget. It is not a complete P2-04 qualification.
 - **Platform qualification:** Windows CI and injected lifecycle tests qualify
   only those tested seams; they do not qualify all filesystem modes.
 - **Owner acceptance:** No explicit P2-04 owner acceptance was found.
-- **Reconciled status/gate:** Partial. Complete the installed behavior and
-  remaining end-to-end review.
+- **Reconciled status/gate:** Partial. Verify a durable queued observation,
+  fix and rerun D2/D3, then complete the end-to-end review.
 
 ### P2-05 - Disable/remove while queued or running prevents stale publication
 
@@ -233,15 +257,17 @@ columns.
   `p2_05_queued_work_invalidated_*` cover lease/staging invalidation,
   no stale publication, fresh identity, and unchanged source markers. Green
   exact-commit CI verifies the merged tests.
-- **Installed-app observations:** No disable/remove-while-running observation
-  is recorded in the installed checklist.
+- **Installed-app observations:** The unmerged #92 record observes disabling a
+  running root cancelling the work while retaining prior rows, and removing an
+  idle root without touching fixture files before re-adding a fresh tracked
+  root. A specifically queued disable/remove observation is not recorded.
 - **Performance qualification:** Not applicable; no timing result proves this
   concurrency property.
 - **Platform qualification:** The source-marker assertions and fake durable
   harness are not a cross-filesystem qualification.
 - **Owner acceptance:** No explicit P2-05 owner acceptance was found.
-- **Reconciled status/gate:** Partial. Add the installed operation and owner
-  decision.
+- **Reconciled status/gate:** Partial. Review the installed operation, add
+  queued-operation coverage if required by the owner, and obtain acceptance.
 
 ### P2-06 - Atomic publication and restart/backup recovery preserve valid data
 
@@ -255,15 +281,18 @@ columns.
   consistency, requeued convergence, and byte-identical committed data and
   marker after recovery. Existing migration fixtures remain covered. PR #85
   exact-merge CI is [run 34281613081](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34281613081).
-- **Installed-app observations:** No installed restart or interrupted-work
-  recovery observation is recorded.
+- **Installed-app observations:** The unmerged #92 record observes committed
+  rows and settings surviving clean restart, then an abruptly terminated
+  installed process being recorded as `interrupted` and recovering to a
+  completed attempt after relaunch. This is installed evidence from the
+  current-main package, not a claim that all crash boundaries are covered.
 - **Performance qualification:** Not applicable; a passing rollback test is
   not a performance result.
 - **Platform qualification:** Storage and Windows CI evidence does not qualify
   DriveFS, FAT32, network, or other untested storage modes.
 - **Owner acceptance:** No explicit P2-06 owner acceptance was found.
-- **Reconciled status/gate:** Partial. Add packaged restart/recovery evidence
-  and owner review.
+- **Reconciled status/gate:** Partial. Review the interrupted-work record and
+  obtain owner acceptance for the full crash/recovery criterion.
 
 ### P2-07 - Hardlink aliases and uncertain identity preserve per-path presence
 
@@ -275,16 +304,19 @@ columns.
   The `p2_07_rename_replacement_*` cases preserve per-path history,
   mint fresh replacement records, and avoid Phase 4 grouping. Windows/NTFS
   fixture CI is green.
-- **Installed-app observations:** No installed hardlink or alias observation
-  is recorded.
+- **Installed-app observations:** The unmerged #92 record observes rename
+  convergence with separate Present/Missing paths, but it does not establish an
+  installed hardlink-alias run. The hardlink evidence remains automated and
+  local-NTFS-oriented.
 - **Performance qualification:** Not applicable.
 - **Platform qualification:** The evidence is local-NTFS-oriented. PR #88
   supplies a manual #48 plan and PR #89 records no qualifying FAT32 target;
   neither qualifies FAT32, cross-volume, exFAT, ReFS, or network identity.
 - **Owner acceptance:** No explicit P2-07 acceptance or non-NTFS scope
   exclusion was found.
-- **Reconciled status/gate:** Partial. Add installed alias evidence and
-  resolve #48 with evidence or an explicit owner scope decision.
+- **Reconciled status/gate:** Partial. Add installed alias evidence if required
+  by the owner and resolve #48 with evidence or an explicit owner decision;
+  neither is supplied by this reconciliation.
 
 ### P2-08 - Scan/Cancel/Retry and Library list are usable, honest, and persistent
 
@@ -300,10 +332,14 @@ columns.
   verify the feature-on desktop tests and warnings-denied Clippy; the current
   tree is green in [run 34293250231](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34293250231).
   Rendered captures remain fake-adapter evidence.
-- **Installed-app observations:** The Scan now, queued/running honesty,
-  Library paging, restart survival, cancel/unavailable/retry, and watcher
-  journey have no recorded packaged-app observations. The checklist table is
-  intentionally empty.
+- **Installed-app observations:** The unmerged #92 record observes native
+  `Scan now` running counters with no percentage, four-record Library paging,
+  persisted settings and committed rows, cancellation/unavailable retention,
+  watcher follow-up convergence, and interrupted-work recovery. Durable queued
+  observation was not captured. D1 (native Library mislabeled as fake), D2
+  (cancelled Retry rejected), and D3 (exhausted Retry not actionable) remain
+  defects until verified fixes exist. The record was captured from a package
+  built at merged `main` `0b7612d`, not from the unmerged documentation head.
 - **Performance qualification:** The benchmark driver uses the hidden worker,
   not the installed renderer path. It cannot qualify Library/UI latency or
   the installed journey.
@@ -317,8 +353,9 @@ columns.
   accepts only the UI-only Library seam; and the accepted plan requires
   integrated evidence for cross-issue criteria. No explicit owner post or
   review accepting the full P2-08 criterion was found.
-- **Reconciled status/gate:** Partial, not Complete. Run the packaged journey
-  and obtain explicit full-criterion owner acceptance before promoting it.
+- **Reconciled status/gate:** Partial, not Complete. Fix and reverify D1/D2/D3,
+  capture durable queued state, review the packaging check, and obtain explicit
+  full-criterion owner acceptance before promoting it.
 
 ### P2-09 - Watcher bursts, overflow, and event loss converge durably
 
@@ -331,8 +368,11 @@ columns.
   stale-generation dropping, delivery retention, shutdown recovery, empty-host
   joins, and disable/re-enable races are covered in the watcher, host, and
   recovery test files. Exact feature-on and watcher CI is green.
-- **Installed-app observations:** No installed watcher burst, coverage-loss,
-  overflow, stale-generation, or follow-up observation is recorded.
+- **Installed-app observations:** The unmerged #92 record observes native
+  watcher follow-ups for add/rename/metadata/remove/restore changes and
+  convergence to committed Library results. It does not independently count a
+  burst to prove the at-most-one queued-follow-up bound, and it does not record
+  installed coverage-loss, overflow, or stale-generation cases.
 - **Performance qualification:** No real OS overflow timing or installed
   watcher latency qualification is recorded.
 - **Platform qualification:** Injected handles and Windows CI qualify
@@ -340,8 +380,9 @@ columns.
   during a watch, and real overflow timing remain unverified.
 - **Owner acceptance:** No explicit P2-09 owner acceptance or #47 scope
   exclusion was found.
-- **Reconciled status/gate:** Partial. Run the installed watcher journey and
-  resolve the DriveFS/platform gate.
+- **Reconciled status/gate:** Partial. Independently count burst coalescing,
+  run the remaining loss/overflow cases as scoped, and resolve the
+  DriveFS/platform gate.
 
 ### P2-10 - No parsing, hydration, or source mutation in discovery
 
@@ -391,6 +432,11 @@ columns.
   private-memory qualification for the 100,000-entry target. Because the
   recorded benchmark commit predates #85, this is the newest available
   measurement, not an exact-current-`origin/main` performance qualification.
+  Unmerged [PR #93](https://github.com/guilhermebmichelin-create/fruitboard/blob/59faefc2806a725368a59e7b6fc9be7f863f4fec/docs/review/phase-2-integration/performance-followup/README.md)
+  adds a filesystem-port diagnostic: 10.754 s of a 12.157 s warm scan (88.46%)
+  on a contended shared host, with `next_entry` and `read_metadata` dominant.
+  It is diagnostic cost-center evidence, not an idle-host rerun or performance
+  pass, and it does not change the official benchmark result.
 - **Platform qualification:** The re-run is a same-host, laptop-class
   Windows 11 measurement with background DriveFS, antivirus, agent, and
   sibling-build load. It is not the idle-host isolation required by the
@@ -400,7 +446,8 @@ columns.
   optimization), and F3 (100k qualification) have no posted owner decision.
   The [decision brief](budget-decision-brief.md) and [re-run report](benchmark-triage-20260908/rerun-report.md) quote the exact sentences still required.
 - **Reconciled status/gate:** Measured, not qualified. Resolve F1-F3 with
-  explicit owner decisions and any required re-measurement or plan amendment.
+  explicit owner decisions and any required re-measurement or plan amendment;
+  do not promote the PR #93 diagnostic to an idle-host qualification.
 
 ### P2-12 - Complete visible journey works after integration
 
@@ -411,35 +458,84 @@ columns.
 - **Automated tests:** The hidden worker/driver transcript in the historical
   checkpoint and the current exact-commit CI establish automated and
   contract-level evidence. They do not establish an installed-app journey.
-- **Installed-app observations:** The observation table in
-  `installed-app-journey-checklist.md` is intentionally empty. No
-  selection, scan, Library, restart, watcher, cancellation, or retry result is
-  claimed here.
+- **Installed-app observations:** The unmerged [PR #92 checklist and run
+  record](https://github.com/guilhermebmichelin-create/fruitboard/blob/49a5e649c688ae767c9189801dd033f2288b61f5/docs/review/phase-2-integration/installed-journey/run-20260908.md)
+  record selection/cancel, persisted settings and paging, watcher convergence,
+  cancellation retention, and interrupted-work recovery from a package built
+  at merged `main` `0b7612d`. Durable queued observation and independent
+  watcher-burst counting remain unverified; D1/D2/D3 remain defects. The
+  evidence document is not yet merged and does not itself accept P2-12.
 - **Performance qualification:** P2-11 remains unresolved with F1-F3 open;
   no performance decision can complete P2-12.
 - **Platform qualification:** #47 DriveFS and #48 FAT32/cross-volume remain
   open and unverified. The #89 no-target survey is not a pass.
 - **Owner acceptance:** No explicit owner acceptance of the P2-12 checkpoint
   or Phase 2 was found. Issue #41 and epic #33 remain open.
-- **Reconciled status/gate:** Pending. Fill the installed record, resolve
-  performance and platform decisions, and obtain the owner's
-  criterion-by-criterion acceptance.
+- **Reconciled status/gate:** Pending. Fix and reverify D1/D2/D3, capture the
+  durable queued and independent burst observations, resolve performance and
+  platform decisions, and obtain the owner's criterion-by-criterion acceptance.
+
+## Owner decision packet
+
+The following are recommendations and consequences for the owner; none is an
+approval or an acceptance decision.
+
+1. **F1 — exact observations or coordinated quota.** Recommend defining the
+   accepted fixture as exactly 10,000 observations, including aliases: 9,995
+   FLP-named files plus five hardlink alias locations. This is the narrowest
+   change and preserves the 10,000-record quota, but changes the fixture
+   definition and requires a fresh accepted-protocol run. The alternative is a
+   coordinated quota change above 10,005 across the worker, staging fences,
+   storage checks, and tests; it preserves the 10,000-FLP fixture but requires
+   implementation/configuration changes and remeasurement. Do not raise only
+   one limit.
+2. **F3 — bounded 100,000-entry design or dated deferral.** Recommend a bounded
+   chunked-snapshot design with a durable coverage ledger and one authoritative
+   publication after all chunks succeed. It protects private-memory bounds but
+   requires a new storage/protocol design plus cancellation, retry, missing-file,
+   quota, and crash/recovery tests. The lower-cost alternative is an explicit
+   dated deferral that keeps the current 10,000-entry contract; the consequence
+   is that the 100,000-entry target remains unqualified until that checkpoint.
+3. **#47 — exact DriveFS run and authorization.** Run the complete procedure
+   once in **Mirror files** and once in **Stream files**, reading the active mode
+   from Drive for Desktop Preferences. Use only the documented disposable
+   leaves `G:\fruitboard-drivefs-<run-id>-enum`,
+   `G:\fruitboard-drivefs-<run-id>-burst`, and
+   `G:\fruitboard-drivefs-<run-id>-gap`. Before starting, the owner/operator
+   must authorize cloud-synchronized synthetic create/rename/delete and cleanup;
+   switching modes requires authorization for the full resync; the gap case
+   additionally requires authorization to pause/disconnect and verify resume.
+   No personal project contents may be traversed, opened, hashed, or parsed.
+4. **#48 — genuine FAT32 alongside NTFS.** Recommend an already disposable,
+   writable genuine FAT32 USB volume or dedicated VHD with a drive letter,
+   alongside the existing disposable leaf on `C:` NTFS. Record source/type,
+   volume serial, filesystem, and allocation unit size; use a leaf such as
+   `<LETTER>:\fruitboard-48-fat32-<run-id>` and authorize synthetic operations
+   and cleanup on both volumes. Do not substitute the system FAT32 partition,
+   the `G:` DriveFS virtual mount, a network share, or the no-media USB device.
+5. **Remaining acceptance after fixes and verification.** Fix and reverify D1
+   native labeling, D2 cancelled Retry, and D3 exhausted Retry on a package
+   built from the then-merged `main`; retain PR #92's first-attempt sidecar
+   timeout and current green rerun in the provenance. Keep the exact check link
+   in the handoff. Capture a durable queued state and
+   independently count watcher-burst coalescing. Resolve F2 with the owner-
+   selected idle-host/optimization/budget path, then close F1/F3, complete any
+   scoped #47/#48 runs or explicit owner decisions, and decide whether the
+   P2-10 static no-parser evidence satisfies the criterion. Finally, obtain
+   explicit acceptance for P2-01 through P2-12; do not infer it from merged
+   commits, green checks, or these recommendations. Refresh this reconciliation
+   after sibling fix PRs are ready and before any final merge/acceptance review.
 
 ## Remaining gates and handoff
 
-1. Run the packaged, feature-enabled Windows journey at a merged commit and
-   record observations in the existing checklist. This report does not edit
-   that checklist.
-2. Resolve F1 by either raising the durable quota above 10,005 or redefining
-   the baseline as exactly 10,000 observations including aliases.
-3. Resolve F2 with the owner-selected budget/host/rerun/optimization path.
-   The current re-run reduces variance but still misses the written target and
-   was not isolated.
-4. Resolve F3 by an owner-approved quota/chunking/defer decision before
-   claiming the 100,000-entry memory qualification.
-5. Land #47/#48 host evidence or record explicit owner scope exclusions.
-   Current plans and the no-target survey do neither.
-6. Obtain explicit owner acceptance for each criterion or an explicitly
+1. Keep the installed checklist and sibling evidence linked to their exact
+   commits; do not relabel the current-main observations as merged evidence
+   until their PRs land.
+2. Fix and reverify D1/D2/D3, and capture the durable queued and independent
+   watcher-burst gaps.
+3. Resolve F1/F2/F3 and #47/#48 using the owner packet above; no platform
+   exclusion is selected by the current reports.
+4. Obtain explicit owner acceptance for each criterion or an explicitly
    recorded pending-at-close decision with a named follow-up. Do not infer
    acceptance from a merge, commit message, green CI, or a contributor's
    summary.

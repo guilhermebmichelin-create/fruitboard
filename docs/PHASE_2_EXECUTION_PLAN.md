@@ -21,27 +21,44 @@ FAT32/cross-volume target on the surveyed host. The exact-commit
 for `0b7612d` completed `success` across all nine Foundation jobs, including
 the feature-enabled Windows desktop tests and warnings-denied Clippy.
 
-These are implementation, automated-test, and measurement results; they do not
-prove the installed application, the installed-app journey, F1-F3 decisions,
-the #47/#48 scope, or owner acceptance. The current criterion-by-criterion ledger
-is in the [2026-09-08 reconciliation report](review/phase-2-integration/reconciliation-2026-09-08.md).
+The feature-enabled installed application was built from that exact `main`
+commit. Its observations are recorded in the unmerged [PR #92 head
+`49a5e649`](https://github.com/guilhermebmichelin-create/fruitboard/commit/49a5e649c688ae767c9189801dd033f2288b61f5)
+and [run record](https://github.com/guilhermebmichelin-create/fruitboard/blob/49a5e649c688ae767c9189801dd033f2288b61f5/docs/review/phase-2-integration/installed-journey/run-20260908.md).
+Persistence, paging, watcher follow-up convergence, cancellation retention,
+and interrupted-work recovery were observed. Durable queued observation and
+independent watcher-burst counting remain unverified; D1 native labeling, D2
+cancelled Retry, and D3 exhausted Retry remain defects until fixes are verified.
+The PR #92 Foundation check is green. Its first packaging attempt recorded
+`The installed sidecar smoke timed out`, and the exact rerun is now green;
+retain the incident in provenance without inferring a product fix or
+acceptance from the rerun alone.
+
+The unmerged [PR #90 head](https://github.com/guilhermebmichelin-create/fruitboard/commit/17e571742634eceb16f09b166edd3d77b57fcf61)
+supplies the platform blocker reports, and the unmerged [PR #93
+head](https://github.com/guilhermebmichelin-create/fruitboard/commit/59faefc2806a725368a59e7b6fc9be7f863f4fec)
+supplies contended diagnostic profiling. PR #93 is not an idle-host performance
+pass. These are implementation, automated-test, measurement, and partial
+installed-app results; they do not establish owner acceptance. The current
+criterion-by-criterion ledger is in the [2026-09-08 reconciliation
+report](review/phase-2-integration/reconciliation-2026-09-08.md).
 
 | State | Work | Evidence or next action |
 | --- | --- | --- |
 | Delivered | Phase 1 foundation, accepted; #34 native picker/root storage | PRs #20-32 and #44; installed picker evidence in `docs/review/issue-34/` via #54 |
 | Delivered | #35 persistent rename/enabled settings, inline onboarding, failure/focus fixes | PRs #55/#56/#58; CI and regression tests; not scanner execution |
 | Delivered | #35 rendered desktop/narrow keyboard verification | [Evidence](review/issue-35/README.md) and PR #58; fake-adapter rendering is labeled separately from installed-app evidence |
-| Partially evidenced (acceptance pending) | #36 bounded reconciliation, #64 Windows enumeration, and #70 scan worker | PRs #59/#64/#70; deterministic reconciliation, bounded handle-bound enumeration, and the end-to-end worker are merged; NTFS/Windows automated evidence exists, while installed convergence and P2-02/P2-03 acceptance remain open |
-| Partially evidenced (acceptance pending) | #38 durable scan execution foundation | PRs #60/#61/#70/#85 and [durable execution evidence](PHASE_2_DURABLE_EXECUTION.md); durable state-machine and worker fault coverage is merged; P2-04/P2-05 still need integrated journey evidence and owner review |
+| Partially evidenced (acceptance pending) | #36 bounded reconciliation, #64 Windows enumeration, and #70 scan worker | PRs #59/#64/#70; deterministic reconciliation, bounded handle-bound enumeration, and the end-to-end worker are merged; the installed #92 run observed add/modify/rename and remove/restore convergence on `main`; P2-02/P2-03 acceptance remains open |
+| Partially evidenced (acceptance pending) | #38 durable scan execution foundation | PRs #60/#61/#70/#85 and [durable execution evidence](PHASE_2_DURABLE_EXECUTION.md); durable state-machine and worker fault coverage is merged; the installed #92 run observed persisted settings, cancellation retention, and interrupted-work recovery, while durable queued observation, Retry defects, P2-04/P2-05, and owner review remain open |
 | Decision pending | Inline Preferences onboarding instead of a separate first-run route | Implementation documented; owner review remains separate from the accepted scanner contracts |
-| Partially evidenced (acceptance pending) | #40 staging/publication/read model plus #77 responsive staged batches and #85 durability close-out | PR #62, PR #77, and PR #85; atomic publication, bounded batches, crash/recovery, fault-injection, alias, and stale-publication tests are merged; installed evidence for P2-03/P2-06/P2-07 remains open |
-| Implemented (feature-gated; acceptance pending) | #73 scan-console IPC, #78 native Library adapter, and #82 native watcher host | PRs #73/#77/#78/#81/#82; six typed commands, scoped permissions, native supervision, root mapping, shutdown recovery, and feature-on CI are merged; P2-08 remains partial because the installed journey and explicit full-criterion acceptance are absent |
-| Implemented (automated evidence; qualification pending) | #37 watcher foundation, durable follow-up adapter, and native supervisor | PRs #68/#69/#71/#81/#82 provide bounded coalescing, coverage-loss handling, generation fencing, reconnect backoff, and joined host loops; installed watcher observations, real overflow timing, and DriveFS evidence remain open |
+| Partially evidenced (acceptance pending) | #40 staging/publication/read model plus #77 responsive staged batches and #85 durability close-out | PR #62, PR #77, and PR #85; atomic publication, bounded batches, crash/recovery, fault-injection, alias, and stale-publication tests are merged; the installed #92 run observed cancellation/unavailable retention and interrupted recovery, while installed alias qualification and P2-03/P2-06/P2-07 acceptance remain open |
+| Implemented (feature-gated; acceptance pending) | #73 scan-console IPC, #78 native Library adapter, and #82 native watcher host | PRs #73/#77/#78/#81/#82; six typed commands, scoped permissions, native supervision, root mapping, shutdown recovery, and feature-on CI are merged; the installed #92 run observed paging, persistence, cancellation retention, and native work, but D1/D2/D3 remain defects and P2-08/full-criterion acceptance is open |
+| Implemented (automated evidence; qualification pending) | #37 watcher foundation, durable follow-up adapter, and native supervisor | PRs #68/#69/#71/#81/#82 provide bounded coalescing, coverage-loss handling, generation fencing, reconnect backoff, and joined host loops; the installed #92 run observed watcher follow-ups and convergence, but independent burst counting, real overflow timing, and DriveFS evidence remain open |
 | Partially evidenced (acceptance pending) | #39 no-parser boundary and additional #37 guards | Merged PR #81 adds static no-parser/no-content-I/O policy guards plus synthetic-fixture source-byte preservation assertions; these checks are not an installed-app proof or a runtime content-read spy |
-| Measured (qualification and owner decision pending) | #41/P2-11 benchmark and #79 budget/governance brief | Original report remains historical; the [2026-09-08 re-run](review/phase-2-integration/benchmark-triage-20260908/rerun-report.md), recorded at pre-#85 baseline `51f45af`, reproduces F1, records warm p95 14,267 ms versus 10 s, and leaves F3 unmeasured. It is not an exact-current-`origin/main` performance qualification; no budget or acceptance promotion |
-| Recorded (owner acceptance pending) | #41/P2-12 checkpoint (#80) | [Checkpoint](review/phase-2-integration/checkpoint-2026-09-07.md) remains historical; the current [reconciliation report](review/phase-2-integration/reconciliation-2026-09-08.md) incorporates #82/#85/#86/#88/#89 and the still-empty installed-app record |
-| Next gates | Installed-app journey; owner decisions; platform and performance closure | Run the packaged feature-enabled journey at a merged baseline, resolve F1/F2/F3, land #47/#48 evidence or explicit owner scope decisions, then obtain criterion-by-criterion owner acceptance. Keep production scanning hidden until P2-03 through P2-08 have integrated evidence |
-| Open/unverified | DriveFS modes (#47), cross-volume/FAT32 identity (#48) | #42/#43 remain partial findings; #88 adds plans and #89 records no qualifying FAT32 target. No platform qualification is claimed |
+| Measured (qualification and owner decision pending) | #41/P2-11 benchmark and #79 budget/governance brief | Original report remains historical; the [2026-09-08 re-run](review/phase-2-integration/benchmark-triage-20260908/rerun-report.md), recorded at pre-#85 baseline `51f45af`, reproduces F1, records warm p95 14,267 ms versus 10 s, and leaves F3 unmeasured. Unmerged [PR #93](https://github.com/guilhermebmichelin-create/fruitboard/commit/59faefc2806a725368a59e7b6fc9be7f863f4fec) adds contended filesystem-port profiling, not an idle-host performance pass; no budget or acceptance promotion |
+| Recorded (owner acceptance pending) | #41/P2-12 checkpoint (#80) | [Checkpoint](review/phase-2-integration/checkpoint-2026-09-07.md) remains historical; the current [reconciliation report](review/phase-2-integration/reconciliation-2026-09-08.md) incorporates #82/#85/#86/#88/#89 and the installed #92 observations captured from `main`, while preserving unmerged evidence provenance |
+| Next gates | Installed-app fixes and verification; owner decisions; platform and performance closure | Fix and rerun D1/D2/D3, capture the durable queued and independent burst observations, resolve F1/F2/F3, land #47/#48 evidence or explicit owner decisions, then obtain criterion-by-criterion owner acceptance. Keep production scanning hidden until P2-03 through P2-08 have integrated evidence |
+| Open/unverified | DriveFS modes (#47), cross-volume/FAT32 identity (#48) | Unmerged [PR #90](https://github.com/guilhermebmichelin-create/fruitboard/commit/17e571742634eceb16f09b166edd3d77b57fcf61) records the exact blockers and setup needed. No platform qualification or exclusion is claimed |
 | Deferred | Parsing (#39), logical grouping, Kanban, playback, sync, PWA | Phase 2 is filesystem-only; bounded independent Rust-parser spike follows accepted MVP |
 
 ## Visible completion scenario

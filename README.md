@@ -24,16 +24,28 @@ qualification remain unavailable. The latest
 is green for that exact `origin/main` commit, including all nine Foundation
 jobs and the enabled desktop tests and warnings-denied Clippy.
 
-These are implementation, automated-test, and measurement results, not Phase 2
-acceptance. The native watcher supervisor is merged behind the feature-gated
-`scan-console` path, but the installed-app journey, full P2-08 acceptance,
-F1-F3 budget decisions, #47/#48 platform decisions, and owner acceptance remain
-open. PR #85 contains an older evidence-row statement that calls P2-08
-complete; the current reconciliation treats that as superseded because the PR
-body records no acceptance promotion and the required installed-app evidence is
-absent. Production scanning remains hidden until P2-03 through P2-08 have
-integrated evidence. The
-[current reconciliation report](docs/review/phase-2-integration/reconciliation-2026-09-08.md)
+These are implementation, automated-test, measurement, and partial installed-app
+results, not Phase 2 acceptance. A packaged feature-enabled Windows application
+was built from the exact merged `main` commit above and installed evidence was
+captured in the unmerged [PR #92 head](https://github.com/guilhermebmichelin-create/fruitboard/commit/49a5e649c688ae767c9189801dd033f2288b61f5)
+[run record](https://github.com/guilhermebmichelin-create/fruitboard/blob/49a5e649c688ae767c9189801dd033f2288b61f5/docs/review/phase-2-integration/installed-journey/run-20260908.md).
+Persistence, paging, watcher follow-up convergence, cancellation retention, and
+interrupted-work recovery were observed. Durable queued observation and
+independent watcher-burst counting remain unverified; D1 native labeling, D2
+cancelled Retry, and D3 exhausted Retry remain defects until verified fixes are
+available. PR #92's first packaging attempt recorded `The installed sidecar
+smoke timed out`; the exact rerun is now green. Preserve that incident in the
+provenance, but do not infer a product fix or acceptance from the rerun alone.
+
+The native watcher supervisor is merged behind the feature-gated `scan-console`
+path. PR #85 contains an older evidence-row statement that calls P2-08
+complete; the current reconciliation treats that as superseded because no full
+criterion acceptance was recorded. The unmerged [PR #90 report](https://github.com/guilhermebmichelin-create/fruitboard/commit/17e571742634eceb16f09b166edd3d77b57fcf61)
+keeps #47/#48 blocked, and the unmerged [PR #93 report](https://github.com/guilhermebmichelin-create/fruitboard/commit/59faefc2806a725368a59e7b6fc9be7f863f4fec)
+adds contended diagnostic profiling, not an idle-host performance pass. F1-F3
+budget decisions, #47/#48 platform decisions, and owner acceptance remain open.
+Production scanning remains hidden until P2-03 through P2-08 have integrated
+evidence. The [current reconciliation report](docs/review/phase-2-integration/reconciliation-2026-09-08.md)
 and [installed-app journey checklist](docs/review/phase-2-integration/installed-app-journey-checklist.md)
 track the remaining gates. Historical reports remain historical records.
 
