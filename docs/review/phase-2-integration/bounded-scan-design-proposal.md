@@ -46,6 +46,20 @@ column does not fill another.
   reports a contended median move 11,735.5 ms to 11,517 ms with p95/max
   worsened 12,188 ms to 17,682 ms by an outlier. None of these is an
   idle-host qualification.
+- Sibling verification inputs (unmerged, not edited here; see the PR #91
+  reconciliation for the full ledger): draft PR #97 head `aba1812`
+  (`test/95-durable-queue-watcher-20260909`, base PR #95 `bf0aeac`) adds three
+  deterministic automated integration tests (mid-scan convergence through the
+  status/Library API, 5,000 + 5,000 idle-burst collapse to one queued job,
+  stale-generation fencing for disabled/removed roots) with Foundation run
+  `34339792661` and packaging run `34339792759` green; installed queued
+  visibility and burst timing remain unverified there. Draft PR #98 head
+  `15b7f17` (`perf/94-validation-20260909`) independently validates PR #94 on
+  the shared contended host (all runs fail the 10 s p95; no qualification
+  claimed) and removes 8 lines of dead diagnostic scaffolding; its CI is
+  separately dispatched and Agent 1 review is requested. Neither input changes
+  the chunked-snapshot design below; both are recorded here so this proposal
+  is not read as contradicting them.
 - Installed inputs (unmerged, not edited here): PR #92 head `49a5e649`
   (`run-20260908.md`) and PR #95 head `bf0aeac`
   (`run-20260909.md`, Foundation run
@@ -234,7 +248,10 @@ failure semantics preserved).
 - Advisory plan buffer: `PlanBuffer::CAPACITY` (10,000) cannot hold a
   100,000-record change plan. The proposal pages the change plan from durable
   chunk staging in bounded pages (≤ `MAX_LIBRARY_PAGE_SIZE = 200` rows per
-  read) rather than raising the in-memory plan buffer to 100,000.
+  read) rather than raising the in-memory plan buffer to 100,000. Paged reads
+  alone do not constitute the bounded planning algorithm: the global identity
+  decisions in §2.9 item 1 still require a demonstrated mechanism (options
+  and validation there), not just page-sized reads.
 - Library paging stays ≤ 200 records/page with stable ordering; 100,000 rows
   imply about 500 pages. Progress reporting stays ≤ 4 updates/s and never
   fabricates a percentage when total work is unknown.
@@ -252,7 +269,10 @@ failure semantics preserved).
      invalidating watcher event arrived during chunking.
   2. Page through durable chunk staging in bounded reads, apply observed
      file/location metadata, and advance the change plan without loading all
-     100,000 records into memory.
+     100,000 records into memory. The paged apply still requires the global
+     identity mechanism of §2.9 item 1 and the lock-duration evidence of §2.9
+     item 5; paging the reads does not by itself bound planning memory or
+     shorten the write lock.
   3. Mark eligible unseen locations missing **only** if §2.5 coverage holds.
   4. Record run completion and advance the last-success marker.
 - Any failure rolls back the entire publication. Unsuccessful runs publish no
@@ -357,6 +377,142 @@ private-memory, disk, and latency budget and updates every coupled fence with
 remeasurement. Deferral (C) is the lower-cost path if 100,000 entries are not
 required for Scanner MVP acceptance.
 
+### 2.9 Independent review — unresolved mechanisms (2026-09-09)
+
+Status: **reviewer-owned corrections to this proposal; no implementation,
+migration, quota, budget, or acceptance change.** Each item below names what
+the design asserts, what mechanism is still missing, the concrete options,
+and the validation required before any 100,000-entry qualification claim.
+“Paged reads” is a read pattern, not a planning or fencing algorithm, and is
+not accepted as evidence for any item until its mechanism lands with tests.
+
+1. **Bounded global identity and reconciliation planning across chunks —
+   unresolved.** Current `plan_observations`
+   (`crates/storage-sqlite/src/publication.rs:893-1001`) loads the full
+   previous committed set (`select_root_locations`) and the full staged set
+   (`select_staged_observations`) into memory and builds global
+   `identity_candidates` / `continuity_candidates` maps before any write.
+   The advisory `PlanBuffer` (`crates/scan-execution/src/lib.rs:700-731`)
+   truncates above 10,000 and returns no summary, but durable publication
+   still plans the full set. This proposal’s “page through staging in bounded
+   reads” does not show how the global decisions (unambiguous 1:1 rename
+   reuse, hardlink-group shared assignment, conflict → fresh record, missing
+   locations excluded from lookup) are reached without the global maps.
+   Options: (a) two-pass paged planning — first pass builds a durable or
+   bounded identity index (identity → occurrence count plus candidate set),
+   second pass applies per page against that index; (b) temp-table planning
+   inside SQLite — spill the identity index to a durable temp table and do
+   set-based assignment in SQL; (c) chunk-local provisional assignment plus a
+   cross-chunk merge pass that repairs split groups. Each option must state
+   its peak-memory bound and its handling of the adversarial all-same-identity
+   and all-distinct-identity extremes. Validation: rename source/target in
+   different chunks, hardlink group split across three or more chunks,
+   conflicting identities across chunks, plus peak private-bytes measurement
+   at 100,000 entries against the 128 MiB budget. Slice 4 may not claim
+   bounded planning until these tests pass with memory evidence.
+2. **Complete coverage detection without treating partial traversal as
+   absence — mechanism incomplete.** The ledger rule (only `complete` counts;
+   any `failed`/`discarded` blocks publication; §2.5 gates `missing` on full
+   coverage) is the correct safety direction and is retained. What is missing
+   is how the expected chunk set is fixed before traversal discovers the tree
+   dynamically. If chunks are cut by observation count during traversal, “all
+   chunks complete” is tautological unless the total is independently known;
+   directories created or deleted mid-scan, nested reparse fences, policy
+   exclusions, and unhydrated placeholders further change the denominator.
+   Options: (a) bounded metadata-only directory census first to fix
+   `chunk_count` and coverage keys, then content enumeration per key;
+   (b) hierarchical ledger (directory-level coverage rows rather than a fixed
+   chunk count) with an explicit close-out rule; (c) single-generation cursor
+   with abandonment — any interruption renders the run non-authoritative and
+   re-enumerates from chunk boundaries (simplest, most rework on failure).
+   Validation: quota exhaustion in a middle chunk, uncovered-subtree
+   missing-file attempt (must not publish), policy-exclusion vs I/O-failure
+   distinction, mid-scan directory create/delete, reparse-loop fence — each
+   asserting rows plus the root success marker byte-identical and staging
+   discarded.
+3. **Hardlink, rename, and conflicting-identity handling across pages —
+   unresolved.** The §2.5 “semantics unchanged” sentence states the
+   requirement but supplies no cross-page mechanism. A rename whose source is
+   in chunk 2 and target in chunk 47, a hardlink group spanning chunks, or
+   conflicting prior associations in different chunks cannot be resolved by
+   sequential per-page apply without either missing the match (minting fresh
+   incorrectly) or picking by page order (forbidden by contract). Options: the
+   same three as item 1 (global identity pass, temp-table assignment, or
+   provisional-plus-merge), with the added constraint that chunk partitioning
+   must not assume identity groups are chunk-local unless an
+   identity-aware partitioner is itself specified and tested (which needs a
+   pre-scan identity census and its own cost). Validation: multi-chunk rename
+   / replacement / alias / conflict cases at 100,000-entry scale with Unicode,
+   long-path, and alias members, asserting per-location presence, shared vs
+   fresh `project_file_id` assignment, and unchanged source bytes.
+4. **Lease, generation, and cancellation fencing during final publication —
+   partially specified.** Per-chunk fencing (`generation`,
+   `configuration_revision`, `lease_token`, deadline, session ID on every
+   write; whole-run 30 s / 5 s renewal; disable/remove discards; restart reaps
+   to `interrupted`; duplicate delivery fenced by
+   `(run_id, chunk_index, lease_token)`) correctly extends the current
+   contract and is retained. What is missing is fencing *inside* the single
+   final transaction: lease renewal is a separate transaction and cannot run
+   mid-apply, so a 100,000-row apply that exceeds the lease cannot be
+   detected until commit; a cancellation or disable arriving mid-apply blocks
+   on the `Mutex` plus SQLite `Immediate` lock until the publication commits,
+   defeating the ≤ 250 ms UI acknowledgement and p95 ≤ 1 s cooperative-stop
+   budgets. The §2.4 step-1 “no invalidating watcher event arrived” check
+   also needs explicit wiring (which durable flag — `follow_up_requested`,
+   coverage hint, or generation bump — and at what read point). Options:
+   (a) measure first (10,000-row publication lock duration, then extrapolate
+   with phase-split timings) and only then decide; (b) keep single-transaction
+   atomicity and document the measured unresponsiveness as an accepted cost
+   (requires owner sign-off, not silent); (c) WAL plus reader connections
+   (separate review under the SQLite patch policy; not authorized here).
+   Splitting the final apply into multiple committing transactions would break
+   the atomicity contract and must not be presented as equivalent. Validation:
+   cancel mid-publication in both commit orderings at scale, lease-expiry
+   mid-snapshot with stale-worker return, disable/remove mid-snapshot with
+   fresh re-add identity — each asserting no partial Library rows.
+5. **Atomic publication lock duration and Library responsiveness under the
+   existing connection and journal architecture — unmeasured.** The
+   architecture is one `Database` connection behind a Tauri-host `Mutex`,
+   `DELETE` rollback journal, `synchronous = FULL`, `busy_timeout` 2 s,
+   `Immediate` transactions (`crates/storage-sqlite/src/lib.rs:73-95,220-230`;
+   `DATA_MODEL.md`). Staging batches are correctly short (PR #77 pattern),
+   but the final publication does selects plus planning plus N
+   inserts/updates plus the missing sweep plus marker plus staging delete in
+   one holding transaction. Paging the reads inside that transaction does not
+   release the `Mutex` or the SQLite `RESERVED`/`EXCLUSIVE` lock, so Library
+   pages, status queries, cancellation writes, and lease renewals all queue
+   behind a 100,000-row apply while the `-journal` file (tens of MiB plus
+   index churn) commits under `FULL` fsyncs. No lock-duration number exists
+   for 10,000 rows, let alone 100,000. Options: (a) instrument now — report
+   10,000-row publication wall, lock-hold time, concurrent page/status/cancel
+   latency, staged-DB plus journal bytes; (b) dated deferral until that
+   evidence plus a responsiveness budget exists; (c) WAL/multi-connection
+   redesign as a separate proposal. Validation gate for any qualification run:
+   enumerate + stage + final-apply split timings, concurrent read latency
+   during apply, cancellation acknowledgement latency during apply, staged-DB
+   bytes, journal peak bytes, and cleanup bytes reclaimed.
+6. **Crash recovery, disk limits, cleanup, and backup consistency — structure
+   correct, values and bounds missing.** Crash-before / crash-after-chunks /
+   crash-during-apply rollback, restart reap to `interrupted` with
+   `discard_staging_for_run` extended to chunks, one deduped recovery scan,
+   TTL plus bounded sweep, backup invalidation before requeue — all correctly
+   extend current semantics and are retained. Missing: `coverage_ttl` and
+   history-retention values; boundedness of the cleanup sweep itself (a single
+   `DELETE` of 100,000 staging plus coverage rows is another long lock);
+   disk caps (`MAX_SNAPSHOT_STAGED_RECORDS ≥ 100,000` and a re-derived
+   `MAX_SNAPSHOT_STAGED_PATH_BYTES` — the current 4 MiB is insufficient by
+   construction at roughly 100 bytes per path); journal-peak disk during the
+   final transaction; disk-full mid-chunk and mid-publication behavior;
+   backup-taken-mid-snapshot consistency through the SQLite backup API on the
+   single connection (blocks or snapshots uncommitted chunks?). Options: set
+   caps from measured path-length distribution, batch the cleanup sweep with
+   its own fencing, choose TTL in hours with owner approval, and specify
+   backup concurrency explicitly. Validation: the §2.7 adversarial set plus
+   disk-full injection at chunk staging and at final apply, cleanup-sweep
+   bound test (row counts plus lock duration), and backup-mid-snapshot-then-
+   recover asserting byte-identical committed data and markers with in-flight
+   work `Interrupted` and staging `Discarded`.
+
 ## 3. #47/#48 prerequisites carried forward (no new survey)
 
 - #47 (DriveFS): run once in **Mirror files** and once in **Stream files**,
@@ -383,22 +539,37 @@ required for Scanner MVP acceptance.
 1. F1-A vs F1-B (fixture correction vs coordinated quota increase). This
    proposal recommends F1-A as narrowest but applies neither.
 2. F3-A vs F3-B vs F3-C (chunked snapshot vs quota increase vs dated
-   deferral). This proposal details F3-A but authorizes none.
+   deferral). This proposal details F3-A but authorizes none. The §2.9 review
+   adds that F3-A additionally requires a demonstrated bounded identity
+   algorithm, a defined coverage-partition denominator, and measured
+   publication lock-duration evidence before any qualification claim.
 3. Chunk sizing (`MAX_CHUNK_OBSERVATIONS`), per-run staged-record cap, and
    per-run staged-path-byte cap for 100,000 entries (require measurement;
    not set here).
 4. Coverage partition key shape (directory-shard ranges vs another opaque
-   scheme) and coverage TTL/expiry values.
+   scheme) and coverage TTL/expiry values. Per §2.9 item 2, the denominator
+   rule (census, hierarchical ledger, or abandon-and-reenumerate) is part of
+   this decision, not just the key encoding.
 5. Whether the P2-10 static no-parser guards plus fixture equality satisfy
    P2-10, or a runtime content-read spy is required (orthogonal to scale but
    gates P2-12).
 6. F2 path: quiet-host ten-iteration rerun vs accepting #94’s candidate on
    contended evidence vs re-budgeting the 10 s target (requires idle-host
-   isolation; #94 alone does not qualify).
+   isolation; #94 alone does not qualify; PR #98’s contended validation does
+   not change this).
 7. #47/#48: scoped runs with the authorizations above vs explicit owner scope
    exclusions (neither is selected here).
 8. History retention values for chunk/coverage/terminal runs, independently
    of diagnostic-log retention.
+9. Global identity planning mechanism (§2.9 item 1/3): two-pass index,
+   temp-table assignment, or provisional-plus-merge — with peak-memory bound
+   and cross-chunk adversarial tests.
+10. Final-publication responsiveness (§2.9 item 4/5): accept a measured long
+    lock as an explicit cost, defer, or propose WAL/multi-connection
+    separately. Splitting the atomic transaction is not an equivalent option.
+11. Disk and cleanup bounds (§2.9 item 6): per-run staged caps from measured
+    path distribution, batched cleanup-sweep bound, TTL value, disk-full
+    behavior, and backup-mid-snapshot concurrency rule.
 
 ## 5. Smallest practical next step (recommendation, not authorization)
 
@@ -422,9 +593,19 @@ required for Scanner MVP acceptance.
   `59faefc`, #94 `588867b`, #95 `bf0aeac`) and their live CI records. It
   edits no benchmark raw JSON, installed run record, platform report, or
   production source.
+- Independent review correction (2026-09-09): added the §0 sibling inputs
+  (PR #97 `aba1812` with Foundation run `34339792661` and packaging run
+  `34339792759` green; PR #98 `15b7f17` contended validation with separately
+  dispatched CI), the §2.3/§2.4 paging caveats, the §2.9 unresolved-mechanism
+  findings with options and validation requirements, and the §4 items 9–11.
+  No migration, protocol implementation, quota, budget, acceptance, gate, or
+  platform-scope change is made by this correction.
 - Validation for this document is docs/policy checks only
   (`lint:docs`, `privacy:check`, `git diff --check`); no benchmark,
-  installed-app, or platform run is claimed.
+  installed-app, or platform run is claimed. This proposal’s own Foundation
+  run `34339001103` and packaging run `34339001084` are green for the
+  pre-correction head `3be0140`; the correction re-runs the same docs/policy
+  checks before review.
 - Handoff: after sibling fix PRs land, refresh the PR #91 reconciliation
   against the resulting merged `main` and sibling fix heads before any
   merge/acceptance review. Do not merge, close the epic, change budgets, or
