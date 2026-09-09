@@ -1,12 +1,13 @@
 # Phase 2 integration evidence index (#41)
 
-Status: **reconciled 2026-09-08, refreshed 2026-09-09; Phase 2 is not
-accepted.** This is the current summary index for P2-01 through P2-12. The
-detailed evidence ledger, GitHub provenance, acceptance conflict, and
-remaining gates are in the [2026-09-08 reconciliation
-report](reconciliation-2026-09-08.md) with its 2026-09-09 refresh addendum.
+Status: **reconciled 2026-09-08, refreshed 2026-09-09 (second wave); Phase 2 is
+not accepted.** This is the current summary index for P2-01 through P2-12. The
+detailed evidence ledger, GitHub provenance, acceptance conflict, decision
+table, and remaining gates are in the [2026-09-08 reconciliation
+report](reconciliation-2026-09-08.md) with its two 2026-09-09 refresh addenda.
 The F1/F3 scale design is proposed separately in draft
-[PR #96](https://github.com/guilhermebmichelin-create/fruitboard/pull/96).
+[PR #96](https://github.com/guilhermebmichelin-create/fruitboard/pull/96) with
+its independent-review correction.
 
 This index separates merged implementation and automated-test evidence from
 installed-app observations, performance qualification, platform qualification,
@@ -34,8 +35,8 @@ The exact-current-commit [Foundation CI run](https://github.com/guilhermebmichel
 
 ## Companion evidence under review
 
-The following exact heads and checks were live at the 2026-09-09 refresh;
-none of these sibling PRs was merged by this update.
+The following exact heads and checks were live at the 2026-09-09 second
+refresh; none of these sibling PRs was merged by this update.
 
 | PR/head | Evidence | Exact checks and status |
 | --- | --- | --- |
@@ -44,15 +45,19 @@ none of these sibling PRs was merged by this update.
 | [#93 `59faefc2806a725368a59e7b6fc9be7f863f4fec`](https://github.com/guilhermebmichelin-create/fruitboard/commit/59faefc2806a725368a59e7b6fc9be7f863f4fec) | [Filesystem-port diagnostic](https://github.com/guilhermebmichelin-create/fruitboard/blob/59faefc2806a725368a59e7b6fc9be7f863f4fec/docs/review/phase-2-integration/performance-followup/README.md) | [Foundation run 34301751666](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34301751666) and [packaging run 34301751625](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34301751625) passed; the profile is contended shared-host diagnostics, not an idle-host performance pass |
 | [#94 `588867bca154e798f189f6c99de8a2668005d141`](https://github.com/guilhermebmichelin-create/fruitboard/commit/588867bca154e798f189f6c99de8a2668005d141) (stacked on #93) | [Optimization evidence](https://github.com/guilhermebmichelin-create/fruitboard/blob/588867bca154e798f189f6c99de8a2668005d141/docs/review/phase-2-integration/performance-followup/optimization-20260909.md) | No exact-head CI reported yet; needs combined validation with #93 plus a quiet-host A/B rerun. Contended whole-scan median moved 11,735.5 ms to 11,517 ms while p95/max worsened 12,188 ms to 17,682 ms on an outlier; not a p95 win or 10 s qualification |
 | [#95 `bf0aeac38ac46dbb90990611b940429e232f67ef`](https://github.com/guilhermebmichelin-create/fruitboard/commit/bf0aeac38ac46dbb90990611b940429e232f67ef) | D1–D3 repair replay [`run-20260909.md`](https://github.com/guilhermebmichelin-create/fruitboard/blob/bf0aeac38ac46dbb90990611b940429e232f67ef/docs/review/phase-2-integration/installed-journey/run-20260909.md) plus client/native regressions | [Foundation run 34309511415](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34309511415) and [packaging run 34309511404](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34309511404) passed; draft remains open and unmerged. Replay retained no durable queued snapshot; ACL, DriveFS, cross-volume/FAT32, 100,000-entry, and burst-timing cases remain outside its scope |
-| [#96 `3be014074b385747e51d6d6b859180315a5b80bc`](https://github.com/guilhermebmichelin-create/fruitboard/commit/3be014074b385747e51d6d6b859180315a5b80bc) | [Bounded-scan design proposal](https://github.com/guilhermebmichelin-create/fruitboard/pull/96) | New draft proposal only; no implementation, quota, budget, or acceptance change |
+| [#96 `3be014074b385747e51d6d6b859180315a5b80bc`](https://github.com/guilhermebmichelin-create/fruitboard/commit/3be014074b385747e51d6d6b859180315a5b80bc) plus correction `9aa97ab` | [Bounded-scan design proposal](https://github.com/guilhermebmichelin-create/fruitboard/pull/96) | [Foundation run 34339001103](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34339001103) and [packaging run 34339001084](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34339001084) passed for the pre-correction head. Proposal plus independent-review correction (§2.9 unresolved mechanisms with options and gates); no implementation, quota, budget, or acceptance change |
+| [#97 `aba18121f6fa6d80d5fcc67be6985277154969f5`](https://github.com/guilhermebmichelin-create/fruitboard/commit/aba18121f6fa6d80d5fcc67be6985277154969f5) (base PR #95 `bf0aeac`) | [Durable-queue and watcher-burst verification](https://github.com/guilhermebmichelin-create/fruitboard/pull/97) | [Foundation run 34339792661](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34339792661) and [packaging run 34339792759](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34339792759) passed. Test-only (3 deterministic tests) plus dated report; automated integration evidence, not installed observation |
+| [#98 `15b7f170c579d42c4f23f9619949236af4971ba2`](https://github.com/guilhermebmichelin-create/fruitboard/commit/15b7f170c579d42c4f23f9619949236af4971ba2) | [PR #94 validation with diagnostic cleanup](https://github.com/guilhermebmichelin-create/fruitboard/pull/98) | CI separately dispatched at this refresh, not cited as green. Contended A/B fails 10 s p95 on both sides; revise-then-keep as cleanup pending Agent 1 review; does not touch the PR #94 branch |
 
 The installed evidence is therefore not absent, but it is not yet merged or
 accepted. PR #92 observes persistence, paging, watcher follow-up convergence,
 cancellation retention, and interrupted-work recovery. Durable queued state and
-independent watcher-burst counting remain unverified in that record and are
-being addressed independently. D1 native labeling, D2 cancelled Retry, and D3
-exhausted Retry repairs are verified in still-unmerged PR #95; that PR remains
-a draft and does not itself merge, accept, or close any criterion.
+independent watcher-burst counting remain unverified in that record; automated
+counts for those fences now exist in unmerged PR #97 but do not fill the
+installed columns. D1 native labeling, D2 cancelled Retry, and D3 exhausted
+Retry repairs are verified in still-unmerged PR #95 with no new Agent 1 head
+at this refresh; that PR remains a draft and does not itself merge, accept, or
+close any criterion.
 
 ## Acceptance ID evidence map
 
@@ -61,15 +66,15 @@ a draft and does not itself merge, accept, or close any criterion.
 | P2-01 | Evidence present; not promoted | #34/#35 picker and settings work; #54 installed picker record; #58 rendered keyboard/narrow evidence; client and Windows CI | Installed #92 selection/cancel, settings persistence, and restart observation; criterion-specific owner acceptance |
 | P2-02 | Partial | #59 reconciliation core, #64 Windows enumeration, #70 hidden worker; deterministic and Windows fixture tests | Installed #92 add/modify/rename and remove/restore convergence; broader platform qualification |
 | P2-03 | Partial | #62/#70 behavior plus #85 `p2_03_*` fault cases compare committed rows and the success marker byte-for-byte and assert no publication | Installed #92 cancellation and unavailable-root retention observed; denied/limit cases and owner acceptance remain |
-| P2-04 | Partial | #60/#61/#70 durable state-machine and worker coverage; #82 host recovery tests; green `migration`, `scan-execution-windows`, and Windows feature-on CI | Installed #92 persistence, cancellation, and interrupted recovery observed; durable queued state remains unverified there. Unmerged #95 verifies D1–D3 repairs but retains no durable queued snapshot; queued evidence is addressed independently; end-to-end acceptance remains |
+| P2-04 | Partial | #60/#61/#70 durable state-machine and worker coverage; #82 host recovery tests; green `migration`, `scan-execution-windows`, and Windows feature-on CI; unmerged #97 pins mid-scan convergence, idle-burst collapse, and stale-generation fencing as automated evidence (green `34339792661` / `34339792759`) | Installed #92 persistence, cancellation, and interrupted recovery observed; durable queued snapshot, burst timing, restart-during-scan, and beyond-#95 retention remain unverified installed gaps there. Unmerged #95 verifies D1–D3 repairs but retains no durable queued snapshot; queued evidence is addressed independently; end-to-end acceptance remains |
 | P2-05 | Partial | #60/#62 and #85 disable/remove, lease, staging, re-add, and stale-publication tests; #82 transaction notification ordering | Installed #92 disable-while-running retention observed; queued-operation coverage and owner acceptance remain |
 | P2-06 | Partial | #62 plus #85 crash-before-stage, crash-after-stage, apply rollback, backup recovery, and migration fixtures | Installed #92 clean restart and interrupted-work recovery observed; owner acceptance remains |
 | P2-07 | Partial | #59/#62 plus #85 hardlink alias and conservative rename/replacement tests | Installed #92 rename path convergence observed, but no installed hardlink-alias qualification; #48 remains unverified |
 | P2-08 | Partial; prior `Complete` claim is not accepted | #73/#77/#78/#81/#82 typed IPC, native adapter, responsiveness, lifecycle, and host supervision evidence; feature-on CI is green | Installed #92 Scan/Cancel/Library/persistence journey observed; D1/D2/D3 repairs verified in still-unmerged #95; durable queued state, the retained packaging-timeout incident, and explicit full-criterion owner acceptance remain |
-| P2-09 | Partial | #68/#69/#71/#81/#82 watcher, coalescing, coverage-loss, generation, reconnect, and shutdown tests | Installed #92 watcher follow-up and convergence observed; independent burst counting, real overflow timing, and #47 DriveFS evidence remain and are addressed independently |
+| P2-09 | Partial | #68/#69/#71/#81/#82 watcher, coalescing, coverage-loss, generation, reconnect, and shutdown tests | Installed #92 watcher follow-up and convergence observed; automated burst/stale counts now exist in unmerged #97 (not installed evidence); installed burst timing, real overflow timing, and #47 DriveFS evidence remain |
 | P2-10 | Partial | #81 static no-parser/no-content-I/O guards and synthetic-fixture source-byte equality checks | Runtime content-read spy decision; installed-app independence; owner acceptance |
-| P2-11 | Measured; not qualified | #67/#72 harness and #86 re-run. F1 is reproduced; F2 remains over target; F3 remains unmeasured; unmerged #93 adds contended filesystem-port diagnostics; stacked #94 needs exact-head CI/combined validation | F1/F2/F3 owner decisions, required idle-host work, and any amended budget or qualification; scale options proposed in draft PR #96 |
-| P2-12 | Pending | #80 checkpoint and subsequent merged implementation/CI map; unmerged #92 records installed observations captured from `main`; unmerged #95 records verified D1–D3 repairs | Merged-`main` rebuild verification where required, durable queued/burst gaps (independent), platform/performance decisions, and explicit owner acceptance |
+| P2-11 | Measured; not qualified | #67/#72 harness and #86 re-run. F1 is reproduced; F2 remains over target; F3 remains unmeasured; unmerged #93 adds contended filesystem-port diagnostics; stacked #94 needs exact-head CI/combined validation; unmerged #98 validates #94 on the contended host (both sides fail 10 s p95; cleanup pending Agent 1 review; CI dispatched) | F1/F2/F3 owner decisions, required quiet-host A/B, and any amended budget or qualification; scale options proposed in draft PR #96 with its §2.9 correction |
+| P2-12 | Pending | #80 checkpoint and subsequent merged implementation/CI map; unmerged #92 records installed observations captured from `main`; unmerged #95 records verified D1–D3 repairs | Merged-`main` rebuild verification where required (no new Agent 1 head), installed queued/burst gaps (automated fences in #97 do not fill them), platform/performance decisions with the decision table, and explicit owner acceptance |
 
 ## P2-08 acceptance conflict
 
@@ -84,8 +89,8 @@ acceptance are not established.
 
 - Fake-adapter renders remain fake-adapter evidence. They do not fill the
   installed-app column.
-- The [installed-app checklist](installed-app-journey-checklist.md) was executed on an unsigned package built from `main` `0b7612d`; the unmerged [PR #92 checklist](https://github.com/guilhermebmichelin-create/fruitboard/blob/49a5e649c688ae767c9189801dd033f2288b61f5/docs/review/phase-2-integration/installed-app-journey-checklist.md) records persistence, paging, watcher convergence, cancellation retention, and interrupted-work recovery. Durable queued observation and independent watcher-burst counting remain unverified there and are addressed independently. D1/D2/D3 repairs are verified in still-unmerged PR #95; review that draft and rebuild from merged `main` where required before promoting P2-08.
-- The current performance source is the [2026-09-08 re-run](benchmark-triage-20260908/rerun-report.md), not only the historical 2026-09-07 report. It was recorded at pre-#85 baseline `51f45af`, reproduces F1 (10,005 observations versus the 10,000-record quota), measures a 14,267 ms warm p95 against the provisional 10 s target, and leaves F3 unmeasured. Unmerged [PR #93](https://github.com/guilhermebmichelin-create/fruitboard/blob/59faefc2806a725368a59e7b6fc9be7f863f4fec/docs/review/phase-2-integration/performance-followup/README.md) adds contended diagnostic profiling; stacked [PR #94](https://github.com/guilhermebmichelin-create/fruitboard/blob/588867bca154e798f189f6c99de8a2668005d141/docs/review/phase-2-integration/performance-followup/optimization-20260909.md) needs exact-head CI/combined validation plus a quiet-host A/B rerun. Neither is an idle-host performance pass and no budget changed. Scale options are proposed in draft PR #96.
+- The [installed-app checklist](installed-app-journey-checklist.md) was executed on an unsigned package built from `main` `0b7612d`; the unmerged [PR #92 checklist](https://github.com/guilhermebmichelin-create/fruitboard/blob/49a5e649c688ae767c9189801dd033f2288b61f5/docs/review/phase-2-integration/installed-app-journey-checklist.md) records persistence, paging, watcher convergence, cancellation retention, and interrupted-work recovery. Durable queued observation and independent watcher-burst counting remain unverified there; automated counts for those fences now exist in unmerged PR #97 (green `34339792661` / `34339792759`) but do not fill the installed column. D1/D2/D3 repairs are verified in still-unmerged PR #95 with no new Agent 1 head at this refresh; review that draft and rebuild from merged `main` where required before promoting P2-08.
+- The current performance source is the [2026-09-08 re-run](benchmark-triage-20260908/rerun-report.md), not only the historical 2026-09-07 report. It was recorded at pre-#85 baseline `51f45af`, reproduces F1 (10,005 observations versus the 10,000-record quota), measures a 14,267 ms warm p95 against the provisional 10 s target, and leaves F3 unmeasured. Unmerged [PR #93](https://github.com/guilhermebmichelin-create/fruitboard/blob/59faefc2806a725368a59e7b6fc9be7f863f4fec/docs/review/phase-2-integration/performance-followup/README.md) adds contended diagnostic profiling; stacked [PR #94](https://github.com/guilhermebmichelin-create/fruitboard/blob/588867bca154e798f189f6c99de8a2668005d141/docs/review/phase-2-integration/performance-followup/optimization-20260909.md) needs exact-head CI/combined validation plus a quiet-host A/B rerun. Neither is an idle-host performance pass and no budget changed. Unmerged PR #98 validates #94 on the contended host (both sides fail the 10 s p95; cleanup pending Agent 1 review; CI dispatched, not green-cited). Scale options are proposed in draft PR #96 with its §2.9 independent-review correction.
 - [#47](https://github.com/guilhermebmichelin-create/fruitboard/issues/47) and [#48](https://github.com/guilhermebmichelin-create/fruitboard/issues/48) remain open. The unmerged [PR #90 reports](https://github.com/guilhermebmichelin-create/fruitboard/commit/17e571742634eceb16f09b166edd3d77b57fcf61) specify the exact missing mode/consent and genuine-FAT32 prerequisites; neither report is a platform qualification or owner scope exclusion, and no new consent or volume is invented here.
 - PR #92's Foundation CI and packaging rerun attempt 2 are green. Its first packaging attempt recorded the [sidecar timeout](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34299680193/job/102303731791); retain that incident in the handoff, and do not treat any packaging check as installed behavior or owner acceptance.
 - Production scanning remains hidden until P2-03 through P2-08 have

@@ -41,8 +41,12 @@ the still-unmerged draft [PR #95 head `bf0aeac`](https://github.com/guilhermebmi
 `run-20260909.md` installed replay), which remains open and unmerged; its
 replay did not retain a durable queued snapshot and leaves ACL, DriveFS,
 cross-volume/FAT32, 100,000-entry, and burst-timing cases outside its scope.
-Durable queued and watcher-burst evidence is being addressed independently and
-is not claimed here. PR #92's first packaging attempt recorded `The installed
+Automated durable-queue and watcher-burst fences are pinned in unmerged draft
+[PR #97 head `aba1812`](https://github.com/guilhermebmichelin-create/fruitboard/commit/aba18121f6fa6d80d5fcc67be6985277154969f5)
+([Foundation run 34339792661](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34339792661),
+[packaging run 34339792759](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34339792759));
+that automated evidence does not supply the installed queued snapshot or burst
+timing, which remain unverified. PR #92's first packaging attempt recorded `The installed
 sidecar smoke timed out` ([attempt 1](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34299680193/job/102303731791));
 [rerun attempt 2](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34299680193/job/102314720612)
 passed. Preserve that incident in the provenance, but do not infer a product
@@ -58,12 +62,17 @@ stacked [PR #94 head `588867b`](https://github.com/guilhermebmichelin-create/fru
 (base `docs/41-performance-followup-20260908`) reports a contended median move
 with a p95/max outlier regression and has no exact-head CI yet; it needs
 combined validation plus a quiet-host A/B rerun before any qualification claim.
-F1/F3 scale decisions and #47/#48 platform prerequisites remain unresolved;
-the bounded-scan scale design is proposed separately in draft
+Unmerged draft [PR #98 head `15b7f17`](https://github.com/guilhermebmichelin-create/fruitboard/commit/15b7f170c579d42c4f23f9619949236af4971ba2)
+independently validates that candidate on the contended host (both sides fail
+the 10 s p95; no qualification claimed) with diagnostic cleanup pending Agent 1
+review; its CI was separately dispatched. F1/F3 scale decisions and #47/#48
+platform prerequisites remain unresolved; the bounded-scan scale design is
+proposed separately in draft
 [PR #96](https://github.com/guilhermebmichelin-create/fruitboard/pull/96) as a
-proposal only, not an implementation authorization. Owner acceptance remains
-open. Production scanning remains hidden until P2-03 through P2-08 have
-integrated evidence. The [current reconciliation report](docs/review/phase-2-integration/reconciliation-2026-09-08.md)
+proposal only, not an implementation authorization (independent-review
+correction with unresolved mechanisms and validation gates included). Owner
+acceptance remains open. Production scanning remains hidden until P2-03
+through P2-08 have integrated evidence. The [current reconciliation report](docs/review/phase-2-integration/reconciliation-2026-09-08.md)
 and [installed-app journey checklist](docs/review/phase-2-integration/installed-app-journey-checklist.md)
 track the remaining gates. Historical reports remain historical records.
 
