@@ -5,6 +5,15 @@ edition = "2024"
 rust-version = "1.98.1"
 publish = false
 
+[features]
+# Diagnostic-only native operation timings for the performance follow-up.
+# Production builds do not enable this feature.
+diagnostics = []
+
+[[example]]
+name = "profile-native-ops"
+required-features = ["diagnostics"]
+
 [dependencies]
 # Pinned UCD version (Unicode 17.0.0) backing the contract's NFC rule
 # (integration contract rev 2, §1.1). The simple-fold equivalence set is the
