@@ -18,6 +18,11 @@ the first real P2-11 numbers and records every budget miss as a finding with
 a hypothesis; provisional budgets remain quoted targets in the execution
 plan until the owner acts on the findings.
 
+The installed-app defect repair replay for PR #92 is recorded additively in
+[`installed-journey/run-20260909.md`](installed-journey/run-20260909.md). The
+original installed observations remain preserved on PR #92 and are not
+overwritten by that follow-up record.
+
 ## Acceptance ID evidence map
 
 | ID    | Acceptance criterion (summary)                                               | Owner issues                  | Status                                        | Evidence source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |

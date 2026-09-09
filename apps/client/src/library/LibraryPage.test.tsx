@@ -8,6 +8,7 @@ import { LibraryPage } from "./LibraryPage";
 import type {
   LibraryPage as LibraryPageData,
   LibraryPageRequest,
+  LibraryRenderContext,
   LibraryScanAdapter,
   PublishedFileLocation,
   ScanStatus,
@@ -50,10 +51,13 @@ const makeRecord = (
   presence,
 });
 
-function renderLibrary(adapter: LibraryScanAdapter) {
+function renderLibrary(
+  adapter: LibraryScanAdapter,
+  renderContext: LibraryRenderContext = "native",
+) {
   return render(
     <MemoryRouter>
-      <LibraryPage adapter={adapter} />
+      <LibraryPage adapter={adapter} renderContext={renderContext} />
     </MemoryRouter>,
   );
 }
@@ -86,6 +90,7 @@ function makeStatus(
   state: ScanStatus["state"] = "idle",
   jobId: string | null = null,
   runId: string | null = null,
+  retryAvailable = state === "failed" && root.enabled,
 ): ScanStatus {
   return {
     root,
@@ -93,6 +98,7 @@ function makeStatus(
     jobId,
     runId,
     cancellationRequested: false,
+    retryAvailable,
     counters: {
       filesObserved: 0,
       directoriesVisited: 0,
@@ -173,6 +179,30 @@ function page(
 }
 
 describe("LibraryPage", () => {
+  it("keeps harness labeling out of the native product rendering", async () => {
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      files: [makeRecord(rootA, "location-a", "Native.flp", "Native.flp")],
+    });
+    const nativeView = renderLibrary(adapter);
+
+    await screen.findByRole("heading", { name: "Native.flp" });
+    expect(
+      nativeView.container.querySelector('[data-review-adapter="native"]'),
+    ).toBeTruthy();
+    expect(screen.queryByText("Review harness · fake adapter")).toBeNull();
+    nativeView.unmount();
+
+    const harnessView = renderLibrary(adapter, "review-harness");
+    await screen.findByRole("heading", { name: "Native.flp" });
+    expect(
+      harnessView.container.querySelector(
+        '[data-review-adapter="fake-or-proposed"]',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("Review harness · fake adapter")).toBeTruthy();
+  });
+
   it("renders the initial loading state before an empty committed dataset", async () => {
     const adapter = createFakeLibraryScanAdapter();
     const view = renderLibrary(adapter);
@@ -377,11 +407,18 @@ describe("LibraryPage", () => {
     expect(screen.getByText("Present")).toBeTruthy();
     await waitFor(() => {
       expect(document.activeElement).toBe(
-        screen.getByRole("button", { name: "Retry scan Projects" }),
+        screen.getByRole("button", { name: "Scan now Projects" }),
       );
     });
+    expect(
+      screen.queryByRole("button", { name: "Retry scan Projects" }),
+    ).toBeNull();
     expect(adapter.calls.scanNow).toEqual([rootA.id]);
     expect(adapter.calls.cancelScan).toEqual(["fake-job-1"]);
+
+    await user.click(screen.getByRole("button", { name: "Scan now Projects" }));
+    expect(await screen.findByText("Queued")).toBeTruthy();
+    expect(adapter.calls.scanNow).toEqual([rootA.id, rootA.id]);
   });
 
   it("labels failed and interrupted runs while retaining the old page", async () => {
@@ -422,6 +459,39 @@ describe("LibraryPage", () => {
     expect(screen.getByRole("heading", { name: "Kept.flp" })).toBeTruthy();
   });
 
+  it("starts a fresh scan for an exhausted failed chain and keeps its page", async () => {
+    const user = userEvent.setup();
+    const exhausted = makeStatus(
+      rootA,
+      "failed",
+      "exhausted-job",
+      "run-4",
+      false,
+    );
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      files: [
+        makeRecord(rootA, "location-a", "Exhausted.flp", "Exhausted.flp"),
+      ],
+      initialStatuses: [exhausted],
+    });
+    renderLibrary(adapter);
+
+    await screen.findByRole("heading", { name: "Exhausted.flp" });
+    expect(screen.getByText("Failed")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Retry scan Projects" }),
+    ).toBeNull();
+    const scan = screen.getByRole("button", { name: "Scan now Projects" });
+    expect(scan).toHaveProperty("disabled", false);
+
+    await user.click(scan);
+    expect(await screen.findByText("Queued")).toBeTruthy();
+    expect(adapter.calls.retryScan).toEqual([]);
+    expect(adapter.calls.scanNow).toEqual([rootA.id]);
+    expect(screen.getByRole("heading", { name: "Exhausted.flp" })).toBeTruthy();
+  });
+
   it("shows an unavailable-root state without manufacturing missing files", async () => {
     const user = userEvent.setup();
     const unavailableRoot = { ...rootA, availability: "unavailable" as const };
@@ -435,14 +505,42 @@ describe("LibraryPage", () => {
     ).toBeTruthy();
     expect(screen.getAllByText("Unavailable")).toHaveLength(2);
     expect(screen.queryByText("Missing")).toBeNull();
-    const retry = screen.getByRole("button", { name: "Retry scan Projects" });
-    expect(retry).toHaveProperty("disabled", false);
-    await user.click(retry);
+    const scan = screen.getByRole("button", { name: "Scan now Projects" });
+    expect(scan).toHaveProperty("disabled", false);
+    await user.click(scan);
+    expect(await screen.findByText("Queued")).toBeTruthy();
+    expect(adapter.calls.scanNow).toEqual([rootA.id]);
+  });
+
+  it("does not expose a recovery action for a disabled exhausted root", async () => {
+    const disabledRoot = { ...rootA, enabled: false };
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [disabledRoot],
+      files: [
+        makeRecord(disabledRoot, "location-a", "Disabled.flp", "Disabled.flp"),
+      ],
+      initialStatuses: [
+        makeStatus(
+          disabledRoot,
+          "failed",
+          "disabled-job",
+          "run-disabled",
+          false,
+        ),
+      ],
+    });
+    renderLibrary(adapter);
+
+    await screen.findByRole("heading", { name: "Disabled.flp" });
     expect(
-      await screen.findByText(
-        "The folder is unavailable. Previous committed results were kept.",
-      ),
-    ).toBeTruthy();
+      screen.queryByRole("button", { name: "Retry scan Projects" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Scan now Projects" }),
+    ).toHaveProperty("disabled", true);
+    expect(screen.getByText("Enable this root in Preferences.")).toBeTruthy();
+    expect(adapter.calls.scanNow).toEqual([]);
+    expect(adapter.calls.retryScan).toEqual([]);
   });
 
   it("recovers a page read error through the explicit retry action", async () => {

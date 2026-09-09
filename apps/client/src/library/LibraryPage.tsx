@@ -19,6 +19,7 @@ import {
   formatByteSizeDecimal,
   isScanAvailabilityUnavailable,
   isScanAvailabilityUnknown,
+  type LibraryRenderContext,
   type DecimalString,
   type LibraryPage as LibraryPageData,
   type LibraryScanAdapter,
@@ -180,19 +181,27 @@ function LibraryIntegrationDisabled() {
 
 export function LibraryPage({
   adapter,
+  renderContext = "native",
 }: {
   readonly adapter: LibraryScanAdapter | undefined;
+  readonly renderContext?: LibraryRenderContext;
 }) {
   if (adapter === undefined) return <LibraryIntegrationDisabled />;
   return (
-    <ConnectedLibraryPage adapter={adapter} key={getAdapterKey(adapter)} />
+    <ConnectedLibraryPage
+      adapter={adapter}
+      key={getAdapterKey(adapter)}
+      renderContext={renderContext}
+    />
   );
 }
 
 function ConnectedLibraryPage({
   adapter,
+  renderContext,
 }: {
   readonly adapter: LibraryScanAdapter;
+  readonly renderContext: LibraryRenderContext;
 }) {
   const [selectedRootId, setSelectedRootId] = useState<string | null>(null);
   const [pagePosition, setPagePosition] = useState<PagePosition>({
@@ -473,7 +482,8 @@ function ConnectedLibraryPage({
     [loadPage, loadStatuses],
   );
 
-  const runScan = async (status: ScanStatus, retry: boolean) => {
+  const runScan = async (status: ScanStatus, action: "retry" | "scan-now") => {
+    const retry = action === "retry";
     const requestId = ++actionSequence.current;
     const isCurrentAction = () =>
       mounted.current && actionSequence.current === requestId;
@@ -485,8 +495,14 @@ function ConnectedLibraryPage({
       message: retry ? `Retrying ${name}…` : `Queueing a scan for ${name}…`,
     });
     try {
-      if (retry && status.jobId !== null) await adapter.retryScan(status.jobId);
-      else await adapter.scanNow(rootId);
+      if (retry) {
+        if (status.jobId === null) {
+          throw new LibraryAdapterError("conflict");
+        }
+        await adapter.retryScan(status.jobId);
+      } else {
+        await adapter.scanNow(rootId);
+      }
       if (!isCurrentAction()) return;
       if (!(await refreshAfterAction(requestId))) return;
       setActionState({ kind: "idle" });
@@ -640,7 +656,9 @@ function ConnectedLibraryPage({
     <div
       className="library-page"
       data-library-state={libraryState}
-      data-review-adapter="fake-or-proposed"
+      data-review-adapter={
+        renderContext === "review-harness" ? "fake-or-proposed" : "native"
+      }
     >
       <p aria-live="polite" className="library-visually-hidden" role="status">
         {pageAnnouncement}
@@ -657,9 +675,11 @@ function ConnectedLibraryPage({
             never edits this list until a run completes authoritatively.
           </p>
         </div>
-        <span className="library-review-badge">
-          Review harness · fake adapter
-        </span>
+        {renderContext === "review-harness" && (
+          <span className="library-review-badge">
+            Review harness · fake adapter
+          </span>
+        )}
       </section>
 
       <ScanStatusPanel
@@ -670,8 +690,8 @@ function ConnectedLibraryPage({
           setStatusState({ kind: "loading" });
           setStatusAttempt((attempt) => attempt + 1);
         }}
-        onRunScan={(status, retry) => {
-          void runScan(status, retry);
+        onRunScan={(status, action) => {
+          void runScan(status, action);
         }}
         onCancelScan={(status) => {
           void cancelScan(status);
@@ -898,7 +918,10 @@ function ScanStatusPanel({
   readonly actionState: ActionState;
   readonly duplicateDisplayNames: ReadonlySet<string>;
   readonly onRetryStatus: () => void;
-  readonly onRunScan: (status: ScanStatus, retry: boolean) => void;
+  readonly onRunScan: (
+    status: ScanStatus,
+    action: "retry" | "scan-now",
+  ) => void;
   readonly onCancelScan: (status: ScanStatus) => void;
   readonly retryButtonReferences: React.MutableRefObject<
     Map<string, HTMLButtonElement>
@@ -979,8 +1002,8 @@ function ScanStatusPanel({
           )}
           {statusState.statuses.length === 0 ? (
             <p className="library-status-empty">
-              No scan roots are configured. Add one in Preferences before using
-              the review harness controls.
+              No scan roots are configured. Add one in Preferences before
+              starting a scan.
             </p>
           ) : (
             <ul aria-label="Scan root status" className="library-scan-list">
@@ -991,7 +1014,7 @@ function ScanStatusPanel({
                   duplicateDisplayNames={duplicateDisplayNames}
                   key={status.root.id}
                   onCancel={() => onCancelScan(status)}
-                  onRun={(retry) => onRunScan(status, retry)}
+                  onRun={(action) => onRunScan(status, action)}
                   retryButtonReferences={retryButtonReferences}
                   scanButtonReferences={scanButtonReferences}
                   status={status}
@@ -1021,7 +1044,7 @@ function ScanStatusCard({
   >;
   readonly duplicateDisplayNames: ReadonlySet<string>;
   readonly onCancel: () => void;
-  readonly onRun: (retry: boolean) => void;
+  readonly onRun: (action: "retry" | "scan-now") => void;
   readonly retryButtonReferences: React.MutableRefObject<
     Map<string, HTMLButtonElement>
   >;
@@ -1033,13 +1056,9 @@ function ScanStatusCard({
   const name = rootControlName(status, duplicateDisplayNames);
   const busy =
     actionState.kind === "working" && actionState.rootId === status.root.id;
-  const canScan =
-    status.root.enabled &&
-    !isScanAvailabilityUnavailable(status.root.availability);
+  const canScan = status.root.enabled;
   const isActive = status.state === "queued" || status.state === "running";
-  const showRetry =
-    terminalStates.has(status.state) ||
-    isScanAvailabilityUnavailable(status.root.availability);
+  const showRetry = status.retryAvailable;
 
   return (
     <li className="library-scan-item" data-root-id={status.root.id}>
@@ -1144,7 +1163,7 @@ function ScanStatusCard({
             aria-label={`Retry scan ${name}`}
             className="library-button library-button--primary"
             disabled={busy || !status.root.enabled}
-            onClick={() => onRun(true)}
+            onClick={() => onRun("retry")}
             ref={(button) => {
               if (button === null)
                 retryButtonReferences.current.delete(status.root.id);
@@ -1160,7 +1179,7 @@ function ScanStatusCard({
             aria-label={`Scan now ${name}`}
             className="library-button library-button--primary"
             disabled={busy || !canScan}
-            onClick={() => onRun(false)}
+            onClick={() => onRun("scan-now")}
             ref={(button) => {
               if (button === null)
                 scanButtonReferences.current.delete(status.root.id);
