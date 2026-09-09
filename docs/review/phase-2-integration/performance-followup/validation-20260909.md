@@ -10,13 +10,18 @@ approved replacement for F1's accepted baseline.
 Stack: PR #94 head `588867bca154e798f189f6c99de8a2668005d141` (base
 `59faefc2806a725368a59e7b6fc9be7f863f4fec`, PR #93) with before
 `1d7c29828d4560c959f4fc140b8544ce06c05b80` and candidate
-`b35c01a1ab75381e8d1d562fafcafa4764ba0b6f`. This validation branch adds only
-an 8-line diagnostic-scaffolding removal (see below) plus this evidence.
+`b35c01a1ab75381e8d1d562fafcafa4764ba0b6f`. This validation branch (#98)
+adds only an 8-line diagnostic-scaffolding removal (see §5) plus this
+evidence. All timed binaries below were built from the pre-cleanup commits
+`1d7c298` (before) and `b35c01a` (candidate) and therefore precede and
+exclude the `15b7f17` pending_entries removal in this branch; do not claim
+those binaries include the later cleanup.
 
 ## 1. Audit of the existing measurement
 
-All statistics below were recomputed from committed raw files with pinned
-Node 24.20.0. Reported values match exactly.
+All whole-scan statistics below were recomputed from committed raw files with
+pinned Node 24.20.0 and match exactly. All native medians match except the
+optimization report's ancestor-validation candidate median (see §1.2).
 
 ### 1.1 Whole-scan ten-iteration protocol (uninstrumented `benchmark` path)
 
@@ -71,8 +76,11 @@ Reported ancestor median `7,038 ms` differs from recomputed `7,043.2 ms` by
   (`WindowsFilesystemPort::new`, diagnostics `None`) — uninstrumented.
   Native diagnostic uses `new_with_diagnostics` under `diagnostics` —
   instrumented. Separation is correct.
-- Provenance nit: `optimization-20260909-provenance.json` records candidate
-  as short `b35c01a`; full SHA is `b35c01a1ab75381e8d1d562fafcafa4764ba0b6f`.
+- Provenance correction applied in this review:
+  `optimization-20260909-provenance.json` now records candidate as full
+  `b35c01a1ab75381e8d1d562fafcafa4764ba0b6f` (previously short `b35c01a`).
+  `optimization-20260909.md` ancestor-validation candidate median corrected
+  from `7,038 ms` (-2.6%) to recomputed `7,043.2 ms` (-2.5%); see §1.2.
 
 ### 1.4 Nested timers: no double counting
 
@@ -149,7 +157,8 @@ evidence, explicitly not idle-host qualification.
 Same persistent fixture regenerated with pinned Node, SHA verified
 `a4760a28...1196d08a`, same volume class. Harness
 `scripts/run-benchmark.mjs` with `--bin` isolated binaries. `prebuilt:true`
-in raw is mapped here: before2 = `1d7c298`, after2 = `b35c01a`.
+in raw is mapped here: before2 = `1d7c298`, after2 = `b35c01a`. Both
+binaries precede the §5 pending_entries removal and do not contain it.
 
 | Metric | Before2 (`benchmark-validate-before2.json`) | Candidate2 (`benchmark-validate-after2.json`) |
 | --- | --- | --- |
@@ -216,3 +225,102 @@ Checks on pinned toolchain, isolated target `target-perf94-validation`:
 
 See `validation-20260909-provenance.json`. Raw files in this directory are
 the authoritative sources; this markdown reports but does not replace them.
+
+## 8. Quiet-host experiment plan (not executed; prerequisites unmet)
+
+Do not repeat timed runs until all preflight criteria below are actually
+satisfied. No run in this review claims quiet-host status.
+
+### 8.1 Exact binaries
+
+- Before binary: detached worktree at
+  `1d7c29828d4560c959f4fc140b8544ce06c05b80`, isolated target
+  `target-perf94-before`, built with pinned cargo 1.98.1 MSVC via
+  `cargo build --release -p fruitboard-scan-execution --example benchmark --locked`.
+  Binary: `target-perf94-before/release/examples/benchmark.exe`.
+- Candidate binary: final reviewed head of this branch (this commit, #94
+  tag-query removal plus #98 pending_entries removal), isolated target
+  `target-perf94-validation`, same pinned toolchain and same build command.
+  Binary: `target-perf94-validation/release/examples/benchmark.exe`.
+- Both builds use `--locked`, release profile, default (non-`diagnostics`)
+  feature. Record `rustc --version`, `cargo --version`, Node `v24.20.0`,
+  and the built commit SHA in each raw report's `build` block.
+- Native diagnostic (optional, separate): same two commits built via
+  `cargo build --release -p fruitboard-filesystem-enumeration --features diagnostics --example profile-native-ops --locked`;
+  its numbers must not be compared directly with whole-scan numbers.
+
+### 8.2 Fixture
+
+- Existing comparison fixture `custom-9995`, seed `0`, regenerated with
+  pinned Node 24.20.0 via `scripts/generate-synthetic-tree.mjs`.
+- Manifest SHA-256 must verify as
+  `a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a`
+  (9,995 FLP + 5 aliases + 4 other = 10,000 observations, 1,000 leaf
+  directories, 1,025 directories, hardlink support `created`).
+- Same volume class as prior runs; record volume total/free bytes, Windows
+  build, CPU model, logical cores, and power mode in each raw report.
+- Do not change fixtures, quotas, budgets, or durability to make the run
+  pass. `custom-9995` is the comparison fixture only, not an approved
+  replacement for F1's accepted baseline.
+
+### 8.3 Protocol (identical on both binaries)
+
+- Harness: `scripts/run-benchmark.mjs` with `--bin <isolated-binary>`
+  and `--manifest <fixture>/manifest.json`, same flags as §§1.1/4.
+- Sequence per side: 1 warm-up + 10 fresh-process measured iterations + 3
+  fresh-process cancellation measurements + 100 ms working-set sampling.
+- Run before2 then candidate2 back-to-back in the same quiet window; do
+  not interleave other builds. Retain all samples; filter none.
+- Report per side: warm-up scan_ms, all 10 measured scan_ms in run order
+  plus sorted order, median, max, nearest-rank p95 (n=10, p95=max),
+  cancellation stop latencies plus median/max/p95, working-set increment
+  range, authoritative/outcome/location counts (require 10/10 Complete
+  Published 10,000 for a qualification claim).
+- Success criterion (unchanged): nearest-rank p95 `<= 10 s`. A median-only
+  move without p95 `<= 10 s` is directional only, not a win. Attribute
+  only the ~28 ms absolute metadata-slice saving to the tag-query removal;
+  any larger whole-scan delta must be investigated as host variance.
+
+### 8.4 Objective quiet-host preflight (all must pass, recorded in provenance)
+
+- Power: AC connected, Windows power mode High performance
+  (`Alto desempenho`); record `powerMode` in raw.
+- Processes: 0 `cargo.exe`, 0 `rustc.exe`, 0 Fruitboard desktop processes
+  at each side's preflight (check via task list; record counts).
+- DriveFS: Google Drive for Desktop paused/quit for the window (record
+  process absence); pausing is currently unauthorized — prerequisite unmet.
+- Antivirus: fixture-volume exclusion applied per the documented host
+  runbook and verified active; changing Defender settings is currently
+  unauthorized — prerequisite unmet.
+- Sibling activity: no other agent/build/test job running on the host
+  during the window (record Epic/T3/opencode presence as 0); stopping
+  sibling work is currently unauthorized — prerequisite unmet.
+- CPU idle: `Win32_Processor.LoadPercentage` sampled over 60 s shows
+  sustained `< 10%` with no spike `> 25%` before starting; record samples.
+  Performance-counter detail requires perf-log privilege (currently
+  unavailable) — record this limitation.
+- Disk idle: fixture-volume `% Idle Time` (or equivalent logical-disk idle
+  counter) sampled over 60 s shows sustained `> 90%` idle with no dip
+  `< 70%` before starting; record samples. If the counter is unavailable
+  without elevation, record the gap and do not substitute process presence
+  for disk-idle proof.
+- If any criterion fails, abort the window and record the abort; do not
+  present the partial window as quiet-host evidence. Observed wall-time
+  variance alone is contention evidence, not quiet proof.
+
+### 8.5 Unmet prerequisites (why this plan is not executed here)
+
+- DriveFS pause: 2 DriveFS processes active during all windows in §§3-4;
+  pause unauthorized.
+- Antivirus exclusion: Defender `MsMpEng` + `MpDefenderCoreService`
+  active with no fixture-volume exclusion; change unauthorized.
+- Sibling builds: Epic launcher/helpers, 6x T3, 4-5x opencode agent
+  processes remained; one window overlapped 3x cargo + 1x rustc sibling
+  builds (retained as `benchmark-validate-contended-outlier.json`).
+  Stopping sibling work unauthorized.
+- Security/quotas/fixtures/budgets/durability: no change authorized in
+  this review; this plan changes none.
+- Owner coordination: quiet-host window requires explicit owner
+  scheduling (DriveFS pause + AV exclusion + sibling quiesce + AC power).
+  Until the owner confirms all §8.4 criteria, no further timed A/B may be
+  claimed as qualification.

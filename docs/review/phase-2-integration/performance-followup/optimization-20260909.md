@@ -37,7 +37,7 @@ experiment.
 
 | Item | Before | Candidate |
 | --- | --- | --- |
-| Repository commit | `1d7c298` | `b35c01a` |
+| Repository commit | `1d7c29828d4560c959f4fc140b8544ce06c05b80` | `b35c01a1ab75381e8d1d562fafcafa4764ba0b6f` |
 | Diagnostic parent | PR #93 head `59faefc` | PR #93 head `59faefc` |
 | Native profile | `profile-native-ops-v1` | `profile-native-ops-v1` |
 | Whole-scan driver | uninstrumented default `benchmark` path | same |
@@ -90,7 +90,7 @@ diagnostics.
 | --- | ---: | ---: | ---: |
 | Enumeration wall time | 8,942 ms | 8,728 ms | −2.4% |
 | Timed native-call sum | 8,699 ms | 8,483 ms | −2.5% |
-| Ancestor validation | 7,225 ms | 7,038 ms | −2.6% |
+| Ancestor validation | 7,224.8 ms | 7,043.2 ms | −2.5% |
 | Entry metadata | 106.161 ms | 77.649 ms | −26.9% |
 | Ancestor-validation calls | 26,163 | 26,163 | unchanged |
 | Validated ancestor links | 60,973 | 60,973 | unchanged |
