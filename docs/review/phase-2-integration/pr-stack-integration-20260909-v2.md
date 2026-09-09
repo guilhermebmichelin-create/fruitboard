@@ -38,6 +38,7 @@ and validation evidence.
 | #97 regression coverage | `test/95-durable-queue-watcher-20260909` | `d699ecdb49a77bbadac08e049ca056f50ce32aad` (stack includes `aba1812`, `c4754a2`) | `fix/92-installed-scan-console` |
 | #96 design proposal | `docs/41-bounded-scan-design-20260909` | `9aa97abab57f90589bdce8b55f3820d6bfe9cd7a` (includes `3be014074b385747e51d6d6b859180315a5b80bc`) | `main` |
 | #91 reconciliation (last) | `docs/41-reconciliation-20260908` | `986ca61a1a840f2a4418c2007fc6838c192c311c` (stack includes `c0a0bf1`, `70fa20f`, `55fefaf`) | `main` |
+| #100 packaging correction (Agent 2, after re-validation) | `fix/packaging-smoke-timeout-diagnostics` | `983fc648e8fbb48d7eca47e017e712ffb68d63d6` (green exact-head CI, all 10 checks) | `main` |
 
 Merge order preserved dependency order above. Stacked PRs were merged by head
 (`#93` then `#94` head then `#98` head; `#95` then `#97` head), so git ancestry
@@ -72,15 +73,21 @@ Current re-integration merges current heads on top of `f11f0d2`
   (delta on top of `3be0140`; docs-only)
 - `2179892afbb79b6a505ac2240c17d9226d8586a8` integrate #91 `986ca61`
   applied last (delta on top of `55fefaf`; docs-only)
+- `2ca518087f96657bf7481d3bae6dceb1a09eb1a8` report (sanitized paths,
+  current heads, `2179892` re-validation)
+- `79866c57eeefafe7eb09eda3cd6d86369c9d29ed` integrate #100 packaging
+  correction `983fc64` (Agent 2, green exact-head CI; code change in
+  packaging smoke harness + policy test)
 
-`2179892` is the current code-combined HEAD. The final report commit on top
-of it will be the frozen commit for Agent 3. Original gate results below
-tested `dcfa323` only, not `2179892`; re-validation on `2179892` follows
-in a separate section.
+`79866c5` is the current code-combined HEAD including #100. The final report
+commit on top of it will be the frozen commit for Agent 3. Original gate
+results below tested `dcfa323` only, not `2179892` or `79866c5`;
+re-validation sections follow separately for each combined commit.
 
 ## Conflict record
 
-All nine merges completed with `ort` without conflict markers, including the
+All thirteen merges (nine original + four current-head updates + #100)
+completed with `ort` without conflict markers, including the
 shared `docs/review/phase-2-integration/README.md` touched by #95/#97 and
 rewritten by #91. The final file was verified to retain both sides:
 
@@ -266,13 +273,55 @@ commit.
 - Agent 4 (#98): local correction `a3e738b` verified docs-only
   (3 files, no production code) and now published to
   `origin/perf/94-validation-20260909`; integrated as `cc46a7f`.
-- Agent 2 (packaging): no packaging correction found in fetched history as of
-  re-integration; if a packaging correction lands after freeze, installed
-  smoke/install/launch/uninstall checks must be repeated on the new combined
-  commit before handing to Agent 3.
+- Agent 2 (packaging): correction PR #100 `983fc64` published with green
+  exact-head CI (all 10 checks, including packaging smoke); integrated as
+  `79866c5`. Because it changes packaging harness code
+  (`packaging_smoke.rs`, smoke script, policy test), installed
+  smoke/install/launch/uninstall checks must be repeated on `79866c5`
+  (via CI, since local smoke is blocked) before handing to Agent 3.
 - Agent 3 (installed journey): frozen SHA and package window to be supplied
-  after final gates pass; if code changes after freeze, installed checks
-  requiring repeat will be listed explicitly.
+  after final gates pass on `79866c5`; if code changes after freeze, installed
+  checks requiring repeat will be listed explicitly.
+
+## Re-validation on current combined HEAD `79866c5` (includes #100)
+
+Run in the v2 worktree with pinned toolchains
+(`node v24.20.0`, `pnpm 11.25.0`, `rustc 1.98.1`, `uv 0.12.9` via
+repo-relative `.tools/` in the main checkout; absolute paths omitted).
+`CARGO_TARGET_DIR` isolated to separate build directory
+(name `build-integration-20260909-v4/`) for `pnpm check` and feature tests;
+packaging build used the worktree-local `target/` because
+`scripts/prepare-foundation-sidecar.mjs` expects the repo-relative sidecar
+path. Results for `dcfa323` and `2179892` above are preserved history and
+must not be cited as `79866c5` evidence.
+
+- `pnpm.cmd check`: **PASS** (exit 0) on `79866c5` + report edits.
+  Covers toolchains, SQLite embedded, privacy (275 files, including new
+  packaging-budget policy test), format, lint (docs 69 files 0 issues,
+  scripts, recursive, rust), typecheck, test (node 78 pass including
+  `the installed smoke deadline covers the bounded sidecar budget`,
+  client 13 files/134 tests, Rust workspace), and build.
+  Log: `build-integration-20260909-v4/logs/pnpm-check.log`.
+- Feature-on desktop: **PASS** on `79866c5`.
+  `cargo test -p fruitboard-desktop --features scan-console --locked`: 91
+  passed, 0 failed. Log: `build-integration-20260909-v4/logs/desktop-feature-tests.log`.
+  `cargo clippy -p fruitboard-desktop --features scan-console --all-targets --locked -- -D warnings`: pass (exit 0).
+  Log: `build-integration-20260909-v4/logs/desktop-feature-clippy.log`.
+- Diagnostics-enabled enumeration: **PASS** on `79866c5`.
+  `cargo fmt --all --check`: pass.
+  `cargo clippy -p fruitboard-filesystem-enumeration --features diagnostics --all-targets --locked -- -D warnings`: pass.
+  `cargo test -p fruitboard-filesystem-enumeration --features diagnostics --locked`: 44 passed, 2 ignored (ACL, DriveFS), 0 failed.
+  Logs: `build-integration-20260909-v4/logs/enumeration-diagnostics-*.log`.
+- Packaging build: **PASS** on `79866c5` (with #100 fix).
+  `pnpm.cmd package:windows:smoke` (worktree-local target): exit 0, produced
+  `target/release/bundle/nsis/Fruitboard Foundation Smoke_0.1.0_x64-setup.exe`.
+  Log: `build-integration-20260909-v4/logs/packaging-build.log`.
+  `pnpm.cmd smoke:windows:foundation:hosted`: **BLOCKED** locally (shared
+  host smoke directory already exists from other agents; no deletion
+  performed). Must rely on hosted CI for install/launch/uninstall evidence.
+  Because #100 changes packaging code, installed checks requiring repeat on
+  `79866c5` are: packaging build (done locally PASS), hosted
+  install/launch/sidecar/uninstall/reinstall/verify (via CI).
 
 ## Integration intent (validation only, not a merge vehicle)
 
