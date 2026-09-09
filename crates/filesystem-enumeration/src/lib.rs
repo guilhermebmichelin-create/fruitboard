@@ -2154,7 +2154,6 @@ mod windows_port {
     const FILE_NAMES_INFORMATION_CLASS: i32 = 12;
     const FILE_BASIC_INFORMATION_CLASS: i32 = 0;
     const FILE_STANDARD_INFORMATION_CLASS: i32 = 1;
-    const FILE_ATTRIBUTE_TAG_INFORMATION_CLASS: i32 = 9;
     const FILE_ID_INFO_CLASS: i32 = 18;
     const FILE_CASE_SENSITIVE_INFORMATION_CLASS: i32 = 23;
     const FILE_CS_FLAG_CASE_SENSITIVE_DIR: u32 = 0x0000_0001;
@@ -2204,13 +2203,6 @@ mod windows_port {
         number_of_links: u32,
         delete_pending: u8,
         directory: u8,
-    }
-
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct FileAttributeTagInfo {
-        file_attributes: u32,
-        reparse_tag: u32,
     }
 
     #[repr(C)]
@@ -2766,14 +2758,16 @@ mod windows_port {
         let basic = query_handle_info::<FileBasicInfo>(handle, FILE_BASIC_INFORMATION_CLASS)?;
         let standard =
             query_handle_info::<FileStandardInfo>(handle, FILE_STANDARD_INFORMATION_CLASS)?;
-        let tag = query_handle_info::<FileAttributeTagInfo>(
-            handle,
-            FILE_ATTRIBUTE_TAG_INFORMATION_CLASS,
-        )?;
         if standard.end_of_file < 0 {
             return Err(PortError::Other);
         }
-        let attributes = basic.file_attributes | tag.file_attributes;
+        // FILE_BASIC_INFORMATION already carries the complete attribute
+        // flags, including FILE_ATTRIBUTE_REPARSE_POINT and the recall/offline
+        // flags used below. The former FILE_ATTRIBUTE_TAG_INFORMATION query
+        // returned the same flags; its ReparseTag was never consumed. Keep
+        // the attribute decision on the handle and avoid a duplicate native
+        // metadata query without changing reparse classification.
+        let attributes = basic.file_attributes;
         let reparse_point = attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0;
         let recall_or_offline = attributes
             & (FILE_ATTRIBUTE_OFFLINE
