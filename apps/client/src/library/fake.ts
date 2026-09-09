@@ -219,6 +219,7 @@ export function createFakeLibraryScanAdapter(
           jobId: null,
           runId: null,
           cancellationRequested: false,
+          retryAvailable: false,
           counters: makeCounters(),
           lastSuccessfulScanAt: null,
           lastOutcomeAt: null,
@@ -262,13 +263,7 @@ export function createFakeLibraryScanAdapter(
         outcome: "already_running",
       };
     }
-    if (!current.root.enabled || current.root.availability === "unavailable") {
-      throw new LibraryAdapterError(
-        current.root.availability === "unavailable"
-          ? "unavailable"
-          : "conflict",
-      );
-    }
+    if (!current.root.enabled) throw new LibraryAdapterError("conflict");
 
     jobSequence += 1;
     const jobId = `fake-job-${jobSequence}`;
@@ -278,6 +273,7 @@ export function createFakeLibraryScanAdapter(
       jobId,
       runId: null,
       cancellationRequested: false,
+      retryAvailable: false,
       counters: makeCounters(),
       lastOutcomeAt: null,
       errorCode: null,
@@ -378,6 +374,7 @@ export function createFakeLibraryScanAdapter(
           ...current,
           state: "cancelled",
           cancellationRequested: wasRunning,
+          retryAvailable: false,
           lastOutcomeAt: now(),
           errorCode: "cancelled",
         });
@@ -427,11 +424,7 @@ export function createFakeLibraryScanAdapter(
           outcome: "already_running",
         };
       }
-      if (
-        current.state !== "failed" &&
-        current.state !== "cancelled" &&
-        current.state !== "interrupted"
-      ) {
+      if (current.state !== "failed" || !current.retryAvailable) {
         throw new LibraryAdapterError("conflict");
       }
       statusByRoot.set(rootId, {
@@ -439,6 +432,7 @@ export function createFakeLibraryScanAdapter(
         state: "queued",
         runId: null,
         cancellationRequested: false,
+        retryAvailable: false,
         counters: makeCounters(),
         lastOutcomeAt: null,
         errorCode: null,
@@ -476,6 +470,7 @@ export function createFakeLibraryScanAdapter(
       statusByRoot.set(rootId, {
         ...current,
         state: "completed",
+        retryAvailable: false,
         lastSuccessfulScanAt: now(),
         lastOutcomeAt: now(),
         errorCode: null,
@@ -491,6 +486,7 @@ export function createFakeLibraryScanAdapter(
       statusByRoot.set(rootId, {
         ...current,
         state: "failed",
+        retryAvailable: current.root.enabled,
         lastOutcomeAt: now(),
         errorCode: code,
       });
@@ -502,6 +498,7 @@ export function createFakeLibraryScanAdapter(
       statusByRoot.set(rootId, {
         ...current,
         state: "interrupted",
+        retryAvailable: false,
         lastOutcomeAt: now(),
         errorCode: "internal",
       });

@@ -120,6 +120,7 @@ interface ScanStatus {
     | "interrupted";
   jobId: string | null;
   runId: string | null;
+  retryAvailable: boolean;
   counters: {
     filesObserved: number; // validated safe integer
     directoriesVisited: number; // validated safe integer
@@ -135,6 +136,13 @@ interface ScanStatus {
 `runId` is allocated only when a worker leases an attempt, so it is null while
 the job is queued. Running work has both identities; terminal work keeps its
 job identity and may keep its completed run identity.
+
+`retryAvailable` is native-authoritative. It is true only for an enabled root
+whose latest job is `failed` and whose durable attempt count remains below
+`max_attempts`. The renderer shows `Retry` only when it is true. Cancelled,
+interrupted, and exhausted failed jobs use `scanNow(rootId)`, which creates a
+new job and retry chain without reviving the terminal job or resetting its
+automatic retry budget.
 
 The native boundary must make timestamp and integer conversions explicit:
 native integer milliseconds such as `*_at_ms` become RFC 3339 UTC strings;
@@ -182,8 +190,11 @@ retryScan(jobId): Promise<ScanStartResult>;
 
 Queued cancellation is immediate; running cancellation persists a request for
 the leased worker. A complete-before-cancel race returns the completed outcome
-and does not claim rollback. For a root with no prior terminal job, the UI uses
-`scanNow(rootId)` for its recovery button; it does not invent a job ID.
+and does not claim rollback. A disabled or removed root keeps recovery controls
+disabled or reports the native `conflict`/`not_found` result after a state race;
+the renderer does not infer reachability from the last availability
+observation. For terminal work without `retryAvailable`, the UI uses
+`scanNow(rootId)` for recovery and does not invent a job ID.
 
 Safe error codes should be a closed, versioned set:
 

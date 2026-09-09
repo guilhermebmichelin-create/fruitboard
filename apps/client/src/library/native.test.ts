@@ -46,6 +46,7 @@ const baseStatus = {
   jobId: "job-1",
   runId: null,
   cancellationRequested: false,
+  retryAvailable: false,
   counters: { filesObserved: 0, directoriesVisited: 0, totalFiles: null },
   lastSuccessfulScanAt: null,
   lastOutcomeAt: "2026-01-02T03:04:05.123Z",
@@ -337,6 +338,41 @@ describe("native status list seam", () => {
       directoriesVisited: 0,
       totalFiles: null,
     });
+  });
+
+  it("parses the native retry capability and rejects impossible recovery flags", async () => {
+    const { transport } = transportWith(() =>
+      okEnvelope([
+        {
+          ...baseStatus,
+          state: "failed",
+          errorCode: "unavailable",
+          retryAvailable: true,
+          jobId: "job-1",
+        },
+      ]),
+    );
+    const [status] =
+      await createNativeLibraryScanAdapter(transport).listScanStatuses();
+    expect(status?.retryAvailable).toBe(true);
+
+    for (const patch of [
+      { retryAvailable: true },
+      { state: "failed", retryAvailable: true, jobId: null },
+      {
+        state: "failed",
+        retryAvailable: true,
+        root: { ...scanRoot, enabled: false },
+      },
+    ]) {
+      const { transport: invalidTransport } = transportWith(() =>
+        okEnvelope([{ ...baseStatus, ...patch }]),
+      );
+      await expectCode(
+        createNativeLibraryScanAdapter(invalidTransport).listScanStatuses(),
+        "internal",
+      );
+    }
   });
 
   it("rejects queued statuses that carry a runId or an error code", async () => {

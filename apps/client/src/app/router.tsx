@@ -4,7 +4,10 @@ import {
   type RouteObject,
 } from "react-router";
 import type { PlatformPort } from "../platform/contracts";
-import type { LibraryScanAdapter } from "../library/contracts";
+import type {
+  LibraryRenderContext,
+  LibraryScanAdapter,
+} from "../library/contracts";
 import { SafeApplicationError } from "./AppErrorBoundary";
 import { FruitboardApp } from "./FruitboardApp";
 import {
@@ -18,6 +21,7 @@ import {
 export function createRoutes(
   platform: PlatformPort,
   libraryAdapter?: LibraryScanAdapter,
+  libraryRenderContext: LibraryRenderContext = "native",
 ): RouteObject[] {
   return [
     {
@@ -28,7 +32,12 @@ export function createRoutes(
         { index: true, element: <HomePage /> },
         {
           path: "library",
-          element: <LibraryPage adapter={libraryAdapter} />,
+          element: (
+            <LibraryPage
+              adapter={libraryAdapter}
+              renderContext={libraryRenderContext}
+            />
+          ),
         },
         { path: "board", element: <BoardPage /> },
         {
@@ -44,16 +53,21 @@ export function createRoutes(
 export function createFruitboardHashRouter(
   platform: PlatformPort,
   libraryAdapter?: LibraryScanAdapter,
+  libraryRenderContext: LibraryRenderContext = "native",
 ) {
-  return createHashRouter(createRoutes(platform, libraryAdapter));
+  return createHashRouter(
+    createRoutes(platform, libraryAdapter, libraryRenderContext),
+  );
 }
 
 export function createFruitboardMemoryRouter(
   platform: PlatformPort,
   initialEntries: string[] = ["/"],
   libraryAdapter?: LibraryScanAdapter,
+  libraryRenderContext: LibraryRenderContext = "native",
 ) {
-  return createMemoryRouter(createRoutes(platform, libraryAdapter), {
-    initialEntries,
-  });
+  return createMemoryRouter(
+    createRoutes(platform, libraryAdapter, libraryRenderContext),
+    { initialEntries },
+  );
 }

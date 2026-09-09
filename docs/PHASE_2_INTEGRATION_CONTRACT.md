@@ -264,6 +264,7 @@ interface ScanStatus {
   state: "idle" | "queued" | "running" | "completed" |
     "cancelled" | "failed" | "interrupted";
   cancellationRequested: boolean;
+  retryAvailable: boolean;
 }
 ```
 
@@ -277,7 +278,13 @@ run-level fencing use `runId + leaseToken`.
 SQLite commit order defines the race: cancellation committed before final
 publication prevents publication; publication committed first remains
 completed and a late cancellation reports that outcome without rollback.
-User cancellation is not an automatic retry.
+User cancellation is not an automatic retry. `retryAvailable` is true only for
+an enabled failed job whose durable attempt count is below `max_attempts`;
+otherwise the client uses `scanNow(rootId)`. That explicit action creates a
+fresh job and retry chain for cancelled or exhausted work. It never revives the
+terminal job or silently resets its automatic retry budget. Disabled or
+removed roots remain rejected by the native enqueue contract, including when
+the root changes between rendering and the action.
 
 ## 5. Smallest coherent Library query
 

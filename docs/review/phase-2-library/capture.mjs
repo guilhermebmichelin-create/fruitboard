@@ -112,7 +112,9 @@ for (const [name, width, height] of [
     container.id = "root";
     document.body.append(container);
     location.hash = "/library";
-    mountFruitboard(container, platform, adapter);
+    mountFruitboard(container, platform, adapter, {
+      libraryRenderContext: "review-harness",
+    });
   });
 
   await page.getByRole("heading", { name: "Your FLP library" }).waitFor();
@@ -126,10 +128,6 @@ for (const [name, width, height] of [
   });
   const cancelButton = page.getByRole("button", {
     name: `Cancel scan ${scanName}`,
-    exact: true,
-  });
-  const retryButton = page.getByRole("button", {
-    name: `Retry scan ${scanName}`,
     exact: true,
   });
 
@@ -219,7 +217,12 @@ for (const [name, width, height] of [
   await page
     .getByRole("heading", { name: "Showing previous committed results" })
     .waitFor();
-  await assertFocus(retryButton, "Cancelled focus moves to Retry");
+  await assertFocus(scanButton, "Cancelled focus moves to Scan now");
+  if (
+    await page.getByRole("button", { name: `Retry scan ${scanName}` }).count()
+  ) {
+    throw new Error(`${name}: cancelled work must not expose Retry`);
+  }
   await state("Cancel retains previous committed results");
   await page.screenshot({
     path: `${outputDirectory}/${name}-cancelled-stale.png`,
@@ -228,10 +231,10 @@ for (const [name, width, height] of [
 
   await page.keyboard.press("Enter");
   await page.getByText("Queued", { exact: true }).waitFor();
-  await assertFocus(cancelButton, "Retry focus moves to Cancel");
-  await state("Enter retries scan");
+  await assertFocus(cancelButton, "Scan now focus moves to Cancel");
+  await state("Enter starts a fresh scan after cancellation");
   await page.screenshot({
-    path: `${outputDirectory}/${name}-retried.png`,
+    path: `${outputDirectory}/${name}-fresh-scan.png`,
     fullPage: true,
   });
 

@@ -15,4 +15,5 @@ mountFruitboard(
   container,
   createTauriPlatform(),
   createTauriLibraryScanAdapter(),
+  { libraryRenderContext: "native" },
 );

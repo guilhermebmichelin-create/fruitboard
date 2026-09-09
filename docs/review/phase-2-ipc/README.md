@@ -61,10 +61,13 @@ while queued.
 keeps `not_found` for parity; unknown jobs currently surface the typed
 `not_found` *error*, matching the draft PR's fake adapter).
 
-`ScanStatus` `{root, state, jobId, runId, cancellationRequested, counters,
-lastSuccessfulScanAt, lastOutcomeAt, errorCode}` — the client contract's
-exact shape. `root` is the platform `ScanRoot`; `root.canonicalPath` appears
-only in that management field, never in diagnostics or error payloads.
+`ScanStatus` `{root, state, jobId, runId, cancellationRequested,
+retryAvailable, counters, lastSuccessfulScanAt, lastOutcomeAt, errorCode}` —
+the client contract's exact shape. `retryAvailable` is native-authoritative:
+it is true only when the latest job is failed, still below its durable attempt
+budget, and its root is enabled. `root` is the platform `ScanRoot`;
+`root.canonicalPath` appears only in that management field, never in
+diagnostics or error payloads.
 
 `LibraryPage` `{rootId, snapshotId, records, nextCursor}`; records are the
 client's `PublishedFileLocation` shape with `byteSize` as a canonical decimal
@@ -129,21 +132,27 @@ surfaces as `queued` with the interrupted run retained in the durable ledger.
 | running job, worker committed its outcome first | `already_running` (with runId) | `already_completed` / `already_cancelled` / `already_failed` | `already_running` (with runId) |
 | terminal cancelled | — | `already_cancelled` | `conflict` error |
 | terminal completed | — | `already_completed` | `conflict` error |
-| terminal failed | — | `already_failed` | requeue → `queued`; exhausted budget → `conflict` error |
+| terminal failed | — | `already_failed` | eligible job requeue → `queued`; exhausted or disabled job → `conflict` error |
 | terminal interrupted | — | `already_failed` | `conflict` error |
 | unknown job | `not_found` error | `not_found` error | `not_found` error |
 | unknown/disabled root | `not_found` / `conflict` error | — | — |
 
-Notes: `retry_failed_scan_job` returns false for exhausted chains; the closed
-`ScanStartOutcome` union has no "already_failed", so the safe `conflict`
-error is used (documented divergence from the UI-only fake, which can always
-requeue). Cancelled chains are never revived (durable contract, not a fake
-behavior). Cancel/commit race: SQLite serializes the cancel write against the
-worker's terminal write, so whichever commits first decides the outcome. A
-first-time cancel of a running scan can therefore surface `already_cancelled`
-(or `already_completed`/`already_failed`) when the worker committed its
-outcome first; every `already_*` outcome is a terminal no-op for the UI and
-carries the recorded `runId` for reference.
+Notes: `retry_failed_scan_job` returns false for exhausted or disabled chains;
+the closed `ScanStartOutcome` union has no "already_failed", so the safe
+`conflict` error is used. Cancelled chains are never revived. Cancel/commit
+race: SQLite serializes the cancel write against the worker's terminal write,
+so whichever commits first decides the outcome. A first-time cancel of a
+running scan can therefore surface `already_cancelled` (or
+`already_completed`/`already_failed`) when the worker committed its outcome
+first; every `already_*` outcome is a terminal no-op for the UI and carries the
+recorded `runId` for reference.
+
+`retryAvailable` is false for terminal cancelled, interrupted, exhausted, and
+disabled work. The renderer uses the explicit `scan_now` action for those
+states. `scan_now` creates a new job and retry chain for terminal work; it
+never revives the old job or resets its automatic retry budget. The fake
+adapter follows this action contract rather than inventing recovery from a
+job id.
 
 ### Error codes
 
@@ -248,7 +257,7 @@ the typed unavailable envelope and `{enabled: false}`.
       untouched.
 - [x] Flagged test gaps closed: counters honesty (restart drops in-memory
       counters, durable statuses/library survive), retry-exhausted → `conflict`
-      divergence from the fake, `Busy` → `unavailable`, `invalid_cursor` vs
+      the same terminal recovery contract as the fake, `Busy` → `unavailable`, `invalid_cursor` vs
       `stale_cursor` mismatch, event/error privacy (no paths/tokens/SQL).
 - [ ] Owner accepts the native command/event surface against the client seam
       (`apps/client/src/library/contracts.ts` on the draft PR branch).

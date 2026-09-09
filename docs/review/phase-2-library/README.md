@@ -1,16 +1,16 @@
 # Phase 2 Library/scan-status client evidence
 
-Captured 2026-09-07 from the shared React client at 1280×1600 and 390×844.
+Captured 2026-09-09 from the shared React client at 1280×1600 and 390×844.
 This is explicitly **stateful fake-adapter evidence**. The harness does not
 enumerate a filesystem, read SQLite, request native permissions, or enable
 production scanning. It is not native/filesystem evidence.
 
 ## Rendered evidence
 
-| Viewport          | Populated/pagination                           | Queued                                   | Cancelled + stale results                                  | Retried                                    |
-| ----------------- | ---------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------- | ------------------------------------------ |
-| Desktop 1280×1600 | [desktop-populated.png](desktop-populated.png) | [desktop-queued.png](desktop-queued.png) | [desktop-cancelled-stale.png](desktop-cancelled-stale.png) | [desktop-retried.png](desktop-retried.png) |
-| Narrow 390×844    | [narrow-populated.png](narrow-populated.png)   | [narrow-queued.png](narrow-queued.png)   | [narrow-cancelled-stale.png](narrow-cancelled-stale.png)   | [narrow-retried.png](narrow-retried.png)   |
+| Viewport          | Populated/pagination                           | Queued                                   | Cancelled + stale results                                  | Fresh scan after cancellation                    |
+| ----------------- | ---------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------ |
+| Desktop 1280×1600 | [desktop-populated.png](desktop-populated.png) | [desktop-queued.png](desktop-queued.png) | [desktop-cancelled-stale.png](desktop-cancelled-stale.png) | [desktop-fresh-scan.png](desktop-fresh-scan.png) |
+| Narrow 390×844    | [narrow-populated.png](narrow-populated.png)   | [narrow-queued.png](narrow-queued.png)   | [narrow-cancelled-stale.png](narrow-cancelled-stale.png)   | [narrow-fresh-scan.png](narrow-fresh-scan.png)   |
 
 Fixtures use the duplicate display name `Projects` at
 `C:\Synthetic\Music\Projects` and `D:\Synthetic\Archive\Projects`, plus
@@ -26,12 +26,14 @@ relative paths wrap in the narrow layout.
 [`capture.mjs`](capture.mjs). The script fails if any expected control focus is
 wrong, if the page has horizontal overflow, or if a numeric percentage appears
 while total work is unknown. The sequence uses keyboard Tab/Enter only for
-Scan now, Cancel, and Retry, and asserts focus transitions:
+Scan now and Cancel, and asserts focus transitions:
 
 - Tab reaches the duplicate-safe Scan now name;
 - Scan now lands on Cancel in queued/running states;
-- Cancel lands on Retry and keeps the old committed file list visible;
-- Retry returns focus to Cancel.
+- Cancel lands on Scan now and keeps the old committed file list visible;
+- Cancelled work exposes Scan now, which starts a fresh queued chain and returns
+  focus to Cancel; Retry remains covered by the native/client boundary tests
+  only for an eligible failed job.
 
 ## Automated client evidence
 
@@ -49,16 +51,18 @@ Scan now, Cancel, and Retry, and asserts focus transitions:
   requests are pending (stale responses discarded), stale-cursor restart,
   sibling-root publication isolation, duplicate roots, maximum decimal
   numerics, job-based queue and cancellation, retry, failed and interrupted
-  scans, unavailable/unknown availability, page-read retry, reverse-order
-  page/status subscription refreshes, adapter replacement, and unmount
-  safety. Review-round regressions: a queued status with a null `jobId`
+  scans, unavailable/unknown availability, terminal Scan now recovery,
+  disabled-root action handling, page-read retry, reverse-order page/status
+  subscription refreshes, adapter replacement, and unmount safety. Review-round
+  regressions: native versus harness labeling, cancelled/exhausted recovery,
+  and a queued status with a null `jobId`
   surfaces a recoverable cancel error instead of a silent no-op, a rapid
   burst of committed snapshots coalesces behind a restart cooldown instead of
   looping page-one restarts, and detached-history records sharing an active
   root's display name are disambiguated with the canonical path.
 - `LibraryPage.accessibility.test.tsx`: axe checks for populated, queued,
   running, cancelled, retry, and unavailable states, keyboard activation
-  and focus recovery across queue/cancel/retry, keyboard-operable root
+  and focus recovery across queue/cancel/fresh-scan, keyboard-operable root
   selector with duplicate disambiguation, and per-root snapshot restart. The
   page-count line is static text; a visually hidden polite live region
   announces only actual page changes, so unrelated re-renders stay silent.
@@ -71,16 +75,16 @@ Scan now, Cancel, and Retry, and asserts focus transitions:
   for the renderer's page-one restart (`cursor: null`, same `rootId`),
   `limit` clamp `1..200`, decimal-string `byteSize` with SQLite-bound
   validation, RFC 3339-ns `modifiedAt` retention, per-root pages with no
-  cross-root merge or sort, strict envelope/message/retryable hardening
+  cross-root merge or sort, `retryAvailable` validation for eligible versus
+  impossible recovery flags, strict envelope/message/retryable hardening
   (`invalid_request` and unknown codes map to `internal`; transport
   failures map to recoverable `unavailable`), and the typed
   `scan-status-changed` subscription with safe unsubscribe and
   dispose-before-resolve.
-- Latest client run: 13 test files and 128 tests passed; lint and TypeScript
+- Latest client run: 13 test files and 134 tests passed; lint and TypeScript
   checks passed; production build passed.
-- The 2026-09-07 rendered captures above were not regenerated for this
-  review round: the cancel-error, restart-cooldown, record-disambiguation,
-  and live-region fixes do not change any captured visible state.
+- The 2026-09-09 rendered captures above were regenerated after the terminal
+  recovery action change; they remain fake-adapter harness evidence.
 - Existing shell accessibility tests continue to cover the production route
   with no adapter. It renders the explicit integration-pending state with no
   nonfunctional scan controls.
@@ -102,6 +106,9 @@ job has a job ID and no run ID until `advanceRun` simulates leasing.
    `scan-status-changed` subscription). Queued results keep `jobId` with a
    null `runId`; `already_queued`/`already_running` coalesce; terminal
    cancel `already_*` outcomes are no-ops carrying the recorded `runId`;
+   `retryAvailable` exposes Retry only for an enabled failed job below its
+   durable attempt budget; cancelled and exhausted work uses a fresh Scan now
+   job/chain;
    `not_found`/`conflict`/`unavailable`/`internal` map to the closed
    library codes; `invalid_cursor`/`stale_cursor` surface for the
    renderer's existing page-one restart (`cursor: null`, same `rootId`);
@@ -127,7 +134,8 @@ job has a job ID and no run ID until `advanceRun` simulates leasing.
    restart, union(statuses, pages) disambiguation, static page-count text
    with hidden polite live region on page change only, and
    mount/adapter-lifetime/subscription cleanup). Production entry
-   `apps/client/src/entries/desktop.tsx` mounts the native adapter;
+   `apps/client/src/entries/desktop.tsx` mounts the native adapter and
+   explicitly selects the native Library render context;
    `capabilities/main.json` plus `permissions/scan-console.toml` permit
    only the six scan-console commands (`removeUnusedCommands` stays true
    for everything else). With the `scan-console` cargo feature off every
@@ -140,7 +148,7 @@ job has a job ID and no run ID until `advanceRun` simulates leasing.
 4. [x] Desktop/narrow keyboard, axe, overflow, and source-byte/privacy
    checks re-run against this branch: `capture.mjs` regenerates the
    desktop/narrow PNGs (1280×1600 + 390×844) and `keyboard-trace.json`
-   (Tab/Enter Scan→Cancel→Retry→Cancel, no `%` while `totalFiles` is
+   (Tab/Enter Scan→Cancel→Scan now→Cancel, no `%` while `totalFiles` is
    null, no horizontal overflow); the axe suite in
    `LibraryPage.accessibility.test.tsx` passes; `native.test.ts` covers
    the integrated adapter's typed envelopes. Rendered captures remain

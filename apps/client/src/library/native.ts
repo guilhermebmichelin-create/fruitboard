@@ -274,6 +274,16 @@ export function parseScanStatus(value: unknown): ScanStatus {
   if (cancellationValue !== true && cancellationValue !== false) {
     throw new LibraryAdapterError("internal");
   }
+  const retryAvailableValue: unknown = value["retryAvailable"];
+  if (retryAvailableValue !== true && retryAvailableValue !== false) {
+    throw new LibraryAdapterError("internal");
+  }
+  if (
+    retryAvailableValue === true &&
+    (state !== "failed" || jobId === null || !root.enabled)
+  ) {
+    throw new LibraryAdapterError("internal");
+  }
   const counters = parseCounters(value["counters"]);
   const lastSuccessfulScanAt = parseOptionalTimestamp(
     value["lastSuccessfulScanAt"],
@@ -293,6 +303,7 @@ export function parseScanStatus(value: unknown): ScanStatus {
     jobId,
     runId,
     cancellationRequested: cancellationValue,
+    retryAvailable: retryAvailableValue,
     counters,
     lastSuccessfulScanAt,
     lastOutcomeAt,
