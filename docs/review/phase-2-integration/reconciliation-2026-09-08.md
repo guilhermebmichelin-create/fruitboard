@@ -1,4 +1,4 @@
-# Phase 2 status reconciliation - 2026-09-08 (refreshed 2026-09-09)
+# Phase 2 status reconciliation - 2026-09-08 (refreshed 2026-09-09, second wave)
 
 Status: **evidence reconciliation only; Phase 2 is not accepted.** This report
 audits the current status documents against the fetched `origin/main`,
@@ -11,9 +11,12 @@ evidence and raw JSON files, platform research, application code, or production
 gates. The checklist observations are recorded in unmerged PR #92; the platform
 reports are in unmerged PR #90; the diagnostic profile is in unmerged PR #93;
 the stacked optimization is in unmerged PR #94; the D1–D3 repairs are in unmerged
-PR #95; and the F1/F3 scale design is proposed in unmerged draft PR #96. Historical
-checkpoint, continuation, acceptance-preparation, benchmark, post-merge, and
-platform-research records remain historical records.
+PR #95; the F1/F3 scale design is proposed in unmerged draft PR #96; the
+durable-queue and watcher-burst integration tests are in unmerged draft PR #97;
+and the PR #94 validation with diagnostic cleanup is in unmerged draft PR #98.
+Historical checkpoint, continuation, acceptance-preparation, benchmark,
+post-merge, and platform-research records remain historical records and are not
+rewritten by this refresh.
 
 ## 2026-09-09 refresh addendum
 
@@ -50,6 +53,64 @@ open issues remain #33, #36–#41, #47, #48. Deltas since 2026-09-08:
   quota/deferral comparison) is in draft
   [PR #96](https://github.com/guilhermebmichelin-create/fruitboard/pull/96)
   as a proposal only. No acceptance is promoted by this refresh.
+
+## 2026-09-09 second refresh addendum (independent wave)
+
+`origin/main` re-verified 2026-09-09 local time remains
+`0b7612db3570e6235d4d2c86a678dd9004264f30` (PR #89); no new merges. Open
+drafts are now #90 through #98 (this reconciliation is #91); open issues
+remain #33, #36–#41, #47, #48. Deltas since the first 2026-09-09 refresh:
+
+- PR #97 head `aba1812` (`test/95-durable-queue-watcher-20260909`, base PR #95
+  `bf0aeac` on `main` `0b7612d`) adds automated integration evidence only: one
+  mid-scan convergence test through the real supervisor plus native
+  status/Library API (`Interrupted` first attempt publishes nothing, one queued
+  follow-up, authoritative follow-up carries the added location and the removed
+  location as `missing`), one idle-burst test (5,000 + 5,000 signals collapse
+  to exactly one queued job), and one stale-generation test (0 jobs while
+  disabled; 1 gap after re-enable with stale replay still 1; replacement keeps
+  1 with retired-generation replay still 1). No production, Library UI,
+  enumeration, migration, contract, budget, or acceptance change. Foundation
+  run `34339792661` and packaging run `34339792759` are green. Full `pnpm check`
+  was not rerun there (shared desktop build owned in parallel); the slice
+  records its focused-suite scope explicitly. Installed queued visibility,
+  watcher burst timing, restart-during-scan handling, and unavailable-root
+  retention beyond PR #95 remain unverified installed-only gaps. P2-04/P2-09
+  ledger entries below record this as automated evidence, not installed
+  observation.
+- PR #98 head `15b7f17` (`perf/94-validation-20260909`) independently validates
+  PR #94 without another speculative optimization: committed before/candidate
+  stats recomputed and matched, identical fixtures/toolchains/profiles/flags
+  confirmed, no nested-timer double counting, instrumented traversal separated
+  from uninstrumented full scans, and the single-query saving explained as tens
+  of milliseconds (attributes already in basic info; tag value never consumed).
+  New contended-host 1+10+3 A/B on identical `custom-9995` fails the 10 s p95
+  on both sides; no qualification is claimed. The branch removes only dead
+  diagnostic scaffolding (8 deletions; diagnostics remain `cfg`-gated) and
+  requests Agent 1 review without touching the PR #94 branch. CI for the
+  validation head was separately dispatched at this refresh and is not cited
+  as green until its runs complete. Recommendation recorded there is
+  revise-then-keep as cleanup, not a performance win.
+- Agent 1 integration evidence (PR #95 owner): no new head beyond `bf0aeac`
+  at this refresh. The D1–D3 repairs stay verified-but-unmerged; durable queued
+  observation and independent burst counts are carried by the independent PR
+  #97 work, not by a new Agent 1 commit. Rebuilding PR #95 from the then-merged
+  `main` where the owner requires it remains an open step.
+- PR #96 proposal correction head `9aa97ab` (on base `3be0140`): independent
+  review owning six unresolved mechanisms (bounded global identity planning,
+  coverage denominator, cross-page hardlink/rename/conflict handling,
+  lease/cancellation fencing inside the final transaction, publication lock
+  duration under the single-connection `DELETE`-journal architecture, and
+  disk/cleanup/backup bounds) with concrete options and validation gates in
+  the new §2.9, plus paging caveats in §2.3/§2.4 and decision items 9–11 in
+  §4. Foundation run `34339001103` and packaging run `34339001084` are green
+  for the pre-correction head; the correction re-runs docs/policy checks only.
+  Still a proposal: no implementation, migration, quota, budget, acceptance,
+  gate, or platform-scope change.
+- Merged/unmerged labels corrected throughout: PRs #82, #85–#89 are merged;
+  PRs #90 and #92–#98 are unmerged drafts (this PR #91 included). No unmerged
+  observation, proposal, validation, or check run is relabeled as merged
+  evidence.
 
 ## Executive result
 
@@ -114,9 +175,9 @@ The latest first-parent sequence is:
 Live GitHub at the 2026-09-08 audit showed open issues (#33 plus #36 through #41,
 plus #47 and #48). It also showed open draft PRs (#90 through #93); no reviews or
 comments were recorded on those four PRs at that audit point. At the 2026-09-09
-refresh, open issues are unchanged and open drafts are PRs #90 through #95 (plus new
-proposal draft PR #96); all remain unmerged drafts. The exact issue and PR links are in the
-[integration index](README.md) and the parent [Phase 2
+second refresh, open issues are unchanged and open drafts are PRs #90–#98
+(this reconciliation is #91); all remain unmerged drafts. The exact issue
+and PR links are in the [integration index](README.md) and the parent [Phase 2
 epic](https://github.com/guilhermebmichelin-create/fruitboard/issues/33).
 
 ### CI provenance
@@ -140,7 +201,9 @@ to `main`.
 | PR #93 head (unmerged diagnostic profile) | [`59faefc2806a725368a59e7b6fc9be7f863f4fec`](https://github.com/guilhermebmichelin-create/fruitboard/commit/59faefc2806a725368a59e7b6fc9be7f863f4fec) | [Foundation run 34301751666](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34301751666) and [packaging run 34301751625](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34301751625): both success; profile is contended shared-host diagnostics, not an idle-host pass |
 | PR #94 head (unmerged, stacked on #93) | [`588867bca154e798f189f6c99de8a2668005d141`](https://github.com/guilhermebmichelin-create/fruitboard/commit/588867bca154e798f189f6c99de8a2668005d141) (base `docs/41-performance-followup-20260908`) | No exact-head CI reported at the refresh; needs combined validation with #93 plus a quiet-host A/B rerun. Contended whole-scan median 11,735.5 ms to 11,517 ms with p95/max 12,188 ms to 17,682 ms on an outlier; not a p95 win or 10 s qualification |
 | PR #95 head (unmerged D1–D3 repairs) | [`bf0aeac38ac46dbb90990611b940429e232f67ef`](https://github.com/guilhermebmichelin-create/fruitboard/commit/bf0aeac38ac46dbb90990611b940429e232f67ef) | [Foundation run 34309511415](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34309511415) and [packaging run 34309511404](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34309511404): both success. Verified D1–D3 repairs with automated and installed-replay evidence; replay retained no durable queued snapshot; ACL/DriveFS/cross-volume/FAT32/100k/burst cases remain outside its scope; draft remains open and unmerged |
-| PR #96 head (unmerged scale-design proposal) | [`3be014074b385747e51d6d6b859180315a5b80bc`](https://github.com/guilhermebmichelin-create/fruitboard/commit/3be014074b385747e51d6d6b859180315a5b80bc) | New draft proposal only (F1 exact fixture vs quota; F3 chunked snapshot); no implementation, quota, budget, or acceptance change; CI pending at the refresh |
+| PR #96 head (unmerged scale-design proposal) | [`3be014074b385747e51d6d6b859180315a5b80bc`](https://github.com/guilhermebmichelin-create/fruitboard/commit/3be014074b385747e51d6d6b859180315a5b80bc) plus correction `9aa97ab` | [Foundation run 34339001103](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34339001103) and [packaging run 34339001084](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34339001084): both success for the pre-correction head. Proposal plus independent-review correction (§2.9 unresolved mechanisms with options and validation gates); no implementation, quota, budget, or acceptance change |
+| PR #97 head (unmerged durable-queue/watcher tests) | [`aba18121f6fa6d80d5fcc67be6985277154969f5`](https://github.com/guilhermebmichelin-create/fruitboard/commit/aba18121f6fa6d80d5fcc67be6985277154969f5) (base PR #95 `bf0aeac` on `main` `0b7612d`) | [Foundation run 34339792661](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34339792661) and [packaging run 34339792759](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34339792759): both success. Test-only additions (3 new deterministic tests) plus dated evidence report; no production, Library UI, enumeration, migration, contract, budget, or acceptance change. Automated integration evidence; installed queued visibility and burst timing remain unverified |
+| PR #98 head (unmerged PR #94 validation) | [`15b7f170c579d42c4f23f9619949236af4971ba2`](https://github.com/guilhermebmichelin-create/fruitboard/commit/15b7f170c579d42c4f23f9619949236af4971ba2) | CI separately dispatched at this refresh; not cited as green until runs complete. Contended-host 1+10+3 A/B on identical `custom-9995` (both sides fail 10 s p95; no qualification claimed) plus 8-line dead-scaffolding removal; revise-then-keep as cleanup pending Agent 1 review; does not touch the PR #94 branch |
 
 The push run for merged commit `c8d8255` was cancelled when the next
 `main` push arrived. Therefore the #88 PR-head checks are cited for that
@@ -286,7 +349,21 @@ columns.
   unavailable-root chain was non-actionable (D3). Both repairs are verified in
   still-unmerged PR #95 (native `retryAvailable` fencing with `Scan now` for
   terminal chains, plus the additive `run-20260909.md` replay); PR #95 remains
-  an open draft and its replay retained no durable queued snapshot.
+  an open draft and its replay retained no durable queued snapshot. No new
+  Agent 1 head beyond `bf0aeac` exists at this refresh.
+- **Automated integration evidence (new, PR #97, not installed):** Unmerged
+  draft PR #97 head `aba1812` pins three deterministic fences at the real
+  supervisor plus native status/Library API with fake clocks and no sleeps:
+  mid-scan trigger converges (`Interrupted` first attempt publishes nothing,
+  one queued follow-up, authoritative follow-up carries the added location and
+  the removed location as `missing`); 5,000 + 5,000 idle signals collapse to
+  exactly one queued job; stale generations cannot revive disabled or removed
+  roots (0 jobs while disabled; replacement keeps 1 with retired-generation
+  replay still 1). Foundation run `34339792661` and packaging run
+  `34339792759` are green. This is automated evidence for the durable queued
+  slot and stale-fencing behavior; it does not supply the installed queued
+  snapshot, burst timing, restart-during-scan handling, or unavailable-root
+  retention beyond PR #95, which remain installed-only gaps.
 - **Performance qualification:** The re-run reports cooperative worker stop
   p95 of 22 ms over six samples, but has no renderer and does not exercise the
   250 ms UI acknowledgement budget. It is not a complete P2-04 qualification.
@@ -295,8 +372,9 @@ columns.
 - **Owner acceptance:** No explicit P2-04 owner acceptance was found.
 - **Reconciled status/gate:** Partial. Review verified D1–D3 repairs in
   still-unmerged PR #95 (rebuilding from merged `main` where required),
-  capture the durable queued observation through the independently addressed
-  queue/watcher work, then complete the end-to-end review.
+  review the automated PR #97 fences without counting them as installed
+  observation, capture the installed queued snapshot and burst timing through
+  installed runs, then complete the end-to-end review.
 
 ### P2-05 - Disable/remove while queued or running prevents stale publication
 
@@ -430,8 +508,17 @@ columns.
   watcher follow-ups for add/rename/metadata/remove/restore changes and
   convergence to committed Library results. It does not independently count a
   burst to prove the at-most-one queued-follow-up bound, and it does not record
-  installed coverage-loss, overflow, or stale-generation cases. Those gaps are
-  being addressed independently and are not claimed here.
+  installed coverage-loss, overflow, or stale-generation cases.
+- **Automated integration evidence (new, PR #97, not installed):** Unmerged
+  draft PR #97 head `aba1812` supplies the missing deterministic counts at the
+  supervisor seam (Foundation run `34339792661` green): idle 5,000 + 5,000
+  bursts collapse to one queued job, running-burst follow-up behavior is
+  extended by the mid-scan convergence test, and stale-generation replay after
+  disable/re-enable and remove/re-add is fenced to zero extra jobs. Existing
+  running-burst, precedence, and overflow tests are cited, not duplicated. Real
+  OS overflow timing, installed burst-coalescing measurement, coverage-loss
+  timing, and DriveFS/network/ACL cases remain unverified and are explicitly
+  not claimed there.
 - **Performance qualification:** No real OS overflow timing or installed
   watcher latency qualification is recorded.
 - **Platform qualification:** Injected handles and Windows CI qualify
@@ -439,8 +526,9 @@ columns.
   during a watch, and real overflow timing remain unverified.
 - **Owner acceptance:** No explicit P2-09 owner acceptance or #47 scope
   exclusion was found.
-- **Reconciled status/gate:** Partial. Independently count burst coalescing,
-  run the remaining loss/overflow cases as scoped, and resolve the
+- **Reconciled status/gate:** Partial. The automated burst/stale counts now
+  exist in unmerged PR #97; still required are the installed
+  burst-coalescing count, loss/overflow cases as scoped, and the
   DriveFS/platform gate.
 
 ### P2-10 - No parsing, hydration, or source mutation in discovery
@@ -503,7 +591,17 @@ columns.
   combined validation plus a quiet-host A/B rerun; it is not an end-to-end p95
   win and does not qualify the 10 s target. Scale options are proposed in
   draft [PR #96](https://github.com/guilhermebmichelin-create/fruitboard/pull/96)
-  without applying either F1 option or authorizing F3 implementation.
+  without applying either F1 option or authorizing F3 implementation. Unmerged
+  draft [PR #98](https://github.com/guilhermebmichelin-create/fruitboard/pull/98)
+  head `15b7f17` independently validates PR #94 (recomputed stats match;
+  identical fixtures/toolchains/profiles/flags; no nested-timer double
+  counting; instrumented vs uninstrumented separation; single-query saving is
+  tens of milliseconds) with a new contended-host 1+10+3 A/B on identical
+  `custom-9995` where both sides fail the provisional 10 s p95. It removes
+  only 8 lines of dead diagnostic scaffolding and recommends revise-then-keep
+  as cleanup pending Agent 1 review; its CI was separately dispatched at this
+  refresh and is not cited as green. It is a limited validation result, not a
+  qualification, and does not replace the required quiet-host A/B.
 - **Platform qualification:** The re-run is a same-host, laptop-class
   Windows 11 measurement with background DriveFS, antivirus, agent, and
   sibling-build load. It is not the idle-host isolation required by the
@@ -542,11 +640,13 @@ columns.
 - **Owner acceptance:** No explicit owner acceptance of the P2-12 checkpoint
   or Phase 2 was found. Issue #41 and epic #33 remain open.
 - **Reconciled status/gate:** Pending. Review verified D1/D2/D3 repairs in
-  still-unmerged PR #95 (rebuilding from merged `main` where required),
-  capture the durable queued and independent burst observations through the
-  independently addressed work, resolve performance and platform decisions
-  (including the PR #96 scale proposal or dated deferral plus the required
-  quiet-host rerun), and obtain the owner's criterion-by-criterion acceptance.
+  still-unmerged PR #95 (rebuilding from merged `main` where required; no new
+  Agent 1 head at this refresh), review the automated PR #97 fences without
+  counting them as installed observation, capture the installed queued
+  snapshot and burst timing through installed runs, resolve performance and
+  platform decisions (including the PR #96 proposal with its §2.9 review
+  correction, or dated deferral, plus the required quiet-host rerun), and
+  obtain the owner's criterion-by-criterion acceptance.
 
 ## Owner decision packet
 
@@ -574,13 +674,19 @@ approval or an acceptance decision.
    memory/disk/path-byte/record bounds, one atomic authoritative publication,
    missing-file gating on complete coverage, cancel/crash/restart/expiry/
    cleanup/backup behavior, migration slices, and adversarial tests in PR #96
-   §2) against the coordinated quota increase and the dated deferral. The
-   chunked direction protects private-memory bounds but requires a new
-   storage/protocol design with the listed tests. The lower-cost alternative is
-   an explicit dated deferral that keeps the current 10,000-entry contract; the
-   consequence is that the 100,000-entry target remains unqualified until that
-   checkpoint. This reconciliation authorizes none of the three; PR #96 is a
-   proposal only.
+   §2) against the coordinated quota increase and the dated deferral, with the
+   §2.9 independent-review correction as part of the review package: paged
+   reads are not a bounded identity algorithm (two-pass index, temp-table
+   assignment, or provisional-plus-merge still to be chosen with memory
+   evidence), the coverage denominator rule is undecided, cross-page
+   hardlink/rename/conflict handling has no mechanism yet, and publication
+   lock duration under the single-connection `DELETE`-journal architecture is
+   unmeasured. The chunked direction protects private-memory bounds but
+   requires a new storage/protocol design with the listed tests. The
+   lower-cost alternative is an explicit dated deferral that keeps the current
+   10,000-entry contract; the consequence is that the 100,000-entry target
+   remains unqualified until that checkpoint. This reconciliation authorizes
+   none of the three; PR #96 is a proposal only.
 3. **#47 — exact DriveFS run and authorization.** Run the complete procedure
    once in **Mirror files** and once in **Stream files**, reading the active mode
    from Drive for Desktop Preferences. Use only the documented disposable
@@ -600,33 +706,55 @@ approval or an acceptance decision.
    the `G:` DriveFS virtual mount, a network share, or the no-media USB device.
 5. **Remaining acceptance after fixes and verification.** Review verified D1
    native labeling, D2 cancelled Retry, and D3 exhausted Retry in still-unmerged
-   PR #95, rebuilding from the then-merged `main` where the owner requires it;
-   retain PR #92's first-attempt sidecar timeout and green rerun attempt 2 in
-   the provenance. Keep exact check links in the handoff. Capture a durable
-   queued state and independently count watcher-burst coalescing through the
-   independently addressed work. Resolve F2 with the owner-selected
-   quiet-host A/B (including stacked PR #94 combined validation) or
-   optimization/budget path, then close F1/F3 via the PR #96 proposal or dated
-   deferral, complete any scoped #47/#48 runs (Mirror/Stream consent; genuine
-   FAT32 volume) or explicit owner scope decisions without inventing consent or
-   availability, and decide whether the P2-10 static no-parser evidence
-   satisfies the criterion. Finally, obtain explicit acceptance for P2-01
-   through P2-12; do not infer it from merged commits, green checks, or these
-   recommendations. Refresh this reconciliation after sibling fix PRs land and
-   before any final merge/acceptance review.
+   PR #95 (no new Agent 1 head beyond `bf0aeac` at this refresh), rebuilding
+   from the then-merged `main` where the owner requires it; retain PR #92's
+   first-attempt sidecar timeout and green rerun attempt 2 in the provenance.
+   Keep exact check links in the handoff. Review the automated PR #97 fences
+   (green `34339792661` / `34339792759`) without counting them as installed
+   observation; capture the installed queued snapshot and burst timing through
+   installed runs. Resolve F2 with the owner-selected quiet-host A/B
+   (stacked PR #94 combined validation plus PR #98 revise-then-keep cleanup
+   pending Agent 1 review) or optimization/budget path, then close F1/F3 via
+   the PR #96 proposal with its §2.9 correction (or dated deferral), complete
+   any scoped #47/#48 runs (Mirror/Stream consent; genuine FAT32 volume) or
+   explicit owner scope decisions without inventing consent or availability,
+   and decide the P2-10 static-versus-runtime boundary (static guards plus
+   fixture equality vs a runtime content-read spy). Finally, obtain explicit
+   acceptance for P2-01 through P2-12; do not infer it from merged commits,
+   green checks, automated tests, or these recommendations. Refresh this
+   reconciliation after sibling fix PRs land and before any final
+   merge/acceptance review.
+
+## Decision table (2026-09-09 second refresh)
+
+One row per pending choice. Recommendations state consequences; none is an
+approval, acceptance, merge, or close.
+
+| Area | State at this refresh | Options and dependencies | Recommendation and consequence |
+| --- | --- | --- | --- |
+| PR merge readiness | Merged: #82, #85–#89 on `main` `0b7612d` (green `34293250231`). Unmerged drafts: #90, #92, #93, #94, #95, #96 (now `9aa97ab`), #97 (`aba1812`, green `34339792661` / `34339792759`), #98 (`15b7f17`, CI dispatched, not green-cited). No reviews recorded as approvals. | Order: review code-touching #95 (D1–D3) and #94 (needs exact-head CI + quiet-host rerun; #98 validates but does not replace either) before evidence-only #90/#92/#93; #97 is test-only on the #95 base and follows #95; #96/#98 are proposal/validation, reviewable in parallel but merge independently. Rebuild #95 from then-merged `main` where the owner requires it; never merge a docs refresh as a proxy for a sibling fix. | Review #95 and #94 (+ #98 cleanup) first, then #97, then evidence PRs #90/#93/#92; review #96 separately as design. Consequence of any other order: evidence documents cite heads that later shift, forcing another refresh. Merging nothing here. |
+| F1 fixture vs quota | F1 reproduced (10,005 observations vs 10,000 quota); no owner decision posted. `custom-9995` (9,995 FLP + 5 aliases, seed 0, `a4760a28`) is a comparison fixture in #93/#94/#98, not an approved baseline replacement. | F1-A (exact-10,000 fixture, narrowest, fixture-doc change + fresh 1+10 protocol run) vs F1-B (coordinated quota above 10,005 across worker, staging, storage, plan buffer, tests + remeasurement). Apply neither here. | Recommend F1-A. Consequence: one fixture-definition change and a fresh run; F2 numbers re-baseline and old 14,267 ms p95 does not transfer. F1-B costs worker/storage/test changes and still leaves 100k unqualified. |
+| F2 benchmark prerequisites | Warm p95 14,267 ms vs provisional 10 s (measured, not qualified). #94 contended median −1.9% with p95 worsened on an outlier; #98 confirms both sides fail 10 s contended and explains the saving as tens of ms. No idle-host evidence exists. | Quiet-host 1+10+3 A/B per side (DriveFS paused, AV exclusion, no sibling builds, AC/high performance) vs accepting #94 on contended evidence (does not qualify) vs re-budgeting the 10 s target (needs owner amendment with evidence). #98 revise-then-keep cleanup needs Agent 1 review first. | Recommend the quiet-host A/B after Agent 1 reviews the #98 cleanup, before any re-budget. Consequence: contended numbers stay diagnostic only; skipping this leaves F2 (and therefore P2-11/P2-12) permanently unqualified. |
+| F3 design vs deferral | 100k unmeasured under the 10,000-entry contract. Proposal #96 (+ §2.9 correction) details chunked snapshot; quota increase and dated deferral compared. Six mechanisms unresolved (identity algorithm, coverage denominator, cross-page rename/conflict, in-transaction fencing, lock duration, disk/cleanup bounds). | F3-A (chunked snapshot, 6 slices + adversarial tests + memory/lock/disk evidence) vs F3-B (coordinated quota to 100k with full re-qualification; highest OOM/slow-publication risk) vs F3-C (explicit dated deferral; 100k stays unqualified until that date). Authorize none here. | Recommend: if 100k is required for MVP, approve slice 1 (DDL + migration/retention/cleanup tests) only after F1/F2 settle; otherwise record dated deferral (option C). Consequence: full F3-A without the §2.9 gates repeats the paged-reads-as-algorithm gap; deferral is cheaper but leaves the budget line unqualified by declaration. |
+| #47/#48 prerequisites | #47: Mirror/Stream runs need cloud-sync, full-resync, and pause/disconnect authorizations (not present). #48: needs disposable genuine FAT32 USB/VHD with drive letter (no qualifying target per #89 survey). Runbooks in #88; blockers in unmerged #90. | Scoped runs with the authorizations/volumes above vs explicit owner scope exclusions. Neither selected here; no consent, volume, exclusion, or qualification invented. | Recommend the owner either authorize the exact runs or post explicit scope exclusions with follow-ups. Consequence: without either, DriveFS and non-NTFS identity stay unverified and P2-07/P2-09/P2-12 cannot close. |
+| Remaining acceptance | P2-01–P2-10 Partial or evidence-present, P2-11 measured-not-qualified, P2-12 Pending, P2-08 Partial (prior `Complete` disputed). #97 adds automated (not installed) P2-04/P2-09 counts; installed queued snapshot, burst timing, restart-during-scan, and beyond-#95 retention stay open. P2-10 boundary undecided (static guards + fixture equality vs runtime content-read spy). No P2-01–P2-12 owner acceptance found. | Installed evidence (queued snapshot, burst count, loss/overflow timing) vs automated evidence (kept separate; #97 does not fill installed columns) and the P2-10 static/runtime decision. Agent 1 has no new head; #95 rebuild still open. | Recommend: keep the columns separate, decide P2-10 explicitly, collect the installed gaps through installed runs, then seek criterion-by-criterion acceptance. Consequence of conflating columns: acceptance inferred from tests rather than observed — prohibited by the plan. Phase 2 stays open. |
 
 ## Remaining gates and handoff
 
 1. Keep the installed checklist and sibling evidence linked to their exact
-   commits (including #95 `bf0aeac`, #94 `588867b`, and proposal #96
-   `3be0140`); do not relabel unmerged observations or proposals as merged
-   evidence until their PRs land.
+   commits (including #95 `bf0aeac`, #94 `588867b`, proposal #96 `3be0140`
+   with correction `9aa97ab`, #97 `aba1812`, and #98 `15b7f17`); do not
+   relabel unmerged observations, proposals, validations, or pending-CI heads
+   as merged evidence until their PRs land.
 2. Review verified D1/D2/D3 repairs in still-unmerged PR #95 (rebuilding from
-   merged `main` where required), and capture the durable queued and
-   independent watcher-burst gaps through the independently addressed work.
-3. Resolve F1/F2/F3 and #47/#48 using the owner packet above and the PR #96
-   scale proposal (or dated deferral); no platform exclusion is selected by
-   the current reports, and no new scan protocol is authorized here.
+   merged `main` where required; no new Agent 1 head at this refresh),
+   review automated PR #97 fences without counting them as installed
+   observation, and capture the installed queued snapshot and burst timing
+   through installed runs.
+3. Resolve F1/F2/F3 and #47/#48 using the owner packet and decision table
+   above with the PR #96 scale proposal as corrected (or dated deferral); no
+   platform exclusion is selected by the current reports, and no new scan
+   protocol is authorized here.
 4. Obtain explicit owner acceptance for each criterion or an explicitly
    recorded pending-at-close decision with a named follow-up. Do not infer
    acceptance from a merge, commit message, green CI, or a contributor's
