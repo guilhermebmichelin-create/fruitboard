@@ -2126,7 +2126,6 @@ impl FilesystemPort for WindowsFilesystemPort {
 #[cfg(windows)]
 mod windows_port {
     use super::*;
-    use std::collections::VecDeque;
     use std::ffi::c_void;
     use std::mem::{MaybeUninit, size_of};
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
@@ -2333,7 +2332,6 @@ mod windows_port {
         validation_chain: Option<Rc<ValidationChain>>,
         restart_scan: bool,
         buffer: [u8; DIRECTORY_BUFFER_BYTES],
-        pending_entries: VecDeque<OsString>,
         #[cfg(feature = "diagnostics")]
         diagnostics: Option<Rc<RefCell<NativeOperationProfile>>>,
     }
@@ -2356,9 +2354,6 @@ mod windows_port {
         fn next_entry(&mut self) -> Result<Option<DirectoryEntry>, PortError> {
             loop {
                 self.validate_ancestors()?;
-                if let Some(name) = self.pending_entries.pop_front() {
-                    return Ok(Some(DirectoryEntry::new(name)));
-                }
                 let mut status = IoStatusBlock {
                     status: 0,
                     information: 0,
@@ -2501,7 +2496,6 @@ mod windows_port {
                 validation_chain,
                 restart_scan: false,
                 buffer: [0; DIRECTORY_BUFFER_BYTES],
-                pending_entries: VecDeque::new(),
                 #[cfg(feature = "diagnostics")]
                 diagnostics: self.diagnostics.clone(),
             };
@@ -2522,7 +2516,6 @@ mod windows_port {
                 validation_chain: None,
                 restart_scan: false,
                 buffer: [0; DIRECTORY_BUFFER_BYTES],
-                pending_entries: VecDeque::new(),
                 #[cfg(feature = "diagnostics")]
                 diagnostics: None,
             }
@@ -2540,7 +2533,6 @@ mod windows_port {
                 validation_chain: None,
                 restart_scan: false,
                 buffer: [0; DIRECTORY_BUFFER_BYTES],
-                pending_entries: VecDeque::new(),
                 diagnostics,
             }
         }

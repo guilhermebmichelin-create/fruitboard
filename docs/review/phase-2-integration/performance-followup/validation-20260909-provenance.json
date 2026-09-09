@@ -1,0 +1,82 @@
+{
+  "capturedAtLocal": "2026-09-09",
+  "status": "validation evidence, contended shared-host only, not qualification",
+  "stack": {
+    "pr93Head": "59faefc2806a725368a59e7b6fc9be7f863f4fec",
+    "pr93Base": "0b7612db3570e6235d4d2c86a678dd9004264f30",
+    "pr94Head": "588867bca154e798f189f6c99de8a2668005d141",
+    "before": "1d7c29828d4560c959f4fc140b8544ce06c05b80",
+    "candidate": "b35c01a1ab75381e8d1d562fafcafa4764ba0b6f",
+    "validationBase": "588867bca154e798f189f6c99de8a2668005d141"
+  },
+  "toolchain": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+    "node": "v24.20.0"
+  },
+  "fixture": {
+    "sizeLabel": "custom-9995",
+    "seed": "0",
+    "manifestSha256": "a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a",
+    "counts": {
+      "flpFiles": 9995,
+      "otherFiles": 4,
+      "aliasLocations": 5,
+      "leafDirectories": 1000,
+      "directories": 1025,
+      "emptyDirectories": 10,
+      "hardlinkGroups": 5
+    },
+    "hardlinkSupport": "created",
+    "note": "Existing comparison fixture; not a replacement for F1 accepted baseline."
+  },
+  "isolatedWorktrees": {
+    "before": "<isolated-worktree-before> (detached 1d7c298)",
+    "after": "<isolated-worktree-after> (detached b35c01a)",
+    "validation": "<isolated-worktree-validation> (branch perf/94-validation-20260909 from 588867b)"
+  },
+  "isolatedTargets": {
+    "before": "<isolated-target-perf94-before>",
+    "after": "<isolated-target-perf94-after>",
+    "validation": "<isolated-target-perf94-validation>"
+  },
+  "prebuilds": {
+    "beforeBinary": "<isolated-target-perf94-before>/release/examples/benchmark.exe",
+    "afterBinary": "<isolated-target-perf94-after>/release/examples/benchmark.exe",
+    "profile": "release --locked, benchmark example, uninstrumented",
+    "beforeBuildSeconds": 28.8,
+    "afterBuildSeconds": 26.06
+  },
+  "host": {
+    "cpu": "Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz",
+    "logicalCores": 12,
+    "windowsBuild": "10.0.26200",
+    "architecture": "x64",
+    "powerMode": "High performance",
+    "classification": "contended shared-host evidence; not quiet-host acceptance evidence",
+    "unmetQuietConditions": [
+      "Google DriveFS 2 processes active; pause unauthorized",
+      "Windows Defender active without fixture-volume exclusion; change unauthorized",
+      "Epic/T3/opencode sibling agent activity remains; stop unauthorized",
+      "Performance-counter detail unavailable without perf-log privilege"
+    ],
+    "preflightContentionEvent": "First before-run overlapped 3x cargo + 1x rustc sibling builds; retained as benchmark-validate-contended-outlier.json"
+  },
+  "newRuns": {
+    "before2": "benchmark-validate-before2.json",
+    "after2": "benchmark-validate-after2.json",
+    "outlier": "benchmark-validate-contended-outlier.json",
+    "harness": "scripts/run-benchmark.mjs --manifest <fixture>/manifest.json --bin <isolated-binary> --out <report>",
+    "binaryMapping": {
+      "before2": "1d7c29828d4560c959f4fc140b8544ce06c05b80",
+      "after2": "b35c01a1ab75381e8d1d562fafcafa4764ba0b6f"
+    }
+  },
+  "diagnosticCorrection": {
+    "file": "crates/filesystem-enumeration/src/lib.rs",
+    "deletions": 8,
+    "description": "Remove unconditional pending_entries VecDeque scaffolding (never populated) from production next_entry path; diagnostics remain cfg-gated.",
+    "tests": "cargo test -p fruitboard-filesystem-enumeration --locked: 44 passed, 2 ignored; clippy default + diagnostics -D warnings pass; fmt + diff check pass"
+  },
+  "recommendation": "Revise (accept dead-code removal) then keep candidate as correctness-preserving cleanup; no p95 or 10-second qualification claimed. Quiet-host A/B remains the next experiment. No quota/fixture/budget/durability/validation-guarantee change."
+}
