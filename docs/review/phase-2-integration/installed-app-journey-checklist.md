@@ -1,11 +1,13 @@
 # Installed-app Windows journey checklist
 
-Status: **Preparation only; the observation table is intentionally empty.** Run
-this checklist only after the native supervisor lane and its combined
-feature-enabled CI rerun are green. The merged preparation baseline is
-`e5e777d` (PR #81); its [Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618)
-passed the default gate, enabled desktop tests, and enabled warnings-denied
-Clippy. That result is build and contract evidence, not installed-app evidence.
+Status: **Executed on an unsigned installed Windows package; Phase 2
+acceptance remains pending.** The run used current `main` at
+`0b7612db3570e6235d4d2c86a678dd9004264f30`, verified equal to `origin/main`
+before the run, with `packaging-smoke,scan-console` enabled. The current
+[Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34293250231)
+completed successfully. That result is build and contract evidence; the
+installed-app observations are recorded in the table and linked run record
+below.
 
 This checklist keeps expected behavior separate from operator observations. Do
 not copy expected text into the evidence table. Leave a row empty when a step
@@ -242,26 +244,26 @@ These are expectations to check against the app. They are not evidence.
 | 10. Cancel/unavailable/retry | Use `$cancelRoot` if the selected leaf finishes before Cancel can be observed; cancel a running scan, then make the root unavailable, request a scan, restore access, and use Retry. | Cancellation is persisted when observed; if the transient acknowledgement cannot be observed, record it as pending. Unavailable or failed work retains the last committed Library view and labels the safe failure; Retry can reconcile after access returns. |
 | 11. Cleanup                  | Close the app and uninstall after preserving the run record.                                                                                                                         | The evidence record remains reviewable and only the dedicated disposable package/data paths are cleaned up.                                                                                                                                                   |
 
-## Empty installed-app evidence table
+## Installed-app evidence table
 
 Fill this table only from the packaged, installed Windows application at the
 combined supervisor commit. A screenshot, fake adapter, hidden worker log, or
 unit test belongs to its own evidence class and does not fill an installed-app
 row.
 
-| Step                         | Observed result | Evidence link or artifact | Operator/status |
-| ---------------------------- | --------------- | ------------------------- | --------------- |
-| 1. Provenance                |                 |                           |                 |
-| 2. Root selection/cancel     |                 |                           |                 |
-| 3. Enabled settings          |                 |                           |                 |
-| 4. Scan now                  |                 |                           |                 |
-| 5. Library paging            |                 |                           |                 |
-| 6. Restart survival          |                 |                           |                 |
-| 7. Add/rename/modify         |                 |                           |                 |
-| 8. Remove/restore            |                 |                           |                 |
-| 9. Watcher follow-up         |                 |                           |                 |
-| 10. Cancel/unavailable/retry |                 |                           |                 |
-| 11. Cleanup                  |                 |                           |                 |
+| Step                         | Observed result                                                                                                                                                                                                                                                                | Evidence link or artifact                                                             | Operator/status                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| 1. Provenance                | Current `main`/`origin/main` SHA, toolchain, Windows build, package features, installer/executable hashes, fixture seeds/hashes, selected relative roots, and isolated database hashes are recorded.                                                                           | [Run record](installed-journey/run-20260908.md#provenance-and-build)                  | Installed native; complete                         |
+| 2. Root selection/cancel     | Real Windows `Selecionar pasta` picker: cancellation left Preferences unchanged; selecting the generated leaf added it, and the display name was saved.                                                                                                                        | [Run record](installed-journey/run-20260908.md#root-selection-and-settings)           | Installed native; complete                         |
+| 3. Enabled settings          | `Installed Journey Root` remained enabled, was renamed, and startup view `Library` persisted across a clean close/relaunch. Startup recovery was observed separately and was not labeled user-started.                                                                         | [Run record](installed-journey/run-20260908.md#root-selection-and-settings)           | Installed native; complete                         |
+| 4. Scan now                  | Native `Scan now` reached `Running` with counters, `Total work unknown`, no percentage, and `Cancel`; a durable queued state was not captured. Cancellation reached `Cancelled` with the safe no-publication message.                                                          | [Run record](installed-journey/run-20260908.md#native-scan-cancel-and-retry)          | Running/cancelled observed; queued unverified      |
+| 5. Library paging            | Four-record pages were exercised across pages 1–3 and back. Rows showed filename, owning root, root-relative path, bytes, modified time, and Present/Missing state; no FLP metadata was inferred.                                                                              | [Run record](installed-journey/run-20260908.md#library-paging)                        | Installed native; complete                         |
+| 6. Restart survival          | Committed rows and root settings survived clean restart. After an immediate process termination during native work, the DB retained an interrupted run (`error_code=restart`) and the same job completed at attempt 2 after relaunch.                                          | [Run record](installed-journey/run-20260908.md#restart-and-interrupted-work-recovery) | Installed native; complete                         |
+| 7. Add/rename/modify         | Watcher follow-up published an added synthetic file, retained the old renamed path as Missing while showing the new path Present, and updated modified metadata.                                                                                                               | [Run record](installed-journey/run-20260908.md#watcher-follow-ups-and-convergence)    | Installed native; complete                         |
+| 8. Remove/restore            | Removing a tracked synthetic file made its committed row Missing; recreating the same path made it Present after the next watcher follow-up.                                                                                                                                   | [Run record](installed-journey/run-20260908.md#watcher-follow-ups-and-convergence)    | Installed native; complete                         |
+| 9. Watcher follow-up         | External add/rename/mtime/remove/restore operations triggered native follow-ups, reset pagination after snapshot changes, and retained prior committed rows during incomplete work. Burst coalescing bounds were not independently counted.                                    | [Run record](installed-journey/run-20260908.md#watcher-follow-ups-and-convergence)    | Follow-up observed; bound unverified               |
+| 10. Cancel/unavailable/retry | Cancel and unavailable-root retention were observed. Prior rows stayed visible. Retry after cancellation returned `The scan state changed. Refresh the status and try again.`; restored unavailable work also did not converge after its automatic retry budget was exhausted. | [Run record](installed-journey/run-20260908.md#native-scan-cancel-and-retry)          | Defects/gaps recorded; successful Retry unverified |
+| 11. Cleanup                  | Graceful close completed; the installed NSIS package was uninstalled with exit code 0. The run-specific synthetic fixtures, dedicated DB, and recoverable pre-existing Foundation Smoke archive remain for evidence review; normal user data was not touched.                  | [Run record](installed-journey/run-20260908.md#cleanup-and-boundary)                  | Package removed; review artifacts retained         |
 
 ## Gate and handoff
 
