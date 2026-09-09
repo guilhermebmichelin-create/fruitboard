@@ -14,6 +14,27 @@ const OUTPUT_VARIABLE: &str = "FRUITBOARD_FOUNDATION_SMOKE_OUTPUT";
 const PROBE_NAME: &str = "fruitboard-sidecar-smoke";
 const PROBE_PATH: &str = r"C:\Fruitboard Smoke\音";
 
+/// Bounded per-stage sidecar budgets. The PowerShell harness enforces a
+/// single outer deadline for the whole installed launch (see
+/// `Invoke-AppSmokeMode`); that outer deadline must cover the sum below plus
+/// Tauri startup, storage setup, evidence sync, and process exit. Keep the
+/// packaging-policy budget test in sync when any value changes.
+const RESPOND_TIMEOUT: Duration = Duration::from_secs(3);
+const FAIL_TIMEOUT: Duration = Duration::from_secs(3);
+const WAIT_READY_TIMEOUT: Duration = Duration::from_millis(250);
+const WAIT_TERMINATE_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// Fixed progress-stage names only. The progress file carries stage names and
+/// elapsed milliseconds; it never carries paths, arguments, output text, or
+/// exit codes beyond the fixed evidence contract.
+const STAGE_SCHEDULE_START: &str = "schedule_start";
+const STAGE_RESPOND_DONE: &str = "sidecar_respond_done";
+const STAGE_FAIL_DONE: &str = "sidecar_fail_done";
+const STAGE_WAIT_READY_DONE: &str = "sidecar_wait_ready_done";
+const STAGE_WAIT_TERMINATE_DONE: &str = "sidecar_wait_terminate_done";
+const STAGE_EVIDENCE_WRITTEN: &str = "evidence_written";
+const STAGE_EXIT_REQUESTED: &str = "exit_requested";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SmokeMode {
     Seed,
@@ -63,11 +84,22 @@ struct SidecarEvidence {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct TimingEvidence {
+    respond_ms: u64,
+    fail_ms: u64,
+    wait_ready_ms: u64,
+    wait_terminate_ms: u64,
+    total_ms: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SmokeEvidence {
     schema_version: u64,
     status: &'static str,
     storage: StorageEvidence,
     sidecar: SidecarEvidence,
+    timing: TimingEvidence,
 }
 
 #[derive(Serialize)]
@@ -142,50 +174,98 @@ fn collect(
     Ok(events)
 }
 
-fn sidecar_evidence(app: &AppHandle) -> Result<SidecarEvidence, &'static str> {
+fn sidecar_evidence(
+    app: &AppHandle,
+    progress_output: &std::path::Path,
+    schedule_start: &Instant,
+) -> Result<(SidecarEvidence, TimingEvidence), &'static str> {
+    let stage_start = Instant::now();
     let (mut response_events, mut response_child) = spawn(app, "respond")?;
     response_child
         .write(b"ping\n")
         .map_err(|_| "sidecar_input_failed")?;
-    let response = collect(&mut response_events, Duration::from_secs(3))?;
+    let response = collect(&mut response_events, RESPOND_TIMEOUT)?;
     if response.terminated_code != Some(0)
         || response.stdout != ["pong:path-accepted"]
         || !response.stderr.is_empty()
     {
         return Err("sidecar_response_failed");
     }
+    let respond_ms = stage_start.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
+    record_stage(progress_output, schedule_start, STAGE_RESPOND_DONE);
 
+    let stage_start = Instant::now();
     let (mut failure_events, _failure_child) = spawn(app, "fail")?;
-    let failure = collect(&mut failure_events, Duration::from_secs(3))?;
+    let failure = collect(&mut failure_events, FAIL_TIMEOUT)?;
     if failure.terminated_code != Some(17)
         || failure.stderr != ["controlled_failure"]
         || !failure.stdout.is_empty()
     {
         return Err("sidecar_failure_contract_failed");
     }
+    let fail_ms = stage_start.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
+    record_stage(progress_output, schedule_start, STAGE_FAIL_DONE);
 
+    let stage_start = Instant::now();
     let (mut wait_events, wait_child) = spawn(app, "wait")?;
-    let waiting = collect(&mut wait_events, Duration::from_millis(250))?;
+    let waiting = collect(&mut wait_events, WAIT_READY_TIMEOUT)?;
     if waiting.terminated_code.is_some() || waiting.stdout != ["ready:path-accepted"] {
         return Err("sidecar_timeout_contract_failed");
     }
+    let wait_ready_ms = stage_start.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
+    record_stage(progress_output, schedule_start, STAGE_WAIT_READY_DONE);
     wait_child
         .kill()
         .map_err(|_| "sidecar_termination_failed")?;
-    let terminated = collect(&mut wait_events, Duration::from_secs(3))?;
+    let stage_start = Instant::now();
+    let terminated = collect(&mut wait_events, WAIT_TERMINATE_TIMEOUT)?;
     if terminated.terminated_code.is_none() {
         return Err("sidecar_termination_unconfirmed");
     }
+    let wait_terminate_ms = stage_start.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
+    record_stage(progress_output, schedule_start, STAGE_WAIT_TERMINATE_DONE);
 
-    Ok(SidecarEvidence {
-        controlled_failure_exit_code: 17,
-        failure_contained: true,
-        responded: true,
-        spaces_and_unicode_argument: true,
-        started: true,
-        terminated: true,
-        timeout_observed: true,
-    })
+    Ok((
+        SidecarEvidence {
+            controlled_failure_exit_code: 17,
+            failure_contained: true,
+            responded: true,
+            spaces_and_unicode_argument: true,
+            started: true,
+            terminated: true,
+            timeout_observed: true,
+        },
+        TimingEvidence {
+            respond_ms,
+            fail_ms,
+            wait_ready_ms,
+            wait_terminate_ms,
+            total_ms: 0,
+        },
+    ))
+}
+
+/// Sibling progress file for the evidence output (for example,
+/// `seed.stages.jsonl` next to `seed.json`). Each line is one fixed stage
+/// name plus elapsed milliseconds since schedule start. Best-effort only:
+/// progress failures never change the smoke exit code or evidence assertions.
+fn progress_path(output: &std::path::Path) -> PathBuf {
+    output.with_extension("stages.jsonl")
+}
+
+fn record_stage(output: &std::path::Path, schedule_start: &Instant, stage: &str) {
+    let elapsed_ms = schedule_start
+        .elapsed()
+        .as_millis()
+        .min(u128::from(u64::MAX)) as u64;
+    let line = serde_json::json!({"stage": stage, "elapsedMs": elapsed_ms});
+    let mut line = serde_json::to_string(&line).unwrap_or_default();
+    line.push('\n');
+    let _ = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(progress_path(output))
+        .and_then(|mut file| file.write_all(line.as_bytes()).and_then(|()| file.flush()));
 }
 
 fn write_json(path: &PathBuf, value: &impl Serialize) -> Result<(), &'static str> {
@@ -206,7 +286,14 @@ pub(crate) fn schedule(
     storage: Result<(StartupView, StartupView), &'static str>,
 ) {
     tauri::async_runtime::spawn_blocking(move || {
+        let schedule_start = Instant::now();
+        record_stage(&request.output, &schedule_start, STAGE_SCHEDULE_START);
         let result = storage.and_then(|(startup_view_before, startup_view_after)| {
+            let (sidecar, mut timing) = sidecar_evidence(&app, &request.output, &schedule_start)?;
+            timing.total_ms = schedule_start
+                .elapsed()
+                .as_millis()
+                .min(u128::from(u64::MAX)) as u64;
             let evidence = SmokeEvidence {
                 schema_version: 1,
                 status: "ok",
@@ -214,9 +301,12 @@ pub(crate) fn schedule(
                     startup_view_before,
                     startup_view_after,
                 },
-                sidecar: sidecar_evidence(&app)?,
+                sidecar,
+                timing,
             };
-            write_json(&request.output, &evidence)
+            write_json(&request.output, &evidence)?;
+            record_stage(&request.output, &schedule_start, STAGE_EVIDENCE_WRITTEN);
+            Ok(())
         });
 
         let exit_code = match result {
@@ -231,13 +321,15 @@ pub(crate) fn schedule(
                 1
             }
         };
+        record_stage(&request.output, &schedule_start, STAGE_EXIT_REQUESTED);
         app.exit(exit_code);
     });
 }
 
 #[cfg(test)]
 mod tests {
-    use super::normalized_event_line;
+    use super::{normalized_event_line, progress_path};
+    use std::path::PathBuf;
 
     #[test]
     fn normalizes_windows_and_unix_process_line_framing() {
@@ -250,5 +342,13 @@ mod tests {
             Some("pong:path-accepted".to_owned())
         );
         assert_eq!(normalized_event_line(b"\n".to_vec()).unwrap(), None);
+    }
+
+    #[test]
+    fn progress_file_is_a_bounded_sibling_without_paths() {
+        let output = PathBuf::from(r"C:\smoke\raw\seed.json");
+        let progress = progress_path(&output);
+        assert_eq!(progress, PathBuf::from(r"C:\smoke\raw\seed.stages.jsonl"));
+        assert_ne!(progress, output);
     }
 }
