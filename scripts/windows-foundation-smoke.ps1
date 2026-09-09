@@ -13,6 +13,8 @@ if ($env:OS -ne "Windows_NT") {
 
 Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
 
+. (Join-Path $PSScriptRoot "foundation-smoke-lock.ps1")
+
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $resolvedRepositoryRoot = (Resolve-Path -LiteralPath $repositoryRoot).Path
 $runId = [Guid]::NewGuid().ToString("N")
@@ -22,6 +24,10 @@ $rawEvidenceDirectory = Join-Path $runRoot "raw"
 $syntheticDataDirectory = Join-Path $env:LOCALAPPDATA "com.fruitboard.desktop.foundation-smoke"
 $databasePath = Join-Path $syntheticDataDirectory "storage\fruitboard.db"
 $finalEvidencePath = Join-Path $resolvedRepositoryRoot $EvidencePath
+$smokeLockPath = Get-FoundationSmokeLockPath
+$smokeLockOwner = New-FoundationSmokeLockOwner -RunId $runId -Purpose "windows-foundation-smoke" -RunRoot $runRoot -InstallDirectory $installDirectory
+$smokeLockAcquired = $false
+$archivedPreviousData = $false
 
 function Assert-ContainedPath {
     param([string]$Candidate, [string]$Parent)
@@ -219,14 +225,28 @@ Assert-ContainedPath -Candidate $runRoot -Parent (Join-Path $resolvedRepositoryR
 Assert-ContainedPath -Candidate $installDirectory -Parent $runRoot
 Assert-ContainedPath -Candidate $syntheticDataDirectory -Parent $env:LOCALAPPDATA
 
+New-Item -ItemType Directory -Force -Path $runRoot, $rawEvidenceDirectory | Out-Null
+
+# Exclusive host lock first: a second run fails here before launching,
+# installing, archiving data, or uninstalling another run's package.
+# Stale ownership is decided through Get-Process on the recorded PID; never
+# by deleting storage/owner.lock and never by killing unrelated processes.
+$null = Acquire-FoundationSmokeLock -LockPath $smokeLockPath -Owner $smokeLockOwner -ArchiveParent $runRoot -SharedDataDirectory $syntheticDataDirectory
+$smokeLockAcquired = $true
+try {
 if (Test-Path -LiteralPath $installDirectory) {
     throw "The dedicated install directory already exists; preserve it for inspection."
 }
-if (Test-Path -LiteralPath $syntheticDataDirectory) {
-    throw "The dedicated synthetic data directory already exists; preserve it for inspection."
+if (Test-Path -LiteralPath $syntheticDataDirectory -PathType Container) {
+    $liveAfterLock = @(Get-FoundationSmokeLiveAppProcesses)
+    if ($liveAfterLock.Count -gt 0) {
+        throw "Installed app processes are running; close every fruitboard-desktop process gracefully before archival."
+    }
+    $legacyArchive = Join-Path $runRoot "archived-legacy-foundation-smoke-$runId"
+    $null = Move-PreviousFoundationSmokeData -SourceDirectory $syntheticDataDirectory -DestinationDirectory $legacyArchive -ExpectedParent $env:LOCALAPPDATA -DestinationParent $runRoot
+    $archivedPreviousData = $true
 }
 
-New-Item -ItemType Directory -Force -Path $runRoot, $rawEvidenceDirectory | Out-Null
 $buildTimer = [System.Diagnostics.Stopwatch]::StartNew()
 Push-Location $resolvedRepositoryRoot
 try {
@@ -395,6 +415,15 @@ $evidence = [ordered]@{
         secondUninstallPreservedDatabase = $true
         syntheticStateRetainedForReview = $true
     }
+    isolation = [ordered]@{
+        mode = "exclusive-host-lock"
+        lockFile = "com.fruitboard.desktop.foundation-smoke.lock.json"
+        runId = $runId
+        purpose = "windows-foundation-smoke"
+        archivedPreviousData = $archivedPreviousData
+        cleanupOwner = "This run releases only its own lock; prior archives remain for owner review; no database or evidence deletion."
+        restorationOwner = "To restore a prior archive: close every fruitboard-desktop process, move the live smoke directory to a new run-specific archive, then move the chosen archive back; never delete owner.lock."
+    }
     antivirus = $defender
     limitations = @(
         "Unsigned development evidence only; Windows trust warnings remain expected.",
@@ -402,6 +431,7 @@ $evidence = [ordered]@{
         "Launch readiness separates WebView target appearance from rendered-shell observation; blank, loading, or error pages fail the probe closed.",
         "The download-bootstrapper installer requires network access when WebView2 is absent.",
         "No updater, signing credential, Python runtime, PyFLP, scanner, parser, or player is included."
+        "Concurrent installed validation runs share one test identity and are serialized by the exclusive host lock; a second run fails before side effects."
     )
 }
 
@@ -409,3 +439,9 @@ $finalEvidenceDirectory = Split-Path -Parent $finalEvidencePath
 New-Item -ItemType Directory -Force -Path $finalEvidenceDirectory | Out-Null
 $evidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $finalEvidencePath -Encoding utf8
 $evidence | ConvertTo-Json -Depth 8
+}
+finally {
+    if ($smokeLockAcquired) {
+        Release-FoundationSmokeLock -LockPath $smokeLockPath -RunId $runId
+    }
+}

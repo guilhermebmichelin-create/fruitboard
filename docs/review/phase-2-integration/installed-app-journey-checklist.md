@@ -101,6 +101,7 @@ baseline qualification claim. The full generated baseline still contains
 ```powershell
 $journeyId = Get-Date -Format "yyyyMMdd-HHmmss"
 $journeyRoot = Join-Path $env:TEMP "fruitboard-installed-journey-$journeyId"
+$journeyRunId = [Guid]::NewGuid().ToString("N")
 $fixtureRoot = Join-Path $journeyRoot "fixture"
 New-Item -ItemType Directory -Path $journeyRoot | Out-Null
 node scripts/generate-synthetic-tree.mjs --size baseline --seed 20260908 --out $fixtureRoot
@@ -139,12 +140,50 @@ $appDataRoot = Join-Path $env:LOCALAPPDATA "com.fruitboard.desktop.foundation-sm
 $databasePath = Join-Path $appDataRoot "storage\fruitboard.db"
 ```
 
-Close every previous Foundation Smoke process before setup. Start only when
-`$appDataRoot` does not exist; if it exists, preserve it for review or move it
-to a run-specific archive after confirming the app is closed. Do not delete a
-user's normal `com.fruitboard.desktop` data directory. Install the NSIS package
-into a directory beneath `$journeyRoot`, using the same silent current-user
-pattern as the existing Windows packaging smoke:
+Close every previous Foundation Smoke process before setup. All installed
+validation runs share one test identity
+(`com.fruitboard.desktop.foundation-smoke`) and are serialized by the same
+exclusive host lock the automated smoke uses
+(`scripts/foundation-smoke-lock.ps1`). A second run must fail before
+launching, installing, archiving data, or uninstalling another run's
+package. Never delete `storage/owner.lock` to bypass another running
+process, and never kill unrelated processes. Do not delete a user's normal
+`com.fruitboard.desktop` data directory.
+
+Obtain an exclusive window first (executable procedure for the operator).
+Run from the repository root. The lock file lives beside the shared data
+directory; its JSON records `runId`, `pid`, `startedUtc`, and `purpose` for
+coordination. If another live run owns it, stop and coordinate; do not
+archive, install, launch, or uninstall until its lock is released.
+
+```powershell
+. (Join-Path (Get-Location).Path "scripts\foundation-smoke-lock.ps1")
+$installRoot = Join-Path $journeyRoot "Installed Fruitboard"
+$appDataRoot = Join-Path $env:LOCALAPPDATA "com.fruitboard.desktop.foundation-smoke"
+$databasePath = Join-Path $appDataRoot "storage\fruitboard.db"
+$lockPath = Get-FoundationSmokeLockPath
+$lockOwner = New-FoundationSmokeLockOwner -RunId $journeyRunId -Purpose "installed-journey" -RunRoot $journeyRoot -InstallDirectory $installRoot
+$null = Acquire-FoundationSmokeLock -LockPath $lockPath -Owner $lockOwner -ArchiveParent $journeyRoot -SharedDataDirectory $appDataRoot
+# Hold the lock for the whole installed run: every install, launch,
+# archival, and uninstall below runs inside this exclusive window.
+# Release only after the final uninstall and evidence capture.
+```
+
+The snippet fails closed when another live run owns the shared identity,
+archives a stale previous data directory reversibly only after verifying no
+`fruitboard-desktop` process remains, and preserves the stale lock file as
+`archived-stale-smoke-lock-<runId>.json` beside the run archive. Prior
+evidence is never deleted: archival uses `Move-Item` with checked absolute
+paths and verifies the database hash before and after the move. Restoration
+ownership: to restore a prior archive, close every `fruitboard-desktop`
+process, move the live smoke directory to a new run-specific archive, then
+move the chosen archive back; never delete `owner.lock`. Cleanup ownership:
+the run that acquired the lock releases only its own lock
+(`Release-FoundationSmokeLock -LockPath $lockPath -RunId $journeyRunId`);
+foreign locks are preserved for inspection. Start only after the acquire
+above succeeds. Install the NSIS package into a directory beneath
+`$journeyRoot`, using the same silent current-user pattern as the existing
+Windows packaging smoke:
 
 ```powershell
 $installRoot = Join-Path $journeyRoot "Installed Fruitboard"
@@ -173,12 +212,18 @@ if (-not (Test-Path -LiteralPath (Join-Path $installRoot "fruitboard-desktop.exe
 Launch the installed `fruitboard-desktop.exe`, add only `$scanRoot`, and close
 the app before recording a stable database SHA-256 after the first durable root
 mutation. Keep the fixture and database until the evidence review is complete.
-At cleanup, close the app, use the installed `uninstall.exe`, and archive or
-remove only the run-specific `$journeyRoot` and the dedicated Foundation Smoke
-data directory after the owner has accepted the record.
+At cleanup, close the app, use the installed `uninstall.exe` from the
+run-specific `$installRoot`, and release the exclusive lock. Archive or remove
+only the run-specific `$journeyRoot` and the dedicated Foundation Smoke data
+directory after the owner has accepted the record. The lock release removes
+only the caller's own lock; foreign locks are preserved for inspection.
 
 ```powershell
 Get-FileHash -LiteralPath $databasePath -Algorithm SHA256
+$uninstaller = Join-Path $installRoot "uninstall.exe"
+$uninstallProcess = Start-Process -FilePath $uninstaller -ArgumentList @("/S") -Wait -PassThru -WindowStyle Hidden
+if ($uninstallProcess.ExitCode -ne 0) { throw "The NSIS uninstall failed." }
+Release-FoundationSmokeLock -LockPath $lockPath -RunId $journeyRunId
 ```
 
 ## Expected observations

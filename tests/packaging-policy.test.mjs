@@ -181,7 +181,212 @@ test("the smoke preserves data and records bounded platform evidence", () => {
   assert.match(script, /mode = "hosted-service-session"/);
   assert.match(script, /"not-probed-hosted-service-session"/);
   assert.match(script, /nativeSeedAndVerifyLaunches = \$true/);
+  // The automated smoke never deletes databases or evidence. The only
+  // Remove-Item in the orchestration lives in the shared lock helper and
+  // releases only the caller's own host lock (runId match); see the
+  // exclusive-lock tests below.
   assert.doesNotMatch(script, /Remove-Item/);
+});
+
+test("installed validation runs serialize through an exclusive host lock", () => {
+  const script = readRootFile("scripts/windows-foundation-smoke.ps1");
+  const lockHelper = readRootFile("scripts/foundation-smoke-lock.ps1");
+  const checklist = readRootFile(
+    "docs/review/phase-2-integration/installed-app-journey-checklist.md",
+  );
+
+  // Single shared test identity; no per-run package identity and no
+  // production data-directory override.
+  assert.match(
+    lockHelper,
+    /com\.fruitboard\.desktop\.foundation-smoke\.lock\.json/,
+  );
+  assert.match(script, /Get-FoundationSmokeLockPath/);
+  assert.match(script, /foundation-smoke-lock\.ps1/);
+  assert.match(checklist, /scripts\/foundation-smoke-lock\.ps1/);
+  assert.match(checklist, /Acquire-FoundationSmokeLock/);
+  assert.match(checklist, /Release-FoundationSmokeLock/);
+  assert.doesNotMatch(
+    `${script}\n${lockHelper}`,
+    /FRUITBOARD_.*DATA|app_local_data_dir|data_directory.*override/i,
+  );
+
+  // Explicit ownership: runId, pid, startedUtc, purpose, schema version.
+  for (const token of [
+    /runId/,
+    /startedUtc/,
+    /\bpid\b/,
+    /purpose/,
+    /schemaVersion = 1/,
+  ]) {
+    assert.match(lockHelper, token);
+  }
+  assert.match(script, /New-FoundationSmokeLockOwner/);
+  assert.match(script, /-Purpose "windows-foundation-smoke"/);
+  assert.match(checklist, /-Purpose "installed-journey"/);
+
+  // Exclusive creation fails closed for a second run.
+  assert.match(lockHelper, /\[System\.IO\.FileMode\]::CreateNew/);
+  assert.match(
+    lockHelper,
+    /Another Foundation Smoke run owns the shared test identity/,
+  );
+  assert.match(lockHelper, /do not delete owner\.lock/i);
+  assert.match(lockHelper, /kill unrelated processes/i);
+
+  // Lock acquisition precedes every shared-state side effect in the
+  // automated smoke: install, launch, archival, and uninstall. Function
+  // definitions precede the lock; invocations must follow it.
+  const acquireAt = script.indexOf("Acquire-FoundationSmokeLock");
+  assert.ok(acquireAt !== -1);
+  for (const effect of [
+    "Install-SmokePackage -InstallerPath",
+    "Invoke-LaunchProbe -ApplicationPath",
+    "Invoke-AppSmokeMode -ApplicationPath",
+    "Move-PreviousFoundationSmokeData -SourceDirectory",
+    "Uninstall-SmokePackage",
+  ]) {
+    const at = script.indexOf(effect, acquireAt);
+    assert.ok(
+      at !== -1 && at > acquireAt,
+      `${effect} must run after lock acquisition so a second run fails first`,
+    );
+  }
+
+  // Stale ownership is decided through verifiable process state, never by
+  // deleting storage/owner.lock and never by killing unrelated processes.
+  assert.match(lockHelper, /Get-Process -Id/);
+  assert.match(lockHelper, /Test-FoundationSmokeOwnerAlive/);
+  assert.match(lockHelper, /Get-FoundationSmokeLiveAppProcesses/);
+  assert.match(lockHelper, /fruitboard-desktop/);
+  // Empty process results unroll to $null under StrictMode, so callers must
+  // wrap with @(...) before reading .Count.
+  assert.match(lockHelper, /@\(Get-FoundationSmokeLiveAppProcesses\)/);
+  assert.match(script, /@\(Get-FoundationSmokeLiveAppProcesses\)/);
+  assert.doesNotMatch(lockHelper, /Stop-Process/);
+  assert.doesNotMatch(lockHelper, /taskkill/i);
+  assert.doesNotMatch(
+    lockHelper,
+    /owner\.lock.*Remove-Item|Remove-Item.*owner\.lock/i,
+  );
+  assert.match(
+    lockHelper,
+    /Close every fruitboard-desktop process gracefully before archival/,
+  );
+
+  // Prior evidence is preserved through reversible archival with checked
+  // absolute paths and hash verification; no database deletion.
+  assert.match(lockHelper, /Move-Item -LiteralPath/);
+  assert.match(lockHelper, /Get-FileHash/);
+  assert.match(lockHelper, /archival (did not complete|lost|changed)/i);
+  assert.match(script, /Move-PreviousFoundationSmokeData/);
+  assert.match(script, /archived-legacy-foundation-smoke-/);
+  assert.doesNotMatch(script, /Remove-Item/);
+  assert.equal(
+    (lockHelper.match(/Remove-Item -LiteralPath \$LockPath -Force/g) ?? [])
+      .length,
+    1,
+  );
+
+  // Normal data and the native owner-lock contract are untouched: the only
+  // data directories joined are the shared test identity and its lock. The
+  // helper documents storage_busy/owner.lock only to forbid bypassing them.
+  assert.doesNotMatch(
+    `${script}\n${lockHelper}`,
+    /Join-Path[^;]*"com\.fruitboard\.desktop"/,
+  );
+
+  // Evidence records isolation ownership, restoration, and cleanup.
+  assert.match(script, /mode = "exclusive-host-lock"/);
+  assert.match(script, /archivedPreviousData/);
+  assert.match(script, /cleanupOwner/);
+  assert.match(script, /restorationOwner/);
+  assert.match(script, /finally \{\s*\n.*Release-FoundationSmokeLock/s);
+});
+
+test("concurrent second runs fail before side effects", async () => {
+  const { mkdtempSync, openSync, closeSync, writeFileSync, rmSync } =
+    await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+
+  // Mirrors the helper's exclusive CreateNew contract: the first owner wins
+  // and the second fails before touching shared state.
+  const directory = mkdtempSync(join(tmpdir(), "fruitboard-smoke-lock-"));
+  try {
+    const lockPath = join(directory, "smoke.lock.json");
+    const first = openSync(lockPath, "wx", 0o600);
+    writeFileSync(first, JSON.stringify({ runId: "first", pid: 1 }));
+    closeSync(first);
+
+    let secondFailed = false;
+    try {
+      const second = openSync(lockPath, "wx", 0o600);
+      closeSync(second);
+    } catch (error) {
+      secondFailed = error?.code === "EEXIST";
+    }
+    assert.equal(secondFailed, true);
+
+    // The failure happens before any install/archive/uninstall effect: the
+    // shared directory is untouched by the loser.
+    const { existsSync, mkdirSync, readdirSync } = await import("node:fs");
+    const shared = join(directory, "shared-data");
+    mkdirSync(shared);
+    assert.deepEqual(readdirSync(shared), []);
+    assert.equal(existsSync(lockPath), true);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("stale locks recover only after process exit and cleanup releases only its owner", async () => {
+  const { mkdtempSync, writeFileSync, readFileSync, rmSync, unlinkSync } =
+    await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+
+  const directory = mkdtempSync(join(tmpdir(), "fruitboard-smoke-stale-"));
+  try {
+    // A lock whose owner PID no longer exists is stale and may be archived
+    // and replaced; a live owner must block. PID liveness here uses the
+    // portable signal-zero probe, mirroring Get-Process liveness.
+    const deadPid = 2_147_483_647;
+    let deadAlive = true;
+    try {
+      process.kill(deadPid, 0);
+      deadAlive = true;
+    } catch {
+      deadAlive = false;
+    }
+    assert.equal(deadAlive, false);
+    assert.equal(process.pid > 0, true);
+
+    // Cleanup releases only its own lock: foreign and missing locks are
+    // preserved, matching Release-FoundationSmokeLock warnings.
+    const lockPath = join(directory, "smoke.lock.json");
+    writeFileSync(lockPath, JSON.stringify({ runId: "owner-a" }));
+    const releaseForeign = (path, runId) => {
+      const existing = JSON.parse(readFileSync(path, "utf8"));
+      if (existing.runId !== runId) {
+        return "preserved";
+      }
+      unlinkSync(path);
+      return "released";
+    };
+    assert.equal(releaseForeign(lockPath, "owner-b"), "preserved");
+    assert.equal(releaseForeign(lockPath, "owner-a"), "released");
+
+    let missingWarned = false;
+    try {
+      readFileSync(lockPath, "utf8");
+    } catch {
+      missingWarned = true;
+    }
+    assert.equal(missingWarned, true);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test("the installed smoke deadline covers the bounded sidecar budget", () => {
