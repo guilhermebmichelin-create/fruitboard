@@ -133,6 +133,17 @@ function Invoke-AppSmokeMode {
         [string]$OutputPath
     )
 
+    # Outer deadline budget (seconds): the native smoke performs up to
+    # 3s (respond) + 3s (fail) + 0.25s (wait-ready) + 3s (wait-terminate) =
+    # 9.25s of bounded sidecar work, plus storage setup (2s SQLite busy
+    # timeout), Tauri startup, evidence sync, and process exit. The previous
+    # 10s deadline left about 0.75s for all of that overhead, so healthy but
+    # slow hosted runs were killed and reported as timeouts. The 30s bound
+    # below covers the documented 9.25s inner worst case plus overhead with
+    # margin; it is still a hard fail-closed bound, not an open-ended wait.
+    # Diagnostics report only the mode, elapsed milliseconds, exit state, and
+    # evidence presence/size: never absolute paths or file contents.
+    $timeoutSeconds = 30
     if (Test-Path -LiteralPath $OutputPath) {
         throw "The raw evidence destination must not already exist."
     }
@@ -141,17 +152,34 @@ function Invoke-AppSmokeMode {
         FRUITBOARD_FOUNDATION_SMOKE_OUTPUT = $OutputPath
     }
     try {
-        if (-not $process.WaitForExit(10000)) {
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $evidenceSeenMs = $null
+        while (-not $process.WaitForExit(250)) {
+            if ($null -eq $evidenceSeenMs -and (Test-Path -LiteralPath $OutputPath)) {
+                $evidenceSeenMs = $stopwatch.ElapsedMilliseconds
+            }
+            if ($stopwatch.Elapsed.TotalSeconds -ge $timeoutSeconds) {
+                break
+            }
+        }
+        $stopwatch.Stop()
+        $elapsedMs = $stopwatch.ElapsedMilliseconds
+        $hasExited = $process.HasExited
+        $exitCode = if ($hasExited) { $process.ExitCode } else { -1 }
+        $evidenceExists = Test-Path -LiteralPath $OutputPath
+        $evidenceBytes = if ($evidenceExists) { (Get-Item -LiteralPath $OutputPath).Length } else { -1 }
+        $evidenceSeenText = if ($null -eq $evidenceSeenMs) { "not-seen" } else { "$evidenceSeenMs" }
+        if (-not $hasExited) {
             $process.Kill()
             $process.WaitForExit()
-            throw "The installed sidecar smoke timed out."
+            throw "The installed sidecar smoke timed out (mode=$Mode, elapsedMs=$elapsedMs, hasExited=False, evidenceExists=$evidenceExists, evidenceBytes=$evidenceBytes, evidenceSeenMs=$evidenceSeenText)."
         }
-        if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $OutputPath)) {
-            throw "The installed sidecar smoke failed closed."
+        if ($exitCode -ne 0 -or -not $evidenceExists) {
+            throw "The installed sidecar smoke failed closed (mode=$Mode, elapsedMs=$elapsedMs, exitCode=$exitCode, evidenceExists=$evidenceExists, evidenceBytes=$evidenceBytes, evidenceSeenMs=$evidenceSeenText)."
         }
         $evidence = Get-Content -LiteralPath $OutputPath -Raw | ConvertFrom-Json
         if ($evidence.status -ne "ok") {
-            throw "The installed sidecar smoke returned an error."
+            throw "The installed sidecar smoke returned an error (mode=$Mode, elapsedMs=$elapsedMs, exitCode=$exitCode, evidenceBytes=$evidenceBytes)."
         }
         return $evidence
     }
