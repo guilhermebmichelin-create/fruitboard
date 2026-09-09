@@ -191,3 +191,247 @@ fn a_cancellation_registered_after_stop_is_seen_by_the_mirror() {
     assert!(mirror.is_cancelled());
     host.shutdown(&database);
 }
+
+// Regression for the installed queue stall (final 2026-09-09 regression, §5):
+// after an unavailable-root automatic retry completes, a watcher follow-up
+// stayed queued for minutes with no running job, every later `scan_now`
+// coalesced to `already_queued`, and a restart never restored progress.
+//
+// Cause: `service_retries` aborted the whole sweep when requeueing a failed
+// job whose root already owned the one active (queued/running) slot
+// (`scan_job_active_root` partial unique index), and `claim_due` skips the
+// claim whenever the sweep errors — so one root holding {queued +
+// retry-eligible failed} wedged the global single worker on every tick,
+// durably across restarts. The retry must skip the occupied slot instead of
+// failing the sweep, so due queued follow-ups (on every root) still run and
+// the skipped chain converges once the slot frees.
+//
+// The test drives the real host loop composition (`tick` =
+// `service_retries` + `claim` + shared-staging `execute`), not a manual
+// worker poll, with a scripted online/offline port and a fake clock: no
+// wall-clock sleeps.
+#[test]
+fn failed_retry_behind_queued_follow_up_does_not_block_the_worker() {
+    use fruitboard_filesystem_enumeration::{
+        DirectoryCaseSensitivity, DirectoryCursor, DirectoryEntry, EntryKind, FileMetadata,
+        FilesystemPort, FilesystemQualification, IdentityQualification, OpenedDirectory, PortError,
+        QualifiedIdentity, RootMetadata,
+    };
+    #[derive(Clone)]
+    struct ScheduleClock(Arc<std::sync::Mutex<i64>>);
+    impl ScanClock for ScheduleClock {
+        fn now_ms(&self) -> i64 {
+            *self.0.lock().unwrap()
+        }
+    }
+
+    struct TogglePort {
+        offline: bool,
+    }
+    impl FilesystemPort for TogglePort {
+        fn inspect_root(&mut self, _root: &std::path::Path) -> Result<RootMetadata, PortError> {
+            if self.offline {
+                return Err(PortError::NotFound);
+            }
+            Ok(RootMetadata {
+                metadata: FileMetadata {
+                    kind: EntryKind::Directory,
+                    byte_size: 0,
+                    modified_unix_ns: 1_700_000_000_000_000_000,
+                    identity: Some(QualifiedIdentity {
+                        volume_serial: 7,
+                        file_id: 999,
+                        qualification: IdentityQualification::LocalNtfs,
+                    }),
+                    reparse_point: false,
+                    recall_or_offline: false,
+                },
+                qualification: FilesystemQualification::LocalNtfs,
+            })
+        }
+        fn open_root(&mut self, _root: &std::path::Path) -> Result<OpenedDirectory, PortError> {
+            if self.offline {
+                return Err(PortError::NotFound);
+            }
+            Ok(OpenedDirectory {
+                metadata: FileMetadata {
+                    kind: EntryKind::Directory,
+                    byte_size: 0,
+                    modified_unix_ns: 1_700_000_000_000_000_000,
+                    identity: Some(QualifiedIdentity {
+                        volume_serial: 7,
+                        file_id: 999,
+                        qualification: IdentityQualification::LocalNtfs,
+                    }),
+                    reparse_point: false,
+                    recall_or_offline: false,
+                },
+                case_sensitivity: DirectoryCaseSensitivity::Insensitive,
+                cursor: Box::new(EmptyCursor),
+            })
+        }
+    }
+    struct EmptyCursor;
+    impl DirectoryCursor for EmptyCursor {
+        fn next_entry(&mut self) -> Result<Option<DirectoryEntry>, PortError> {
+            Ok(None)
+        }
+        fn read_metadata(&mut self, _entry: &DirectoryEntry) -> Result<FileMetadata, PortError> {
+            Err(PortError::NotFound)
+        }
+        fn open_directory(
+            &mut self,
+            _entry: &DirectoryEntry,
+        ) -> Result<OpenedDirectory, PortError> {
+            Err(PortError::NotFound)
+        }
+    }
+
+    let directory = TestDirectory::new();
+    let clock = ScheduleClock(Arc::new(std::sync::Mutex::new(1_700_000_000_000)));
+    let database = Arc::new(Mutex::new(
+        Database::open(&directory.0).expect("open test database"),
+    ));
+    let host = {
+        let mut guard = database.lock().expect("database lock");
+        Arc::new(
+            build_host(&mut guard, Arc::new(clock.clone()), Arc::new(NoopSink))
+                .expect("build host"),
+        )
+    };
+    let root_id = database
+        .lock()
+        .expect("database lock")
+        .add_scan_root("Synthetic", r"C:\synthetic-root")
+        .expect("add root")
+        .id;
+    let now = || clock.now_ms();
+    let enqueue_manual = || {
+        database
+            .lock()
+            .expect("database lock")
+            .enqueue_scan(&root_id, ScanKind::Manual, now())
+            .expect("enqueue manual")
+            .job_id
+    };
+    let enqueue_periodic = || {
+        database
+            .lock()
+            .expect("database lock")
+            .enqueue_scan(&root_id, ScanKind::Periodic, now())
+            .expect("enqueue periodic")
+            .job_id
+    };
+    let advance = |ms: i64| {
+        *clock.0.lock().unwrap() += ms;
+    };
+    let job_state = |id: &str| {
+        database
+            .lock()
+            .expect("database lock")
+            .scan_job(id)
+            .expect("job")
+            .state
+    };
+    let job_attempt = |id: &str| {
+        database
+            .lock()
+            .expect("database lock")
+            .scan_job(id)
+            .expect("job")
+            .attempt
+    };
+    let tick_online = || {
+        host.tick(&database, &mut TogglePort { offline: false });
+    };
+    let tick_offline = || {
+        host.tick(&database, &mut TogglePort { offline: true });
+    };
+
+    // 1. Baseline publishes.
+    let base = enqueue_manual();
+    tick_online();
+    assert_eq!(
+        job_state(&base),
+        ScanJobState::Completed,
+        "baseline publishes"
+    );
+
+    // 2. Manual scan while unavailable fails (attempt 1).
+    let j1 = enqueue_manual();
+    tick_offline();
+    assert_eq!(job_state(&j1), ScanJobState::Failed, "manual fails offline");
+
+    // 3. Watcher-style follow-up while still away fails too.
+    let j1b = enqueue_periodic();
+    assert_ne!(j1b, j1, "failed chain owns no slot: fresh follow-up job");
+    tick_offline();
+    assert_eq!(
+        job_state(&j1b),
+        ScanJobState::Failed,
+        "follow-up fails offline"
+    );
+
+    // 4. Root restored; the automatic retry of the manual chain completes on
+    // the next host tick instead of wedging behind the failed follow-up.
+    advance(1_500);
+    tick_online();
+    assert_eq!(
+        job_state(&j1),
+        ScanJobState::Completed,
+        "restored automatic retry of the manual chain completes"
+    );
+    assert_eq!(job_attempt(&j1), 2, "retry budget advances, never resets");
+    assert_eq!(
+        job_state(&j1b),
+        ScanJobState::Failed,
+        "occupied slot skips the second retry without deleting it"
+    );
+
+    // 5. Post-recovery watcher follow-up is queued (scan_now coalesces).
+    let j2 = enqueue_periodic();
+    let coalesced = database
+        .lock()
+        .expect("database lock")
+        .enqueue_scan(&root_id, ScanKind::Manual, now())
+        .expect("scan_now coalesces");
+    assert!(coalesced.coalesced, "scan_now coalesces onto the follow-up");
+    assert_eq!(coalesced.job_id, j2, "coalesced onto the follow-up job");
+
+    // 6. The follow-up runs on the next host ticks instead of stalling
+    // queued with no running job; the skipped chain then converges too.
+    for _ in 0..5 {
+        tick_online();
+    }
+    assert_eq!(
+        job_state(&j2),
+        ScanJobState::Completed,
+        "post-recovery watcher follow-up runs instead of stalling queued"
+    );
+    assert_eq!(job_attempt(&j2), 1, "follow-up runs its first attempt");
+    tick_online();
+    assert_eq!(
+        job_state(&j1b),
+        ScanJobState::Completed,
+        "skipped retry converges once the slot frees"
+    );
+    assert_eq!(job_attempt(&j1b), 2, "retry budget advances, never resets");
+
+    // No queued job was deleted, reset, or suppressed to clear the stall.
+    let jobs = database
+        .lock()
+        .expect("database lock")
+        .list_scan_jobs()
+        .expect("jobs");
+    assert_eq!(jobs.len(), 4, "every chain is retained");
+    assert!(
+        database
+            .lock()
+            .expect("database lock")
+            .list_scan_runs()
+            .expect("runs")
+            .iter()
+            .all(|run| run.state != ScanRunState::Running),
+        "no leaked running run"
+    );
+}

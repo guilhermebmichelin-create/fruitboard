@@ -1392,6 +1392,12 @@ impl Database {
     }
 
     /// Explicitly retry a failed job without resetting its retry-chain budget.
+    /// A retry that would violate the durable active-slot invariant (partial
+    /// unique index `scan_job_active_root`: at most one queued/running job
+    /// per root) is skipped as `Ok(false)`, not failed: the slot owner's
+    /// completion frees the root for a later sweep. Failing here would abort
+    /// the worker's whole retry sweep before its claim, wedging every due
+    /// queued job with no running work.
     pub fn retry_failed_scan_job(&mut self, job_id: &str, now_ms: i64) -> Result<bool> {
         self.transaction(|transaction| {
             let job = select_job(transaction, job_id)?;
@@ -1400,6 +1406,17 @@ impl Database {
             }
             let root = select_root_execution(transaction, &job.scan_root_id)?;
             if !root.enabled {
+                return Ok(false);
+            }
+            let slot_owned: bool = transaction.query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM scan_job
+                     WHERE scan_root_id = ?1 AND state IN ('queued', 'running')
+                 )",
+                [&job.scan_root_id],
+                |row| row.get(0),
+            )?;
+            if slot_owned {
                 return Ok(false);
             }
             transaction.execute(
