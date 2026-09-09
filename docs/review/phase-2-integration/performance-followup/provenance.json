@@ -1,0 +1,57 @@
+{
+  "capturedAtLocal": "2026-09-08T22:48:33.4932993-03:00",
+  "profileEndedAtLocal": "2026-09-08T22:48:56.4012048-03:00",
+  "independentWarmRunsStartedAtLocal": "2026-09-08T22:52:40.2496734-03:00",
+  "independentWarmRunsEndedAtLocal": "2026-09-08T22:53:10.4539706-03:00",
+  "repository": {
+    "branch": "docs/41-performance-followup-20260908",
+    "commit": "0b7612db3570e6235d4d2c86a678dd9004264f30",
+    "profileExample": "crates/scan-execution/examples/profile-fs-calls.rs"
+  },
+  "toolchain": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+    "node": "v24.20.0",
+    "pnpm": "11.25.0"
+  },
+  "fixture": {
+    "sizeLabel": "custom-9995",
+    "seed": "0",
+    "manifestSha256": "a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a",
+    "counts": {
+      "flpFiles": 9995,
+      "otherFiles": 4,
+      "aliasLocations": 5,
+      "leafDirectories": 1000,
+      "directories": 1025,
+      "emptyDirectories": 10,
+      "hardlinkGroups": 5
+    },
+    "hardlinkSupport": "created"
+  },
+  "profile": {
+    "buildCommand": "cargo build --release -p fruitboard-scan-execution --example profile-fs-calls --locked",
+    "command": "profile-fs-calls.exe --root <fixture> --db <profile-db> --runs 2 --out <profile-fs-calls-raw.json>",
+    "independentWarmCommand": "profile-fs-calls.exe --root <fixture> --db <profile-db> --runs 1 --warm --out <profile-warm-N.json>",
+    "independentWarmRuns": 3,
+    "freshProcessPerIndependentWarmRun": true,
+    "databaseReusedAcrossRuns": true
+  },
+  "coordination": {
+    "installedJourneyWorktreeHead": "49a5e649c688ae767c9189801dd033f2288b61f5",
+    "installedJourneyWorktreeCleanAtCheckpoint": true,
+    "installedJourneyPullRequest": 92,
+    "fruitboardDesktopProcessesAtProfileStart": 0,
+    "cargoProcessesAtProfileStart": 0,
+    "rustcProcessesAtProfileStart": 0,
+    "driveFsProcessesAtProfileStart": 2,
+    "t3ProcessesAtProfileStart": 6,
+    "hostClassification": "contended shared-host diagnostic; not an idle-host measurement and not acceptance evidence"
+  },
+  "notes": [
+    "The installed-app journey had completed before the timed profile; no Fruitboard desktop, cargo, or rustc process was active at the checkpoint.",
+    "DriveFS and T3 activity remained on the shared host. The independent-warm-run sampler used non-matching process-name aliases, so those later runs inherit the same contended-host classification rather than claiming a fresh idle snapshot.",
+    "The first profile run is labeled first, not cold; cache state was not controlled.",
+    "The five profile records are path-free copies of the raw diagnostic output. The official ten-iteration benchmark remains the source for the 14,267 ms warm p95."
+  ]
+}
