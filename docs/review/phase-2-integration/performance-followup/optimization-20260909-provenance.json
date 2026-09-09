@@ -1,0 +1,104 @@
+{
+  "capturedAtLocal": "2026-09-09",
+  "status": "draft optimization evidence",
+  "dependsOn": {
+    "pullRequest": 93,
+    "headCommit": "59faefc2806a725368a59e7b6fc9be7f863f4fec",
+    "headBranch": "docs/41-performance-followup-20260908",
+    "profileTool": "crates/scan-execution/examples/profile-fs-calls.rs",
+    "profileToolVersion": "profile-fs-calls-v1",
+    "profileToolChanged": false
+  },
+  "commits": {
+    "before": "1d7c29828d4560c959f4fc140b8544ce06c05b80",
+    "candidate": "b35c01a"
+  },
+  "toolchain": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+    "node": "v24.20.0",
+    "pnpm": "11.25.0"
+  },
+  "fixture": {
+    "sizeLabel": "custom-9995",
+    "seed": "0",
+    "manifestSha256": "a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a",
+    "counts": {
+      "flpFiles": 9995,
+      "otherFiles": 4,
+      "aliasLocations": 5,
+      "leafDirectories": 1000,
+      "directories": 1025,
+      "emptyDirectories": 10,
+      "hardlinkGroups": 5
+    },
+    "hardlinkSupport": "created"
+  },
+  "nativeDiagnostic": {
+    "tool": "profile-native-ops-v1",
+    "example": "crates/filesystem-enumeration/examples/profile-native-ops.rs",
+    "feature": "diagnostics",
+    "buildCommand": "cargo build --release -p fruitboard-filesystem-enumeration --features diagnostics --example profile-native-ops --locked",
+    "beforeRaw": "profile-native-before-raw.jsonl",
+    "afterRaw": "profile-native-after-raw.jsonl",
+    "runsPerSide": 3,
+    "sameProcessRuns": true,
+    "instrumented": true,
+    "includesStorage": false
+  },
+  "wholeScanProtocol": {
+    "tool": "scripts/run-benchmark.mjs",
+    "driver": "crates/scan-execution/examples/benchmark.rs",
+    "buildCommand": "cargo build --release -p fruitboard-scan-execution --example benchmark --locked",
+    "beforeRaw": "benchmark-before-raw.json",
+    "afterRaw": "benchmark-after-raw.json",
+    "warmupRuns": 1,
+    "measuredIterations": 10,
+    "cancellationIterations": 3,
+    "freshProcessPerMeasuredIteration": true,
+    "workingSetIntervalMs": 100,
+    "instrumented": false
+  },
+  "host": {
+    "cpu": "Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz",
+    "logicalCores": 12,
+    "windowsBuild": "10.0.26200",
+    "architecture": "x64",
+    "powerMode": "High performance",
+    "classification": "contended shared-host evidence; not quiet-host acceptance evidence",
+    "preflight": {
+      "cargoFamilyProcesses": 0,
+      "rustcProcesses": 0,
+      "fruitboardDesktopProcesses": 0,
+      "backgroundActivity": [
+        "Google DriveFS",
+        "Windows Defender",
+        "Epic Games Launcher",
+        "T3/Codex agent tooling"
+      ]
+    }
+  },
+  "safety": {
+    "ancestorValidationCallsBefore": 26163,
+    "ancestorValidationCallsAfter": 26163,
+    "ancestorLinksBefore": 60973,
+    "ancestorLinksAfter": 60973,
+    "directoryQueryCallsBefore": 14108,
+    "directoryQueryCallsAfter": 14108,
+    "entryOpenCallsBefore": 11030,
+    "entryOpenCallsAfter": 11030,
+    "entryMetadataCallsBefore": 11030,
+    "entryMetadataCallsAfter": 11030,
+    "observationsBefore": 10000,
+    "observationsAfter": 10000,
+    "outcomeBefore": "Complete",
+    "outcomeAfter": "Complete",
+    "focusedRegression": "ntfs_fixture_metadata_marks_a_junction_as_reparse"
+  },
+  "notes": [
+    "The full benchmark candidate p95 is higher than the before run because the host is contended; no p95 benefit is claimed.",
+    "The native diagnostic after capture was interrupted by a sibling desktop build and produced 28.686-47.617 second samples; those transient records are not committed as the primary after comparison.",
+    "The committed native raw files are the post-build three-run captures, still classified contended because DriveFS/Defender/Epic/T3 activity remained.",
+    "No quota, fixture definition, budget, 100000-entry scope, identity rule, cancellation behavior, or SQLite durability setting changed."
+  ]
+}
