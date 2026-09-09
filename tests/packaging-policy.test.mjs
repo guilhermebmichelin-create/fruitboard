@@ -183,3 +183,74 @@ test("the smoke preserves data and records bounded platform evidence", () => {
   assert.match(script, /nativeSeedAndVerifyLaunches = \$true/);
   assert.doesNotMatch(script, /Remove-Item/);
 });
+
+test("the installed smoke deadline covers the bounded sidecar budget", () => {
+  const script = readRootFile("scripts/windows-foundation-smoke.ps1");
+  const nativeSmoke = readRootFile(
+    "apps/desktop/src-tauri/src/foundation/packaging_smoke.rs",
+  );
+
+  const outer = script.match(/\$timeoutSeconds\s*=\s*(\d+)/);
+  assert.ok(outer, "the outer smoke deadline must be an explicit budget");
+  const outerMs = Number(outer[1]) * 1000;
+
+  const durationMs = (name, source) => {
+    const match = source.match(
+      new RegExp(
+        `${name}[^=]*=\\s*Duration::from_(secs|millis)\\(([\\d_]+)\\)`,
+      ),
+    );
+    assert.ok(match, `${name} must stay a named bounded budget`);
+    const value = Number(match[2].replaceAll("_", ""));
+    return match[1] === "secs" ? value * 1000 : value;
+  };
+  const innerMs =
+    durationMs("RESPOND_TIMEOUT", nativeSmoke) +
+    durationMs("FAIL_TIMEOUT", nativeSmoke) +
+    durationMs("WAIT_READY_TIMEOUT", nativeSmoke) +
+    durationMs("WAIT_TERMINATE_TIMEOUT", nativeSmoke);
+
+  // The outer harness deadline must cover the worst-case inner sidecar
+  // budget plus startup, storage setup, evidence sync, and exit margin. The
+  // previous 10s outer deadline left about 0.75s for all overhead, so
+  // healthy slow runs were killed as timeouts.
+  assert.ok(
+    outerMs >= innerMs + 10_000,
+    `outer ${outerMs}ms must cover inner ${innerMs}ms plus overhead margin`,
+  );
+
+  for (const token of [
+    "mode=$Mode",
+    "elapsedMs=",
+    "hasExited=",
+    "evidenceExists=",
+    "evidenceBytes=",
+    "evidenceSeenMs=",
+  ]) {
+    assert.ok(
+      script.includes(token),
+      `the timeout diagnostics must report ${token}`,
+    );
+  }
+  for (const token of [
+    "stages.jsonl",
+    "schedule_start",
+    "sidecar_respond_done",
+    "sidecar_fail_done",
+    "sidecar_wait_ready_done",
+    "sidecar_wait_terminate_done",
+    "evidence_written",
+    "exit_requested",
+    "respond_ms",
+    "total_ms",
+  ]) {
+    assert.ok(
+      nativeSmoke.includes(token),
+      `the native smoke must record the bounded ${token} stage`,
+    );
+  }
+  // Failure messages must name the smoke mode so seed and verify timeouts
+  // are distinguishable without absolute paths or file contents.
+  assert.match(script, /mode=\$Mode.*elapsedMs=/);
+  assert.doesNotMatch(script, /Remove-Item/);
+});
