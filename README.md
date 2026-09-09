@@ -13,23 +13,29 @@ enabled on `main` (2026-09-07; see [DEVELOPMENT.md](DEVELOPMENT.md#enforced-bran
 accepted**: the reproducible Tauri/React shell now includes Rust-owned local
 SQLite, one persisted startup-view preference, automated quality/security
 gates, and a Windows packaging smoke. It still has no parser, project workflow,
-sync, or PWA. Phase 2 proceeds under epic #33. The 2026-09-08 merged review
-baseline is `e5e777d` (PR #81): #77 keeps status and Library reads responsive
-between staged batches, #78 wires the native Library scan adapter behind the
-feature-gated `scan-console` surface, #79 records the budget and governance
-decision brief, #80 records the P2-12 checkpoint, and #81 adds the scoped event
-subscription permissions plus deterministic continuation guards. The
-[Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618)
-is green, including the enabled desktop tests and warnings-denied Clippy. The
-bounded enumeration, watcher/follow-up foundations, durable worker, and native
-scan-console surface remain behind the host-integration and acceptance gates.
-Production scanning remains hidden until P2-03 through P2-08 have integrated
-evidence. The installed-app journey, desktop watcher supervisor, F1-F3 budget
-decisions, and owner acceptance remain open. The
-[2026-09-08 continuation review](docs/review/phase-2-integration/continuation-2026-09-08.md)
+sync, or PWA. Phase 2 proceeds under epic #33. The current merged baseline is
+`0b7612db3570e6235d4d2c86a678dd9004264f30` (PR #89, fetched
+`origin/main`, 2026-09-08 local time). PR #82 merged native watcher supervision
+and shutdown recovery; PR #85 added worker-level durability and publication
+fault coverage for P2-03/P2-05/P2-06/P2-07; PR #86 added the newer benchmark
+triage re-run (recorded at the pre-#85 `51f45af` baseline); and PRs #88/#89 recorded that DriveFS and FAT32/cross-volume
+qualification remain unavailable. The latest
+[Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34293250231)
+is green for that exact `origin/main` commit, including all nine Foundation
+jobs and the enabled desktop tests and warnings-denied Clippy.
+
+These are implementation, automated-test, and measurement results, not Phase 2
+acceptance. The native watcher supervisor is merged behind the feature-gated
+`scan-console` path, but the installed-app journey, full P2-08 acceptance,
+F1-F3 budget decisions, #47/#48 platform decisions, and owner acceptance remain
+open. PR #85 contains an older evidence-row statement that calls P2-08
+complete; the current reconciliation treats that as superseded because the PR
+body records no acceptance promotion and the required installed-app evidence is
+absent. Production scanning remains hidden until P2-03 through P2-08 have
+integrated evidence. The
+[current reconciliation report](docs/review/phase-2-integration/reconciliation-2026-09-08.md)
 and [installed-app journey checklist](docs/review/phase-2-integration/installed-app-journey-checklist.md)
-track the remaining gates. DriveFS modes and FAT32/cross-volume identity remain
-manual and unverified under #47/#48.
+track the remaining gates. Historical reports remain historical records.
 
 Tracking starts at
 [Phase 2 epic #33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)
