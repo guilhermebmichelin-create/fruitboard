@@ -551,6 +551,136 @@ fn running_scan_receives_one_follow_up_without_publication() {
 }
 
 #[test]
+fn idle_activity_burst_coalesces_to_the_single_queued_slot() {
+    // Controlled-clock burst proof with no sleeps. Thousands of raw activity
+    // signals inside one coalescing window must arrive as at most one durable
+    // follow-up; a second burst while that work is still queued must not grow
+    // the queue. This complements the running-scan burst test, which proves
+    // the follow-up flag path instead of the idle queued-slot path.
+    let mut harness = Harness::new();
+    let current = harness.factory.handles().into_iter().next().unwrap();
+    let watcher_root = harness
+        .supervisor
+        .watcher_root_for(&harness.root.id)
+        .unwrap();
+    for _ in 0..5_000 {
+        current.record_activity(watcher_root, 1, 0);
+    }
+    harness.poll(1_000_000_000);
+    assert_eq!(
+        harness.jobs_for(&harness.root.id),
+        1,
+        "one window burst owns the single queued slot"
+    );
+    assert_eq!(harness.jobs(), 1);
+
+    // A second burst in a fresh window coalesces onto the still-queued work.
+    for _ in 0..5_000 {
+        current.record_activity(watcher_root, 1, 1_000_000_000);
+    }
+    harness.poll(2_000_000_000);
+    assert_eq!(
+        harness.jobs_for(&harness.root.id),
+        1,
+        "queued work absorbs the next burst without a second job"
+    );
+    assert_eq!(harness.jobs(), 1);
+}
+
+#[test]
+fn stale_generations_cannot_revive_disabled_or_removed_roots() {
+    // Exact fencing proof with no sleeps. Old watcher generations are dropped
+    // by the supervisor before the durable adapter, so a replay after a
+    // disable/re-enable or a removal/re-add creates no work. Fresh generations
+    // own the single startup gap instead. This complements the pending-hint
+    // suppression test, which covers a hint recorded before the supervisor
+    // observes the disable, and the future-generation test, which covers a
+    // newer replayed generation.
+    let mut harness = Harness::new();
+    let first = harness.factory.handles().into_iter().next().unwrap();
+    let watcher_root = harness
+        .supervisor
+        .watcher_root_for(&harness.root.id)
+        .unwrap();
+
+    // Disable with no prior job, then re-enable. The fresh generation owns
+    // one startup gap; the old generation cannot add a second slot.
+    harness.set_enabled(false, NOW_MS);
+    harness.sync(1);
+    assert!(!harness.supervisor.is_watching(&harness.root.id));
+    first.record_activity(watcher_root, 1, 1);
+    harness.poll(1_000_000_001);
+    assert_eq!(
+        harness.jobs_for(&harness.root.id),
+        0,
+        "disabled roots receive no follow-up from a stale replay"
+    );
+
+    harness.set_enabled(true, NOW_MS + 1);
+    harness.sync(2);
+    assert_eq!(harness.supervisor.generation_for(&harness.root.id), Some(2));
+    let fresh = harness.factory.handles().into_iter().last().unwrap();
+    let fresh_watcher_root = harness
+        .supervisor
+        .watcher_root_for(&harness.root.id)
+        .unwrap();
+    assert_eq!(fresh_watcher_root, watcher_root);
+    harness.poll(2);
+    assert_eq!(
+        harness.jobs_for(&harness.root.id),
+        1,
+        "re-enable owns one fresh gap with no prior cancelled chain"
+    );
+    fresh.record_activity(fresh_watcher_root, 1, 2);
+    harness.poll(1_000_000_002);
+    assert_eq!(
+        harness.jobs_for(&harness.root.id),
+        1,
+        "old-generation activity on the fresh watch is dropped"
+    );
+
+    // Removal retires the watcher identity and its mapping. The old storage
+    // id keeps its one gap job but receives no more; a replacement path gets
+    // a fresh durable id and a fresh generation, and the retired generation
+    // still cannot create work for it.
+    let old_id = harness.root.id.clone();
+    harness
+        .database
+        .lock()
+        .unwrap()
+        .remove_scan_root_at(&old_id, NOW_MS + 2)
+        .unwrap();
+    harness.sync(3);
+    assert!(harness.supervisor.watcher_root_for(&old_id).is_none());
+    let replacement = harness
+        .database
+        .lock()
+        .unwrap()
+        .add_scan_root("Replacement", r"C:\synthetic-replacement")
+        .unwrap();
+    assert_ne!(replacement.id, old_id);
+    let replacement_config = harness.config(&replacement);
+    harness
+        .supervisor
+        .sync_roots(std::slice::from_ref(&replacement_config), 4);
+    harness.poll(4);
+    assert_eq!(harness.jobs_for(&replacement.id), 1);
+    assert_eq!(harness.jobs_for(&old_id), 1);
+    let current = harness.factory.handles().into_iter().last().unwrap();
+    let current_watcher = harness
+        .supervisor
+        .watcher_root_for(&replacement.id)
+        .unwrap();
+    current.record_activity(current_watcher, 1, 4);
+    harness.poll(1_000_000_004);
+    assert_eq!(
+        harness.jobs_for(&replacement.id),
+        1,
+        "the retired generation cannot queue work for the replacement"
+    );
+}
+
+#[test]
 fn startup_gap_does_not_revive_a_cancelled_scan_chain() {
     let mut harness = Harness::new();
     let worker = ScanWorker::new(WorkerConfig::default()).unwrap();
