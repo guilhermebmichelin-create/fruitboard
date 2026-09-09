@@ -9,8 +9,11 @@ real OS overflow timing, or blanket Phase 2 acceptance.
 
 Keep these classes separate:
 
-- Merged code: `main` at `0b7612d` plus PR #95 fix `bf0aeac`
-  (`fix: align Library scan actions with durable state`, draft PR #95).
+- Merged base: `main` at `0b7612d` (merged).
+- Unmerged dependency: PR #95 fix `bf0aeac`
+  (`fix: align Library scan actions with durable state`, draft PR #95,
+  unmerged until GitHub shows otherwise). This slice was verified against
+  that dependency, not against `main` alone.
 - Unmerged changes in this slice: test-only additions under
   `apps/desktop/src-tauri/src/foundation/` plus this report. No production
   application code, Library UI, enumeration code, migration, contract, or
@@ -213,8 +216,20 @@ test-only changes. The draft PR records this scope explicitly.
   to make it visible. The durable queued state is therefore automated
   integration evidence in this slice, not an installed observation.
 - Independent watcher burst-coalescing measurement in the installed app
-  remains unverified, as does coverage-loss timing, restart-during-scan
-  handling, and unavailable-root retention beyond PR #95's replay.
+  remains unverified, as does coverage-loss timing.
+- Restart-during-scan re-verification on the repaired build and
+  unavailable-root retention beyond the repairs below remain installed-only
+  gaps. The earlier successful installed observations are preserved, not
+  redefined: PR #92 (`run-20260908.md`) observed abrupt-termination
+  recovery (installed process terminated mid-`Running`; the run was
+  retained as `interrupted` with `error_code=restart` and the same durable
+  job advanced to attempt 2 and completed) and unavailable-root retention
+  (`Execution Failed` with `The folder is unavailable. Previous committed
+  results were kept.`, prior rows kept, no auto-retry); PR #95
+  (`installed-journey/run-20260909.md`) re-observed the D1-D3 repair paths
+  plus the disabled-root replay on the rebuilt installer. What this slice
+  does not add is a repaired-build restart kill or a repaired-build repeat
+  of the unavailable-root retention beyond that replay.
 - DriveFS/mirrored/streamed roots (#47), cross-volume/FAT32 identity (#48),
   network shares, ACL revocation during a watch, and real OS
   notification-buffer overflow timing are explicitly not claimed.

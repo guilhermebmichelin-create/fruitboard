@@ -1207,6 +1207,17 @@ fn scan_now_starts_a_fresh_chain_after_cancelled_work() {
         cancel_request(&cancelled_job_id),
     ));
 
+    // D2 flag: a cancelled terminal reports no native retry through the
+    // status API; recovery is an explicit fresh scan, never a revival.
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "cancelled");
+    assert_eq!(data[0]["jobId"], cancelled_job_id);
+    assert_eq!(data[0]["retryAvailable"], false);
+
     harness.clock.advance(1);
     let second = ok_data(handle_scan_now(
         &runtime,
@@ -1789,6 +1800,16 @@ fn retry_exhausted_reports_conflict_not_requeue() {
         assert_eq!(job.state, fruitboard_storage::ScanJobState::Failed);
         assert_eq!(job.attempt, job.max_attempts);
     }
+    // D3 flag: the exhausted terminal reports no native retry through the
+    // status API; the durable budget is the authority, not the renderer.
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "failed");
+    assert_eq!(data[0]["jobId"], job_id);
+    assert_eq!(data[0]["retryAvailable"], false);
     // The closed ScanStartOutcome union has no "already_failed": the native
     // boundary reports the safe conflict; an explicit Scan now below creates
     // a new job instead of reviving this exhausted chain.
