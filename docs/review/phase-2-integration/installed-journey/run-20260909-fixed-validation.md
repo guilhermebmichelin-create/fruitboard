@@ -306,27 +306,33 @@ Job IDs `...06f3...`, `...08cd...`, `...0aaf...` (all `manual`,
 ## 7. Evidence classes
 
 Unmerged candidate observations (§5, tested `ded02ac`), merged lock helper
-plus remote CI (merged `90c988d` via PR #103 as `55668da`; PR #104 DRAFT
-`41ac09b` all checks green but BEHIND `main` and not merged; current `main`
-`f63a1d3` includes merged PR #105), deterministic suites (PR #104 lineage:
-`fruitboard-desktop --features scan-console` 87 passed including the new
-regression, `fruitboard-storage` 76 passed, `fruitboard-scan-execution` 56
-passed, Clippy clean — per PR #104 body, not re-run here except via the
-installed `ded02ac` build; the 92-count seen in the `ded02ac` integration
+plus remote CI (merged `90c988d` via PR #103 as `55668da`; PR #104 merged as
+`cccaa67` on current `main`, which includes PRs #94 `d342ec1`, #98 `7e0e9f6`,
+#95 `ee720af`, #97 `ff5d8ee`, and security #105; PR #104 exact-head CI
+Foundation `34426552063` + Packaging `34426552044` green on `00bb3e8` before
+squash), deterministic suites (merged #104 lineage: `fruitboard-desktop
+--features scan-console` 92 passed including the new regression (91 from #97
+plus 1), `fruitboard-storage` 76 passed, `fruitboard-scan-execution` 56
+passed, Clippy clean; the 92-count seen in the `ded02ac` integration
 worktree reflects its extra integration-base tests and must not be quoted as
 the PR #104 result), installed observations (§5), and owner acceptance remain
 separate. DriveFS (#47), FAT32/cross-volume identity (#48), network shares,
 ACL revocation during a watch, real OS buffer-overflow timing, and the
 100,000-entry qualification were not run and are not claimed.
 
-## 8. Merge recommendation for Agent 1 (PR #104)
+Agent 1 update (2026-09-10): the fix patch tested here (`ded02ac`,
+patch-id `7aa01a13`) is identical to merged #104 (`cccaa67`, squash of
+`00bb3e8`); pre-fix `execution.rs` blob `7241dc58` identical. Installed
+evidence below applies to merged `cccaa67` via that verified patch
+equivalence plus #104 exact-head CI. S5 PARTIAL preserved separately as
+#107; no acceptance claimed.
 
-**Recommend merging PR #104 head `41ac09b` (not `ded02ac`) after bringing the
-branch up to date with current `main` and re-running the standard `pnpm check`
-gate, with S5 recorded as PARTIAL as above. Do not declare Phase 2
-accepted on this record. Do not merge `ded02ac` itself: it is an unmerged
-integration-worktree candidate whose fix patch is identical to `41ac09b` but
-whose base is not `main`.**
+## 8. Merge status (PR #104 merged; this evidence PR ready)
+
+**PR #104 merged as `cccaa67` (not `ded02ac`) after rebase onto `ff5d8ee`
+with full `pnpm check` green via exact-head CI, S5 recorded as PARTIAL.
+Do not declare Phase 2 accepted on this record. Do not merge `ded02ac`
+itself: it remains an unmerged integration-worktree candidate.**
 
 - The queue-stall root cause and fix are corroborated installed: the
   `already_queued`-forever wedge (§5.1), burst non-convergence (§5.3),
@@ -336,13 +342,12 @@ whose base is not `main`.**
   (PR #101 §5, validated read-only in PR #102).
 - Poisoned-root fairness holds: a root carrying failed retry history no
   longer wedges due work on the other root.
-- S5 successor-convergence versus same-job-convergence needs an explicit
-  owner/Agent 1 disposition: either accept successor-recovery as the
-  hard-kill contract (then S5 becomes PASS with the reproducible IDs
-  above), or file a follow-up for same-job requeue after `taskkill /F`
-  (then PR #104 still merges for the stall fix, with S5 tracked
-  separately). Either way the stall fix itself is not blocked by S5, and
-  independent scenarios (1–4, 6) are complete.
-- Before merge, run the full `pnpm check` on the pinned Windows toolchain
-  (PR #104 notes it as still required; this validation built and installed
-  but did not run the full gate).
+- S5 successor-convergence versus same-job-convergence preserved separately
+  as #107: either accept successor-recovery as the hard-kill contract (then
+  S5 becomes PASS with the reproducible IDs above), or implement same-job
+  requeue after `taskkill /F` (PR #104 already merged for the stall fix).
+  Either way the stall fix itself was not blocked by S5, and independent
+  scenarios (1–4, 6) are complete.
+- Full `pnpm check` green via #104 exact-head CI (Foundation `34426552063` +
+  Packaging `34426552044` on `00bb3e8`); this validation built and installed
+  but did not run the full gate itself.
