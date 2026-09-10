@@ -1,11 +1,13 @@
 # Filesystem enumeration optimization evidence
 
-Status: draft optimization evidence, captured 2026-09-09. This work is stacked
-on draft [PR #93](https://github.com/guilhermebmichelin-create/fruitboard/pull/93),
-which is still the source of the `profile-fs-calls` diagnostic example and its
-original report. This work changes only the filesystem-enumeration crate; it
-does not change scan-execution or storage production code, quotas, fixture
-definitions, budgets, durability settings, or acceptance criteria.
+Status: narrow cleanup and evidence, transplanted onto current main for Agent 1
+merge. PR #93 squash-merged as `106335a` and is present on main; this branch
+contains only its three unique commits (diagnostics, duplicate-query removal,
+evidence) with no duplicated parent changes. This work changes only the
+filesystem-enumeration crate; it does not change scan-execution or storage
+production code, quotas, fixture definitions, budgets, durability settings,
+or acceptance criteria. It is reviewed as cleanup, not as a demonstrated
+performance qualification.
 
 ## Decision at a glance
 
