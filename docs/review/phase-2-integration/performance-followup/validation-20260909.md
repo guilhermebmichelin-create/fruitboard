@@ -7,14 +7,14 @@ definitions, budgets, SQLite durability, or ancestor-validation guarantees.
 `custom-9995` is treated as the existing comparison fixture, not as a newly
 approved replacement for F1's accepted baseline.
 
-Stack: PR #94 head `588867bca154e798f189f6c99de8a2668005d141` (base
-`59faefc2806a725368a59e7b6fc9be7f863f4fec`, PR #93) with before
-`1d7c29828d4560c959f4fc140b8544ce06c05b80` and candidate
-`b35c01a1ab75381e8d1d562fafcafa4764ba0b6f`. This validation branch (#98)
-adds only an 8-line diagnostic-scaffolding removal (see §5) plus this
-evidence. All timed binaries below were built from the pre-cleanup commits
+Stack: transplanted onto post-#94 main `d342ec1` (PR #94 squash-merged; PR #93
+squash-merged as `106335a`). This branch adds only the 8-line
+diagnostic-scaffolding removal plus validation evidence and review
+corrections; no duplicated parent changes. Reviewed as narrow cleanup, not
+as a demonstrated performance qualification. All timed binaries below were
+built from the pre-cleanup commits
 `1d7c298` (before) and `b35c01a` (candidate) and therefore precede and
-exclude the `15b7f17` pending_entries removal in this branch; do not claim
+exclude the pending_entries removal; do not claim
 those binaries include the later cleanup.
 
 ## 1. Audit of the existing measurement
