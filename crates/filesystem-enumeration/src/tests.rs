@@ -2177,6 +2177,36 @@ mod windows_fixtures {
     }
 
     #[test]
+    fn ntfs_fixture_metadata_marks_a_junction_as_reparse() {
+        let fixture = Fixture::new("reparse-metadata");
+        let junction = fixture.create_junction();
+        let expected_name = junction
+            .file_name()
+            .expect("junction has a file name")
+            .to_owned();
+        let mut port = WindowsFilesystemPort::new();
+        let _ = port
+            .inspect_root(&fixture.root)
+            .expect("fixture root is inspectable");
+        let opened = port.open_root(&fixture.root).expect("fixture root opens");
+        let mut cursor = opened.cursor;
+        let mut found = None;
+        while let Some(entry) = cursor.next_entry().expect("directory query succeeds") {
+            if entry.name == expected_name {
+                found = Some(
+                    cursor
+                        .read_metadata(&entry)
+                        .expect("junction metadata succeeds"),
+                );
+                break;
+            }
+        }
+        let metadata = found.expect("junction appears in root enumeration");
+        assert_eq!(metadata.kind, EntryKind::Directory);
+        assert!(metadata.reparse_point);
+    }
+
+    #[test]
     fn ntfs_fixture_junction_subtree_is_non_authoritative() {
         let fixture = Fixture::new("junction");
         let junction = fixture.create_junction();

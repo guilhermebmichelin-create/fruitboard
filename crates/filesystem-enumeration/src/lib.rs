@@ -13,6 +13,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::time::{Duration, Instant};
 
+#[cfg(feature = "diagnostics")]
+use std::cell::RefCell;
+#[cfg(feature = "diagnostics")]
+use std::rc::Rc;
+
 use unicode_normalization::UnicodeNormalization;
 
 mod simple_fold;
@@ -1975,16 +1980,128 @@ fn is_flp_name(name: &OsStr) -> bool {
         .is_some_and(|extension| extension.eq_ignore_ascii_case("flp"))
 }
 
+/// One diagnostic-only timing bucket for a native-facing operation.
+///
+/// This type is available only with the `diagnostics` feature. It is not part
+/// of the production enumeration contract and contains no paths or metadata.
+#[cfg(feature = "diagnostics")]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct NativeOperationCall {
+    pub calls: u64,
+    pub errors: u64,
+    pub nanos: u128,
+}
+
+#[cfg(feature = "diagnostics")]
+impl NativeOperationCall {
+    fn record(&mut self, elapsed_nanos: u128, succeeded: bool) {
+        self.calls = self.calls.saturating_add(1);
+        if !succeeded {
+            self.errors = self.errors.saturating_add(1);
+        }
+        self.nanos = self.nanos.saturating_add(elapsed_nanos);
+    }
+}
+
+/// Diagnostic-only native-operation profile for the Windows port.
+///
+/// The profile separates ancestor validation from directory queries, entry
+/// opens/metadata, child-directory opens/metadata, case-mode queries, and
+/// root qualification/open work. It is intentionally opt-in and path-free.
+#[cfg(feature = "diagnostics")]
+#[derive(Debug, Default)]
+pub struct NativeOperationProfile {
+    pub ancestor_validation: NativeOperationCall,
+    pub ancestor_links: u64,
+    pub directory_query: NativeOperationCall,
+    pub entry_open: NativeOperationCall,
+    pub entry_metadata: NativeOperationCall,
+    pub directory_open: NativeOperationCall,
+    pub directory_metadata: NativeOperationCall,
+    pub directory_case_sensitivity: NativeOperationCall,
+    pub root_open: NativeOperationCall,
+    pub root_metadata: NativeOperationCall,
+    pub root_case_sensitivity: NativeOperationCall,
+}
+
+#[cfg(feature = "diagnostics")]
+impl NativeOperationProfile {
+    pub fn filesystem_nanos(&self) -> u128 {
+        self.ancestor_validation
+            .nanos
+            .saturating_add(self.directory_query.nanos)
+            .saturating_add(self.entry_open.nanos)
+            .saturating_add(self.entry_metadata.nanos)
+            .saturating_add(self.directory_open.nanos)
+            .saturating_add(self.directory_metadata.nanos)
+            .saturating_add(self.directory_case_sensitivity.nanos)
+            .saturating_add(self.root_open.nanos)
+            .saturating_add(self.root_metadata.nanos)
+            .saturating_add(self.root_case_sensitivity.nanos)
+    }
+}
+
+#[cfg(feature = "diagnostics")]
+#[derive(Clone, Copy)]
+enum NativeOperation {
+    AncestorValidation,
+    DirectoryQuery,
+    EntryOpen,
+    EntryMetadata,
+    DirectoryOpen,
+    DirectoryMetadata,
+    DirectoryCaseSensitivity,
+    RootOpen,
+    RootMetadata,
+    RootCaseSensitivity,
+}
+
+#[cfg(feature = "diagnostics")]
+impl NativeOperationProfile {
+    fn record(&mut self, operation: NativeOperation, elapsed_nanos: u128, succeeded: bool) {
+        let call = match operation {
+            NativeOperation::AncestorValidation => &mut self.ancestor_validation,
+            NativeOperation::DirectoryQuery => &mut self.directory_query,
+            NativeOperation::EntryOpen => &mut self.entry_open,
+            NativeOperation::EntryMetadata => &mut self.entry_metadata,
+            NativeOperation::DirectoryOpen => &mut self.directory_open,
+            NativeOperation::DirectoryMetadata => &mut self.directory_metadata,
+            NativeOperation::DirectoryCaseSensitivity => &mut self.directory_case_sensitivity,
+            NativeOperation::RootOpen => &mut self.root_open,
+            NativeOperation::RootMetadata => &mut self.root_metadata,
+            NativeOperation::RootCaseSensitivity => &mut self.root_case_sensitivity,
+        };
+        call.record(elapsed_nanos, succeeded);
+    }
+}
+
 /// The production Windows port. On non-Windows hosts it reports
 /// `Unsupported`; fake ports keep deterministic tests portable.
 pub struct WindowsFilesystemPort {
     qualification: Option<FilesystemQualification>,
+    #[cfg(feature = "diagnostics")]
+    diagnostics: Option<Rc<RefCell<NativeOperationProfile>>>,
 }
 
 impl WindowsFilesystemPort {
     pub fn new() -> Self {
         Self {
             qualification: None,
+            #[cfg(feature = "diagnostics")]
+            diagnostics: None,
+        }
+    }
+
+    /// Construct a port that records diagnostic-only native operation timings.
+    ///
+    /// The profile is shared with cursors opened from this port. It has no
+    /// effect unless the `diagnostics` feature is enabled and is never used by
+    /// the default production constructor.
+    #[cfg(feature = "diagnostics")]
+    pub fn new_with_diagnostics(profile: Rc<RefCell<NativeOperationProfile>>) -> Self {
+        Self {
+            qualification: None,
+            diagnostics: Some(profile),
         }
     }
 }
@@ -2009,6 +2126,7 @@ impl FilesystemPort for WindowsFilesystemPort {
 #[cfg(windows)]
 mod windows_port {
     use super::*;
+    use std::collections::VecDeque;
     use std::ffi::c_void;
     use std::mem::{MaybeUninit, size_of};
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
@@ -2036,7 +2154,6 @@ mod windows_port {
     const FILE_NAMES_INFORMATION_CLASS: i32 = 12;
     const FILE_BASIC_INFORMATION_CLASS: i32 = 0;
     const FILE_STANDARD_INFORMATION_CLASS: i32 = 1;
-    const FILE_ATTRIBUTE_TAG_INFORMATION_CLASS: i32 = 9;
     const FILE_ID_INFO_CLASS: i32 = 18;
     const FILE_CASE_SENSITIVE_INFORMATION_CLASS: i32 = 23;
     const FILE_CS_FLAG_CASE_SENSITIVE_DIR: u32 = 0x0000_0001;
@@ -2086,13 +2203,6 @@ mod windows_port {
         number_of_links: u32,
         delete_pending: u8,
         directory: u8,
-    }
-
-    #[repr(C)]
-    #[derive(Clone, Copy)]
-    struct FileAttributeTagInfo {
-        file_attributes: u32,
-        reparse_tag: u32,
     }
 
     #[repr(C)]
@@ -2223,17 +2333,39 @@ mod windows_port {
         validation_chain: Option<Rc<ValidationChain>>,
         restart_scan: bool,
         buffer: [u8; DIRECTORY_BUFFER_BYTES],
+        pending_entries: VecDeque<OsString>,
+        #[cfg(feature = "diagnostics")]
+        diagnostics: Option<Rc<RefCell<NativeOperationProfile>>>,
+    }
+
+    #[cfg(feature = "diagnostics")]
+    fn record_diagnostic(
+        profile: &Option<Rc<RefCell<NativeOperationProfile>>>,
+        operation: NativeOperation,
+        elapsed_nanos: u128,
+        succeeded: bool,
+    ) {
+        if let Some(profile) = profile {
+            profile
+                .borrow_mut()
+                .record(operation, elapsed_nanos, succeeded);
+        }
     }
 
     impl DirectoryCursor for WindowsDirectoryCursor {
         fn next_entry(&mut self) -> Result<Option<DirectoryEntry>, PortError> {
             loop {
                 self.validate_ancestors()?;
+                if let Some(name) = self.pending_entries.pop_front() {
+                    return Ok(Some(DirectoryEntry::new(name)));
+                }
                 let mut status = IoStatusBlock {
                     status: 0,
                     information: 0,
                 };
                 let restart_scan = u8::from(!self.restart_scan);
+                #[cfg(feature = "diagnostics")]
+                let started = Instant::now();
                 let result = unsafe {
                     NtQueryDirectoryFile(
                         self.handle.raw(),
@@ -2249,6 +2381,13 @@ mod windows_port {
                         restart_scan,
                     )
                 };
+                #[cfg(feature = "diagnostics")]
+                record_diagnostic(
+                    &self.diagnostics,
+                    NativeOperation::DirectoryQuery,
+                    started.elapsed().as_nanos(),
+                    result == 0 || result as u32 == STATUS_NO_MORE_FILES,
+                );
                 self.restart_scan = true;
                 match result as u32 {
                     0 => {
@@ -2273,24 +2412,64 @@ mod windows_port {
 
         fn read_metadata(&mut self, entry: &DirectoryEntry) -> Result<FileMetadata, PortError> {
             self.validate_ancestors()?;
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
             let handle = open_relative(
                 &self.handle,
                 &entry.name,
                 FILE_READ_ATTRIBUTES | SYNCHRONIZE,
                 FILE_OPEN_REPARSE_POINT_OPTION | FILE_SYNCHRONOUS_IO_NONALERT,
-            )?;
-            read_handle_metadata(&handle, self.qualification)
+            );
+            #[cfg(feature = "diagnostics")]
+            record_diagnostic(
+                &self.diagnostics,
+                NativeOperation::EntryOpen,
+                started.elapsed().as_nanos(),
+                handle.is_ok(),
+            );
+            let handle = handle?;
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
+            let result = read_handle_metadata(&handle, self.qualification);
+            #[cfg(feature = "diagnostics")]
+            record_diagnostic(
+                &self.diagnostics,
+                NativeOperation::EntryMetadata,
+                started.elapsed().as_nanos(),
+                result.is_ok(),
+            );
+            result
         }
 
         fn open_directory(&mut self, entry: &DirectoryEntry) -> Result<OpenedDirectory, PortError> {
             self.validate_ancestors()?;
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
             let handle = open_relative(
                 &self.handle,
                 &entry.name,
                 FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
                 FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT_OPTION | FILE_SYNCHRONOUS_IO_NONALERT,
-            )?;
-            let metadata = read_handle_metadata(&handle, self.qualification)?;
+            );
+            #[cfg(feature = "diagnostics")]
+            record_diagnostic(
+                &self.diagnostics,
+                NativeOperation::DirectoryOpen,
+                started.elapsed().as_nanos(),
+                handle.is_ok(),
+            );
+            let handle = handle?;
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
+            let metadata_result = read_handle_metadata(&handle, self.qualification);
+            #[cfg(feature = "diagnostics")]
+            record_diagnostic(
+                &self.diagnostics,
+                NativeOperation::DirectoryMetadata,
+                started.elapsed().as_nanos(),
+                metadata_result.is_ok(),
+            );
+            let metadata = metadata_result?;
             if metadata.reparse_point {
                 return Err(PortError::ReparsePoint);
             }
@@ -2305,13 +2484,26 @@ mod windows_port {
                 name: wide_name(&entry.name)?,
                 identity,
             }));
-            let case_sensitivity = query_case_sensitivity(&handle)?;
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
+            let case_sensitivity_result = query_case_sensitivity(&handle);
+            #[cfg(feature = "diagnostics")]
+            record_diagnostic(
+                &self.diagnostics,
+                NativeOperation::DirectoryCaseSensitivity,
+                started.elapsed().as_nanos(),
+                case_sensitivity_result.is_ok(),
+            );
+            let case_sensitivity = case_sensitivity_result?;
             let cursor = WindowsDirectoryCursor {
                 handle: Rc::clone(&handle),
                 qualification: self.qualification,
                 validation_chain,
                 restart_scan: false,
                 buffer: [0; DIRECTORY_BUFFER_BYTES],
+                pending_entries: VecDeque::new(),
+                #[cfg(feature = "diagnostics")]
+                diagnostics: self.diagnostics.clone(),
             };
             Ok(OpenedDirectory {
                 metadata,
@@ -2322,6 +2514,7 @@ mod windows_port {
     }
 
     impl WindowsDirectoryCursor {
+        #[cfg(not(feature = "diagnostics"))]
         fn root(handle: Rc<WindowsHandle>, qualification: FilesystemQualification) -> Self {
             Self {
                 handle,
@@ -2329,36 +2522,97 @@ mod windows_port {
                 validation_chain: None,
                 restart_scan: false,
                 buffer: [0; DIRECTORY_BUFFER_BYTES],
+                pending_entries: VecDeque::new(),
+                #[cfg(feature = "diagnostics")]
+                diagnostics: None,
+            }
+        }
+
+        #[cfg(feature = "diagnostics")]
+        fn root_with_diagnostics(
+            handle: Rc<WindowsHandle>,
+            qualification: FilesystemQualification,
+            diagnostics: Option<Rc<RefCell<NativeOperationProfile>>>,
+        ) -> Self {
+            Self {
+                handle,
+                qualification,
+                validation_chain: None,
+                restart_scan: false,
+                buffer: [0; DIRECTORY_BUFFER_BYTES],
+                pending_entries: VecDeque::new(),
+                diagnostics,
             }
         }
 
         fn validate_ancestors(&self) -> Result<(), PortError> {
-            let mut chain = self.validation_chain.as_deref();
-            while let Some(link) = chain {
-                let handle = open_relative(
-                    &link.parent_handle,
-                    &OsString::from_wide(&link.name),
-                    FILE_READ_ATTRIBUTES | SYNCHRONIZE,
-                    FILE_OPEN_REPARSE_POINT_OPTION | FILE_SYNCHRONOUS_IO_NONALERT,
-                )?;
-                let metadata = read_handle_metadata(&handle, self.qualification)?;
-                if metadata.reparse_point || metadata.kind != EntryKind::Directory {
-                    return Err(PortError::Changed);
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
+            #[cfg(feature = "diagnostics")]
+            let mut link_count = 0u64;
+            let result = (|| {
+                let mut chain = self.validation_chain.as_deref();
+                while let Some(link) = chain {
+                    #[cfg(feature = "diagnostics")]
+                    {
+                        link_count = link_count.saturating_add(1);
+                    }
+                    let handle = open_relative(
+                        &link.parent_handle,
+                        &OsString::from_wide(&link.name),
+                        FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                        FILE_OPEN_REPARSE_POINT_OPTION | FILE_SYNCHRONOUS_IO_NONALERT,
+                    )?;
+                    let metadata = read_handle_metadata(&handle, self.qualification)?;
+                    if metadata.reparse_point || metadata.kind != EntryKind::Directory {
+                        return Err(PortError::Changed);
+                    }
+                    if metadata.identity.as_ref() != Some(&link.identity) {
+                        return Err(PortError::Changed);
+                    }
+                    chain = link.parent.as_deref();
                 }
-                if metadata.identity.as_ref() != Some(&link.identity) {
-                    return Err(PortError::Changed);
+                Ok(())
+            })();
+            #[cfg(feature = "diagnostics")]
+            {
+                if let Some(profile) = &self.diagnostics {
+                    let mut profile = profile.borrow_mut();
+                    profile.record(
+                        NativeOperation::AncestorValidation,
+                        started.elapsed().as_nanos(),
+                        result.is_ok(),
+                    );
+                    profile.ancestor_links = profile.ancestor_links.saturating_add(link_count);
                 }
-                chain = link.parent.as_deref();
             }
-            Ok(())
+            result
         }
     }
 
     impl FilesystemPort for WindowsFilesystemPort {
         fn inspect_root(&mut self, root: &Path) -> Result<RootMetadata, PortError> {
             let qualification = filesystem_qualification(root)?;
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
             let handle = open_path(root)?;
+            #[cfg(feature = "diagnostics")]
+            record_diagnostic(
+                &self.diagnostics,
+                NativeOperation::RootOpen,
+                started.elapsed().as_nanos(),
+                true,
+            );
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
             let metadata = read_handle_metadata(&handle, qualification)?;
+            #[cfg(feature = "diagnostics")]
+            record_diagnostic(
+                &self.diagnostics,
+                NativeOperation::RootMetadata,
+                started.elapsed().as_nanos(),
+                true,
+            );
             self.qualification = Some(qualification);
             Ok(RootMetadata {
                 metadata,
@@ -2368,15 +2622,50 @@ mod windows_port {
 
         fn open_root(&mut self, root: &Path) -> Result<OpenedDirectory, PortError> {
             let qualification = self.qualification.ok_or(PortError::Unsupported)?;
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
             let handle = Rc::new(open_path(root)?);
+            #[cfg(feature = "diagnostics")]
+            record_diagnostic(
+                &self.diagnostics,
+                NativeOperation::RootOpen,
+                started.elapsed().as_nanos(),
+                true,
+            );
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
             let metadata = read_handle_metadata(&handle, qualification)?;
+            #[cfg(feature = "diagnostics")]
+            record_diagnostic(
+                &self.diagnostics,
+                NativeOperation::RootMetadata,
+                started.elapsed().as_nanos(),
+                true,
+            );
             if metadata.reparse_point {
                 return Err(PortError::ReparsePoint);
             }
             if metadata.kind != EntryKind::Directory {
                 return Err(PortError::Other);
             }
-            let case_sensitivity = query_case_sensitivity(&handle)?;
+            #[cfg(feature = "diagnostics")]
+            let started = Instant::now();
+            let case_sensitivity_result = query_case_sensitivity(&handle);
+            #[cfg(feature = "diagnostics")]
+            record_diagnostic(
+                &self.diagnostics,
+                NativeOperation::RootCaseSensitivity,
+                started.elapsed().as_nanos(),
+                case_sensitivity_result.is_ok(),
+            );
+            let case_sensitivity = case_sensitivity_result?;
+            #[cfg(feature = "diagnostics")]
+            let cursor = WindowsDirectoryCursor::root_with_diagnostics(
+                Rc::clone(&handle),
+                qualification,
+                self.diagnostics.clone(),
+            );
+            #[cfg(not(feature = "diagnostics"))]
             let cursor = WindowsDirectoryCursor::root(Rc::clone(&handle), qualification);
             Ok(OpenedDirectory {
                 metadata,
@@ -2469,14 +2758,16 @@ mod windows_port {
         let basic = query_handle_info::<FileBasicInfo>(handle, FILE_BASIC_INFORMATION_CLASS)?;
         let standard =
             query_handle_info::<FileStandardInfo>(handle, FILE_STANDARD_INFORMATION_CLASS)?;
-        let tag = query_handle_info::<FileAttributeTagInfo>(
-            handle,
-            FILE_ATTRIBUTE_TAG_INFORMATION_CLASS,
-        )?;
         if standard.end_of_file < 0 {
             return Err(PortError::Other);
         }
-        let attributes = basic.file_attributes | tag.file_attributes;
+        // FILE_BASIC_INFORMATION already carries the complete attribute
+        // flags, including FILE_ATTRIBUTE_REPARSE_POINT and the recall/offline
+        // flags used below. The former FILE_ATTRIBUTE_TAG_INFORMATION query
+        // returned the same flags; its ReparseTag was never consumed. Keep
+        // the attribute decision on the handle and avoid a duplicate native
+        // metadata query without changing reparse classification.
+        let attributes = basic.file_attributes;
         let reparse_point = attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0;
         let recall_or_offline = attributes
             & (FILE_ATTRIBUTE_OFFLINE
