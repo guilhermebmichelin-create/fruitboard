@@ -308,7 +308,7 @@ Job IDs `...06f3...`, `...08cd...`, `...0aaf...` (all `manual`,
 Unmerged candidate observations (§5, tested `ded02ac`), merged lock helper
 plus remote CI (merged `90c988d` via PR #103 as `55668da`; PR #104 merged as
 `cccaa67` on current `main`, which includes PRs #94 `d342ec1`, #98 `7e0e9f6`,
-#95 `ee720af`, #97 `ff5d8ee`, and security #105; PR #104 exact-head CI
+PR #95 `ee720af`, PR #97 `ff5d8ee`, and security #105; PR #104 exact-head CI
 Foundation `34426552063` + Packaging `34426552044` green on `00bb3e8` before
 squash), deterministic suites (merged #104 lineage: `fruitboard-desktop
 --features scan-console` 92 passed including the new regression (91 from #97
@@ -324,8 +324,8 @@ Agent 1 update (2026-09-10): the fix patch tested here (`ded02ac`,
 patch-id `7aa01a13`) is identical to merged #104 (`cccaa67`, squash of
 `00bb3e8`); pre-fix `execution.rs` blob `7241dc58` identical. Installed
 evidence below applies to merged `cccaa67` via that verified patch
-equivalence plus #104 exact-head CI. S5 PARTIAL preserved separately as
-#107; no acceptance claimed.
+equivalence plus #104 exact-head CI. S5 PARTIAL preserved separately as issue #107;
+no acceptance claimed.
 
 ## 8. Merge status (PR #104 merged; this evidence PR ready)
 
