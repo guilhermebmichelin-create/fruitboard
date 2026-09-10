@@ -441,6 +441,7 @@ fn scan_now_runs_to_completion_and_statuses_report_contract_fields() {
     assert_eq!(status["jobId"], job_id);
     assert!(!status["runId"].as_str().expect("run id").is_empty());
     assert_eq!(status["cancellationRequested"], false);
+    assert_eq!(status["retryAvailable"], false);
     assert_eq!(status["counters"]["filesObserved"], 2);
     assert_eq!(status["counters"]["directoriesVisited"], 0);
     assert!(status["counters"]["totalFiles"].is_null());
@@ -462,6 +463,7 @@ fn scan_now_runs_to_completion_and_statuses_report_contract_fields() {
             "jobId",
             "runId",
             "cancellationRequested",
+            "retryAvailable",
             "counters",
             "lastSuccessfulScanAt",
             "lastOutcomeAt",
@@ -645,6 +647,7 @@ fn failed_runs_retry_manually_and_through_the_persisted_backoff() {
     ));
     assert_eq!(data[0]["state"], "failed");
     assert_eq!(data[0]["errorCode"], "unavailable");
+    assert_eq!(data[0]["retryAvailable"], true);
 
     // Manual retry before the persisted backoff eligibility.
     let data = ok_data(handle_retry_scan(
@@ -979,6 +982,50 @@ fn scan_now_coalesces_and_rejects_unknown_and_disabled_roots() {
 }
 
 #[test]
+fn disabled_failed_roots_do_not_offer_or_start_recovery() {
+    let harness = Harness::new("disabled-failed-recovery");
+    let (runtime, _) = test_runtime();
+    let started = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let job_id = started["jobId"].as_str().expect("job id").to_owned();
+    harness.tick_port(FakePort::offline(tree(vec![file_entry("a.flp", 101)])));
+    harness.set_root_enabled(&harness.root_id, false);
+
+    let statuses = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(statuses[0]["state"], "failed");
+    assert_eq!(statuses[0]["retryAvailable"], false);
+    assert_eq!(statuses[0]["root"]["enabled"], false);
+
+    assert_eq!(
+        error_code(handle_retry_scan(
+            &runtime,
+            &harness.service,
+            retry_request(&job_id),
+        )),
+        "conflict"
+    );
+    assert_eq!(
+        error_code(handle_scan_now(
+            &runtime,
+            &harness.service,
+            scan_now_request(&harness.root_id),
+        )),
+        "conflict"
+    );
+    let database = harness.database.lock().unwrap();
+    let job = database.scan_job(&job_id).expect("failed job");
+    assert_eq!(job.state, ScanJobState::Failed);
+    assert_eq!(job.attempt, 1);
+}
+
+#[test]
 fn terminal_jobs_reject_retry_and_report_already_outcomes() {
     let harness = Harness::new("terminal-jobs");
     let (runtime, _) = test_runtime();
@@ -1022,6 +1069,43 @@ fn terminal_jobs_reject_retry_and_report_already_outcomes() {
         )),
         "not_found"
     );
+}
+
+#[test]
+fn scan_now_starts_a_fresh_chain_after_cancelled_work() {
+    let harness = Harness::new("scan-now-after-cancel");
+    let (runtime, _) = test_runtime();
+
+    let first = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let cancelled_job_id = first["jobId"].as_str().expect("job id").to_owned();
+    ok_data(handle_cancel_scan(
+        &runtime,
+        &harness.service,
+        cancel_request(&cancelled_job_id),
+    ));
+
+    harness.clock.advance(1);
+    let second = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let fresh_job_id = second["jobId"].as_str().expect("fresh job id");
+    assert_ne!(fresh_job_id, cancelled_job_id);
+    assert_eq!(second["outcome"], "queued");
+    assert!(second["runId"].is_null());
+
+    let database = harness.database.lock().unwrap();
+    let cancelled = database.scan_job(&cancelled_job_id).expect("cancelled job");
+    let fresh = database.scan_job(fresh_job_id).expect("fresh job");
+    assert_eq!(cancelled.state, ScanJobState::Cancelled);
+    assert_eq!(fresh.state, ScanJobState::Queued);
+    assert_eq!(fresh.attempt, 0, "fresh work starts a new chain");
+    assert_ne!(cancelled.retry_chain_id, fresh.retry_chain_id);
 }
 
 #[test]
@@ -1587,8 +1671,8 @@ fn retry_exhausted_reports_conflict_not_requeue() {
         assert_eq!(job.attempt, job.max_attempts);
     }
     // The closed ScanStartOutcome union has no "already_failed": the native
-    // boundary reports the safe conflict (documented divergence from the
-    // UI-only fake, which can always requeue).
+    // boundary reports the safe conflict; an explicit Scan now below creates
+    // a new job instead of reviving this exhausted chain.
     assert_eq!(
         error_code(handle_retry_scan(
             &runtime,
@@ -1597,6 +1681,26 @@ fn retry_exhausted_reports_conflict_not_requeue() {
         )),
         "conflict"
     );
+
+    // Exhausted work is not revived by Retry. An explicit Scan now creates a
+    // separate job and retry chain while preserving the exhausted record.
+    harness.clock.advance(1);
+    let fresh = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let fresh_job_id = fresh["jobId"].as_str().expect("fresh job id");
+    assert_ne!(fresh_job_id, job_id);
+    assert_eq!(fresh["outcome"], "queued");
+    let database = harness.database.lock().unwrap();
+    let exhausted = database.scan_job(&job_id).expect("exhausted job");
+    let fresh = database.scan_job(fresh_job_id).expect("fresh job");
+    assert_eq!(exhausted.state, ScanJobState::Failed);
+    assert_eq!(exhausted.attempt, exhausted.max_attempts);
+    assert_eq!(fresh.state, ScanJobState::Queued);
+    assert_eq!(fresh.attempt, 0);
+    assert_ne!(exhausted.retry_chain_id, fresh.retry_chain_id);
 }
 
 #[test]

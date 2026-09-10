@@ -140,6 +140,10 @@ pub(crate) struct ScanStatus {
     job_id: Option<String>,
     run_id: Option<String>,
     cancellation_requested: bool,
+    /// Native-authoritative retry action. A false value for terminal work
+    /// means the renderer must start a new explicit scan instead of reviving
+    /// this job or guessing at its retry budget.
+    retry_available: bool,
     counters: ScanProgressCounters,
     last_successful_scan_at: Option<String>,
     last_outcome_at: Option<String>,
@@ -699,6 +703,9 @@ fn build_scan_status(
     job: Option<&ScanJob>,
     runs: &[fruitboard_storage::ScanRun],
 ) -> ScanStatus {
+    let retry_available = job.is_some_and(|job| {
+        job.state == ScanJobState::Failed && job.attempt < job.max_attempts && root.enabled
+    });
     let state = match job {
         None => ScanExecutionState::Idle,
         Some(job) => match job.state {
@@ -748,6 +755,7 @@ fn build_scan_status(
         job_id: job.map(|job| job.id.clone()),
         run_id: run.map(|run| run.id.clone()),
         cancellation_requested: job.is_some_and(|job| job.cancellation_requested),
+        retry_available,
         counters,
         last_successful_scan_at,
         last_outcome_at,
