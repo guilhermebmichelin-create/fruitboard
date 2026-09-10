@@ -982,6 +982,125 @@ fn scan_now_coalesces_and_rejects_unknown_and_disabled_roots() {
 }
 
 #[test]
+fn changes_during_a_scan_converge_on_the_authoritative_follow_up() {
+    // Deterministic convergence proof with no wall-clock sleeps. The
+    // claim/execute split is the barrier: the second trigger lands while the
+    // first attempt is durably running, the first attempt becomes
+    // interrupted without publishing, and the deduplicated follow-up carries
+    // the later filesystem state to a full authoritative publication.
+    let harness = Harness::new("converge-follow-up");
+    let (runtime, _) = test_runtime();
+
+    // Seed one committed baseline: a.flp is present.
+    let seed = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let seed_job_id = seed["jobId"].as_str().expect("seed job id").to_owned();
+    harness.tick(tree(vec![file_entry("a.flp", 101)]));
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "completed");
+    assert_eq!(data[0]["jobId"], seed_job_id);
+    let page = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    assert_eq!(page["records"].as_array().expect("records").len(), 1);
+    assert_eq!(page["records"][0]["fileName"], "a.flp");
+    assert_eq!(page["records"][0]["presence"], "present");
+
+    // Start the next scan and hold it durably running.
+    harness.clock.advance(1);
+    let started = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let running_job_id = started["jobId"].as_str().expect("job id").to_owned();
+    assert_ne!(running_job_id, seed_job_id);
+    harness.claim_due();
+    // A change arriving during traversal is a second trigger while running.
+    let retrigger = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    assert_eq!(retrigger["outcome"], "already_running");
+    assert_eq!(retrigger["jobId"], running_job_id);
+
+    // The running attempt is invalidated and schedules exactly one
+    // deduplicated follow-up. Nothing publishes yet, so the committed view
+    // still shows a.flp present: triggers alone never decide presence.
+    harness.execute_pending(tree(vec![file_entry("a.flp", 101)]));
+    let follow_up_id = {
+        let database = harness.database.lock().unwrap();
+        let running = database.scan_job(&running_job_id).expect("running job");
+        assert_eq!(running.state, ScanJobState::Interrupted);
+        let jobs = database.list_scan_jobs().expect("jobs");
+        assert_eq!(jobs.len(), 3, "seed + interrupted + one follow-up");
+        let follow_up = jobs
+            .iter()
+            .find(|job| job.state == ScanJobState::Queued)
+            .expect("one queued follow-up");
+        assert_ne!(follow_up.id, running_job_id);
+        follow_up.id.clone()
+    };
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "queued");
+    assert_eq!(data[0]["jobId"], follow_up_id);
+    assert!(data[0]["runId"].is_null());
+    let page = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    assert_eq!(page["records"].as_array().expect("records").len(), 1);
+    assert_eq!(page["records"][0]["fileName"], "a.flp");
+    assert_eq!(page["records"][0]["presence"], "present");
+
+    // The follow-up converges on the later state: a.flp was removed and
+    // b.flp was added while the first attempt ran. The authoritative
+    // full-root reconciliation marks the unobserved location missing and
+    // publishes the added one, rather than deleting history.
+    harness.clock.advance(1);
+    harness.tick(tree(vec![file_entry("b.flp", 202)]));
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "completed");
+    assert_eq!(data[0]["jobId"], follow_up_id);
+    assert!(!data[0]["runId"].as_str().expect("run id").is_empty());
+    let page = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    let records = page["records"].as_array().expect("records");
+    assert_eq!(records.len(), 2, "removed row retained as missing");
+    assert_eq!(records[0]["fileName"], "a.flp");
+    assert_eq!(records[0]["presence"], "missing");
+    assert_eq!(records[1]["fileName"], "b.flp");
+    assert_eq!(records[1]["presence"], "present");
+    {
+        let database = harness.database.lock().unwrap();
+        let follow_up = database.scan_job(&follow_up_id).expect("follow-up job");
+        assert_eq!(follow_up.state, ScanJobState::Completed);
+    }
+}
+
+#[test]
 fn disabled_failed_roots_do_not_offer_or_start_recovery() {
     let harness = Harness::new("disabled-failed-recovery");
     let (runtime, _) = test_runtime();
@@ -1087,6 +1206,17 @@ fn scan_now_starts_a_fresh_chain_after_cancelled_work() {
         &harness.service,
         cancel_request(&cancelled_job_id),
     ));
+
+    // D2 flag: a cancelled terminal reports no native retry through the
+    // status API; recovery is an explicit fresh scan, never a revival.
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "cancelled");
+    assert_eq!(data[0]["jobId"], cancelled_job_id);
+    assert_eq!(data[0]["retryAvailable"], false);
 
     harness.clock.advance(1);
     let second = ok_data(handle_scan_now(
@@ -1670,6 +1800,16 @@ fn retry_exhausted_reports_conflict_not_requeue() {
         assert_eq!(job.state, fruitboard_storage::ScanJobState::Failed);
         assert_eq!(job.attempt, job.max_attempts);
     }
+    // D3 flag: the exhausted terminal reports no native retry through the
+    // status API; the durable budget is the authority, not the renderer.
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "failed");
+    assert_eq!(data[0]["jobId"], job_id);
+    assert_eq!(data[0]["retryAvailable"], false);
     // The closed ScanStartOutcome union has no "already_failed": the native
     // boundary reports the safe conflict; an explicit Scan now below creates
     // a new job instead of reviving this exhausted chain.
