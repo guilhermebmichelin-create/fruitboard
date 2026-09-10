@@ -2108,6 +2108,114 @@ fn pending_follow_up_survives_restart_and_invalidates_the_resumed_attempt() {
     assert_ne!(jobs[1].retry_chain_id, chain);
 }
 
+/// S5 disposition pin (issue #107 / PR #106 S5 PARTIAL).
+///
+/// Reproduces the exact installed S5 shape from `s5-db-copy.db`: a running
+/// attempt is invalidated during traversal by a coalesced trigger
+/// (`already_running`, same `follow_up_requested` flag the watcher path
+/// uses), finishes as `interrupted`/`follow_up_requested` with a fresh
+/// queued successor, and *then* the process is killed before the successor
+/// runs. Restart must keep the old job terminally interrupted and lease the
+/// successor; it must not resurrect the old job merely because the IDs
+/// differ. Genuine crash recovery (run still `running` at restart, error
+/// `restart`, same job requeued) is covered separately by
+/// `restart_requeues_the_interrupted_attempt_without_resetting_its_chain`.
+#[test]
+fn kill_after_follow_up_invalidation_keeps_successor_and_leaves_old_interrupted() {
+    let directory = TestDirectory::new();
+    let (root_id, old_job_id, old_run_id, successor_job_id) = {
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("session-1", 10).unwrap();
+        let first = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 20)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", 21, 100)
+            .unwrap()
+            .unwrap();
+        // The S5 harness's own `scan_now` coalesced as `already_running`;
+        // this sets the same `follow_up_requested` flag a watcher hint sets.
+        let coalesced = database
+            .enqueue_scan(&root.id, ScanKind::Periodic, 22)
+            .unwrap();
+        assert!(coalesced.coalesced);
+        assert_eq!(coalesced.job_id, first.job_id);
+        // The worker finishes after the trigger: invalidated, non-authoritative,
+        // with a fresh queued follow-up (S5's `...9cf5...` -> `...abb4...`).
+        assert_eq!(
+            database
+                .finish_scan_run(
+                    &lease.run.id,
+                    "session-1",
+                    &lease.run.lease_token,
+                    23,
+                    ScanRunOutcome::Completed,
+                )
+                .unwrap(),
+            ScanRunState::Interrupted
+        );
+        let finished_run = database.scan_run(&lease.run.id).unwrap();
+        assert_eq!(
+            finished_run.error_code.as_deref(),
+            Some("follow_up_requested")
+        );
+        let jobs = database.list_scan_jobs().unwrap();
+        assert_eq!(jobs.len(), 2);
+        assert_eq!(jobs[0].id, first.job_id);
+        assert_eq!(jobs[0].state, ScanJobState::Interrupted);
+        assert_eq!(
+            database
+                .scan_job(&jobs[0].id)
+                .unwrap()
+                .last_error_code
+                .as_deref(),
+            Some("follow_up_requested")
+        );
+        assert_eq!(jobs[1].state, ScanJobState::Queued);
+        (
+            root.id,
+            jobs[0].id.clone(),
+            lease.run.id.clone(),
+            jobs[1].id.clone(),
+        )
+    };
+
+    // Hard kill after the finish: no `running` lease remains, exactly like
+    // `s5-db-copy.db` (0 running runs, target interrupted, successor queued).
+    // Reopen and start a new session without touching the successor.
+    let mut database = Database::open(directory.path()).unwrap();
+    database.begin_scan_session("session-2", 30).unwrap();
+
+    // The invalidated job stays terminally interrupted; it is not requeued.
+    let old_job = database.scan_job(&old_job_id).unwrap();
+    assert_eq!(old_job.state, ScanJobState::Interrupted);
+    assert_eq!(
+        old_job.last_error_code.as_deref(),
+        Some("follow_up_requested")
+    );
+    let old_run = database.scan_run(&old_run_id).unwrap();
+    assert_eq!(old_run.state, ScanRunState::Interrupted);
+    assert_eq!(old_run.error_code.as_deref(), Some("follow_up_requested"));
+
+    // No duplicate recovery job is created next to the queued successor.
+    let jobs = database.list_scan_jobs().unwrap();
+    assert_eq!(jobs.len(), 2);
+    let successor = database.scan_job(&successor_job_id).unwrap();
+    assert_eq!(successor.state, ScanJobState::Queued);
+
+    // The successor is the leaseable continuation, not the old job.
+    let leased = database
+        .lease_next_scan("session-2", successor.not_before_ms, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(leased.job.id, successor_job_id);
+    assert_eq!(leased.root.id, root_id);
+    assert_ne!(leased.job.retry_chain_id, old_job.retry_chain_id);
+}
+
 #[test]
 fn pending_follow_up_is_suppressed_by_cancellation_disable_and_removal() {
     {
