@@ -9,15 +9,13 @@ real OS overflow timing, or blanket Phase 2 acceptance.
 
 Keep these classes separate:
 
-- Merged base: `main` at `0b7612d` (merged).
-- Unmerged dependency: PR #95 fix `bf0aeac`
-  (`fix: align Library scan actions with durable state`, draft PR #95,
-  unmerged until GitHub shows otherwise). This slice was verified against
-  that dependency, not against `main` alone.
+- Merged base: `main` at `ee720af` (PR #95 squash-merged; PR #94 `d342ec1`,
+  PR #98 `7e0e9f6`, PR #93 `106335a` present).
 - Unmerged changes in this slice: test-only additions under
-  `apps/desktop/src-tauri/src/foundation/` plus this report. No production
-  application code, Library UI, enumeration code, migration, contract, or
-  budget is changed.
+  `apps/desktop/src-tauri/src/foundation/` plus this report and the stack
+  review record. No production application code, Library UI, enumeration
+  code, migration, contract, or budget is changed. Transplanted with no
+  duplicated parent changes.
 - Automated integration evidence: the feature-gated desktop tests below, which
   drive the real supervisor, durable ledger, worker, and native status API
   over tempdir databases with scripted filesystem ports and fake clocks. No
