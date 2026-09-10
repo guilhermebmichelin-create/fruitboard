@@ -13,23 +13,40 @@ enabled on `main` (2026-09-07; see [DEVELOPMENT.md](DEVELOPMENT.md#enforced-bran
 accepted**: the reproducible Tauri/React shell now includes Rust-owned local
 SQLite, one persisted startup-view preference, automated quality/security
 gates, and a Windows packaging smoke. It still has no parser, project workflow,
-sync, or PWA. Phase 2 proceeds under epic #33. The 2026-09-08 merged review
-baseline is `e5e777d` (PR #81): #77 keeps status and Library reads responsive
-between staged batches, #78 wires the native Library scan adapter behind the
-feature-gated `scan-console` surface, #79 records the budget and governance
-decision brief, #80 records the P2-12 checkpoint, and #81 adds the scoped event
-subscription permissions plus deterministic continuation guards. The
-[Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34218497618)
-is green, including the enabled desktop tests and warnings-denied Clippy. The
-bounded enumeration, watcher/follow-up foundations, durable worker, and native
-scan-console surface remain behind the host-integration and acceptance gates.
-Production scanning remains hidden until P2-03 through P2-08 have integrated
-evidence. The installed-app journey, desktop watcher supervisor, F1-F3 budget
-decisions, and owner acceptance remain open. The
-[2026-09-08 continuation review](docs/review/phase-2-integration/continuation-2026-09-08.md)
+sync, or PWA. Phase 2 proceeds under epic #33. The current merged baseline is
+`b2fb62c36a057985ab0eba02458f037fcb96c215` (PR #106, merged 2026-09-10).
+Since PR #89 (`0b7612d`), main has merged PR #90 (`f487aa1`), PR #100
+(`7980b75`), PR #92 (`300c2a4`), PR #93 (`106335a`), PR #102 (`892920d`),
+PR #96 (`326fb0a`; proposal only, not an approved scale design), PR #101
+(`67bdc76`; historical stall baseline), PR #103 (`55668da`), PR #105
+(`f63a1d3`; `smol-toml` 1.7.1 security fix for GHSA-7w5x-hrqm-74c2),
+PR #94 (`d342ec1`), PR #98 (`7e0e9f6`), PR #95 (`ee720af`),
+PR #97 (`ff5d8ee`), PR #104 (`cccaa67`; queue-stall fix, 2 files), and
+PR #106 (`b2fb62c`; fixed installed validation, docs-only).
+Current CI: Foundation `34427729043` on `b2fb62c` success (post-merge);
+Foundation `34427283235` + Packaging `34427283311` on PR #106 head `9b86cbf`
+success; Foundation `34426947016` on `cccaa67` success (post-merge);
+Foundation `34425398811` on `ee720af` success (post-merge).
+
+Implemented behavior, automated evidence, installed evidence, and acceptance
+stay separate — not Phase 2 acceptance. P2-08 remains Partial (PR #85's older
+`Complete` row is superseded; no full-criterion acceptance recorded).
+Production scanning stays hidden until P2-03 through P2-08 have integrated
+evidence.
+
+Fixed installed validation lives in merged PR #106 (`b2fb62c`, canonical
+`installed-journey/run-20260909-fixed-validation.md` with corrected
+provenance; this PR carries no duplicate copy). S1–S4 PASS, S6 PASS, S5
+PARTIAL (successor convergence; same-job not demonstrated; repro IDs in #106;
+tracked as open issue #107). No acceptance claimed.
+
+Remaining decisions only: F1 fixture, F2 qualification, F3 scope, platform
+qualification/exclusions (#47/#48), P2-10 boundary, and final acceptance
+(criterion-by-criterion P2-01–P2-12 including S5 disposition). History,
+provenance, and the full P2 table are in the [current reconciliation
+report](docs/review/phase-2-integration/reconciliation-2026-09-08.md)
 and [installed-app journey checklist](docs/review/phase-2-integration/installed-app-journey-checklist.md)
-track the remaining gates. DriveFS modes and FAT32/cross-volume identity remain
-manual and unverified under #47/#48.
+track the remaining gates. Historical failed replays stay intact as history.
 
 Tracking starts at
 [Phase 2 epic #33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)
@@ -89,4 +106,6 @@ The canonical repository is public since 2026-09-07 at
 repository, not the product rules: privacy rules are unchanged (no telemetry or
 third-party tracking), FLP files remain read-only inputs, private paths and
 project data stay out of commits and logs, review evidence discipline still
-applies, and the owner still merges every pull request manually.
+applies, and Agent 1 owns merges per the user's explicit agent-merge
+authorization (owner retains acceptance and decision authority; branch
+protection is unchanged).
