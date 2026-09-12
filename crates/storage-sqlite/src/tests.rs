@@ -1053,6 +1053,324 @@ fn durable_scan_jobs_coalesce_and_schedule_one_follow_up() {
 }
 
 #[test]
+fn finish_scan_run_with_error_persists_closed_diagnostics_and_rejects_arbitrary_values() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database
+        .begin_scan_session("diagnostic-session", 1)
+        .unwrap();
+
+    let failed_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let failed_lease = database
+        .lease_next_scan("diagnostic-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        database
+            .finish_scan_run_with_error(
+                &failed_lease.run.id,
+                "diagnostic-session",
+                &failed_lease.run.lease_token,
+                4,
+                ScanRunOutcome::Failed,
+                Some("resource_limit"),
+            )
+            .unwrap(),
+        ScanRunState::Failed
+    );
+    assert_eq!(
+        database
+            .scan_run(&failed_lease.run.id)
+            .unwrap()
+            .error_code
+            .as_deref(),
+        Some("resource_limit")
+    );
+    assert_eq!(
+        database
+            .scan_job(&failed_job.job_id)
+            .unwrap()
+            .last_error_code
+            .as_deref(),
+        Some("resource_limit")
+    );
+
+    // A diagnostic override cannot alter a successful publication, even when
+    // a caller supplies a valid failure diagnostic for compatibility.
+    let completed_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 5)
+        .unwrap();
+    let completed_lease = database
+        .lease_next_scan("diagnostic-session", 6, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .begin_scan_staging(
+            &completed_lease.run.id,
+            "diagnostic-session",
+            &completed_lease.run.lease_token,
+            7,
+        )
+        .unwrap();
+    assert_eq!(
+        database
+            .finish_scan_run_with_error(
+                &completed_lease.run.id,
+                "diagnostic-session",
+                &completed_lease.run.lease_token,
+                8,
+                ScanRunOutcome::Completed,
+                Some("resource_limit"),
+            )
+            .unwrap(),
+        ScanRunState::Completed
+    );
+    assert_eq!(
+        database
+            .scan_run(&completed_lease.run.id)
+            .unwrap()
+            .error_code,
+        None
+    );
+    assert_eq!(
+        database
+            .scan_job(&completed_job.job_id)
+            .unwrap()
+            .last_error_code,
+        None
+    );
+
+    let invalid_job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 9)
+        .unwrap();
+    let invalid_lease = database
+        .lease_next_scan("diagnostic-session", 10, 100)
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        database.finish_scan_run_with_error(
+            &invalid_lease.run.id,
+            "diagnostic-session",
+            &invalid_lease.run.lease_token,
+            11,
+            ScanRunOutcome::Failed,
+            Some("native error: C:\\private\\project.flp"),
+        ),
+        Err(StorageError::InvalidSchema)
+    ));
+    let untouched_run = database.scan_run(&invalid_lease.run.id).unwrap();
+    assert_eq!(untouched_run.state, ScanRunState::Running);
+    assert_eq!(untouched_run.error_code, None);
+    let untouched_job = database.scan_job(&invalid_job.job_id).unwrap();
+    assert_eq!(untouched_job.state, ScanJobState::Running);
+    assert_eq!(untouched_job.last_error_code, None);
+}
+
+#[test]
+fn finish_scan_run_with_error_keeps_cancellation_follow_up_and_stale_fences_authoritative() {
+    let cancellation_directory = TestDirectory::new();
+    let mut cancellation_db = Database::open(cancellation_directory.path()).unwrap();
+    let cancellation_root = cancellation_db
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    cancellation_db
+        .begin_scan_session("cancellation-session", 1)
+        .unwrap();
+    cancellation_db
+        .enqueue_scan(&cancellation_root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let cancellation_lease = cancellation_db
+        .lease_next_scan("cancellation-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    cancellation_db
+        .request_scan_cancellation(&cancellation_lease.run.id, 4)
+        .unwrap();
+    assert_eq!(
+        cancellation_db
+            .finish_scan_run_with_error(
+                &cancellation_lease.run.id,
+                "cancellation-session",
+                &cancellation_lease.run.lease_token,
+                5,
+                ScanRunOutcome::Failed,
+                Some("resource_limit"),
+            )
+            .unwrap(),
+        ScanRunState::Cancelled
+    );
+    assert_eq!(
+        cancellation_db
+            .scan_run(&cancellation_lease.run.id)
+            .unwrap()
+            .error_code
+            .as_deref(),
+        Some("cancelled")
+    );
+    assert_eq!(
+        cancellation_db
+            .scan_job(&cancellation_lease.job.id)
+            .unwrap()
+            .last_error_code
+            .as_deref(),
+        Some("cancelled")
+    );
+
+    let follow_up_directory = TestDirectory::new();
+    let mut follow_up_db = Database::open(follow_up_directory.path()).unwrap();
+    let follow_up_root = follow_up_db
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    follow_up_db
+        .begin_scan_session("follow-up-session", 1)
+        .unwrap();
+    follow_up_db
+        .enqueue_scan(&follow_up_root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let follow_up_lease = follow_up_db
+        .lease_next_scan("follow-up-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    follow_up_db
+        .enqueue_scan(&follow_up_root.id, ScanKind::Periodic, 4)
+        .unwrap();
+    assert_eq!(
+        follow_up_db
+            .finish_scan_run_with_error(
+                &follow_up_lease.run.id,
+                "follow-up-session",
+                &follow_up_lease.run.lease_token,
+                5,
+                ScanRunOutcome::Failed,
+                Some("resource_limit"),
+            )
+            .unwrap(),
+        ScanRunState::Interrupted
+    );
+    assert_eq!(
+        follow_up_db
+            .scan_run(&follow_up_lease.run.id)
+            .unwrap()
+            .error_code
+            .as_deref(),
+        Some("follow_up_requested")
+    );
+    assert_eq!(
+        follow_up_db
+            .scan_job(&follow_up_lease.job.id)
+            .unwrap()
+            .last_error_code
+            .as_deref(),
+        Some("follow_up_requested")
+    );
+    assert_eq!(follow_up_db.list_scan_jobs().unwrap().len(), 2);
+
+    let stale_directory = TestDirectory::new();
+    let mut stale_db = Database::open(stale_directory.path()).unwrap();
+    let stale_root = stale_db
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    stale_db.begin_scan_session("stale-session", 1).unwrap();
+    stale_db
+        .enqueue_scan(&stale_root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let stale_lease = stale_db
+        .lease_next_scan("stale-session", 3, 100)
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        stale_db.finish_scan_run_with_error(
+            &stale_lease.run.id,
+            "stale-session",
+            "stale-token",
+            4,
+            ScanRunOutcome::Failed,
+            Some("resource_limit"),
+        ),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(
+        stale_db.scan_run(&stale_lease.run.id).unwrap().state,
+        ScanRunState::Running
+    );
+    assert_eq!(
+        stale_db.scan_run(&stale_lease.run.id).unwrap().error_code,
+        None
+    );
+    assert_eq!(
+        stale_db
+            .scan_job(&stale_lease.job.id)
+            .unwrap()
+            .last_error_code,
+        None
+    );
+
+    // An expired lease is fenced just as strictly as a replaced token: the
+    // late diagnostic cannot terminally write the run or publish a stage.
+    assert!(matches!(
+        stale_db.finish_scan_run_with_error(
+            &stale_lease.run.id,
+            "stale-session",
+            &stale_lease.run.lease_token,
+            104,
+            ScanRunOutcome::Failed,
+            Some("resource_limit"),
+        ),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(
+        stale_db.scan_run(&stale_lease.run.id).unwrap().state,
+        ScanRunState::Running
+    );
+    assert_eq!(
+        stale_db.scan_run(&stale_lease.run.id).unwrap().error_code,
+        None
+    );
+
+    stale_db
+        .set_scan_root_enabled_at(&stale_root.id, false, 105)
+        .unwrap();
+    assert!(matches!(
+        stale_db.finish_scan_run_with_error(
+            &stale_lease.run.id,
+            "stale-session",
+            &stale_lease.run.lease_token,
+            106,
+            ScanRunOutcome::Failed,
+            Some("resource_limit"),
+        ),
+        Err(StorageError::Conflict)
+    ));
+    assert_eq!(
+        stale_db
+            .scan_run(&stale_lease.run.id)
+            .unwrap()
+            .error_code
+            .as_deref(),
+        Some("root_invalidated")
+    );
+    assert_eq!(
+        stale_db
+            .scan_job(&stale_lease.job.id)
+            .unwrap()
+            .last_error_code
+            .as_deref(),
+        Some("root_invalidated")
+    );
+    assert!(
+        stale_db
+            .list_published_locations(&stale_root.id)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
 fn execution_finish_transition_matrix_covers_outcomes_followups_and_cancellation() {
     #[derive(Clone, Copy)]
     struct FinishCase {

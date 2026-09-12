@@ -1,3 +1,7 @@
+# Supported entry point for the locked installed local-NTFS evidence run.
+# The JavaScript driver below is an implementation detail and must receive
+# lock ownership from this wrapper; invoke this script from the repository
+# root with -JourneyRoot beneath TEMP.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$JourneyRoot,
@@ -91,6 +95,8 @@ $installerFull = $null
 $driverExitCode = $null
 $aclIdentity = $null
 $cleanupFailure = $null
+$cleanupMayReleaseLock = $true
+$uninstallCompleted = $false
 $live = @()
 $worktreeVenvPath = Join-Path $repositoryRoot ".venv"
 $createdPythonEnvironmentLink = $false
@@ -483,30 +489,50 @@ finally {
         }
         catch {
             $cleanupFailure = $_.Exception.Message
+            $cleanupMayReleaseLock = $false
             Write-Warning $_.Exception.Message
         }
         if ($packageInstalled) {
             $live = @(Get-FoundationSmokeLiveAppProcesses)
             if ($live.Count -eq 0) {
                 try {
+                    Assert-LockOwner
                     Uninstall-Package
+                    $uninstallCompleted = $true
                 }
                 catch {
                     $cleanupFailure = $_.Exception.Message
+                    $cleanupMayReleaseLock = $false
                     Write-Warning $_.Exception.Message
                 }
             }
             else {
                 $cleanupFailure = "An installed Fruitboard process remains; the package was not uninstalled."
+                $cleanupMayReleaseLock = $false
                 Write-Warning "An installed Fruitboard process remains; preserving the package and refusing to uninstall around a live process."
             }
+            # Re-query after the uninstaller returns. A failed or partial
+            # uninstall must not be treated as a clean owner handoff merely
+            # because the pre-uninstall process snapshot was empty.
+            $live = @(Get-FoundationSmokeLiveAppProcesses)
             if ($live.Count -gt 0) {
+                $cleanupMayReleaseLock = $false
                 Write-Warning "The orchestration lock is being preserved because an installed Fruitboard process remains."
             }
+            if (-not $uninstallCompleted) {
+                $cleanupMayReleaseLock = $false
+            }
         }
-        if ($lockAcquired -and $live.Count -eq 0) {
-            Release-FoundationSmokeLock -LockPath $lockPath -RunId $runId
-            $lockAcquired = $false
+        if ($lockAcquired -and $cleanupMayReleaseLock -and $live.Count -eq 0) {
+            try {
+                Assert-LockOwner
+                Release-FoundationSmokeLock -LockPath $lockPath -RunId $runId
+                $lockAcquired = $false
+            }
+            catch {
+                $cleanupFailure = $_.Exception.Message
+                Write-Warning "The orchestration lock is being preserved because ownership could not be verified during cleanup."
+            }
         }
     }
     finally {

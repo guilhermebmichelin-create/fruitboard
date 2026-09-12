@@ -138,6 +138,42 @@ impl ScanRunOutcome {
     }
 }
 
+/// The only diagnostic overrides a worker may attach to a failed run. The
+/// persisted representation remains a string for schema compatibility, but
+/// callers cannot introduce a new product diagnostic through the terminal
+/// finish API.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ScanFailureDiagnostic {
+    AccessDenied,
+    ResourceLimit,
+    Unsupported,
+    Unavailable,
+    WorkerFailed,
+}
+
+impl ScanFailureDiagnostic {
+    fn parse(value: &str) -> Result<Self> {
+        match value {
+            "access_denied" => Ok(Self::AccessDenied),
+            "resource_limit" => Ok(Self::ResourceLimit),
+            "unsupported" => Ok(Self::Unsupported),
+            "unavailable" => Ok(Self::Unavailable),
+            "worker_failed" => Ok(Self::WorkerFailed),
+            _ => Err(StorageError::InvalidSchema),
+        }
+    }
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::AccessDenied => "access_denied",
+            Self::ResourceLimit => "resource_limit",
+            Self::Unsupported => "unsupported",
+            Self::Unavailable => "unavailable",
+            Self::WorkerFailed => "worker_failed",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanRootExecution {
@@ -1286,6 +1322,14 @@ impl Database {
         if session_id.is_empty() || lease_token.is_empty() {
             return Err(StorageError::InvalidSchema);
         }
+        // Keep the string-shaped argument for compatibility with the worker
+        // API, while canonicalizing it through the closed product vocabulary
+        // before any transaction can persist it. Empty strings retain the
+        // previous "use the outcome default" behavior.
+        let terminal_error_code = terminal_error_code
+            .filter(|code| !code.is_empty())
+            .map(ScanFailureDiagnostic::parse)
+            .transpose()?;
         self.transaction(|transaction| {
             let run = select_run(transaction, run_id)?;
             if run.state != ScanRunState::Running
@@ -1338,7 +1382,7 @@ impl Database {
                 Some("follow_up_requested")
             } else if effective_outcome == ScanRunOutcome::Failed {
                 terminal_error_code
-                    .filter(|code| !code.is_empty())
+                    .map(ScanFailureDiagnostic::as_str)
                     .or_else(|| error_for_outcome(effective_outcome))
             } else {
                 error_for_outcome(effective_outcome)
