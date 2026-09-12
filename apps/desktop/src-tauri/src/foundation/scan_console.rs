@@ -771,6 +771,10 @@ fn map_job_error_code(code: Option<&str>) -> Option<ErrorCode> {
         None => None,
         Some("cancelled" | "cancellation_requested") => Some(ErrorCode::Cancelled),
         Some("worker_failed") => Some(ErrorCode::Internal),
+        Some("access_denied") => Some(ErrorCode::AccessDenied),
+        Some("resource_limit") => Some(ErrorCode::ResourceLimit),
+        Some("unsupported") => Some(ErrorCode::Unsupported),
+        Some("unavailable") => Some(ErrorCode::Unavailable),
         Some("worker_interrupted" | "follow_up_requested" | "root_invalidated" | "restart") => {
             Some(ErrorCode::Conflict)
         }

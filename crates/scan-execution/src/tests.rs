@@ -2733,6 +2733,24 @@ fn p2_03_resource_limit_preserves_rows_and_snapshot_byte_identical() {
     assert_eq!(second.enumeration_outcome, Some(EnumOutcome::ResourceLimit));
     assert!(!second.authoritative);
     assert!(second.publication.is_none());
+    assert_eq!(
+        harness
+            .db
+            .scan_run(&second.run_id)
+            .expect("resource-limit run")
+            .error_code
+            .as_deref(),
+        Some("resource_limit")
+    );
+    assert_eq!(
+        harness
+            .db
+            .scan_job(&second.job_id)
+            .expect("resource-limit job")
+            .last_error_code
+            .as_deref(),
+        Some("resource_limit")
+    );
     assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
     assert_eq!(
         harness.staging_state(&second.run_id),
