@@ -31,8 +31,8 @@ disposable local NTFS volume exercised below.
 
 ## Reproducible orchestration and lock ownership
 
-The follow-up uses [`run-installed-ntfs-cases.ps1`](../../../scripts/run-installed-ntfs-cases.ps1)
-and the existing [`foundation-smoke-lock.ps1`](../../../scripts/foundation-smoke-lock.ps1).
+The follow-up uses [`run-installed-ntfs-cases.ps1`](../../../../scripts/run-installed-ntfs-cases.ps1)
+and the existing [`foundation-smoke-lock.ps1`](../../../../scripts/foundation-smoke-lock.ps1).
 The wrapper requires `-JourneyRoot`; optional tool-path arguments select the
 pinned Node, Python, uv, and Rust binaries. It validates that the run root is
 a new child of `%TEMP%`, installs beneath that root, and invokes the revised
@@ -76,7 +76,7 @@ The revised driver is [`installed-ntfs-cases.mjs`](installed-ntfs-cases.mjs),
 The wrapper SHA-256 is
 `91F4AC6CAFB885D1844D7E5890FF4CE364F9E2ED09EDBD42466BBE7AD55539EC`.
 The read-only database inspector
-[`inspect-foundation-smoke-db.py`](../../../scripts/inspect-foundation-smoke-db.py)
+[`inspect-foundation-smoke-db.py`](../../../../scripts/inspect-foundation-smoke-db.py)
 is 6,359 bytes, SHA-256
 `114D73CD4438F7CAD29267DDE113E433081723D261B51BF171ED16A67A9C0579`.
 
@@ -104,7 +104,7 @@ transcript is 126,303 bytes, SHA-256
 
 ## Synthetic data and filesystem boundary
 
-The unmodified [`generate-synthetic-tree.mjs`](../../../scripts/generate-synthetic-tree.mjs)
+The unmodified [`generate-synthetic-tree.mjs`](../../../../scripts/generate-synthetic-tree.mjs)
 was used with seed `20260912`; its source SHA-256 is
 `1F4F6D82A736027BCD68486019DB12F1EDEAF8BB947B2BA38FE6030D16E190D6`.
 The accepted baseline manifest was retained unchanged: 10,000 FLP-named
