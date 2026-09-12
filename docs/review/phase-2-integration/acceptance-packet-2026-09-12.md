@@ -34,10 +34,34 @@ head `e209b8a` (base S5 pin `19585da` plus one focused evidence commit). The
 dirty main checkout's source copies remain untouched. The branch contents are
 still evidence only: not merged and not owner-accepted.
 
+Draft PR [#111](https://github.com/guilhermebmichelin-create/fruitboard/pull/111)
+is at reviewed head `ef08522` with all ten required checks green. It is a mixed
+product-and-evidence change, not an evidence-only PR: its local-NTFS report
+records denied traversal, unchanged-bound `ResourceLimit`, and in-root
+hardlink observations, while tested source `05fb35c` changes durable
+product-owned diagnostics and desktop scan-console mapping for
+`access_denied`, `resource_limit`, `unsupported`, and `unavailable`. The J
+installed run used `05fb35c`; the current PR head is `ef08522`; neither is the
+merged baseline `3ebac5f` or owner acceptance.
+
+The #111 history also contains recovered S5 commit `de396e7`. It has the same
+parent, tree, and stable patch ID as #110's `19585da`; it is preserved as
+historical provenance, not counted as a second recovery experiment or duplicate
+recovery commit. The isolated integration replay uses #110's `19585da` as the
+canonical S5 patch and transplants only #111's post-recovery work.
+
 The September 12 installed verification used reviewed commit `19585da`, whose
 diff from `3ebac5f` is test/documentation only. The additive report records
 queued state, queued disable/remove, and a genuine same-job restart recovery;
 those observations are evidence only and are not yet merged or owner-accepted.
+
+The separate #111 NTFS run used tested source `05fb35c153dd3f177b900292d39998da3774b5e4`
+and is published at current PR head `ef085229471301043a50f4b668901d9c956fb407`.
+That source includes the focused product correction which persists fixed
+durable diagnostics and maps them to typed desktop scan-console presentation;
+it is unmerged code, not an evidence-only documentation change. The merged
+implementation boundary remains `3ebac5f`, and owner acceptance remains a
+separate decision.
 
 Agent 2 found no product or contract defect and did not rerun S5. Its local
 validation passed storage tests (77), desktop feature-on unit tests (92),
@@ -45,8 +69,8 @@ desktop feature-on clippy, driver syntax, Markdownlint, privacy, and format
 checks under Rust/Cargo `1.98.1`. The full desktop Cargo command reached 92
 passing unit tests but failed its local Rustdoc phase with `E0463` missing
 extern crates; `pnpm check` stopped at the unavailable Node `24.20.0`/`uv`
-environment. GitHub PR #110 now has all ten required checks green; no
-acceptance or merge follows from these checks.
+environment. GitHub PRs #110 (`e209b8a`) and #111 (`ef08522`) each have all
+ten required checks green; no acceptance or merge follows from these checks.
 
 Agent 3's strict quiet-host preflight was completed fail-closed in draft PR
 [#108](https://github.com/guilhermebmichelin-create/fruitboard/pull/108) at
@@ -72,7 +96,7 @@ The baseline was checked against GitHub before local work started:
 | September 12 installed verification | `19585da7bef9ffdec06b71e0627df1b3f7ceb2f`, parent exactly `origin/main`; test/documentation-only diff |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact `3ebac5f`, success, all nine jobs |
 | Foundation jobs | `docs-policy`, `client`, `rust-portable`, `migration`, `windows-foundation`, `security`, `filesystem-watcher-windows`, `enumeration-windows`, `scan-execution-windows` |
-| Open pull requests | Draft #108 (performance preflight), #109 (closeout), and #110 (Agent 2 evidence); all remain unmerged |
+| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), and #111 (`ef08522`, NTFS/product); all remain unmerged |
 | PR #99 | Closed, never merged; validation-only combined-build history at `9c211ad` |
 | Open issues | #33, #36-#41, #47, #48, and #107 |
 
@@ -118,21 +142,24 @@ as a merged implementation.
 Installed records have their own provenance. The #92 journey was recorded on an
 older merged baseline, and the #106 fixed validation tested the unmerged,
 patch-identical candidate `ded02ac`, not `3ebac5f`. Neither is silently
-relabeled as an installed run on the current head.
+relabeled as an installed run on the current head. The #110 queued/restart
+record used `19585da`; the #111 NTFS record used unmerged product source
+`05fb35c` and was published at `ef08522`. These tested-source, PR-head,
+merged-code, and owner-acceptance boundaries remain separate.
 
 | ID | Merged implementation | Automated tests/evidence | Installed evidence | Remaining acceptance |
 | --- | --- | --- | --- | --- |
 | P2-01 | #34/#35 picker, settings, and inline onboarding implementation | Client/Windows CI and #58 fake-adapter keyboard/narrow evidence | #92 picker cancel/selection, persistence, and restart; #54 picker record | Owner decision on inline onboarding and criterion acceptance |
 | P2-02 | #59 reconciliation core, #64 enumeration, #70 worker | Deterministic reconciliation and Windows fixture tests | #92 add/modify/rename and remove/restore convergence | Platform scope and owner acceptance |
-| P2-03 | #62/#70 safety path plus #85 fault cases | Partial/offline/cancel/resource-limit fault-injection tests | #92 cancellation and unavailable-root retention | Denied/limited traversal evidence and owner acceptance |
-| P2-04 | #60/#61/#70 durable state, #82 recovery, #104 active-slot fix | Migration/scan-execution gates, #97 convergence/stale fences, and #104 regression | #92 persistence/cancel/recovery; #101/#102 historical stall; #106 S1/S4/S6 pass and S5 successor path; September 12 queued/running/terminal states and same-job restart recovery | Installed S5 path disposition and owner acceptance |
+| P2-03 | #62/#70 safety path plus #85 fault cases | Partial/offline/cancel/resource-limit fault-injection tests; #111 adds focused diagnostic mapping tests | #92 cancellation and unavailable-root retention; #111 `ef08522` records local-NTFS denied traversal and unchanged-bound `ResourceLimit` passes, tested from unmerged `05fb35c` | Denied/limited traversal and owner acceptance |
+| P2-04 | #60/#61/#70 durable state, #82 recovery, #104 active-slot fix | Migration/scan-execution gates, #97 convergence/stale fences, and #104 regression | #92 persistence/cancel/recovery; #101/#102 historical stall; #106 S1/S4/S6 pass and S5 successor path; #110 `e209b8a` queued/running/terminal states and genuine same-job restart recovery; #111 `de396e7` is tree-identical recovered S5 provenance, not new evidence | Installed S5 path disposition and owner acceptance |
 | P2-05 | #60/#62/#85 lease, disable/remove, staging, and stale-publication paths | Lease, disable/remove, and publication tests | #92 disable-while-running retention; September 12 queued disable and queued remove cancel before publication | Installed evidence is pending review and owner acceptance |
 | P2-06 | #62/#85 atomic publication, crash/rollback, backup, and migration paths | Crash, recovery, backup, and migration tests | #92 clean restart/interrupted recovery; #106 did not establish a genuine crash with a running lease; September 12 hard-kill copy proves a running lease, then same job/retry chain recovery | Correctly classified crash-recovery evidence and owner acceptance |
-| P2-07 | #59/#62/#85 identity, alias, rename, and replacement paths | Alias and rename tests | #92 rename convergence; no installed hardlink-alias qualification | #48 decision/qualification and owner acceptance |
-| P2-08 | #73/#77/#78/#81/#82 IPC, native adapter, lifecycle, and supervision; #95 alignment | Feature-on CI and IPC/adapter/lifecycle/recovery tests; #104 regression | #92 journey; #106 S1-S4/S6 installed observations; September 12 native/UI queued snapshot and queued invalidation; full criterion remains Partial | Full-criterion review remains Partial, not Complete |
+| P2-07 | #59/#62/#85 identity, alias, rename, and replacement paths | Alias and rename tests | #92 rename convergence; #111 `ef08522` true in-root hardlink-alias result on local NTFS, tested from unmerged `05fb35c` | #48 decision/qualification and owner acceptance |
+| P2-08 | #73/#77/#78/#81/#82 IPC, native adapter, lifecycle, and supervision; #95 alignment | Feature-on CI and IPC/adapter/lifecycle/recovery tests; #104 regression; #111 diagnostic-mapping tests | #92 journey; #106 S1-S4/S6 installed observations; #110 `e209b8a` native/UI queued snapshot and queued invalidation; #111's unmerged `05fb35c` changes durable diagnostics and typed desktop error presentation; full criterion remains Partial | Full-criterion review remains Partial, not Complete |
 | P2-09 | #68/#69/#71/#81/#82 watcher, coalescing, generation, and reconnect paths | #97 automated queue/burst/fence counts and watcher tests | #92 follow-ups; #106 isolated burst pass; real overflow timing and DriveFS remain unverified | Installed timing/overflow evidence, #47 decision, and owner acceptance |
 | P2-10 | #81 static no-parser/no-content-I/O guards and fixture-byte equality | Dependency/privacy checks, static guards, and preservation tests | Native-adapter independence was observed; no runtime content-read spy was run | Owner chooses static boundary or runtime spy gate |
-| P2-11 | #67/#72 harness, #86 rerun, #93 profile, #94 cleanup, #98 validation | F1 reproduced; historical contended warm p95 14,267 ms versus 10 s; Agent 3's strict quiet-host gate failed closed, while draft #108 `a44653b` records normal-config diagnostic medians 14,879 / 10,120 / 14,982 ms and p95 values 44,778 / 10,391 / 25,601 ms plus before/candidate/current-main profiles; F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions and any owner-approved remeasurement |
+| P2-11 | #67/#72 harness, #86 rerun, #93 profile, #94 cleanup, #98 validation | F1 reproduced; historical contended warm p95 14,267 ms versus 10 s; Agent 3's strict quiet-host gate failed closed, while draft #108 `a44653b` records normal-config diagnostic medians 14,879 / 10,120 / 14,982 ms and p95 values 44,778 / 10,391 / 25,601 ms plus before/candidate/current-main profiles; current-main retains 9/10 authoritative iterations plus one `Failed`/`Partial` at 11,137 ms. This Partial is an explicit open finding pending Agent 2's disposition; #111 does not relabel or dispose it; F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions and any owner-approved remeasurement |
 | P2-12 | #80 checkpoint plus merged implementation/CI map and #91 refresh | Current exact-head Foundation run is green; historical PR #99 remains validation-only | #92 and #106 records plus September 12 report, with exact `19585da` provenance preserved | Decisions above, then explicit P2-01-P2-12 owner acceptance |
 
 The table deliberately does not use `Complete` as a synonym for “merged” or
@@ -169,6 +196,20 @@ with `runId: null` before mutation. The report and driver are published in
 draft PR #110, pending review and owner acceptance; they do not promote P2-04,
 P2-05, P2-06, or P2-08.
 
+Draft #111 repeats the recovered S5 tree in `de396e7`, but that commit has the
+same parent, tree, and stable patch ID as `19585da`; it is not another recovery
+run. The clean dependency strategy is to keep #110's `19585da` canonical,
+drop `de396e7` when #111 is rebased, and replay #111's later harness, product,
+and NTFS-report commits. Shared checklist/index files must be resolved by
+unioning the #110 queued/restart rows with the #111 denied, ResourceLimit, and
+hardlink rows. Empty formatting replays are skipped, while the historical SHAs
+remain cited.
+
+The #111 product portion is separately reviewable: tested source `05fb35c`
+persists fixed worker/storage diagnostic codes and the desktop scan console maps
+those durable codes to typed user-facing errors. It is not evidence-only and it
+is not merged into `3ebac5f`; no owner acceptance follows from its green checks.
+
 No additional S5 run is requested without a specific evidence defect. A future
 Agent 2 safety window is for driver hardening or newly identified safety
 evidence; it must preserve the distinction between a terminal follow-up and a
@@ -183,13 +224,15 @@ the Agent 2 follow-up remains coordinated below:
 | Order | Owner | Window and required controls |
 | --- | --- | --- |
 | 1 | Agent 3 | **Quiet-host gate failed closed at `2561d3f`; final normal-config evidence is published at `a44653b` / draft #108.** DriveFS, Defender verification, sibling activity, and idle-proof gates were ineligible for qualification. The later before/candidate/current-main timings and profiles are diagnostic only; no quiet-host claim or promotion follows. |
-| 2 | Agent 2 | **Completed evidence follow-up at `e209b8a` / draft #110.** The existing S5 regression and September 12 installed artifacts are isolated and published; no product/contract defect was found and no S5 rerun was performed. Local focused checks pass; all ten required GitHub checks are green. |
+| 2 | Agent 2 | **Completed evidence follow-up at `e209b8a` / draft #110.** The existing S5 regression and September 12 installed artifacts are isolated and published; no product/contract defect was found and no S5 rerun was performed. Local focused checks pass; all ten required GitHub checks are green. Any future Agent 2 reproduction window takes exclusive priority over heavy validation. |
+| 3 | Agent 1 / Agent 3 review | **Draft #111 at `ef08522` is the mixed NTFS/product follow-up.** Its J evidence used `05fb35c`; review the durable diagnostic persistence and typed desktop error mapping separately from the local-NTFS observations, then rebase it onto #110 without replaying `de396e7`. |
 
-Before and throughout Agent 3's measurement, pause heavy Rust, Tauri, Cargo,
-pnpm, and packaging builds. Do not start a sibling build, installed run, or
-other host-intensive task until the A/B samples and logs are complete. If any
-quiet-host preflight fails, abort and record the window as non-qualifying; do
-not relabel the contended data as quiet-host evidence.
+Before and throughout Agent 3's measurement, and during any Agent 2
+reproduction window, pause heavy Rust, Tauri, Cargo, pnpm, packaging,
+benchmark, and installed validation. Do not start a sibling build, installed
+run, or other host-intensive task until the active window's samples and logs
+are complete. If any quiet-host preflight fails, abort and record the window as
+non-qualifying; do not relabel the contended data as quiet-host evidence.
 
 Neither window may delete `storage/owner.lock`, kill an unrelated process, or
 overwrite another worktree's smoke data. A lock acquisition failure is a
@@ -213,9 +256,12 @@ These are concrete choices, not decisions made by this packet.
   Raising only one constant is not a valid decision.
 - F2: Agent 3's strict quiet-host gate failed closed, and draft #108's later
   normal-config timings remain diagnostic rather than qualification evidence.
-  The historical 14,267 ms warm p95 is not rewritten. The owner must either
-  authorize a new eligible quiet-host A/B or make a named host-class/target
-  decision before any scoped optimization or remeasurement.
+  The historical 14,267 ms warm p95 is not rewritten. The current-main series
+  also retains one `Failed`/`Partial` non-authoritative iteration at 11,137 ms.
+  That Partial is an explicit open finding pending Agent 2's disposition; it
+  is not filtered, relabeled, or disposed by #111's diagnostic correction. The
+  owner must either authorize a new eligible quiet-host A/B or make a named
+  host-class/target decision before any scoped optimization or remeasurement.
 
 ### F3 scale
 
@@ -284,7 +330,8 @@ was made by this task.
 
 - **#33:** Keep the epic open. Link this packet after it is merged, state that
   implementation and evidence are present but F1/F2/F3, platform scope,
-  P2-10, onboarding, S5 disposition, and owner acceptance remain open.
+  P2-10, onboarding, S5 disposition, and owner acceptance remain open. Note
+  that draft #111 is a mixed product-and-evidence change, not evidence-only.
 - **#36, #37, #38, and #40:** Replace “implementation pending” wording with
   “implementation merged; acceptance evidence is classified in the 2026-09-12
   packet.” Keep each open until the owner accepts its criterion and any named
@@ -296,8 +343,11 @@ was made by this task.
   `3ebac5f` baseline, Foundation run `34428758835`, the published-but-unmerged
   `19585da` installed evidence, draft #108's fail-closed preflight and
   diagnostic `a44653b` normal measurements, draft #110's `e209b8a` Agent 2
-  evidence head, and the ordered Agent 3 -> Agent 2 windows.
-  It is not a Phase 2 acceptance statement.
+  evidence head, and draft #111's `ef08522` NTFS/product head. State that
+  #111's installed J run used unmerged `05fb35c`, and that its durable
+  diagnostic and desktop error-mapping changes need product review. Include
+  the #110/#111 duplicate-S5 mapping and the ordered Agent 3 -> Agent 2
+  windows. It is not a Phase 2 acceptance statement.
 - **#47:** Request the missing DriveFS UI mode capture, disposable synced
   leaves, and cloud/pause-resume consent, or record an explicit owner scope
   exclusion. Do not report another blocked inventory as a run.
@@ -308,34 +358,42 @@ was made by this task.
   terminal `follow_up_requested` transition, while the September 12 evidence
   separately demonstrates same-job recovery from a genuinely running lease.
   Agent 2 found no defect and published the isolated test/report artifacts in
-  draft #110; do not request another S5 run without a specific evidence
-  defect. Require a product/contract change only if review establishes a
-  genuine defect.
+  draft #110. Draft #111's `de396e7` is tree- and patch-identical S5 recovery
+  provenance, not a second run; keep `19585da` canonical when rebasing the
+  stack. Do not request another S5 run without a specific evidence defect.
+  Require a product/contract change only if review establishes a genuine
+  defect.
 
 No issue is closed, and no owner acceptance is inferred by these proposals.
 
 ## Dependency and merge order
 
-Draft PRs #108, #109, and #110 are open. If the owner later advances the
-remaining work, the safe order is:
+Draft PRs #108, #109, #110, and #111 are open. Their individual green checks
+are not combined integration evidence. If the owner later advances the stack,
+the safe sequence is:
 
-1. Agent 3's strict quiet-host preflight is complete at `2561d3f`, and the
-   final normal-config evidence is published at `a44653b` / draft #108. The
-   normal timings and profiles are diagnostic only; keep F2 open and do not
-   relabel historical contended samples as quiet-host qualification.
-2. Agent 2's follow-up is complete at `e209b8a` / draft #110; review its
-   evidence and the now-complete required checks. No S5 rerun is warranted
-   absent a specific evidence defect.
-3. Review the focused evidence, performance, and closeout draft PRs in that
-   order, then obtain explicit owner decisions. No merge or owner acceptance is
-   implied by green checks.
-4. Resolve F1/F2/F3, #47/#48 scope, P2-10 evidence strength, inline
-   onboarding, and S5. Any budget, fixture, platform, or contract change
-   requires an explicit owner decision and its own remeasurement/evidence.
-5. Refresh the P2-01-P2-12 ledger at the resulting merged SHA and obtain
-   explicit criterion-by-criterion owner acceptance. Only then consider a
-   separate production-activation slice with its own default-feature,
-   installed-smoke, capability, and rollback review.
+1. Keep #108's `a44653b` performance record diagnostic. The quiet-host gate
+   failed closed, the retained current-main `Failed`/`Partial` iteration stays
+   open pending Agent 2's disposition, and no target, quota, or acceptance
+   claim follows.
+2. Review and merge #110's `e209b8a` as the canonical queued/restart evidence
+   carrier when the owner is ready. It contains `19585da`; do not treat its
+   green checks or installed observations as owner acceptance.
+3. Rebase #111 onto the resulting #110/main tip before merging it. Drop the
+   tree- and stable-patch-identical recovered `de396e7`, retain its historical
+   mapping to `19585da`, and replay the later harness, `05fb35c` product fix,
+   and NTFS-report work. Resolve common checklist/index files by retaining all
+   #110 queued/restart/disable/remove rows and adding #111's denied,
+   ResourceLimit, and hardlink rows. Skip any now-empty formatting replay.
+   Re-run the ten required checks on that rebased #111 head; the current
+   `ef08522` checks are not combined evidence.
+4. Rebase #109 onto the resulting merged baseline, refresh only live-head
+   references, and merge the closeout packet last after explicit owner
+   decisions. Any budget, fixture, platform, contract, or P2 acceptance change
+   still requires its own decision and evidence.
+5. Only after criterion-by-criterion owner acceptance consider a separate
+   production-activation slice with default-feature, installed-smoke,
+   capability, and rollback review.
 
 This packet itself is documentation/coordination only. It does not merge,
 post, close, accept, or activate anything.
