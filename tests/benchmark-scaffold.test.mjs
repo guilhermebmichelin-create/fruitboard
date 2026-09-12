@@ -7,6 +7,7 @@ import test from "node:test";
 import { buildPlan, writePlan } from "../scripts/generate-synthetic-tree.mjs";
 import {
   buildEnvironmentReport,
+  budgetResults,
   detectScannerIntegration,
   MEASURED_ITERATIONS,
   parseDriverLines,
@@ -75,6 +76,66 @@ test("driver protocol sanitization drops unbounded diagnostic text", () => {
   assert.deepEqual(lines[1], { phase: "unparseable" });
   assert.equal(lines[2].partial_class, "partial_directory_not_found");
   assert.equal("private_path" in lines[2], false);
+});
+
+test("failed or malformed iterations stay visible but do not enter timing samples", () => {
+  const failed = {
+    label: "iteration-2",
+    authoritative: false,
+    status: "Failed",
+    outcome: "Partial",
+    scanMs: 11_137,
+  };
+  const statusInconsistent = {
+    label: "iteration-3",
+    authoritative: true,
+    status: "Failed",
+    outcome: "Partial",
+    scanMs: 12_000,
+  };
+  const missingTiming = {
+    label: "iteration-4",
+    authoritative: true,
+    status: "Published",
+    outcome: "Complete",
+    scanMs: undefined,
+  };
+  const negativeTiming = {
+    label: "iteration-5",
+    authoritative: true,
+    status: "Published",
+    outcome: "Complete",
+    scanMs: -1,
+  };
+  const iterations = [
+    {
+      label: "iteration-1",
+      authoritative: true,
+      status: "Published",
+      outcome: "Complete",
+      scanMs: 10_000,
+    },
+    failed,
+    statusInconsistent,
+    missingTiming,
+    negativeTiming,
+  ];
+
+  const result = budgetResults({
+    warmUp: null,
+    iterations,
+    cancellation: [],
+  });
+
+  assert.equal(result.warmStats.sampleCount, 1);
+  assert.equal(result.warmStats.medianMs, 10_000);
+  assert.equal(result.warmStats.nearestRankP95Ms, 10_000);
+  assert.equal(iterations.length, 5);
+  assert.equal(failed.outcome, "Partial");
+  assert.equal(failed.authoritative, false);
+  assert.equal(statusInconsistent.authoritative, true);
+  assert.equal(missingTiming.scanMs, undefined);
+  assert.equal(negativeTiming.scanMs, -1);
 });
 
 test("the scanner integration marker is present in this repository", () => {

@@ -379,6 +379,10 @@ function safeInteger(value) {
   return Number.isSafeInteger(value) ? value : null;
 }
 
+function safeDuration(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
 function safeIdentifier(value) {
   return typeof value === "string" && /^[0-9a-f-]{1,128}$/i.test(value)
     ? value
@@ -402,7 +406,7 @@ function sanitizeDriverLine(value) {
   switch (value.phase) {
     case "ready": {
       const line = { phase: "ready" };
-      const elapsed = safeInteger(value.elapsed_ms);
+      const elapsed = safeDuration(value.elapsed_ms);
       const rootId = safeIdentifier(value.root_id);
       const sessionId = safeIdentifier(value.session_id);
       if (elapsed !== null) line.elapsed_ms = elapsed;
@@ -414,7 +418,7 @@ function sanitizeDriverLine(value) {
     case "scan_started":
     case "cancellation_requested": {
       const line = { phase: value.phase };
-      const elapsed = safeInteger(value.elapsed_ms);
+      const elapsed = safeDuration(value.elapsed_ms);
       if (elapsed !== null) line.elapsed_ms = elapsed;
       return line;
     }
@@ -434,7 +438,10 @@ function sanitizeDriverLine(value) {
         "changes_renames",
       ];
       for (const field of integerFields) {
-        const fieldValue = safeInteger(value[field]);
+        const fieldValue =
+          field === "elapsed_ms" || field === "scan_ms"
+            ? safeDuration(value[field])
+            : safeInteger(value[field]);
         if (fieldValue !== null) line[field] = fieldValue;
       }
       const status = safeEnum(value.status, DRIVER_STATUSES);
@@ -459,7 +466,7 @@ function sanitizeDriverLine(value) {
     }
     case "error": {
       const line = { phase: "error" };
-      const elapsed = safeInteger(value.elapsed_ms);
+      const elapsed = safeDuration(value.elapsed_ms);
       if (elapsed !== null) line.elapsed_ms = elapsed;
       line.error_code = safeCode(value.error_code);
       return line;
@@ -504,7 +511,8 @@ function runRecord({
     label,
     exitCode: child.code,
     totalMs: spawnFinishedAt - spawnStartedAt,
-    scanMs: started !== null && finished !== null ? finished.scan_ms : null,
+    scanMs:
+      started !== null && finished !== null ? (finished.scan_ms ?? null) : null,
     status: finished?.status ?? null,
     authoritative: finished?.authoritative ?? false,
     outcome: finished?.outcome ?? null,
@@ -522,7 +530,11 @@ function runRecord({
   };
   if (cancelRequestedMs !== null && finished !== null) {
     record.cancellationRequestedMs = cancelRequestedMs;
-    record.stopLatencyMs = finished.elapsed_ms - cancelRequestedMs;
+    record.stopLatencyMs =
+      safeDuration(finished.elapsed_ms) !== null &&
+      finished.elapsed_ms >= cancelRequestedMs
+        ? finished.elapsed_ms - cancelRequestedMs
+        : null;
   }
   return record;
 }
@@ -678,19 +690,28 @@ function buildFixtureSummary(document) {
   };
 }
 
-function budgetResults({ warmUp, iterations, cancellation }) {
-  const authoritative = iterations.filter(
-    (iteration) => iteration.authoritative,
+function isAuthoritativeMeasurement(iteration) {
+  return (
+    iteration.authoritative === true &&
+    iteration.status === "Published" &&
+    iteration.outcome === "Complete" &&
+    safeDuration(iteration.scanMs) !== null
   );
+}
+
+export function budgetResults({ warmUp, iterations, cancellation }) {
+  const authoritative = iterations.filter(isAuthoritativeMeasurement);
   const scanTimes = authoritative
     .map((iteration) => iteration.scanMs)
-    .filter((value) => value !== null);
+    .filter((value) => safeDuration(value) !== null);
   const firstDiscoveryMs =
-    warmUp !== null && warmUp.authoritative ? warmUp.scanMs : null;
+    warmUp !== null && isAuthoritativeMeasurement(warmUp)
+      ? warmUp.scanMs
+      : null;
   const warmStats = statistics(scanTimes);
   const cancelTimes = (cancellation ?? [])
     .map((iteration) => iteration.stopLatencyMs)
-    .filter((value) => value !== null && value !== undefined);
+    .filter((value) => safeDuration(value) !== null);
   const cancelStats = statistics(cancelTimes);
   const memoryIncrements = (iterations ?? [])
     .map((iteration) => iteration.memory?.incrementalMb)

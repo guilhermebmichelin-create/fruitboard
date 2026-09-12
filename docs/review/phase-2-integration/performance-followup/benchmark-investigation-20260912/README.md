@@ -9,8 +9,9 @@ limits, weaken safety checks, or implement chunked snapshots.
 The current-main iteration-6 failure remains unexplained. The preserved run
 proves a terminal non-authoritative `Partial` execution, but it contains no
 coverage-failure kind, native operation, phase, or host event that identifies
-the cause. The nine later successful iterations and the later reproductions
-below do not explain that original iteration.
+the cause. The other nine measured iterations (five before iteration 6 and
+four after it) succeeded, and the later reproductions below do not explain
+that original iteration.
 
 No evidence supports attributing it to Defender, DriveFS, contention, or a
 product defect. The host was not an exclusive or quiet performance host, so
@@ -22,11 +23,13 @@ changed.
 The original raw artifact is preserved verbatim in the qualification capture
 commit `fa1b4c9` at
 `docs/review/phase-2-integration/performance-followup/benchmark-normal-current-main-raw.json`.
-The preserved checked-out capture file's SHA-256 is
-`0174f9081de7d46c7caf984f31bc17bebcb87a3f4d51b9234bdcd461d1f2c6fd`; the
-same committed content has Git blob `2f104fe8d37fb27655aa8d36b8a52752c3affbf9`
-and UTF-8 content hash
-`05f560e88dafe022d7b90881477b21ded1362b4ee3fa50c40bb1e49fbc35f124`.
+The preserved checked-out capture file's file-byte SHA-256 is
+`0174F9081DEA7D46C7CAF984F31BC17BECB87A3F4D51B9234BDCD461D1F2C6FD`.
+The checked-out file is UTF-8 without a BOM and uses LF line endings. The
+same 24,288 bytes have Git blob ID
+`2f104fe8d37fb27655aa8d36b8a52752c3affbf9`; that is Git's SHA-1 object
+identifier over its blob header and content, not a file-byte SHA-256. The
+historical raw file remains unchanged.
 
 The relevant identity is:
 
@@ -117,8 +120,9 @@ bounded diagnostic list is incomplete.
 The isolated branch adds `ScanExecution.partial_class`, a closed enum with no
 path or native-message payload, and emits it as `partial_class` on
 `scan_finished`. Both `execute` and `execute_shared`, including both resolve
-paths, carry it through. Storage files and storage APIs were not changed;
-Agent 3 retains ownership of any future durable error-code integration.
+paths, carry it through. The combined #111 candidate separately supplies
+`finish_scan_run_with_error` and its closed durable error vocabulary; this
+#112 branch does not duplicate those integration edits.
 
 The deterministic regression now verifies:
 
