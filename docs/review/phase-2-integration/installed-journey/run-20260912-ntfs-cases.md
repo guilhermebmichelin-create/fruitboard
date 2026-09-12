@@ -60,7 +60,10 @@ basename, or a non-NTFS volume. The J lock was:
 
 The wrapper held ownership through build, install, all app launches, evidence
 capture, cleanup, and owner-only release. The prior archive and all J run
-artifacts remain under `%TEMP%` for review.
+artifacts remain under `%TEMP%` for review. If uninstall or ACL restoration
+fails, or an installed process remains, the wrapper preserves its lock and the
+run-specific artifacts for owner coordination rather than releasing a possibly
+incomplete handoff.
 
 ## Build and artifact provenance
 

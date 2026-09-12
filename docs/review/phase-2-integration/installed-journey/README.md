@@ -11,6 +11,26 @@ and its recorded driver hash is intentionally kept separate from the revised
 locked NTFS driver [installed-ntfs-cases.mjs](installed-ntfs-cases.mjs), which
 is launched only through `scripts/run-installed-ntfs-cases.ps1`.
 
+## Supported locked-run entry point
+
+For a new locked installed local-NTFS evidence run, invoke the PowerShell
+wrapper from the repository root. It owns the exclusive Foundation Smoke
+lock, the run-specific install directory, shared-data archival, driver
+environment, database inspection, uninstall, and owner-only lock release:
+
+```powershell
+$journeyRoot = Join-Path $env:TEMP "fruitboard-ntfs-cases-<run-id>"
+.\scripts\run-installed-ntfs-cases.ps1 -JourneyRoot $journeyRoot
+```
+
+`-InstallerPath`, `-NodePath`, `-PythonPath`, `-UvPath`, and
+`-RustBinDirectory` may supply already-pinned inputs when the recorded build
+was produced separately. Direct invocation of `installed-ntfs-cases.mjs` is
+not a supported entry point because it does not own the wrapper's setup and
+cleanup contract. `queued-state-restart.mjs` remains historical evidence for
+the `#107` run and must not be silently replaced or rerun under its recorded
+hash.
+
 The evidence classes are intentionally separate:
 
 - `run-20260908.md` records observations from the unsigned, installed
