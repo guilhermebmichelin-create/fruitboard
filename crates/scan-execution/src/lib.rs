@@ -208,14 +208,14 @@ impl ScanWorker {
                 return self.execution(&scan, ScanExecutionStatus::Fenced, None, None, None);
             }
             FenceState::Invalidated => {
-                return self.resolve(db, &scan, clock, false, None);
+                return self.resolve(db, &scan, clock, false, None, None);
             }
             FenceState::Held => {}
         }
         let Some(root_path) = root_path(db, &scan.leased.run.scan_root_id) else {
             // The removal transaction already cancelled this run and detached
             // its committed history; there is nothing left to enumerate.
-            return self.resolve(db, &scan, clock, false, None);
+            return self.resolve(db, &scan, clock, false, None, None);
         };
 
         let mut adapter = StagingAdapter {
@@ -245,7 +245,14 @@ impl ScanWorker {
 
         if !report.authoritative {
             let forced_cancel = outcome == enumeration::Outcome::Cancelled;
-            return self.resolve(db, &scan, clock, forced_cancel, Some(outcome));
+            return self.resolve(
+                db,
+                &scan,
+                clock,
+                forced_cancel,
+                Some(outcome),
+                partial_class(&report),
+            );
         }
 
         // Pre-publication fence: an invalidation that arrived between the last
@@ -263,7 +270,7 @@ impl ScanWorker {
                 );
             }
             FenceState::Invalidated => {
-                return self.resolve(db, &scan, clock, false, Some(outcome));
+                return self.resolve(db, &scan, clock, false, Some(outcome), None);
             }
             FenceState::Held => {}
         }
@@ -281,7 +288,7 @@ impl ScanWorker {
                 Some(publication),
                 changes,
             ),
-            Err(_) => self.resolve(db, &scan, clock, false, Some(outcome)),
+            Err(_) => self.resolve(db, &scan, clock, false, Some(outcome), None),
         }
     }
 
@@ -310,13 +317,13 @@ impl ScanWorker {
                 return self.execution(&scan, ScanExecutionStatus::Fenced, None, None, None);
             }
             FenceState::Invalidated => {
-                return self.resolve_shared(db, &scan, clock, false, None);
+                return self.resolve_shared(db, &scan, clock, false, None, None);
             }
             FenceState::Held => {}
         }
         let Some(root_path) = root_path_shared(db, &scan.leased.run.scan_root_id) else {
             // Same removal case as `execute`: the run was detached already.
-            return self.resolve_shared(db, &scan, clock, false, None);
+            return self.resolve_shared(db, &scan, clock, false, None, None);
         };
 
         let mut adapter = SharedStagingAdapter {
@@ -346,7 +353,14 @@ impl ScanWorker {
 
         if !report.authoritative {
             let forced_cancel = outcome == enumeration::Outcome::Cancelled;
-            return self.resolve_shared(db, &scan, clock, forced_cancel, Some(outcome));
+            return self.resolve_shared(
+                db,
+                &scan,
+                clock,
+                forced_cancel,
+                Some(outcome),
+                partial_class(&report),
+            );
         }
 
         // Pre-publication fence before any staged record can be published.
@@ -362,14 +376,14 @@ impl ScanWorker {
                 );
             }
             FenceState::Invalidated => {
-                return self.resolve_shared(db, &scan, clock, false, Some(outcome));
+                return self.resolve_shared(db, &scan, clock, false, Some(outcome), None);
             }
             FenceState::Held => {}
         }
         let changes = change_plan_shared(db, &scan.leased.run.scan_root_id, &plan);
         let publish = {
             let Ok(mut guard) = db.lock() else {
-                return self.resolve_shared(db, &scan, clock, false, Some(outcome));
+                return self.resolve_shared(db, &scan, clock, false, Some(outcome), None);
             };
             guard.publish_scan_run(
                 &scan.leased.run.id,
@@ -386,7 +400,7 @@ impl ScanWorker {
                 Some(publication),
                 changes,
             ),
-            Err(_) => self.resolve_shared(db, &scan, clock, false, Some(outcome)),
+            Err(_) => self.resolve_shared(db, &scan, clock, false, Some(outcome), None),
         }
     }
 
@@ -479,16 +493,31 @@ impl ScanWorker {
         clock: &dyn ScanClock,
         forced_cancel: bool,
         outcome: Option<enumeration::Outcome>,
+        partial_class: Option<PartialClass>,
     ) -> ScanExecution {
         let now = clock.now_ms();
         let (Ok(run), Ok(job)) = (
             db.scan_run(&scan.leased.run.id),
             db.scan_job(&scan.leased.run.scan_job_id),
         ) else {
-            return self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
+            return self.execution_with_partial_class(
+                scan,
+                ScanExecutionStatus::Fenced,
+                outcome,
+                None,
+                None,
+                partial_class,
+            );
         };
         if run.state != ScanRunState::Running {
-            return self.execution(scan, status_from_state(run.state), outcome, None, None);
+            return self.execution_with_partial_class(
+                scan,
+                status_from_state(run.state),
+                outcome,
+                None,
+                None,
+                partial_class,
+            );
         }
         let terminal = if forced_cancel || run.cancellation_requested || job.cancellation_requested
         {
@@ -501,15 +530,23 @@ impl ScanWorker {
         } else {
             ScanRunOutcome::Failed
         };
-        match db.finish_scan_run(
+        match db.finish_scan_run_with_error(
             &scan.leased.run.id,
             &scan.leased.run.session_id,
             &scan.leased.run.lease_token,
             now,
             terminal,
+            durable_error_code(outcome),
         ) {
-            Ok(state) => self.execution(scan, status_from_state(state), outcome, None, None),
-            Err(error) => self.execution_fenced(scan, outcome, &error),
+            Ok(state) => self.execution_with_partial_class(
+                scan,
+                status_from_state(state),
+                outcome,
+                None,
+                None,
+                partial_class,
+            ),
+            Err(error) => self.execution_fenced(scan, outcome, partial_class, &error),
         }
     }
 
@@ -547,22 +584,44 @@ impl ScanWorker {
         clock: &dyn ScanClock,
         forced_cancel: bool,
         outcome: Option<enumeration::Outcome>,
+        partial_class: Option<PartialClass>,
     ) -> ScanExecution {
         let now = clock.now_ms();
         let (run, job) = {
             let Ok(guard) = db.lock() else {
-                return self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
+                return self.execution_with_partial_class(
+                    scan,
+                    ScanExecutionStatus::Fenced,
+                    outcome,
+                    None,
+                    None,
+                    partial_class,
+                );
             };
             let (Ok(run), Ok(job)) = (
                 guard.scan_run(&scan.leased.run.id),
                 guard.scan_job(&scan.leased.run.scan_job_id),
             ) else {
-                return self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
+                return self.execution_with_partial_class(
+                    scan,
+                    ScanExecutionStatus::Fenced,
+                    outcome,
+                    None,
+                    None,
+                    partial_class,
+                );
             };
             (run, job)
         };
         if run.state != ScanRunState::Running {
-            return self.execution(scan, status_from_state(run.state), outcome, None, None);
+            return self.execution_with_partial_class(
+                scan,
+                status_from_state(run.state),
+                outcome,
+                None,
+                None,
+                partial_class,
+            );
         }
         let terminal = if forced_cancel || run.cancellation_requested || job.cancellation_requested
         {
@@ -574,19 +633,34 @@ impl ScanWorker {
         };
         let finished = {
             let Ok(mut guard) = db.lock() else {
-                return self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
+                return self.execution_with_partial_class(
+                    scan,
+                    ScanExecutionStatus::Fenced,
+                    outcome,
+                    None,
+                    None,
+                    partial_class,
+                );
             };
-            guard.finish_scan_run(
+            guard.finish_scan_run_with_error(
                 &scan.leased.run.id,
                 &scan.leased.run.session_id,
                 &scan.leased.run.lease_token,
                 now,
                 terminal,
+                durable_error_code(outcome),
             )
         };
         match finished {
-            Ok(state) => self.execution(scan, status_from_state(state), outcome, None, None),
-            Err(error) => self.execution_fenced(scan, outcome, &error),
+            Ok(state) => self.execution_with_partial_class(
+                scan,
+                status_from_state(state),
+                outcome,
+                None,
+                None,
+                partial_class,
+            ),
+            Err(error) => self.execution_fenced(scan, outcome, partial_class, &error),
         }
     }
 
@@ -605,19 +679,42 @@ impl ScanWorker {
             status,
             authoritative: status == ScanExecutionStatus::Published,
             enumeration_outcome: outcome,
+            partial_class: None,
             publication,
             changes,
             error_code: None,
         }
     }
 
+    fn execution_with_partial_class(
+        &self,
+        scan: &ActiveScan,
+        status: ScanExecutionStatus,
+        outcome: Option<enumeration::Outcome>,
+        publication: Option<ScanPublication>,
+        changes: Option<ChangeSummary>,
+        partial_class: Option<PartialClass>,
+    ) -> ScanExecution {
+        let mut execution = self.execution(scan, status, outcome, publication, changes);
+        execution.partial_class = partial_class;
+        execution
+    }
+
     fn execution_fenced(
         &self,
         scan: &ActiveScan,
         outcome: Option<enumeration::Outcome>,
+        partial_class: Option<PartialClass>,
         error: &StorageError,
     ) -> ScanExecution {
-        let mut execution = self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
+        let mut execution = self.execution_with_partial_class(
+            scan,
+            ScanExecutionStatus::Fenced,
+            outcome,
+            None,
+            None,
+            partial_class,
+        );
         execution.error_code = Some(error.to_string());
         execution
     }
@@ -651,10 +748,90 @@ pub struct ScanExecution {
     pub status: ScanExecutionStatus,
     pub authoritative: bool,
     pub enumeration_outcome: Option<enumeration::Outcome>,
+    /// Bounded, path-free classification for a non-authoritative Partial
+    /// enumeration. This is diagnostic evidence only; it never changes the
+    /// publication decision or the client-facing error contract.
+    pub partial_class: Option<PartialClass>,
     pub publication: Option<ScanPublication>,
     pub changes: Option<ChangeSummary>,
     /// Fixed storage diagnostics code only (never SQL, values or paths).
     pub error_code: Option<String>,
+}
+
+/// Closed set of path-free classes for an incomplete enumeration.
+///
+/// The value is deliberately separate from the client-facing storage error:
+/// it identifies the coverage boundary that caused `Partial` without carrying
+/// a path, file content, or native error text. `Multiple` and `Unknown` make
+/// truncation and missing diagnostics explicit instead of guessing from the
+/// first retained failure.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PartialClass {
+    RootIdentityUnavailable,
+    DirectoryNotFound,
+    DirectoryRead,
+    DirectoryChanged,
+    DirectoryIdentityUnavailable,
+    EntryDisappeared,
+    MetadataRead,
+    TimestampOutOfRange,
+    ByteSizeOutOfRange,
+    LocatorKeyTooLong,
+    Multiple,
+    Unknown,
+}
+
+impl PartialClass {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::RootIdentityUnavailable => "partial_root_identity_unavailable",
+            Self::DirectoryNotFound => "partial_directory_not_found",
+            Self::DirectoryRead => "partial_directory_read",
+            Self::DirectoryChanged => "partial_directory_changed",
+            Self::DirectoryIdentityUnavailable => "partial_directory_identity_unavailable",
+            Self::EntryDisappeared => "partial_entry_disappeared",
+            Self::MetadataRead => "partial_metadata_read",
+            Self::TimestampOutOfRange => "partial_timestamp_out_of_range",
+            Self::ByteSizeOutOfRange => "partial_byte_size_out_of_range",
+            Self::LocatorKeyTooLong => "partial_locator_key_too_long",
+            Self::Multiple => "partial_multiple",
+            Self::Unknown => "partial_unknown",
+        }
+    }
+
+    fn from_failure_kind(kind: enumeration::CoverageFailureKind) -> Self {
+        match kind {
+            enumeration::CoverageFailureKind::RootIdentityUnavailable => {
+                Self::RootIdentityUnavailable
+            }
+            enumeration::CoverageFailureKind::DirectoryNotFound => Self::DirectoryNotFound,
+            enumeration::CoverageFailureKind::DirectoryRead => Self::DirectoryRead,
+            enumeration::CoverageFailureKind::DirectoryChanged => Self::DirectoryChanged,
+            enumeration::CoverageFailureKind::DirectoryIdentityUnavailable => {
+                Self::DirectoryIdentityUnavailable
+            }
+            enumeration::CoverageFailureKind::EntryDisappeared => Self::EntryDisappeared,
+            enumeration::CoverageFailureKind::MetadataRead => Self::MetadataRead,
+            enumeration::CoverageFailureKind::TimestampOutOfRange => Self::TimestampOutOfRange,
+            enumeration::CoverageFailureKind::ByteSizeOutOfRange => Self::ByteSizeOutOfRange,
+            enumeration::CoverageFailureKind::LocatorKeyTooLong => Self::LocatorKeyTooLong,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+fn partial_class(report: &enumeration::EnumerationReport) -> Option<PartialClass> {
+    if report.outcome != enumeration::Outcome::Partial {
+        return None;
+    }
+    if report.omitted_coverage_failures > 0 {
+        return Some(PartialClass::Unknown);
+    }
+    match report.coverage_failures.as_slice() {
+        [] => Some(PartialClass::Unknown),
+        [failure] => Some(PartialClass::from_failure_kind(failure.kind)),
+        _ => Some(PartialClass::Multiple),
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -677,6 +854,24 @@ fn status_from_state(state: ScanRunState) -> ScanExecutionStatus {
         ScanRunState::Cancelled => ScanExecutionStatus::Cancelled,
         ScanRunState::Interrupted => ScanExecutionStatus::Interrupted,
         ScanRunState::Running => ScanExecutionStatus::Fenced,
+    }
+}
+
+fn durable_error_code(outcome: Option<enumeration::Outcome>) -> Option<&'static str> {
+    match outcome {
+        Some(enumeration::Outcome::Denied) => Some("access_denied"),
+        Some(enumeration::Outcome::UnsupportedFilesystem) => Some("unsupported"),
+        Some(enumeration::Outcome::ResourceLimit) => Some("resource_limit"),
+        Some(enumeration::Outcome::RootUnavailable) => Some("unavailable"),
+        // Cancellation is selected from the durable cancellation fence and
+        // must not be supplied as a failed-run diagnostic override.
+        Some(enumeration::Outcome::Cancelled) => None,
+        Some(
+            enumeration::Outcome::Partial
+            | enumeration::Outcome::Invalid
+            | enumeration::Outcome::SinkFailed,
+        ) => Some("worker_failed"),
+        Some(enumeration::Outcome::Complete) | None => None,
     }
 }
 
