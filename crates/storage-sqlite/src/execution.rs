@@ -1267,6 +1267,22 @@ impl Database {
         now_ms: i64,
         outcome: ScanRunOutcome,
     ) -> Result<ScanRunState> {
+        self.finish_scan_run_with_error(run_id, session_id, lease_token, now_ms, outcome, None)
+    }
+
+    /// Finish an owned non-authoritative run while preserving a fixed,
+    /// product-owned diagnostic when one is known. The override is used by
+    /// the worker for bounded enumeration outcomes such as `resource_limit`;
+    /// it never carries native errors, paths, SQL, or arbitrary user input.
+    pub fn finish_scan_run_with_error(
+        &mut self,
+        run_id: &str,
+        session_id: &str,
+        lease_token: &str,
+        now_ms: i64,
+        outcome: ScanRunOutcome,
+        terminal_error_code: Option<&str>,
+    ) -> Result<ScanRunState> {
         if session_id.is_empty() || lease_token.is_empty() {
             return Err(StorageError::InvalidSchema);
         }
@@ -1320,6 +1336,10 @@ impl Database {
             let state = state_for_outcome(effective_outcome);
             let error_code = if invalidated_by_follow_up {
                 Some("follow_up_requested")
+            } else if effective_outcome == ScanRunOutcome::Failed {
+                terminal_error_code
+                    .filter(|code| !code.is_empty())
+                    .or_else(|| error_for_outcome(effective_outcome))
             } else {
                 error_for_outcome(effective_outcome)
             };
