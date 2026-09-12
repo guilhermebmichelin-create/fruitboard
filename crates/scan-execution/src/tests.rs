@@ -2688,6 +2688,72 @@ fn p2_03_partial_disappearance_preserves_rows_and_snapshot_byte_identical() {
     assert_ne!(recovered_marker, before_marker);
 }
 
+// P2-03: the shared worker path preserves the bounded Partial diagnostic and
+// keeps a failed run behind the publication fence.
+#[test]
+fn shared_partial_resolution_reports_bounded_class_without_publishing() {
+    let mut harness = Harness::new("shared-partial");
+    let first = harness.scan(tree(vec![file_entry("kept.flp", 101)]));
+    assert_eq!(first.status, ScanExecutionStatus::Published);
+    let before_rows = harness.committed();
+    let before_marker = harness
+        .db
+        .scan_root_publication(&harness.root_id)
+        .expect("publication marker");
+    let before_bytes = committed_snapshot_bytes(&before_rows, &before_marker);
+
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let Harness {
+        directory,
+        db,
+        clock,
+        worker,
+        root_id,
+        ..
+    } = harness;
+    let shared = std::sync::Mutex::new(db);
+    let mut port = FakePort::new(tree(vec![
+        file_entry("kept.flp", 101),
+        vanishing_dir_entry("gone", 201, vec![file_entry("inner.flp", 301)]),
+    ]));
+    let execution = worker.execute_shared(&shared, scan, &mut port, &NeverCancelled, &clock);
+
+    assert_eq!(execution.status, ScanExecutionStatus::Failed);
+    assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Partial));
+    assert_eq!(
+        execution.partial_class,
+        Some(PartialClass::DirectoryNotFound)
+    );
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+
+    let guard = shared.lock().expect("shared database");
+    let after_rows = committed_rows(&guard, &root_id);
+    let after_marker = guard
+        .scan_root_publication(&root_id)
+        .expect("publication marker");
+    assert_eq!(after_rows, before_rows);
+    assert_eq!(after_marker, before_marker);
+    assert_eq!(
+        committed_snapshot_bytes(&after_rows, &after_marker),
+        before_bytes
+    );
+    assert_eq!(
+        guard
+            .scan_staging(&execution.run_id)
+            .expect("staging")
+            .state,
+        ScanStageState::Discarded
+    );
+    drop(guard);
+    drop(shared);
+    drop(directory);
+}
+
 #[test]
 fn partial_class_is_bounded_and_does_not_guess_after_truncation() {
     fn report(

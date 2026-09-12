@@ -109,22 +109,30 @@ it does not exercise closing and reopening the desktop app.
 
 ## Statistics and reporting
 
-From the 10 measured durations report:
+Retain every measured iteration in the report, including failed and
+non-authoritative iterations. Calculate successful timing statistics only from
+records that are explicitly authoritative `Published` / `Complete` results
+with a valid non-negative `scan_ms`, and state the successful sample count
+`n` alongside those statistics. Failed or malformed records remain visible
+for investigation and are not counted as successful timings.
+
+For the successful timing samples, report:
 
 - the **median**;
 - the **maximum**;
-- the **nearest-rank p95**: sort the 10 durations ascending and take the
-  value at rank `ceil(0.95 * 10) = 10`. With 10 samples the nearest-rank p95
-  therefore equals the maximum; both are reported explicitly so nobody
-  mistakes a lower order statistic for a p95.
+- the **nearest-rank p95**: sort the `n` durations ascending and take the
+  value at rank `ceil(0.95 * n)`. The rank therefore follows the number of
+  successful samples; do not substitute the planned iteration count or count
+  failures as timings.
 
 The first-run (warm-up) duration is reported separately. Do not label it a
 cold-cache measurement unless the OS cache state was actually controlled for
 that run; otherwise it is only "first run after process start".
 
 Every published result states: host profile, OS build, storage kind, power
-mode, build commit, fixture seed and manifest hash, iteration count, and the
-three statistics plus the first run. If a target is rejected by measurement,
+mode, build commit, fixture seed and manifest hash, total iteration count,
+successful timing sample count, and the three statistics plus the first run.
+If a target is rejected by measurement,
 amend the budgets table in the execution plan with evidence and owner review
 before broadening support.
 
