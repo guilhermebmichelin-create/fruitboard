@@ -1,7 +1,8 @@
 # Performance qualification preparation - 2026-09-12
 
-Status: **preparation evidence only; no quiet-host measurement or
-qualification claim.** This report was prepared from reviewed
+Status: **preparation evidence only; Agent 3's first quiet-host window was
+aborted before measurement; no quiet-host qualification claim.** This report
+was prepared from reviewed
 `origin/main` `3ebac5f7a76c3425620ceba59e6078b32fb6cd85` in isolated branch
 `perf/41-qualification-20260912`. It does not change quotas, budgets, fixture
 targets, security controls, cloud settings, production scanning, or the
@@ -85,6 +86,35 @@ No DriveFS/cloud setting, Defender/security control, or sibling process was
 paused or changed. Therefore no scan timing from this branch is presented as
 quiet-host evidence. A contended run would not answer F2 and is not a
 substitute for the required window.
+
+## Agent 3 first quiet-host window - aborted before measurement
+
+The first-window preflight was captured at `2026-09-12T08:09:38-03:00` on
+this host. The window was fail-closed before any build, benchmark, fixture
+access, or timed scan:
+
+| Gate | Observation | Result |
+| --- | --- | --- |
+| Power | Active scheme is High performance (`Alto desempenho`) | Pass for this snapshot |
+| Build/driver processes | `cargo=0`, `rustc=0`, `tauri/Fruitboard=0`, `pnpm/npm=0` | Pass for this snapshot |
+| DriveFS/cloud | `GoogleDriveFS=2` | **Fail; cloud activity not paused** |
+| Antivirus control | `MsMpEng=1`, `MpDefenderCoreService=1`; fixture-volume exclusion was not verified | **Fail / unverified** |
+| Sibling host activity | `T3 Code=5`, `codex=8`, `node=6` | **Fail; host not quiet** |
+| CPU/disk idle proof | No qualifying 60-second CPU and fixture-volume disk-idle sample was captured | **Fail / unverified** |
+
+DriveFS, Defender, sibling activity, and host controls were not changed. The
+measurement sequence was therefore not started, and no partial timing,
+cancellation sample, or raw measurement file was created in this window.
+
+### Audit of existing results
+
+The historical raw files were audited rather than rerun. They are not a
+pre-existing quiet-host final result: `benchmark-before-raw.json` and
+`benchmark-after-raw.json` are classified in their reports as contended, with
+nearest-rank p95 values of 12,188 ms and 17,682 ms; the later validation pair
+is likewise contended at 20,098 ms and 13,959 ms. Those historical reports and
+raw files remain unchanged. They do not qualify the unchanged 10-second
+target, and they do not satisfy the required first-window preflight.
 
 ## Focused improvement gate
 
