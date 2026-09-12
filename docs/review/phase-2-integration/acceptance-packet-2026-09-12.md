@@ -26,10 +26,18 @@ The active sources are now:
 | [Reconciliation report](reconciliation-2026-09-08.md) | Preserved historical ledger and dated addenda |
 | [This packet](acceptance-packet-2026-09-12.md) | Current evidence classes, decisions, coordination, and proposed updates |
 
-The two S5 files were copied, not moved, from the dirty main checkout into
-Agent 2's isolated branch. The source checkout remains untouched by this
-closeout. Agent 2 owns validation of that branch; its contents are not merged
-evidence until reviewed and validated.
+The S5 regression and its preserved 2026-09-10 disposition are copied, not
+moved, from the dirty main checkout into Agent 2's isolated branch. The
+September 12 driver, installed report, checklist addendum, and index changes
+remain source copies in the dirty main checkout until Agent 2 publishes the
+focused evidence branch. The source checkout remains untouched by this
+closeout. Agent 2 owns validation and publication of that branch; its contents
+are not merged evidence until reviewed and validated.
+
+The September 12 installed verification used reviewed commit `19585da`, whose
+diff from `3ebac5f` is test/documentation only. The additive report records
+queued state, queued disable/remove, and a genuine same-job restart recovery;
+those observations are evidence only and are not yet merged or owner-accepted.
 
 ## Live GitHub baseline
 
@@ -38,6 +46,7 @@ The baseline was checked against GitHub before local work started:
 | Item | Verified state |
 | --- | --- |
 | `origin/main` | `3ebac5f7a76c3425620ceba59e6078b32fb6cd85` (PR #91, merged 2026-09-10) |
+| September 12 installed verification | `19585da7bef9ffdec06b71e0627df1b3f7ceb2f`, parent exactly `origin/main`; test/documentation-only diff |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact `3ebac5f`, success, all nine jobs |
 | Foundation jobs | `docs-policy`, `client`, `rust-portable`, `migration`, `windows-foundation`, `security`, `filesystem-watcher-windows`, `enumeration-windows`, `scan-execution-windows` |
 | Open pull requests | None |
@@ -93,15 +102,15 @@ relabeled as an installed run on the current head.
 | P2-01 | #34/#35 picker, settings, and inline onboarding implementation | Client/Windows CI and #58 fake-adapter keyboard/narrow evidence | #92 picker cancel/selection, persistence, and restart; #54 picker record | Owner decision on inline onboarding and criterion acceptance |
 | P2-02 | #59 reconciliation core, #64 enumeration, #70 worker | Deterministic reconciliation and Windows fixture tests | #92 add/modify/rename and remove/restore convergence | Platform scope and owner acceptance |
 | P2-03 | #62/#70 safety path plus #85 fault cases | Partial/offline/cancel/resource-limit fault-injection tests | #92 cancellation and unavailable-root retention | Denied/limited traversal evidence and owner acceptance |
-| P2-04 | #60/#61/#70 durable state, #82 recovery, #104 active-slot fix | Migration/scan-execution gates, #97 convergence/stale fences, and #104 regression | #92 persistence/cancel/recovery; #101/#102 historical stall; #106 S1/S4/S6 pass and S5 successor path | Installed queued state, S5 path disposition, and owner acceptance |
-| P2-05 | #60/#62/#85 lease, disable/remove, staging, and stale-publication paths | Lease, disable/remove, and publication tests | #92 disable-while-running retention | Installed queued-operation coverage and owner acceptance |
-| P2-06 | #62/#85 atomic publication, crash/rollback, backup, and migration paths | Crash, recovery, backup, and migration tests | #92 clean restart/interrupted recovery; #106 did not establish a genuine crash with a running lease at restart | Correctly classified crash-recovery evidence and owner acceptance |
+| P2-04 | #60/#61/#70 durable state, #82 recovery, #104 active-slot fix | Migration/scan-execution gates, #97 convergence/stale fences, and #104 regression | #92 persistence/cancel/recovery; #101/#102 historical stall; #106 S1/S4/S6 pass and S5 successor path; September 12 queued/running/terminal states and same-job restart recovery | Installed S5 path disposition and owner acceptance |
+| P2-05 | #60/#62/#85 lease, disable/remove, staging, and stale-publication paths | Lease, disable/remove, and publication tests | #92 disable-while-running retention; September 12 queued disable and queued remove cancel before publication | Installed evidence is pending review and owner acceptance |
+| P2-06 | #62/#85 atomic publication, crash/rollback, backup, and migration paths | Crash, recovery, backup, and migration tests | #92 clean restart/interrupted recovery; #106 did not establish a genuine crash with a running lease; September 12 hard-kill copy proves a running lease, then same job/retry chain recovery | Correctly classified crash-recovery evidence and owner acceptance |
 | P2-07 | #59/#62/#85 identity, alias, rename, and replacement paths | Alias and rename tests | #92 rename convergence; no installed hardlink-alias qualification | #48 decision/qualification and owner acceptance |
-| P2-08 | #73/#77/#78/#81/#82 IPC, native adapter, lifecycle, and supervision; #95 alignment | Feature-on CI and IPC/adapter/lifecycle/recovery tests; #104 regression | #92 journey; #106 S1-S4/S6 installed observations; durable queued snapshot remains absent | Full-criterion review remains Partial, not Complete |
+| P2-08 | #73/#77/#78/#81/#82 IPC, native adapter, lifecycle, and supervision; #95 alignment | Feature-on CI and IPC/adapter/lifecycle/recovery tests; #104 regression | #92 journey; #106 S1-S4/S6 installed observations; September 12 native/UI queued snapshot and queued invalidation; full criterion remains Partial | Full-criterion review remains Partial, not Complete |
 | P2-09 | #68/#69/#71/#81/#82 watcher, coalescing, generation, and reconnect paths | #97 automated queue/burst/fence counts and watcher tests | #92 follow-ups; #106 isolated burst pass; real overflow timing and DriveFS remain unverified | Installed timing/overflow evidence, #47 decision, and owner acceptance |
 | P2-10 | #81 static no-parser/no-content-I/O guards and fixture-byte equality | Dependency/privacy checks, static guards, and preservation tests | Native-adapter independence was observed; no runtime content-read spy was run | Owner chooses static boundary or runtime spy gate |
 | P2-11 | #67/#72 harness, #86 rerun, #93 profile, #94 cleanup, #98 validation | F1 reproduced; contended warm p95 14,267 ms versus 10 s (both A/B sides fail); F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions and any owner-approved remeasurement |
-| P2-12 | #80 checkpoint plus merged implementation/CI map and #91 refresh | Current exact-head Foundation run is green; historical PR #99 remains validation-only | #92 and #106 records, with S5 partial and provenance preserved | Decisions above, then explicit P2-01-P2-12 owner acceptance |
+| P2-12 | #80 checkpoint plus merged implementation/CI map and #91 refresh | Current exact-head Foundation run is green; historical PR #99 remains validation-only | #92 and #106 records plus September 12 report, with exact `19585da` provenance preserved | Decisions above, then explicit P2-01-P2-12 owner acceptance |
 
 The table deliberately does not use `Complete` as a synonym for “merged” or
 “automated checks pass.” P2-08's older `Complete` wording is superseded by the
@@ -129,11 +138,18 @@ path because its database copy had no running run before relaunch.
 
 Agent 2's `19585da` pin replays the terminal follow-up path and asserts that the
 old job is not resurrected and the successor is leaseable. It adds no product
-fix. Agent 2 must validate it and use the installed window for any remaining
-installed evidence. Until that review establishes a defect, no contract change
-and no same-job requeue implementation is proposed. A clean installed crash
-demonstration may be requested as evidence coverage; it must kill while the
-lease is genuinely running and must not issue an intervening follow-up trigger.
+fix. The September 12 installed record separately captures the genuinely
+running-lease case: after an exact-PID hard kill, the same job and retry chain
+reached attempt two, the old run became `interrupted/restart`, and a fresh run
+completed with 8,000 published rows. It also records queued disable/remove
+with `runId: null` before mutation. The report and driver remain pending
+transfer/publication and owner review; they do not promote P2-04, P2-05, P2-06,
+or P2-08.
+
+No additional S5 run is requested without a specific evidence defect. A future
+Agent 2 safety window is for driver hardening or newly identified safety
+evidence; it must preserve the distinction between a terminal follow-up and a
+genuine running-lease recovery, and must not invent a product/contract change.
 
 ## Ordered host windows
 
@@ -142,8 +158,8 @@ completed evidence:
 
 | Order | Owner | Window and required controls |
 | --- | --- | --- |
-| 1 | Agent 2 | Installed-test window. Prebuild/package before taking the lock; then acquire the existing exclusive Foundation Smoke lock for install, launch, database/archive handling, journey, and uninstall. Cover the durable queued snapshot, installed burst/coalescing gaps, and (if requested) a clean genuine-crash path. Close the app before release; archive reversibly; never delete prior evidence. |
-| 2 | Agent 3 | Quiet performance window, only after Agent 2 releases the lock and all processes exit. Use the documented before/after binaries and quota-fitting fixture, AC/high-performance power, paused DriveFS, fixture-volume AV exclusion, no agent/sibling build load, one warm-up plus ten measured iterations, and nearest-rank p95. Preserve every iteration. |
+| 1 | Agent 3 | Quiet performance window first. Prebuild artifacts outside the measurement window; enforce the documented idle/power/DriveFS/AV/process gates; pause heavy Rust, Cargo, Tauri, pnpm, packaging, and sibling work throughout one warm-up plus ten measured iterations per side. Preserve every iteration and fail closed if the preflight is not eligible. |
+| 2 | Agent 2 | Follow-up safety window after Agent 3's samples and logs are complete, all processes exit, and the host is released. Own driver hardening and any specific new safety evidence; publish the existing S5 regression plus September 12 installed artifacts from the isolated branch. Do not repeat S5 without a named evidence defect. If a new installed run is authorized, prebuild outside the lock, acquire the existing exclusive Foundation Smoke lock, archive reversibly, and close the app before release. |
 
 Before and throughout Agent 3's measurement, pause heavy Rust, Tauri, Cargo,
 pnpm, and packaging builds. Do not start a sibling build, installed run, or
@@ -252,8 +268,9 @@ was made by this task.
   then record the owner's static-boundary versus runtime-spy choice. Do not
   claim a runtime spy before it exists.
 - **#41:** Keep the aggregator open and link the current packet, exact
-  `3ebac5f` baseline, Foundation run `34428758835`, and the ordered Agent 2 ->
-  Agent 3 windows. It is not a Phase 2 acceptance statement.
+  `3ebac5f` baseline, Foundation run `34428758835`, the pending `19585da`
+  installed evidence, and the ordered Agent 3 -> Agent 2 windows. It is not a
+  Phase 2 acceptance statement.
 - **#47:** Request the missing DriveFS UI mode capture, disposable synced
   leaves, and cloud/pause-resume consent, or record an explicit owner scope
   exclusion. Do not report another blocked inventory as a run.
@@ -261,11 +278,11 @@ was made by this task.
   metadata and cross-volume consent, or record an explicit scope exclusion.
   Do not use DriveFS, the system partition, or the no-media device as a proxy.
 - **#107:** Record that #106 demonstrated successor convergence after a
-  terminal `follow_up_requested` transition, not a still-running crash
-  recovery. Ask Agent 2 to validate the pin and identify any defect. If no
-  defect is found, dispose the issue as expected successor behavior and keep
-  any clean same-job run as evidence coverage; require a product/contract
-  change only if Agent 2 establishes a genuine-crash defect.
+  terminal `follow_up_requested` transition, while the September 12 evidence
+  separately demonstrates same-job recovery from a genuinely running lease.
+  Ask Agent 2 to validate and publish the isolated test/report artifacts; do
+  not request another S5 run without a specific evidence defect. Require a
+  product/contract change only if review establishes a genuine defect.
 
 No issue is closed, and no owner acceptance is inferred by these proposals.
 
@@ -274,16 +291,16 @@ No issue is closed, and no owner acceptance is inferred by these proposals.
 There are no open PRs to merge now. If the owner later advances the remaining
 work, the safe order is:
 
-1. Review and validate Agent 2's unpublished `19585da` pin in its isolated
-   branch. It is test/evidence work only and does not alter the product
-   contract.
-2. Prebuild any packaged artifact outside the installed lock, then run Agent
-   2's installed-test window under the exclusive lock. If Agent 2 establishes
-   a defect, implement and validate that fix before freezing the installed
-   evidence; otherwise keep S5 as the two-path disposition above.
-3. Release the lock, verify the app and holder processes have exited, pause
-   heavy builds, and run Agent 3's quiet A/B performance window. Do not
-   overlap the windows or use its results to rewrite F1/F3.
+1. Run Agent 3's quiet-host A/B first. Prebuild outside the measurement
+   window, pause heavy builds for the samples, preserve every iteration, and
+   record a non-qualifying result if any quiet-host gate fails.
+2. After Agent 3's window is complete and the host is idle, have Agent 2
+   validate/publish `19585da` plus the copied September 12 installed artifacts
+   on the isolated evidence branch. Run only driver-hardening or specifically
+   defective safety follow-up; do not duplicate S5 by default.
+3. Refresh this packet at the exact final evidence/performance heads, then
+   review the focused evidence, performance, and closeout draft PRs in that
+   order. No merge or owner acceptance is implied by green checks.
 4. Resolve F1/F2/F3, #47/#48 scope, P2-10 evidence strength, inline
    onboarding, and S5. Any budget, fixture, platform, or contract change
    requires an explicit owner decision and its own remeasurement/evidence.

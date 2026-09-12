@@ -54,23 +54,26 @@ not by itself provide owner acceptance.
 
 The #92 installed journey was recorded on an older merged baseline. The #106
 fixed validation tested unmerged candidate `ded02ac`, patch-identical to the
-fix in #104, not the current `3ebac5f`. Those provenance limits remain
-explicit.
+fix in #104, not the current `3ebac5f`. The September 12 installed report was
+verified from `19585da`, whose diff from `3ebac5f` is test/documentation only;
+its queued-state, queued disable/remove, and genuine same-job restart
+observations remain pending transfer, merge, and owner acceptance. Those
+provenance limits remain explicit.
 
 | ID | Merged implementation | Automated evidence | Installed evidence | Remaining |
 | --- | --- | --- | --- | --- |
 | P2-01 | #34/#35 picker, settings, and inline onboarding | Client/Windows CI; #58 fake-adapter keyboard/narrow evidence | #92 picker, cancel, persistence, restart; #54 picker record | Onboarding decision and owner acceptance |
 | P2-02 | #59 core, #64 enumeration, #70 worker | Deterministic and Windows fixture tests | #92 add/modify/rename and remove/restore | Platform scope and owner acceptance |
 | P2-03 | #62/#70 safety path and #85 fault cases | Partial/offline/cancel/resource-limit fault tests | #92 cancellation and unavailable-root retention | Denied/limited traversal and owner acceptance |
-| P2-04 | #60/#61/#70 durability, #82 recovery, #104 active-slot fix | Migration/worker gates; #97 fences; #104 regression | #92 persistence/cancel/recovery; #106 S1-S4/S6 pass, S5 successor path | Queued state, S5 disposition, owner acceptance |
-| P2-05 | #60/#62/#85 lease, disable/remove, staging | Lease and stale-publication tests | #92 disable-while-running retention | Queued-operation installed evidence |
-| P2-06 | #62/#85 atomic publication and crash/backup paths | Crash, recovery, backup, migration tests | #92 restart/recovery; #106 did not prove a running lease at restart | Correct crash-path evidence and owner acceptance |
+| P2-04 | #60/#61/#70 durability, #82 recovery, #104 active-slot fix | Migration/worker gates; #97 fences; #104 regression | #92 persistence/cancel/recovery; #106 S1-S4/S6 pass, S5 successor path; September 12 queued/running/terminal and same-job restart evidence | S5 disposition and owner acceptance |
+| P2-05 | #60/#62/#85 lease, disable/remove, staging | Lease and stale-publication tests | #92 disable-while-running retention; September 12 queued disable/remove | Evidence review and owner acceptance |
+| P2-06 | #62/#85 atomic publication and crash/backup paths | Crash, recovery, backup, migration tests | #92 restart/recovery; September 12 genuine running-lease hard-kill recovery | Correct crash-path review and owner acceptance |
 | P2-07 | #59/#62/#85 identity, alias, rename paths | Alias and rename tests | #92 rename; no installed hardlink qualification | #48 decision/qualification |
-| P2-08 | #73/#77/#78/#81/#82 UI/native/lifecycle; #95 alignment | Feature-on CI and IPC/adapter/lifecycle tests | #92 journey; #106 S1-S4/S6; no durable queued snapshot | Full criterion remains Partial |
+| P2-08 | #73/#77/#78/#81/#82 UI/native/lifecycle; #95 alignment | Feature-on CI and IPC/adapter/lifecycle tests | #92 journey; #106 S1-S4/S6; September 12 native/UI queued snapshot and invalidation | Full criterion remains Partial |
 | P2-09 | #68/#69/#71/#81/#82 watcher/coalescing/reconnect | #97 automated queue/burst/fence tests | #92 follow-ups; #106 isolated burst pass | Overflow timing and #47 scope |
 | P2-10 | #81 static no-parser/content-I/O guards and fixture equality | Dependency/privacy, static, preservation checks | Native-adapter independence only; no runtime spy | Static-versus-runtime decision |
 | P2-11 | #67/#72/#86/#93/#94/#98 benchmark work | F1 reproduced; contended warm p95 14,267 ms vs 10 s; F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions |
-| P2-12 | #80 checkpoint, merged map, #91 refresh | Run 34428758835 passes all nine Foundation jobs | #92/#106 records with S5 partial | Decisions, then explicit owner acceptance |
+| P2-12 | #80 checkpoint, merged map, #91 refresh | Run 34428758835 passes all nine Foundation jobs | #92/#106 plus September 12 report with `19585da` provenance | Decisions, then explicit owner acceptance |
 
 P2-08's historical `Complete` wording is not carried forward: the current
 disposition is Partial because the full installed/owner boundary was not
@@ -88,9 +91,12 @@ A genuine crash is the separate case where restart finds a run still marked
 `running`; recovery marks it `restart` and requeues the same job/retry chain.
 The current automated state-machine test covers that rule. Agent 2's
 unpublished `19585da` pin covers the terminal-follow-up path and adds no
-product fix. No contract change is proposed unless Agent 2 establishes a
-defect. A clean same-job crash run, if requested, must kill during a genuinely
-running lease without an intervening follow-up trigger.
+product fix. The September 12 installed report separately records a genuinely
+running lease at exact-PID kill, same-job/retry-chain recovery at attempt two,
+queued disable/remove with `runId: null`, and terminal queued/running states.
+The report and driver are pending isolated-branch transfer, merge, and owner
+review; no contract change is proposed. Do not request another S5 run without
+a specific evidence defect.
 
 ## Remaining decisions and coordination
 
@@ -112,11 +118,12 @@ The owner decisions are collected in the [closeout packet](acceptance-packet-202
 - Inline onboarding: accept inline Preferences as the Phase 2 entry path, or
   defer the route choice to a named later phase.
 
-The required window order is Agent 2's installed-test window first, then Agent
-3's quiet performance window after the lock is released and all processes exit.
-Prebuild artifacts outside the installed lock. Pause heavy Cargo, Rust, Tauri,
+The required window order is Agent 3's quiet performance window first, then
+Agent 2's safety follow-up after all measurement processes exit. Prebuild
+artifacts outside the measurement window and pause heavy Cargo, Rust, Tauri,
 pnpm, and packaging builds throughout Agent 3's measurements. Do not overlap
-windows or relabel a failed quiet preflight as qualification.
+windows or relabel a failed quiet preflight as qualification. Do not request
+another S5 run without a specific evidence defect.
 
 ## Standing gates
 
