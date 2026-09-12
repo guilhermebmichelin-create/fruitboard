@@ -144,10 +144,10 @@ identity, or real OS buffer-overflow timing.
 
 ### Denied traversal
 
-Native calls applied `icacls ... /deny guilhermebougle\guilh:(OI)(CI)(RX)`
-to the disposable `blocked` subtree after a fresh committed baseline. The
-same-user direct Node `readdirSync` probe failed with `EPERM`; the installed
-scan then completed its retry chain at `failed/access_denied` with
+Native calls applied an `icacls ... /deny <run-user>:(OI)(CI)(RX)` entry,
+using the identity returned by `whoami.exe`, to the disposable `blocked`
+subtree after a fresh committed baseline. The same-user direct Node
+`readdirSync` probe failed with `EPERM`; the installed scan then completed its retry chain at `failed/access_denied` with
 `retryAvailable=false`. `icacls ... /remove:d ... /T /C` exited 0 and the
 recorded restore result was `restored=true`.
 
