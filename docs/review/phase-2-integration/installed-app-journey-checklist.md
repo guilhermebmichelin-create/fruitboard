@@ -279,6 +279,17 @@ at reviewed commit `19585da` with `origin/main` baseline `3ebac5f`:
 | 9. Watcher follow-up | The installed burst convergence remains covered by [#106](installed-journey/run-20260909-fixed-validation.md#53-scenario-3--burst-changes-appearing-in-committed-library-results), with its candidate-to-merged patch identity recorded there. | Reused; no relabelling |
 | 10. Cancel/unavailable/retry | The new record adds queued disable and queued remove: both queued jobs are cancelled before mutation can publish, with disabled state persisted and removed locations detached. #106 remains the source for installed cancellation/unavailable/exhaustion observations. | Queued disable/remove observed |
 
+queued/restart observations from the historical driver. The follow-up
+[remaining local NTFS record](installed-journey/run-20260912-ntfs-cases.md)
+uses a separate lock-verifying orchestration wrapper and does not rerun that
+lease-recovery experiment.
+
+| Remaining case | Installed observation | Status |
+| --- | --- | --- |
+| Denied traversal | Disposable nested ACL denial was applied and directly probed as same-user access denial; the installed scan was required to return `failed/access_denied` while the committed rows and last-success marker stayed unchanged. | See NTFS record; no FAT32/DriveFS claim |
+| ResourceLimit | The accepted synthetic 10,000-observation root was committed first; one additional `.flp` was then scanned against the unchanged bound and was required to return `failed/resource_limit` without partial publication or false missing rows. | See NTFS record; budget unchanged |
+| Hardlinks | Two hardlink aliases were both inside the scanned root; removing/restoring one alias was required to produce one Missing/one Present and then two independent Present locations. | See NTFS record; local NTFS only |
+
 ## Gate and handoff
 
 The operator reports the exact combined commit, the feature-enabled CI URL,
