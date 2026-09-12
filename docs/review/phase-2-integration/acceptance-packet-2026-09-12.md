@@ -39,6 +39,12 @@ diff from `3ebac5f` is test/documentation only. The additive report records
 queued state, queued disable/remove, and a genuine same-job restart recovery;
 those observations are evidence only and are not yet merged or owner-accepted.
 
+Agent 3's first quiet-host window was completed fail-closed in draft PR [#108](https://github.com/guilhermebmichelin-create/fruitboard/pull/108)
+at `2561d3f`. DriveFS activity, unverified Defender exclusion, sibling
+activity, and missing 60-second CPU/disk idle proof prevented measurement. No
+new A/B timing or qualification claim was created; historical contended
+results remain unchanged.
+
 ## Live GitHub baseline
 
 The baseline was checked against GitHub before local work started:
@@ -49,7 +55,7 @@ The baseline was checked against GitHub before local work started:
 | September 12 installed verification | `19585da7bef9ffdec06b71e0627df1b3f7ceb2f`, parent exactly `origin/main`; test/documentation-only diff |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact `3ebac5f`, success, all nine jobs |
 | Foundation jobs | `docs-policy`, `client`, `rust-portable`, `migration`, `windows-foundation`, `security`, `filesystem-watcher-windows`, `enumeration-windows`, `scan-execution-windows` |
-| Open pull requests | None |
+| Open pull requests | Draft #108 (performance preflight) and draft #109 (this closeout); Agent 2 evidence PR pending |
 | PR #99 | Closed, never merged; validation-only combined-build history at `9c211ad` |
 | Open issues | #33, #36-#41, #47, #48, and #107 |
 
@@ -109,7 +115,7 @@ relabeled as an installed run on the current head.
 | P2-08 | #73/#77/#78/#81/#82 IPC, native adapter, lifecycle, and supervision; #95 alignment | Feature-on CI and IPC/adapter/lifecycle/recovery tests; #104 regression | #92 journey; #106 S1-S4/S6 installed observations; September 12 native/UI queued snapshot and queued invalidation; full criterion remains Partial | Full-criterion review remains Partial, not Complete |
 | P2-09 | #68/#69/#71/#81/#82 watcher, coalescing, generation, and reconnect paths | #97 automated queue/burst/fence counts and watcher tests | #92 follow-ups; #106 isolated burst pass; real overflow timing and DriveFS remain unverified | Installed timing/overflow evidence, #47 decision, and owner acceptance |
 | P2-10 | #81 static no-parser/no-content-I/O guards and fixture-byte equality | Dependency/privacy checks, static guards, and preservation tests | Native-adapter independence was observed; no runtime content-read spy was run | Owner chooses static boundary or runtime spy gate |
-| P2-11 | #67/#72 harness, #86 rerun, #93 profile, #94 cleanup, #98 validation | F1 reproduced; contended warm p95 14,267 ms versus 10 s (both A/B sides fail); F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions and any owner-approved remeasurement |
+| P2-11 | #67/#72 harness, #86 rerun, #93 profile, #94 cleanup, #98 validation | F1 reproduced; contended warm p95 14,267 ms versus 10 s (both A/B sides fail); Agent 3 first quiet-host window failed closed before measurement; F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions and any owner-approved remeasurement |
 | P2-12 | #80 checkpoint plus merged implementation/CI map and #91 refresh | Current exact-head Foundation run is green; historical PR #99 remains validation-only | #92 and #106 records plus September 12 report, with exact `19585da` provenance preserved | Decisions above, then explicit P2-01-P2-12 owner acceptance |
 
 The table deliberately does not use `Complete` as a synonym for “merged” or
@@ -153,13 +159,13 @@ genuine running-lease recovery, and must not invent a product/contract change.
 
 ## Ordered host windows
 
-The host is a shared resource. The windows are proposals for coordination, not
-completed evidence:
+The host is a shared resource. Agent 3's first window is now recorded as
+non-qualifying; the Agent 2 follow-up remains coordinated below:
 
 | Order | Owner | Window and required controls |
 | --- | --- | --- |
-| 1 | Agent 3 | Quiet performance window first. Prebuild artifacts outside the measurement window; enforce the documented idle/power/DriveFS/AV/process gates; pause heavy Rust, Cargo, Tauri, pnpm, packaging, and sibling work throughout one warm-up plus ten measured iterations per side. Preserve every iteration and fail closed if the preflight is not eligible. |
-| 2 | Agent 2 | Follow-up safety window after Agent 3's samples and logs are complete, all processes exit, and the host is released. Own driver hardening and any specific new safety evidence; publish the existing S5 regression plus September 12 installed artifacts from the isolated branch. Do not repeat S5 without a named evidence defect. If a new installed run is authorized, prebuild outside the lock, acquire the existing exclusive Foundation Smoke lock, archive reversibly, and close the app before release. |
+| 1 | Agent 3 | **Completed fail-closed at `2561d3f` / draft #108.** DriveFS, Defender verification, sibling activity, and idle-proof gates were ineligible; no build or timing was started and no quiet-host claim was made. |
+| 2 | Agent 2 | Follow-up safety window after the completed Agent 3 preflight, all processes exit, and the host is released. Own driver hardening and any specific new safety evidence; publish the existing S5 regression plus September 12 installed artifacts from the isolated branch. Do not repeat S5 without a named evidence defect. If a new installed run is authorized, prebuild outside the lock, acquire the existing exclusive Foundation Smoke lock, archive reversibly, and close the app before release. |
 
 Before and throughout Agent 3's measurement, pause heavy Rust, Tauri, Cargo,
 pnpm, and packaging builds. Do not start a sibling build, installed run, or
@@ -269,8 +275,8 @@ was made by this task.
   claim a runtime spy before it exists.
 - **#41:** Keep the aggregator open and link the current packet, exact
   `3ebac5f` baseline, Foundation run `34428758835`, the pending `19585da`
-  installed evidence, and the ordered Agent 3 -> Agent 2 windows. It is not a
-  Phase 2 acceptance statement.
+  installed evidence, draft #108's fail-closed Agent 3 result, and the ordered
+  Agent 3 -> Agent 2 windows. It is not a Phase 2 acceptance statement.
 - **#47:** Request the missing DriveFS UI mode capture, disposable synced
   leaves, and cloud/pause-resume consent, or record an explicit owner scope
   exclusion. Do not report another blocked inventory as a run.
@@ -288,12 +294,12 @@ No issue is closed, and no owner acceptance is inferred by these proposals.
 
 ## Dependency and merge order
 
-There are no open PRs to merge now. If the owner later advances the remaining
-work, the safe order is:
+Draft PRs #108 and #109 are open, with Agent 2's evidence PR still pending. If
+the owner later advances the remaining work, the safe order is:
 
-1. Run Agent 3's quiet-host A/B first. Prebuild outside the measurement
-   window, pause heavy builds for the samples, preserve every iteration, and
-   record a non-qualifying result if any quiet-host gate fails.
+1. Agent 3's first quiet-host preflight is complete at `2561d3f` / draft
+   #108 and is non-qualifying; no measurements were started. Keep F2 open and
+   do not relabel historical contended samples.
 2. After Agent 3's window is complete and the host is idle, have Agent 2
    validate/publish `19585da` plus the copied September 12 installed artifacts
    on the isolated evidence branch. Run only driver-hardening or specifically
@@ -325,6 +331,7 @@ The final validation results for this branch are:
 - The package scripts reported the host's Node `26.4.0` versus the repository
   pin `24.20.0`; this is a docs-validation environment warning, not product
   or performance evidence.
-- No full build, installed run, performance run, issue mutation, PR mutation,
-  merge, Phase 2 acceptance, or production activation was performed by this
-  documentation closeout.
+- No full build, installed run, performance run, issue mutation, merge, Phase
+  2 acceptance, or production activation was performed by this documentation
+  closeout. Draft PR #109 was opened for review; it is not a merge or
+  acceptance action.
