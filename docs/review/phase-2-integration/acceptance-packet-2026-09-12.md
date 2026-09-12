@@ -408,7 +408,7 @@ post, close, accept, or activate anything.
 ## Cross-PR integration audit
 
 The isolated checkout at
-`C:\Users\guilh\AppData\Local\Temp\fruitboard-phase2-integration-20260912`
+`%TEMP%\fruitboard-phase2-integration-20260912`
 was created from verified `origin/main` `3ebac5f7a76c3425620ceba59e6078b32fb6cd85`.
 It replayed PR #110's `19585da` and `e209b8a` first, then PR #111's later
 harness, product, and report commits through current head `f8140349`. PR #111's
@@ -456,8 +456,9 @@ are:
   or performance evidence; the pinned Rust and checked-in Prettier/markdownlint
   tool versions above passed.
 - GitHub draft PRs #108 `a44653b`, #110 `e209b8a`, and #111 `f8140349` each
-  have all ten required checks green. Draft #109's final owned head is subject
-  to the same normal required checks after this packet update.
+  have all ten required checks green. Draft #109's final owned head must
+  retain the normal required checks; its live result is reported with this
+  handoff.
 - No full build, installed run, performance run, issue mutation, merge, Phase
   2 acceptance, or production activation was performed by this closeout.
   Draft PR #109 remains draft and this packet is not an acceptance action.
