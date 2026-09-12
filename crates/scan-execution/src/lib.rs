@@ -688,7 +688,9 @@ fn durable_error_code(outcome: Option<enumeration::Outcome>) -> Option<&'static 
         Some(enumeration::Outcome::UnsupportedFilesystem) => Some("unsupported"),
         Some(enumeration::Outcome::ResourceLimit) => Some("resource_limit"),
         Some(enumeration::Outcome::RootUnavailable) => Some("unavailable"),
-        Some(enumeration::Outcome::Cancelled) => Some("cancelled"),
+        // Cancellation is selected from the durable cancellation fence and
+        // must not be supplied as a failed-run diagnostic override.
+        Some(enumeration::Outcome::Cancelled) => None,
         Some(
             enumeration::Outcome::Partial
             | enumeration::Outcome::Invalid
