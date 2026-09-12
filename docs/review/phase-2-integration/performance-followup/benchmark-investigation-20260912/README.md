@@ -122,7 +122,7 @@ path or native-message payload, and emits it as `partial_class` on
 `scan_finished`. Both `execute` and `execute_shared`, including both resolve
 paths, carry it through. The combined #111 candidate separately supplies
 `finish_scan_run_with_error` and its closed durable error vocabulary; this
-#112 branch does not duplicate those integration edits.
+PR #112 branch does not duplicate those integration edits.
 
 The deterministic regression now verifies:
 
