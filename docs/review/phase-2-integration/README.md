@@ -13,7 +13,7 @@ are not rewritten here.
 | --- | --- |
 | `main` | `3ebac5f7a76c3425620ceba59e6078b32fb6cd85` (PR #91) |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact current head, success, all nine Foundation jobs |
-| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), and #111 (`ef08522`, NTFS/product); all remain unmerged |
+| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), #111 (`f8140349`, NTFS/product; reviewed report revision `ef08522`), and #112 (`eace2e6`, benchmark diagnostics); all remain unmerged |
 | PR #99 | Closed without merge; validation-only combined-build history |
 | Open issues | #33, #36-#41, #47, #48, #107 |
 
@@ -64,6 +64,7 @@ not by itself provide owner acceptance.
 | #109 | This closeout packet and coordination index |
 | #110 / `e209b8a` | Agent 2 queued/running/terminal, queued disable/remove, and genuine same-job restart evidence; no product fix |
 | #111 / `ef08522` | Mixed product-and-evidence change: local-NTFS denied traversal, unchanged-bound `ResourceLimit`, and in-root hardlink evidence, plus the durable-diagnostic and desktop scan-console correction at tested source `05fb35c`; it is not evidence-only |
+| #112 / `eace2e6` | Correctness/diagnostics follow-up: the original current-main `Partial` remains unexplained and was not reproduced; bounded `partial_class` coverage and sanitized benchmark protocol were added, with no performance qualification or acceptance claim |
 
 The #111 branch also carries recovered S5 commit `de396e7`. Its tree and
 stable patch ID are identical to #110's `19585da`, so it is historical
@@ -112,7 +113,7 @@ network shares, performance, or Phase 2 acceptance.
 | P2-08 | #73/#77/#78/#81/#82 UI/native/lifecycle; #95 alignment | Feature-on CI and IPC/adapter/lifecycle tests; #111 tests durable diagnostic mapping | #92 journey; #106 S1-S4/S6; #110 `e209b8a` native/UI queued snapshot and invalidation; #111's unmerged `05fb35c` changes durable diagnostics and typed desktop error presentation | Full criterion remains Partial |
 | P2-09 | #68/#69/#71/#81/#82 watcher, coalescing, coverage-loss, generation, reconnect, shutdown; #97 verification | Coalescing/overflow/stale tests green; #97 counts automated only; #104 sweep/claim regression green | #92 follow-ups; #101 burst NOT OBSERVED (historical stall); #106 canonical S3 burst PASS under isolation | Installed burst timing, real overflow timing, #47 DriveFS evidence; owner acceptance |
 | P2-10 | #81 static no-parser/no-content-I/O guards plus fixture source-byte equality | Static guards and preservation checks green | Installed-app independence observed via #92 native adapter (no parser content) | Runtime content-read spy decision; owner acceptance |
-| P2-11 | #67/#72/#86/#93/#94/#98 benchmark work | F1 reproduced; contended warm p95 14,267 ms vs 10 s; #108 normal-config current-main retains 9/10 authoritative iterations plus one `Failed`/`Partial` at 11,137 ms; Agent 3's quiet-host window failed closed; F3 unmeasured. This Partial is an explicit open finding pending Agent 2's disposition; #111 does not relabel or dispose it | No installed performance qualification | F1/F2/F3 decisions |
+| P2-11 | #67/#72/#86/#93/#94/#98 benchmark work | F1 reproduced; contended warm p95 14,267 ms vs 10 s; #108 normal-config current-main retains 9/10 authoritative iterations plus one `Failed`/`Partial` at 11,137 ms; Agent 3's quiet-host window failed closed; #112 adds bounded `partial_class` reporting and a sanitized protocol. The original Partial remains unexplained and was not reproduced; later passes do not establish its cause or performance acceptance. F3 remains unmeasured | No installed performance qualification | F1/F2/F3 decisions |
 | P2-12 | #80 checkpoint, merged map, #91 refresh | Run 34428758835 passes all nine Foundation jobs | #92/#106 plus September 12 report with `19585da` provenance | Decisions, then explicit owner acceptance |
 
 P2-08's historical `Complete` wording is not carried forward: the current
@@ -137,8 +138,9 @@ disable/remove with `runId: null`, and terminal queued/running states. Those
 artifacts are isolated in draft #110 at `e209b8a`; Agent 2 found no defect and
 no contract change is proposed. Draft #111's `de396e7` has the same parent,
 tree, and stable patch ID as `19585da`, so the integration plan retains only
-one recovery patch while preserving both historical SHAs. Do not request
-another S5 run without a specific evidence defect.
+one recovery patch while preserving both historical SHAs. No additional S5 or
+NTFS run is requested for this stack; a future run would require a newly
+identified evidence defect and separate owner authorization.
 
 ## Remaining decisions and coordination
 
@@ -148,9 +150,11 @@ The owner decisions are collected in the [closeout packet](acceptance-packet-202
   coupled limits above 10,005 and remeasure.
 - F2: run a quiet-host A/B before any target or budget change; retain the
   contended result as diagnostic. The #108 current-main series retains one
-  `Failed`/`Partial` non-authoritative iteration at 11,137 ms; this is an
-  explicit open finding pending Agent 2's disposition, not a pass and not
-  something #111's diagnostic fix disposes.
+  `Failed`/`Partial` non-authoritative iteration at 11,137 ms. #112 records
+  that the original Partial is unexplained and was not reproduced, and adds
+  diagnostic coverage without establishing its cause or performance
+  acceptance. This remains a qualification/owner decision, not a pending
+  request for another S5 or NTFS run.
 - F3: choose bounded chunked snapshots, a coordinated 100,000-entry limit
   increase, or a dated deferral retaining the 10,000-entry contract.
 - #47: supply DriveFS UI mode capture, disposable synced leaves, and cloud/
@@ -165,15 +169,34 @@ The owner decisions are collected in the [closeout packet](acceptance-packet-202
 
 Agent 3's first quiet performance window failed closed before measurement in
 draft #108 at `2561d3f`; no quiet-host qualification was claimed. Its later
-normal-config current-main series retains the `Failed`/`Partial` finding above,
-which remains open pending Agent 2's disposition. Agent 2's follow-up is
-isolated in draft #110 at `e209b8a`, with no S5 rerun and no product defect
-identified. No heavy Cargo, Rust, Tauri, pnpm, packaging, benchmark, or
-installed validation was run during Agent 2's reproduction window. Prebuild
-artifacts outside a measurement window and pause those heavy tasks throughout
-any future measurement. Do not overlap windows or relabel a failed quiet
-preflight as qualification. Do not request another S5 run without a specific
-evidence defect.
+normal-config current-main series retains the `Failed`/`Partial` finding above.
+#112 did not reproduce the original result; its `partial_class` field and
+sanitized protocol identify future occurrences without explaining the
+historical one. Agent 2's follow-up is isolated in draft #110 at `e209b8a`,
+with no S5 rerun and no product defect identified. No heavy Cargo, Rust,
+Tauri, pnpm, packaging, benchmark, or installed validation was run during
+Agent 2's reproduction window. Prebuild artifacts outside a measurement
+window and pause those heavy tasks throughout any future measurement. Do not
+overlap windows or relabel a failed quiet preflight as qualification. No new
+S5 or NTFS run is requested absent a specific evidence defect.
+
+## Integration and merge readiness
+
+Code/evidence review and Phase 2 acceptance are separate gates. This existing
+isolated integration branch replays #110's canonical `19585da`, preserves
+#111's durable diagnostic propagation and NTFS evidence, and includes #112's
+bounded `partial_class` reporting plus sanitized benchmark protocol. It is a
+synthetic review candidate, not merged main and not owner acceptance. The exact
+candidate SHA and its ten required GitHub checks are recorded only after the
+final candidate push and independent Agent 2 review.
+
+The owner-ready dependency order is #110, then #111 rebased onto the resulting
+tip with `de396e7` dropped but retained as provenance, then #112 rebased onto
+that product/evidence tip, and #109 last after its live-head references are
+refreshed. #108 remains diagnostic evidence only and carries no performance
+acceptance. A PR remains draft until its own code/evidence review and all
+outstanding checks are complete; none of these steps accepts Phase 2, changes
+budgets or scope, closes issues, or activates production scanning.
 
 ## Standing gates
 
