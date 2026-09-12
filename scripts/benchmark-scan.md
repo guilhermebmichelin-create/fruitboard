@@ -96,6 +96,12 @@ For each budget being measured, on an otherwise idle host:
 5. Record failures, cancellations and anomalies alongside the durations. A
    failed iteration is reported as a failure, not discarded silently.
 
+For a terminal `Partial` scan, `scan_finished` also carries the bounded
+`partial_class` value when the retained coverage diagnostics identify exactly
+one class. Multiple retained classes emit `partial_multiple`; absent or
+truncated diagnostics emit `partial_unknown`. The protocol never carries
+paths, file content, native error messages, or raw stderr.
+
 The harness performs these steps with one fresh driver process per iteration
 and the same committed database for warm-up and measured scans. Cancellation
 measurements use separate databases. This is driver-process restart evidence;
