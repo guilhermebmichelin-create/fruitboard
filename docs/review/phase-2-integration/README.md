@@ -167,8 +167,9 @@ isolated integration branch replays #110's canonical `19585da`, preserves
 #111's durable diagnostic propagation and NTFS evidence, and now includes #112's
 bounded `partial_class` reporting plus sanitized benchmark protocol. It is a
 synthetic review candidate, not merged main and not owner acceptance. The
-candidate's exact frozen SHA and its ten required GitHub checks must be recorded
-after the final candidate push and independent Agent 2 review.
+published candidate is draft #113 at frozen SHA
+`5cc8fb549966ebd53c135540b2f4c68339269680`; its ten required GitHub checks and
+independent Agent 2 review remain outstanding.
 
 The owner-ready dependency order is #110, then #111 rebased onto the resulting
 tip with `de396e7` dropped but retained as provenance, then #112 rebased onto
