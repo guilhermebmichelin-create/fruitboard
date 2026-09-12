@@ -111,6 +111,14 @@ The installed-app defect repair replay for PR #92 is recorded additively in
 original installed observations remain preserved on PR #92 and are not
 overwritten by that follow-up record.
 
+The 2026-09-12 #107 queued/restart recovery is preserved in the installed
+journey addendum, with the historical driver's provenance kept separate from
+the locked follow-up driver. The remaining denied-traversal, unchanged-bound
+`ResourceLimit`, and in-root hardlink cases are recorded separately in
+[`installed-journey/run-20260912-ntfs-cases.md`](installed-journey/run-20260912-ntfs-cases.md).
+That record is local NTFS evidence only; it does not qualify FAT32, DriveFS,
+network shares, performance, or Phase 2 acceptance.
+
 ## Acceptance ID evidence map (implementation | automated | installed | remaining)
 
 | ID | Implementation (merged `main`) | Automated evidence | Installed evidence | Remaining acceptance |
