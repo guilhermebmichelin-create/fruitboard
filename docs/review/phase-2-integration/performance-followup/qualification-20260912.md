@@ -187,6 +187,7 @@ or hostnames):
 | [`benchmark-normal-candidate94-raw.json`](benchmark-normal-candidate94-raw.json) | `4e2fac9ead9ed59de104b6a5eb2150df4dd5ca166aa37c52d99126301564556d` |
 | [`benchmark-normal-current-main-raw.json`](benchmark-normal-current-main-raw.json) | `0174f9081dea7d46c7caf984f31bc17becb87a3f4d51b9234bdcd461d1f2c6fd` |
 | [`profile-normal-before94-raw.jsonl`](profile-normal-before94-raw.jsonl) | `d27010c8d1a864addfbdff9b70c989b3fdd0ecf3dd0068cf62acb91f60a150bd` |
+| [`profile-normal-candidate94-raw.jsonl`](profile-normal-candidate94-raw.jsonl) | `42c132dd1937929fb4b8126ab6e592cf61c61027717a5d5816573aa9d91d4f2d` |
 | [`profile-normal-current-main-raw.jsonl`](profile-normal-current-main-raw.jsonl) | `3186382520a56ae938455535c0af2e9eda47298ba80c6b15a8a5f4a8221cf170` |
 
 ### Raw result summary
@@ -223,11 +224,14 @@ over nine successful measured iterations and one retained non-authoritative
 partial failure. It remains over target and unqualified. The one failed
 iteration is an execution outcome, not a filtered timing sample.
 
-The prepared profiles were run on the same fixture and normal host class:
+The prepared profiles were run on the same fixture and normal host class. The
+candidate profile also had no cargo/rustc process at launch or completion; no
+continuous host trace was retained for it:
 
 | Profile | Warm scan | Filesystem-port time | Residual | Dominant measured calls |
 | --- | ---: | ---: | ---: | --- |
 | Before `1d7c298` | 9,985 ms | 8,670 ms | 1,315 ms | `next_entry` 4,016.015 ms + `read_metadata` 4,348.683 ms = 8,364.699 ms (83.8% of wall; 96.5% of filesystem time) |
+| Candidate `b35c01a` | 9,235 ms | 8,022 ms | 1,212 ms | `next_entry` 3,718.374 ms + `read_metadata` 4,005.431 ms = 7,723.806 ms (83.6% of wall; 96.3% of filesystem time) |
 | Current merged | 9,484 ms | 8,272 ms | 1,211 ms | `next_entry` 3,826.490 ms + `read_metadata` 4,162.643 ms = 7,989.133 ms (84.2% of wall; 96.6% of filesystem time) |
 
 The profile measures public filesystem-port boundaries, not individual native
@@ -249,7 +253,7 @@ OS cache state was not controlled, so no run is called cold.
 
 The normal measurements fail the unchanged 10-second warm-p95 target, but the
 before/candidate difference is confounded by host timing and background load.
-The two fresh profiles nevertheless reproduce a stable measured cost center:
+The three fresh profiles nevertheless reproduce a stable measured cost center:
 `next_entry` plus `read_metadata` consume about 84% of scan wall time and over
 96% of timed filesystem-port time. This supports a focused investigation of a
 correctness-preserving traversal context or ancestor-validation optimization,
