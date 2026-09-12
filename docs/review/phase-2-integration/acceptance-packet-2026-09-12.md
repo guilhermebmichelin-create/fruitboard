@@ -53,12 +53,14 @@ Agent 3's strict quiet-host preflight was completed fail-closed in draft PR
 `2561d3f`: DriveFS activity, an unverified Defender exclusion, sibling
 activity, and missing 60-second CPU/disk idle proof prevented a qualifying
 quiet-host run. The branch later published normal-configuration diagnostic
-evidence at `fa1b4c9`: before/candidate/current-main medians are 14,879 / 10,120
+evidence at `a44653b`: before/candidate/current-main medians are 14,879 / 10,120
 / 14,982 ms and nearest-rank p95 values are 44,778 / 10,391 / 25,601 ms;
 current-main has 9/10 authoritative iterations plus one retained partial
-failure. These results are not quiet-host qualification or acceptance evidence;
-the 10-second target, promotion, quota changes, and historical classifications
-remain unchanged.
+failure. The separate before, candidate, and current-main phase profiles
+identify `next_entry` plus `read_metadata` at about 84% of scan wall time and
+over 96% of timed filesystem-port time. These results are not quiet-host
+qualification or acceptance evidence; the 10-second target, promotion, quota
+changes, and historical classifications remain unchanged.
 
 ## Live GitHub baseline
 
@@ -130,7 +132,7 @@ relabeled as an installed run on the current head.
 | P2-08 | #73/#77/#78/#81/#82 IPC, native adapter, lifecycle, and supervision; #95 alignment | Feature-on CI and IPC/adapter/lifecycle/recovery tests; #104 regression | #92 journey; #106 S1-S4/S6 installed observations; September 12 native/UI queued snapshot and queued invalidation; full criterion remains Partial | Full-criterion review remains Partial, not Complete |
 | P2-09 | #68/#69/#71/#81/#82 watcher, coalescing, generation, and reconnect paths | #97 automated queue/burst/fence counts and watcher tests | #92 follow-ups; #106 isolated burst pass; real overflow timing and DriveFS remain unverified | Installed timing/overflow evidence, #47 decision, and owner acceptance |
 | P2-10 | #81 static no-parser/no-content-I/O guards and fixture-byte equality | Dependency/privacy checks, static guards, and preservation tests | Native-adapter independence was observed; no runtime content-read spy was run | Owner chooses static boundary or runtime spy gate |
-| P2-11 | #67/#72 harness, #86 rerun, #93 profile, #94 cleanup, #98 validation | F1 reproduced; historical contended warm p95 14,267 ms versus 10 s; Agent 3's strict quiet-host gate failed closed, while draft #108 `fa1b4c9` records normal-config diagnostic medians 14,879 / 10,120 / 14,982 ms and p95 values 44,778 / 10,391 / 25,601 ms; F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions and any owner-approved remeasurement |
+| P2-11 | #67/#72 harness, #86 rerun, #93 profile, #94 cleanup, #98 validation | F1 reproduced; historical contended warm p95 14,267 ms versus 10 s; Agent 3's strict quiet-host gate failed closed, while draft #108 `a44653b` records normal-config diagnostic medians 14,879 / 10,120 / 14,982 ms and p95 values 44,778 / 10,391 / 25,601 ms plus before/candidate/current-main profiles; F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions and any owner-approved remeasurement |
 | P2-12 | #80 checkpoint plus merged implementation/CI map and #91 refresh | Current exact-head Foundation run is green; historical PR #99 remains validation-only | #92 and #106 records plus September 12 report, with exact `19585da` provenance preserved | Decisions above, then explicit P2-01-P2-12 owner acceptance |
 
 The table deliberately does not use `Complete` as a synonym for “merged” or
@@ -180,7 +182,7 @@ the Agent 2 follow-up remains coordinated below:
 
 | Order | Owner | Window and required controls |
 | --- | --- | --- |
-| 1 | Agent 3 | **Quiet-host gate failed closed at `2561d3f`; normal-config evidence is published at `fa1b4c9` / draft #108.** DriveFS, Defender verification, sibling activity, and idle-proof gates were ineligible for qualification. The later before/candidate/current-main timings are diagnostic only; no quiet-host claim or promotion follows. |
+| 1 | Agent 3 | **Quiet-host gate failed closed at `2561d3f`; final normal-config evidence is published at `a44653b` / draft #108.** DriveFS, Defender verification, sibling activity, and idle-proof gates were ineligible for qualification. The later before/candidate/current-main timings and profiles are diagnostic only; no quiet-host claim or promotion follows. |
 | 2 | Agent 2 | **Completed evidence follow-up at `e209b8a` / draft #110.** The existing S5 regression and September 12 installed artifacts are isolated and published; no product/contract defect was found and no S5 rerun was performed. Local focused checks pass; all ten required GitHub checks are green. |
 
 Before and throughout Agent 3's measurement, pause heavy Rust, Tauri, Cargo,
@@ -293,7 +295,7 @@ was made by this task.
 - **#41:** Keep the aggregator open and link the current packet, exact
   `3ebac5f` baseline, Foundation run `34428758835`, the published-but-unmerged
   `19585da` installed evidence, draft #108's fail-closed preflight and
-  diagnostic `fa1b4c9` normal measurements, draft #110's `e209b8a` Agent 2
+  diagnostic `a44653b` normal measurements, draft #110's `e209b8a` Agent 2
   evidence head, and the ordered Agent 3 -> Agent 2 windows.
   It is not a Phase 2 acceptance statement.
 - **#47:** Request the missing DriveFS UI mode capture, disposable synced
@@ -318,9 +320,9 @@ Draft PRs #108, #109, and #110 are open. If the owner later advances the
 remaining work, the safe order is:
 
 1. Agent 3's strict quiet-host preflight is complete at `2561d3f`, and the
-   normal-config evidence is published at `fa1b4c9` / draft #108. The normal
-   timings are diagnostic only; keep F2 open and do not relabel historical
-   contended samples as quiet-host qualification.
+   final normal-config evidence is published at `a44653b` / draft #108. The
+   normal timings and profiles are diagnostic only; keep F2 open and do not
+   relabel historical contended samples as quiet-host qualification.
 2. Agent 2's follow-up is complete at `e209b8a` / draft #110; review its
    evidence and the now-complete required checks. No S5 rerun is warranted
    absent a specific evidence defect.
@@ -355,7 +357,7 @@ The final validation results for this branch are:
   --locked --lib` (77), `cargo test -p fruitboard-desktop --features
   scan-console --locked --lib` (92), and feature-on desktop clippy; the full
   desktop doctest phase failed locally with `E0463` after the unit tests passed.
-- GitHub draft PR #108 at `fa1b4c9` and draft PR #110 at `e209b8a` each have
+- GitHub draft PR #108 at `a44653b` and draft PR #110 at `e209b8a` each have
   all ten required checks green. Draft PR #109 is this documentation branch;
   its new packet-only head remains subject to the normal required checks.
 - No full build, installed run, performance run, issue mutation, merge, Phase
