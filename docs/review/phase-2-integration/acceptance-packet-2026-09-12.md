@@ -1,0 +1,313 @@
+# Phase 2 closeout acceptance packet - 2026-09-12
+
+Status: **coordination and decision input only; Phase 2 is not accepted.** This
+is the current acceptance summary for P2-01 through P2-12. It does not merge a
+pull request, post an issue message, close an issue, amend a budget or fixture,
+change the S5 contract, activate production scanning, or grant owner
+acceptance.
+
+## Source review and document authority
+
+The unpublished packet
+`acceptance-packet-2026-09-10.md` was recovered from the existing
+`agent1-phase2-closeout` worktree and reviewed before reuse. The older
+`acceptance-prep-2026-09-08.md`, `continuation-2026-09-08.md`,
+`checkpoint-2026-09-07.md`, and the dated reconciliation report remain
+historical records. They are not rewritten here, and their old baselines,
+open-PR descriptions, and planning checkboxes must not be read as current
+GitHub state.
+
+The active sources are now:
+
+| Source | Authority in this closeout |
+| --- | --- |
+| [Live GitHub baseline](https://github.com/guilhermebmichelin-create/fruitboard) | Current branch, PR, issue, and CI state below |
+| [Phase 2 execution plan](../../PHASE_2_EXECUTION_PLAN.md) | Binding contracts and provisional budgets; no silent budget change |
+| [Reconciliation report](reconciliation-2026-09-08.md) | Preserved historical ledger and dated addenda |
+| [This packet](acceptance-packet-2026-09-12.md) | Current evidence classes, decisions, coordination, and proposed updates |
+
+The two S5 files were copied, not moved, from the dirty main checkout into
+Agent 2's isolated branch. The source checkout remains untouched by this
+closeout. Agent 2 owns validation of that branch; its contents are not merged
+evidence until reviewed and validated.
+
+## Live GitHub baseline
+
+The baseline was checked against GitHub before local work started:
+
+| Item | Verified state |
+| --- | --- |
+| `origin/main` | `3ebac5f7a76c3425620ceba59e6078b32fb6cd85` (PR #91, merged 2026-09-10) |
+| Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact `3ebac5f`, success, all nine jobs |
+| Foundation jobs | `docs-policy`, `client`, `rust-portable`, `migration`, `windows-foundation`, `security`, `filesystem-watcher-windows`, `enumeration-windows`, `scan-execution-windows` |
+| Open pull requests | None |
+| PR #99 | Closed, never merged; validation-only combined-build history at `9c211ad` |
+| Open issues | #33, #36-#41, #47, #48, and #107 |
+
+Main protection is unchanged. It still requires pull requests and ten named
+contexts (`docs-policy`, `client`, `rust-portable`, `migration`,
+`windows-foundation`, `security`, `windows-packaging-smoke`,
+`enumeration-windows`, `filesystem-watcher-windows`, and
+`scan-execution-windows`) with strict up-to-date branches. The nine-job
+Foundation run above is not described as the ten-context protection result.
+
+## Merged implementation and evidence classes
+
+The following merged commits are provenance, not acceptance. The classification
+is intentional:
+
+| PR / merge commit | Classification and contribution |
+| --- | --- |
+| #82 / `05d39ff` | Merged watcher supervision, root mapping, reconnect, shutdown, and recovery implementation |
+| #85 / `c05f4b6` | Merged durability, fault, atomicity, alias, and stale-publication implementation/tests |
+| #90 / `f487aa1` | Merged blocker report for #47/#48; no platform qualification |
+| #92 / `300c2a4` | Merged installed journey record; observations are from its recorded build and remain installed evidence, not current-head proof |
+| #93 / `106335a` | Merged contended benchmark/profile evidence; not quiet-host qualification |
+| #94 / `d342ec1` | Merged duplicate metadata-query cleanup; no end-to-end p95 pass established |
+| #95 / `ee720af` | Merged Library actions/durable-state alignment |
+| #96 / `326fb0a` | Merged bounded chunked-snapshot proposal only; not an approved scale design |
+| #97 / `ff5d8ee` | Merged automated durable-queue and watcher-burst verification; not installed observation |
+| #98 / `7e0e9f6` | Merged contended A/B validation and diagnostic cleanup; both sides miss the 10 s p95 target |
+| #100 / `7980b75` | Merged packaging-smoke deadline/diagnostic fix |
+| #101 / `67bdc76` and #102 / `892920d` | Merged historical installed/stall-failure records; not current success evidence |
+| #103 / `55668da` | Merged exclusive installed-test lock helper |
+| #104 / `cccaa67` | Merged queue-stall fix for failed retry while a root active slot is owned; automated regression passes |
+| #105 / `f63a1d3` | Merged `smol-toml` 1.7.1 security remediation |
+| #106 / `b2fb62c` | Merged canonical fixed installed report; S1-S4 and S6 pass, S5 is partial; docs-only |
+| #91 / `3ebac5f` | Merged final reconciliation refresh; current live baseline, not a pending merge |
+
+PR #99 is not a merge vehicle. Its green combined-build checks, like any
+automated check, do not make its constituents safe or accepted. The Agent 2
+branch `test/107-s5-restart-pin` at `19585da` is unpublished and is not listed
+as a merged implementation.
+
+## P2-01 through P2-12 evidence ledger
+
+Installed records have their own provenance. The #92 journey was recorded on an
+older merged baseline, and the #106 fixed validation tested the unmerged,
+patch-identical candidate `ded02ac`, not `3ebac5f`. Neither is silently
+relabeled as an installed run on the current head.
+
+| ID | Merged implementation | Automated tests/evidence | Installed evidence | Remaining acceptance |
+| --- | --- | --- | --- | --- |
+| P2-01 | #34/#35 picker, settings, and inline onboarding implementation | Client/Windows CI and #58 fake-adapter keyboard/narrow evidence | #92 picker cancel/selection, persistence, and restart; #54 picker record | Owner decision on inline onboarding and criterion acceptance |
+| P2-02 | #59 reconciliation core, #64 enumeration, #70 worker | Deterministic reconciliation and Windows fixture tests | #92 add/modify/rename and remove/restore convergence | Platform scope and owner acceptance |
+| P2-03 | #62/#70 safety path plus #85 fault cases | Partial/offline/cancel/resource-limit fault-injection tests | #92 cancellation and unavailable-root retention | Denied/limited traversal evidence and owner acceptance |
+| P2-04 | #60/#61/#70 durable state, #82 recovery, #104 active-slot fix | Migration/scan-execution gates, #97 convergence/stale fences, and #104 regression | #92 persistence/cancel/recovery; #101/#102 historical stall; #106 S1/S4/S6 pass and S5 successor path | Installed queued state, S5 path disposition, and owner acceptance |
+| P2-05 | #60/#62/#85 lease, disable/remove, staging, and stale-publication paths | Lease, disable/remove, and publication tests | #92 disable-while-running retention | Installed queued-operation coverage and owner acceptance |
+| P2-06 | #62/#85 atomic publication, crash/rollback, backup, and migration paths | Crash, recovery, backup, and migration tests | #92 clean restart/interrupted recovery; #106 did not establish a genuine crash with a running lease at restart | Correctly classified crash-recovery evidence and owner acceptance |
+| P2-07 | #59/#62/#85 identity, alias, rename, and replacement paths | Alias and rename tests | #92 rename convergence; no installed hardlink-alias qualification | #48 decision/qualification and owner acceptance |
+| P2-08 | #73/#77/#78/#81/#82 IPC, native adapter, lifecycle, and supervision; #95 alignment | Feature-on CI and IPC/adapter/lifecycle/recovery tests; #104 regression | #92 journey; #106 S1-S4/S6 installed observations; durable queued snapshot remains absent | Full-criterion review remains Partial, not Complete |
+| P2-09 | #68/#69/#71/#81/#82 watcher, coalescing, generation, and reconnect paths | #97 automated queue/burst/fence counts and watcher tests | #92 follow-ups; #106 isolated burst pass; real overflow timing and DriveFS remain unverified | Installed timing/overflow evidence, #47 decision, and owner acceptance |
+| P2-10 | #81 static no-parser/no-content-I/O guards and fixture-byte equality | Dependency/privacy checks, static guards, and preservation tests | Native-adapter independence was observed; no runtime content-read spy was run | Owner chooses static boundary or runtime spy gate |
+| P2-11 | #67/#72 harness, #86 rerun, #93 profile, #94 cleanup, #98 validation | F1 reproduced; contended warm p95 14,267 ms versus 10 s (both A/B sides fail); F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions and any owner-approved remeasurement |
+| P2-12 | #80 checkpoint plus merged implementation/CI map and #91 refresh | Current exact-head Foundation run is green; historical PR #99 remains validation-only | #92 and #106 records, with S5 partial and provenance preserved | Decisions above, then explicit P2-01-P2-12 owner acceptance |
+
+The table deliberately does not use `Complete` as a synonym for “merged” or
+“automated checks pass.” P2-08's older `Complete` wording is superseded by the
+reconciled Partial disposition. No acceptance ID is promoted by this packet.
+
+## S5: genuine crash recovery versus terminal follow-up
+
+The #106 run must be read as two different state-machine paths:
+
+1. It observed a process in `running`, but the harness had already sent a
+   coalesced `scan_now` that returned `already_running`. That set
+   `follow_up_requested`; the worker later finished the old run as terminal
+   `interrupted` and created a queued successor.
+2. `taskkill /F` happened after that terminal transition. After relaunch, the
+   old job correctly stayed `interrupted` while the successor completed with
+   committed rows. This is successor recovery from an already-terminal
+   follow-up, not a crash recovery of a still-running lease.
+
+Genuine crash recovery is different: restart finds a run still marked
+`running`, `recover_interrupted_tx` marks that run interrupted with `restart`,
+and the same job/retry chain is requeued for a fresh run. The existing
+automated test `restart_requeues_the_interrupted_attempt_without_resetting_its_chain`
+covers that state-machine rule. The #106 installed record does not prove that
+path because its database copy had no running run before relaunch.
+
+Agent 2's `19585da` pin replays the terminal follow-up path and asserts that the
+old job is not resurrected and the successor is leaseable. It adds no product
+fix. Agent 2 must validate it and use the installed window for any remaining
+installed evidence. Until that review establishes a defect, no contract change
+and no same-job requeue implementation is proposed. A clean installed crash
+demonstration may be requested as evidence coverage; it must kill while the
+lease is genuinely running and must not issue an intervening follow-up trigger.
+
+## Ordered host windows
+
+The host is a shared resource. The windows are proposals for coordination, not
+completed evidence:
+
+| Order | Owner | Window and required controls |
+| --- | --- | --- |
+| 1 | Agent 2 | Installed-test window. Prebuild/package before taking the lock; then acquire the existing exclusive Foundation Smoke lock for install, launch, database/archive handling, journey, and uninstall. Cover the durable queued snapshot, installed burst/coalescing gaps, and (if requested) a clean genuine-crash path. Close the app before release; archive reversibly; never delete prior evidence. |
+| 2 | Agent 3 | Quiet performance window, only after Agent 2 releases the lock and all processes exit. Use the documented before/after binaries and quota-fitting fixture, AC/high-performance power, paused DriveFS, fixture-volume AV exclusion, no agent/sibling build load, one warm-up plus ten measured iterations, and nearest-rank p95. Preserve every iteration. |
+
+Before and throughout Agent 3's measurement, pause heavy Rust, Tauri, Cargo,
+pnpm, and packaging builds. Do not start a sibling build, installed run, or
+other host-intensive task until the A/B samples and logs are complete. If any
+quiet-host preflight fails, abort and record the window as non-qualifying; do
+not relabel the contended data as quiet-host evidence.
+
+Neither window may delete `storage/owner.lock`, kill an unrelated process, or
+overwrite another worktree's smoke data. A lock acquisition failure is a
+fail-closed result that records the foreign owner.
+
+## Owner decisions prepared for the closeout
+
+These are concrete choices, not decisions made by this packet.
+
+### F1 fixture and F2 qualification
+
+- F1-A: amend the baseline fixture definition to the exact 10,000 scanner
+  observations represented by `custom-9995`, seed `0`, manifest
+  `a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a`.
+  This is 9,995 FLP entries including the five hardlink primaries plus five
+  alias locations; four non-FLP decoys are not scanner observations. Run the
+  accepted protocol again after the owner records this fixture decision.
+- F1-B: retain the accepted 10,000-FLP-plus-alias fixture and raise every
+  coupled bound above 10,005, including worker observations, storage staging,
+  path-byte checks, plan buffers, and corresponding tests, then remeasure.
+  Raising only one constant is not a valid decision.
+- F2: first authorize Agent 3's quiet-host A/B. The contended 14,267 ms warm
+  p95 remains diagnostic and is not rewritten. Only after the quiet run may
+  the owner retain the 10 s target, amend it for a named host class, or
+  authorize a scoped optimization and remeasurement.
+
+### F3 scale
+
+Choose exactly one direction:
+
+- bounded chunked snapshot based on merged proposal #96 (`326fb0a`), followed
+  by design resolution for its six unresolved mechanisms and new correctness,
+  cancellation, crash, memory, disk, and publication evidence;
+- a coordinated increase to the 100,000-entry end-to-end limits, including
+  worker, staging, path bytes, plan buffer, and publication/reconciliation
+  fences, followed by private-memory, disk, latency, cleanup, and correctness
+  measurement; or
+- an explicit dated deferral that retains the current 10,000-entry contract
+  and records that the 100,000-entry qualification remains unmeasured.
+
+Merged #96 is a proposal, not authorization for any of these directions.
+
+### Platform scope: #47 and #48
+
+Do not repeat the unavailable-platform experiment. The merged blocker reports
+already state what is missing:
+
+- #47 lacks a Drive for Desktop Preferences capture of the active mode, a
+  consented disposable synced location, and consent for cloud-synchronized
+  create/rename/delete/cleanup plus pause/disconnect/resume. Both Mirror and
+  Stream modes remain unverified; process or WMI metadata is not a mode
+  capture.
+- #48 lacks a genuine writable FAT32 volume. `C:` is NTFS; `D:` is a no-media
+  RAW device; the system FAT32 partition has no drive letter; and `G:` is a
+  DriveFS virtual mount whose WMI FAT32 report is not real FAT32 evidence. A
+  disposable FAT32 USB volume or dedicated VHD, with drive letter, serial,
+  filesystem, allocation unit size, and cleanup consent, is required.
+
+For each issue the owner must authorize the exact prerequisite and run, or
+post an explicit scope exclusion. Until then, DriveFS and non-NTFS identity
+claims remain unverified; the NTFS-local implementation is not broadened by
+inference.
+
+### P2-10 runtime content-read boundary
+
+The current evidence has static no-parser/no-content-I/O guards and fixture
+source-byte equality. It does not include a runtime content-read spy. The owner
+must choose either:
+
+1. accept the static guards plus source-byte-equality boundary and document
+   that runtime spying is not required for the filesystem-only MVP; or
+2. require a runtime content-read spy gate, run it on the integrated
+   filesystem-only path, and retain its implementation and log as P2-10
+   evidence.
+
+An installed native-adapter observation is not silently upgraded into a runtime
+spy result.
+
+### Inline Preferences onboarding
+
+The implementation is merged and documented. The owner must either accept
+inline Preferences onboarding as the Phase 2 entry path instead of a separate
+first-run route, or defer the route decision to a named later phase. The
+pending-decision note in the execution plan should be removed only after that
+choice is recorded.
+
+## Proposed issue updates (not posted)
+
+These drafts are for the owner/maintainer. No GitHub message or issue mutation
+was made by this task.
+
+- **#33:** Keep the epic open. Link this packet after it is merged, state that
+  implementation and evidence are present but F1/F2/F3, platform scope,
+  P2-10, onboarding, S5 disposition, and owner acceptance remain open.
+- **#36, #37, #38, and #40:** Replace “implementation pending” wording with
+  “implementation merged; acceptance evidence is classified in the 2026-09-12
+  packet.” Keep each open until the owner accepts its criterion and any named
+  installed/platform gap is resolved or explicitly scoped out.
+- **#39:** Record that the filesystem-only/no-parser direction is implemented,
+  then record the owner's static-boundary versus runtime-spy choice. Do not
+  claim a runtime spy before it exists.
+- **#41:** Keep the aggregator open and link the current packet, exact
+  `3ebac5f` baseline, Foundation run `34428758835`, and the ordered Agent 2 ->
+  Agent 3 windows. It is not a Phase 2 acceptance statement.
+- **#47:** Request the missing DriveFS UI mode capture, disposable synced
+  leaves, and cloud/pause-resume consent, or record an explicit owner scope
+  exclusion. Do not report another blocked inventory as a run.
+- **#48:** Request a genuine disposable FAT32 USB/VHD with recorded identity
+  metadata and cross-volume consent, or record an explicit scope exclusion.
+  Do not use DriveFS, the system partition, or the no-media device as a proxy.
+- **#107:** Record that #106 demonstrated successor convergence after a
+  terminal `follow_up_requested` transition, not a still-running crash
+  recovery. Ask Agent 2 to validate the pin and identify any defect. If no
+  defect is found, dispose the issue as expected successor behavior and keep
+  any clean same-job run as evidence coverage; require a product/contract
+  change only if Agent 2 establishes a genuine-crash defect.
+
+No issue is closed, and no owner acceptance is inferred by these proposals.
+
+## Dependency and merge order
+
+There are no open PRs to merge now. If the owner later advances the remaining
+work, the safe order is:
+
+1. Review and validate Agent 2's unpublished `19585da` pin in its isolated
+   branch. It is test/evidence work only and does not alter the product
+   contract.
+2. Prebuild any packaged artifact outside the installed lock, then run Agent
+   2's installed-test window under the exclusive lock. If Agent 2 establishes
+   a defect, implement and validate that fix before freezing the installed
+   evidence; otherwise keep S5 as the two-path disposition above.
+3. Release the lock, verify the app and holder processes have exited, pause
+   heavy builds, and run Agent 3's quiet A/B performance window. Do not
+   overlap the windows or use its results to rewrite F1/F3.
+4. Resolve F1/F2/F3, #47/#48 scope, P2-10 evidence strength, inline
+   onboarding, and S5. Any budget, fixture, platform, or contract change
+   requires an explicit owner decision and its own remeasurement/evidence.
+5. Refresh the P2-01-P2-12 ledger at the resulting merged SHA and obtain
+   explicit criterion-by-criterion owner acceptance. Only then consider a
+   separate production-activation slice with its own default-feature,
+   installed-smoke, capability, and rollback review.
+
+This packet itself is documentation/coordination only. It does not merge,
+post, close, accept, or activate anything.
+
+## Validation and non-actions
+
+This branch is based on verified `origin/main` and changes documentation only.
+The final validation results for this branch are:
+
+- `git diff --check`: PASS.
+- `pnpm.cmd lint:docs`: PASS (72 Markdown files, 0 issues).
+- `node scripts/verify-repository-privacy.mjs`: PASS (279 files).
+- `pnpm.cmd format:check`: PASS (Prettier and `cargo fmt --all --check`; the
+  command was run with the installed Cargo bin directory on `PATH`).
+- The package scripts reported the host's Node `26.4.0` versus the repository
+  pin `24.20.0`; this is a docs-validation environment warning, not product
+  or performance evidence.
+- No full build, installed run, performance run, issue mutation, PR mutation,
+  merge, Phase 2 acceptance, or production activation was performed by this
+  documentation closeout.
