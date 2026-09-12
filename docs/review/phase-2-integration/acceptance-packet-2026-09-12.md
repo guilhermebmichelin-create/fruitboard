@@ -398,27 +398,59 @@ the safe sequence is:
 This packet itself is documentation/coordination only. It does not merge,
 post, close, accept, or activate anything.
 
+## Cross-PR integration audit
+
+The isolated checkout at
+`C:\Users\guilh\AppData\Local\Temp\fruitboard-phase2-integration-20260912`
+was created from verified `origin/main` `3ebac5f7a76c3425620ceba59e6078b32fb6cd85`.
+It replayed PR #110's `19585da` and `e209b8a` first, then PR #111's later
+harness, product, and report commits. PR #111's recovered `de396e7` was not
+replayed: it has the same parent, tree, and stable patch ID as `19585da`. The
+later `2eb629f` replay was empty after the shared-file resolution and was
+skipped, so no recovery work was duplicated.
+
+The replay had real conflicts in the checklist and installed-journey README;
+the resolution retained #110's queued/running/restart/disable/remove entries
+and #111's denied-traversal, unchanged-bound `ResourceLimit`, hardlink, product
+diagnostic, and report-index entries. The add/add queued report conflict was
+resolved to the canonical #110 bytes. The final synthetic combined checkout
+head is `431a7e2a3dd2b0c7f54df7f8363432fef7f843c6` on local branch
+`integration/phase2-stack-20260912`; it was not pushed and is not a merge
+commit on GitHub.
+
+The combined audit began only after Agent 2's liaison reported no active
+reproduction window, lock, or matching Cargo/NTFS process. No S5 or NTFS
+experiment was rerun. The individual green checks on PR heads #108 `a44653b`,
+PR #110 `e209b8a`, and PR #111 `ef08522` remain per-PR evidence; they are not
+combined integration evidence.
+
 ## Validation and non-actions
 
-This branch is based on verified `origin/main` and changes documentation only.
-The final validation results for this branch are:
+The owned #109 branch is documentation-only. The separate combined checkout
+contains the replayed #110/#111 source changes. The final validation results
+are:
 
-- `git diff --check`: PASS.
-- `pnpm.cmd lint:docs`: PASS (72 Markdown files, 0 issues).
-- `node scripts/verify-repository-privacy.mjs`: PASS (279 files).
-- `pnpm.cmd format:check`: PASS (Prettier and `cargo fmt --all --check`; the
-  command was run with the installed Cargo bin directory on `PATH`).
-- The package scripts reported the host's Node `26.4.0` versus the repository
-  pin `24.20.0`; this is a docs-validation environment warning, not product
-  or performance evidence.
-- Agent 2's isolated branch passed `cargo test -p fruitboard-storage
-  --locked --lib` (77), `cargo test -p fruitboard-desktop --features
-  scan-console --locked --lib` (92), and feature-on desktop clippy; the full
-  desktop doctest phase failed locally with `E0463` after the unit tests passed.
-- GitHub draft PR #108 at `a44653b` and draft PR #110 at `e209b8a` each have
-  all ten required checks green. Draft PR #109 is this documentation branch;
-  its new packet-only head remains subject to the normal required checks.
+- Combined `git diff --check origin/main...HEAD`: PASS.
+- Combined markdownlint v0.23.2: PASS (75 Markdown files, 0 issues).
+- Combined Prettier v3.9.6: PASS (all checked files matched).
+- Combined `cargo fmt --all --check` with Rust `1.98.1`: PASS.
+- Combined repository privacy verification: PASS (286 files).
+- Combined Node syntax checks: PASS (20 scripts; host Node `26.4.0`).
+- Combined Python syntax check: PASS for `inspect-foundation-smoke-db.py`.
+- Combined `cargo test -p fruitboard-storage --locked --lib`: PASS (77/77).
+- Combined `cargo test -p fruitboard-scan-execution --locked --lib`: PASS
+  (56 passed, 1 intentional benchmark-gate test ignored).
+- Combined `cargo test -p fruitboard-desktop --features scan-console --locked
+  --lib`: PASS (93/93).
+- Combined focused clippy with `-D warnings`: PASS for storage,
+  scan-execution, and desktop with `scan-console`.
+- Full `pnpm check` is not claimed: the host has Node `26.4.0` while the
+  repository pins `24.20.0`. This is an environment limitation, not product
+  or performance evidence; the pinned Rust and checked-in Prettier/markdownlint
+  tool versions above passed.
+- GitHub draft PRs #108 `a44653b`, #110 `e209b8a`, and #111 `ef08522` retain
+  their ten passing required checks. Draft #109's final owned head is subject
+  to the same normal required checks after this packet update.
 - No full build, installed run, performance run, issue mutation, merge, Phase
-  2 acceptance, or production activation was performed by this documentation
-  closeout. Draft PR #109 was opened for review; it is not a merge or
-  acceptance action.
+  2 acceptance, or production activation was performed by this closeout.
+  Draft PR #109 remains draft and this packet is not an acceptance action.
