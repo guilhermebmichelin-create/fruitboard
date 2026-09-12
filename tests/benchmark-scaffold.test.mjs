@@ -9,6 +9,7 @@ import {
   buildEnvironmentReport,
   detectScannerIntegration,
   MEASURED_ITERATIONS,
+  parseDriverLines,
   runCli,
   WARM_UP_RUNS,
 } from "../scripts/run-benchmark.mjs";
@@ -43,6 +44,37 @@ const generateFixture = async (dir) => {
 test("the methodology contract stays pinned to the accepted protocol", () => {
   assert.equal(WARM_UP_RUNS, 1);
   assert.equal(MEASURED_ITERATIONS, 10);
+});
+
+test("driver protocol sanitization drops unbounded diagnostic text", () => {
+  const lines = parseDriverLines(
+    [
+      JSON.stringify({
+        phase: "error",
+        elapsed_ms: 1,
+        message: "C:\\private\\file.flp",
+        error_code: "native_error",
+      }),
+      "C:\\private\\unparseable native output",
+      JSON.stringify({
+        phase: "scan_finished",
+        status: "Failed",
+        outcome: "Partial",
+        authoritative: false,
+        partial_class: "partial_directory_not_found",
+        private_path: "C:\\private\\file.flp",
+      }),
+    ].join("\n"),
+  );
+
+  assert.deepEqual(lines[0], {
+    phase: "error",
+    elapsed_ms: 1,
+    error_code: null,
+  });
+  assert.deepEqual(lines[1], { phase: "unparseable" });
+  assert.equal(lines[2].partial_class, "partial_directory_not_found");
+  assert.equal("private_path" in lines[2], false);
 });
 
 test("the scanner integration marker is present in this repository", () => {

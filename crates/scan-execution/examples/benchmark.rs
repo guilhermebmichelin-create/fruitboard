@@ -24,7 +24,7 @@
 //! harness records fixture identity by seed and manifest hash only.
 use fruitboard_filesystem_enumeration::{CancellationToken, WindowsFilesystemPort};
 use fruitboard_scan_execution::{
-    ScanExecution, ScanExecutionStatus, ScanWorker, SystemClock, WorkerConfig,
+    PartialClass, ScanExecution, ScanExecutionStatus, ScanWorker, SystemClock, WorkerConfig,
 };
 use fruitboard_storage::Database;
 use std::path::Path;
@@ -191,8 +191,8 @@ fn main() -> ExitCode {
             println!("{}", usage());
             return ExitCode::SUCCESS;
         }
-        Err(message) => {
-            eprintln!("{message}\n{}", usage());
+        Err(_) => {
+            eprintln!("benchmark_argument_error\n{}", usage());
             return ExitCode::FAILURE;
         }
     };
@@ -200,22 +200,16 @@ fn main() -> ExitCode {
     let mut db = match Database::open(Path::new(&arguments.db)) {
         Ok(db) => db,
         Err(error) => {
-            emit(
-                "error",
-                elapsed_ms(started_at),
-                &[("message", Field::Text(&error.to_string()))],
-            );
+            let _ = error;
+            emit_error(elapsed_ms(started_at), "driver_database_open");
             return ExitCode::FAILURE;
         }
     };
     let worker = match ScanWorker::new(WorkerConfig::default()) {
         Ok(worker) => worker,
         Err(error) => {
-            emit(
-                "error",
-                elapsed_ms(started_at),
-                &[("message", Field::Text(&format!("{error:?}")))],
-            );
+            let _ = error;
+            emit_error(elapsed_ms(started_at), "driver_worker_config");
             return ExitCode::FAILURE;
         }
     };
@@ -223,11 +217,8 @@ fn main() -> ExitCode {
     let session = match worker.start_session(&mut db, &clock) {
         Ok(session) => session,
         Err(error) => {
-            emit(
-                "error",
-                elapsed_ms(started_at),
-                &[("message", Field::Text(&error.to_string()))],
-            );
+            let _ = error;
+            emit_error(elapsed_ms(started_at), "driver_session_start");
             return ExitCode::FAILURE;
         }
     };
@@ -242,21 +233,15 @@ fn main() -> ExitCode {
             None => match db.add_scan_root("benchmark-fixture", &arguments.root) {
                 Ok(root) => root,
                 Err(error) => {
-                    emit(
-                        "error",
-                        elapsed_ms(started_at),
-                        &[("message", Field::Text(&error.to_string()))],
-                    );
+                    let _ = error;
+                    emit_error(elapsed_ms(started_at), "driver_root_register");
                     return ExitCode::FAILURE;
                 }
             },
         },
         Err(error) => {
-            emit(
-                "error",
-                elapsed_ms(started_at),
-                &[("message", Field::Text(&error.to_string()))],
-            );
+            let _ = error;
+            emit_error(elapsed_ms(started_at), "driver_root_list");
             return ExitCode::FAILURE;
         }
     };
@@ -302,28 +287,18 @@ fn main() -> ExitCode {
         Ok(_) => match worker.poll(&mut db, &session.id, &mut port, &token, &clock) {
             Ok(Some(execution)) => execution,
             Ok(None) => {
-                emit(
-                    "error",
-                    elapsed_ms(started_at),
-                    &[("message", Field::Text("no execution"))],
-                );
+                emit_error(elapsed_ms(started_at), "driver_no_execution");
                 return ExitCode::FAILURE;
             }
             Err(error) => {
-                emit(
-                    "error",
-                    elapsed_ms(started_at),
-                    &[("message", Field::Text(&error.to_string()))],
-                );
+                let _ = error;
+                emit_error(elapsed_ms(started_at), "driver_poll");
                 return ExitCode::FAILURE;
             }
         },
         Err(error) => {
-            emit(
-                "error",
-                elapsed_ms(started_at),
-                &[("message", Field::Text(&error.to_string()))],
-            );
+            let _ = error;
+            emit_error(elapsed_ms(started_at), "driver_request_scan");
             return ExitCode::FAILURE;
         }
     };
@@ -353,6 +328,10 @@ fn emit_finished(finished_at: i64, execution: &ScanExecution, scan_started_at: i
             "error_code",
             field_from_option(execution.error_code.as_deref()),
         ),
+        (
+            "partial_class",
+            partial_class_field(execution.partial_class),
+        ),
     ];
     match &execution.publication {
         Some(publication) => {
@@ -378,6 +357,24 @@ fn emit_finished(finished_at: i64, execution: &ScanExecution, scan_started_at: i
         None => fields.push(("changes_computed", Field::Flag(false))),
     }
     emit("scan_finished", finished_at, &fields);
+}
+
+fn emit_error(elapsed_ms: i64, code: &'static str) {
+    emit(
+        "error",
+        elapsed_ms,
+        &[
+            ("error_code", Field::Text(code)),
+            ("message", Field::Text(code)),
+        ],
+    );
+}
+
+fn partial_class_field(partial_class: Option<PartialClass>) -> Field<'static> {
+    match partial_class {
+        Some(partial_class) => Field::Text(partial_class.as_str()),
+        None => Field::Null,
+    }
 }
 
 fn field_from_option(value: Option<&str>) -> Field<'_> {
