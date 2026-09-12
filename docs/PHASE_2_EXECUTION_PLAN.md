@@ -19,7 +19,8 @@ and #93. The next merges were #102, #96 (proposal only), and #101
 The remaining merges are #103, #105, #94, #98, #95, #97, #104, #106, and
 PR #91. Foundation CI run `34428758835` is successful
 on the exact current head with all nine Foundation jobs. Draft PRs #108
-(`a44653b`), #109 (closeout), #110 (`e209b8a`), and #111 (`f8140349`) are open
+(`a44653b`), #109 (closeout), #110 (`e209b8a`), #111 (`f8140349`), and #112
+(`eace2e6`) are open
 and unmerged; PR #99 is closed without merge and remains validation-only
 history. Implemented behavior, automated evidence, installed evidence, and
 owner acceptance stay separate.
@@ -75,9 +76,9 @@ stay historical stall failure evidence. Prior #91 heads stay as history.
 | Implemented (feature-gated; acceptance pending) | #73 scan-console IPC, #78 native Library adapter, and #82 native watcher host | PRs #73/#77/#78/#81/#82 plus merged #95 Library/durable-state alignment; six typed commands, scoped permissions, native supervision, root mapping, shutdown recovery, and feature-on CI are merged; the installed #92 run observed paging, persistence, cancellation retention, and native work. P2-08/full-criterion acceptance remains open |
 | Implemented (automated evidence; qualification pending) | #37 watcher foundation, durable follow-up adapter, and native supervisor | PRs #68/#69/#71/#81/#82 plus merged #97 durable-queue/watcher-burst verification provide bounded coalescing, coverage-loss handling, generation fencing, reconnect backoff, and joined host loops; the installed #92 run observed watcher follow-ups and convergence, but installed burst timing, real overflow timing, and DriveFS evidence remain open; merged #97 counts are automated evidence and do not fill the installed column |
 | Partially evidenced (acceptance pending) | #39 no-parser boundary and additional #37 guards | Merged PR #81 adds static no-parser/no-content-I/O policy guards plus synthetic-fixture source-byte preservation assertions; these checks are not an installed-app proof or a runtime content-read spy |
-| Measured (qualification and owner decision pending) | #41/P2-11 benchmark and #79 budget/governance brief | Original report remains historical; the [2026-09-08 re-run](review/phase-2-integration/benchmark-triage-20260908/rerun-report.md), recorded at pre-#85 baseline `51f45af`, reproduces F1, records warm p95 14,267 ms versus 10 s, and leaves F3 unmeasured. Merged [PR #93](https://github.com/guilhermebmichelin-create/fruitboard/pull/93) (`106335a`) adds contended filesystem-port profiling, not an idle-host performance pass. Merged #94 (`d342ec1`) removes the duplicate enumeration metadata query; merged #98 (`7e0e9f6`) validates that candidate with contended A/B and diagnostic cleanup (both sides fail 10 s p95; no qualification claimed). #108 records normal-config current-main at 9/10 authoritative with one retained `Failed`/`Partial` iteration at 11,137 ms; Agent 3's first quiet-host window failed closed before measurement at `2561d3f`; that Partial remains an explicit open finding pending Agent 2's disposition. F1/F3 scale options are in merged PR #96 (`326fb0a`) as a proposal only with its §2.9 correction, not an approved scale design |
+| Measured (qualification and owner decision pending) | #41/P2-11 benchmark and #79 budget/governance brief | Original report remains historical; the [2026-09-08 re-run](review/phase-2-integration/benchmark-triage-20260908/rerun-report.md), recorded at pre-#85 baseline `51f45af`, reproduces F1, records warm p95 14,267 ms versus 10 s, and leaves F3 unmeasured. Merged [PR #93](https://github.com/guilhermebmichelin-create/fruitboard/pull/93) (`106335a`) adds contended filesystem-port profiling, not an idle-host performance pass. Merged #94 (`d342ec1`) removes the duplicate enumeration metadata query; merged #98 (`7e0e9f6`) validates that candidate with contended A/B and diagnostic cleanup (both sides fail 10 s p95; no qualification claimed). #108 records normal-config current-main at 9/10 authoritative with one retained `Failed`/`Partial` iteration at 11,137 ms; Agent 3's first quiet-host window failed closed before measurement at `2561d3f`; #112 records that original Partial as unexplained and not reproduced, and adds bounded diagnostic coverage plus a sanitized protocol. Later passes do not establish its cause or performance acceptance. F1/F3 scale options are in merged PR #96 (`326fb0a`) as a proposal only with its §2.9 correction, not an approved scale design |
 | Recorded (owner acceptance pending) | #41/P2-12 checkpoint (#80) | The checkpoint and reconciliation report remain historical records. The current [closeout packet](review/phase-2-integration/acceptance-packet-2026-09-12.md) refreshes the live baseline, evidence classes, open decisions, and coordination order without rewriting those reports |
-| Next gates | Owner decisions and remaining checks | Agent 3's first quiet-host preflight failed closed before measurement at `2561d3f`; Agent 2 published/validated the existing S5 and September 12 evidence at `e209b8a` in draft #110, with no defect and no S5 rerun; #111's report revision `ef08522` and current hardening head `f8140349` add local-NTFS evidence plus an unmerged diagnostic/presentation fix and must be rebased onto #110 without replaying `de396e7`. Run combined checks on the rebased stack, then resolve F1/F2/F3, platform scope, P2-10 evidence strength, inline onboarding, and criterion-by-criterion acceptance. Keep production scanning hidden until P2-03 through P2-08 have integrated evidence |
+| Next gates | Owner decisions and remaining checks | Agent 3's first quiet-host preflight failed closed before measurement at `2561d3f`; Agent 2 published/validated the existing S5 and September 12 evidence at `e209b8a` in draft #110, with no defect and no S5 rerun; #111's report revision `ef08522` and current hardening head `f8140349` add local-NTFS evidence plus durable diagnostic propagation; #112's `eace2e6` adds bounded `partial_class` reporting and a sanitized benchmark protocol. The existing integration replay keeps #110's `19585da` canonical, preserves #111's product/evidence work, and layers #112 after it; its candidate checks and independent Agent 2 review are separate from Phase 2 acceptance. Then resolve F1/F2/F3, platform scope, P2-10 evidence strength, inline onboarding, and criterion-by-criterion acceptance. Keep production scanning hidden until P2-03 through P2-08 have integrated evidence |
 | Open/unverified | DriveFS modes (#47), cross-volume/FAT32 identity (#48) | Merged [PR #90](https://github.com/guilhermebmichelin-create/fruitboard/pull/90) (`f487aa1`) records the exact blockers and setup needed. No platform qualification or exclusion is claimed |
 | Deferred | Parsing (#39), logical grouping, Kanban, playback, sync, PWA | Phase 2 is filesystem-only; bounded independent Rust-parser spike follows accepted MVP |
 
@@ -309,20 +310,23 @@ provisional: its durable diagnostic and desktop scan-console mapping changes
 are not part of merged `3ebac5f`.
 
 The remaining sequence is: (1) Agent 3's first quiet-host preflight has failed
-closed before measurement, while #108's current-main `Failed`/`Partial` result
-remains an explicit open finding pending Agent 2's disposition; (2) Agent 2's
-safety follow-up is published at `e209b8a` in draft #110 with no defect and no
-S5 rerun; (3) rebase #111 onto #110, drop tree-identical `de396e7`, preserve
-`19585da` provenance, resolve the shared checklist/index union, and run the
-required checks on the final #111 head; (4) resolve F1 (10,005 observations
-versus the 10,000 staging quota), F2 (contended warm p95 14,267 ms versus the
-10 s target), and F3 (the 100,000-entry set remains unmeasured); (5) land
-the #47/#48 evidence or record explicit owner scope decisions; and (6) finish the
-owner's criterion-by-criterion P2 checklist. The benchmark re-run is evidence,
-not a re-budget: its host was not idle, and #111's diagnostic fix does not
-dispose of the retained Partial. No budget, platform, or acceptance promotion
-follows from merged implementation or CI alone. Keep production scanning
-hidden until P2-03 through P2-08 have integrated evidence.
+closed before measurement; #108's current-main `Failed`/`Partial` result remains
+unexplained and was not reproduced by #112, whose diagnostic coverage does not
+establish the cause or performance acceptance; (2) Agent 2's safety follow-up
+is published at `e209b8a` in draft #110 with no defect and no S5 rerun; (3)
+rebase #111 onto #110, drop tree-identical `de396e7`, preserve `19585da`
+provenance, resolve the shared checklist/index union, and run the required
+checks on the final #111 head; (4) rebase #112 onto that product/evidence tip,
+run its ten checks, and independently review the frozen combined candidate;
+(5) resolve F1 (10,005 observations versus the 10,000 staging quota), F2
+(contended warm p95 14,267 ms versus the 10 s target), and F3 (the 100,000-entry
+set remains unmeasured); (6) land the #47/#48 evidence or record explicit owner
+scope decisions; and (7) finish the owner's criterion-by-criterion P2 checklist.
+No additional S5 or NTFS run is requested absent a specific evidence defect.
+The benchmark re-run is evidence, not a re-budget: its host was not idle. No
+budget, platform, or acceptance promotion follows from merged implementation,
+CI, or the combined candidate alone. Keep production scanning hidden until
+P2-03 through P2-08 have integrated evidence.
 
 Issue #39 records the chosen filesystem-only path and its no-parser evidence; it is
 not blocked waiting for a parser and does not authorize a production adapter.
