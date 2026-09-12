@@ -13,7 +13,7 @@ are not rewritten here.
 | --- | --- |
 | `main` | `3ebac5f7a76c3425620ceba59e6078b32fb6cd85` (PR #91) |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact current head, success, all nine Foundation jobs |
-| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), and #111 (`ef08522`, NTFS/product); all remain unmerged |
+| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), and #111 (`f8140349`, NTFS/product; reviewed report revision `ef08522`); all remain unmerged |
 | PR #99 | Closed without merge; validation-only combined-build history |
 | Open issues | #33, #36-#41, #47, #48, #107 |
 
@@ -57,7 +57,7 @@ not by itself provide owner acceptance.
 | #108 / `a44653b` | Agent 3 normal-configuration performance diagnostics; the strict quiet-host preflight failed closed and no qualification is claimed |
 | #109 | This closeout packet and coordination index |
 | #110 / `e209b8a` | Agent 2 queued/running/terminal, queued disable/remove, and genuine same-job restart evidence; no product fix |
-| #111 / `ef08522` | Mixed product-and-evidence change: local-NTFS denied traversal, unchanged-bound `ResourceLimit`, and in-root hardlink evidence, plus the durable-diagnostic and desktop scan-console correction at tested source `05fb35c`; it is not evidence-only |
+| #111 / `f8140349` | Mixed product-and-evidence change: local-NTFS denied traversal, unchanged-bound `ResourceLimit`, and in-root hardlink evidence, plus the durable-diagnostic and desktop scan-console correction at tested source `05fb35c`; reviewed report revision `ef08522`; it is not evidence-only |
 
 The #111 branch also carries recovered S5 commit `de396e7`. Its tree and
 stable patch ID are identical to #110's `19585da`, so it is historical
@@ -72,8 +72,9 @@ fix in #104, not the current `3ebac5f`. The September 12 queued/restart report
 was verified from `19585da`, whose diff from `3ebac5f` is test/documentation
 only. The queued-state, queued disable/remove, and genuine same-job restart
 observations are published in draft #110 at `e209b8a`, but remain unmerged and
-owner-unaccepted. The separate NTFS report in draft #111 at `ef08522` was
-tested from unmerged source `05fb35c`; that source changes durable
+owner-unaccepted. The separate NTFS report in draft #111 was published at
+reviewed revision `ef08522`, and the current head is `f8140349`; it was tested
+from unmerged source `05fb35c`. That source changes durable
 product-owned diagnostics and desktop scan-console mapping for `access_denied`,
 `resource_limit`, `unsupported`, and `unavailable`. The installed observations
 and that product correction must not be relabeled as merged-main evidence or

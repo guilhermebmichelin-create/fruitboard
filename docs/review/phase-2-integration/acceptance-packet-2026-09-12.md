@@ -35,14 +35,16 @@ dirty main checkout's source copies remain untouched. The branch contents are
 still evidence only: not merged and not owner-accepted.
 
 Draft PR [#111](https://github.com/guilhermebmichelin-create/fruitboard/pull/111)
-is at reviewed head `ef08522` with all ten required checks green. It is a mixed
-product-and-evidence change, not an evidence-only PR: its local-NTFS report
-records denied traversal, unchanged-bound `ResourceLimit`, and in-root
-hardlink observations, while tested source `05fb35c` changes durable
-product-owned diagnostics and desktop scan-console mapping for
-`access_denied`, `resource_limit`, `unsupported`, and `unavailable`. The J
-installed run used `05fb35c`; the current PR head is `ef08522`; neither is the
-merged baseline `3ebac5f` or owner acceptance.
+was reviewed at `ef08522` with all ten required checks green and is now at live
+head `f8140349`. It is a mixed product-and-evidence change, not an
+evidence-only PR: its local-NTFS report records denied traversal, unchanged-
+bound `ResourceLimit`, and in-root hardlink observations, while tested source
+`05fb35c` changes durable product-owned diagnostics and desktop scan-console
+mapping for `access_denied`, `resource_limit`, `unsupported`, `unavailable`,
+and `worker_failed`. The installed run used `05fb35c` and was not rerun for
+the later hardening revision. Neither tested source, reviewed/current PR head,
+nor its product changes are part of merged baseline `3ebac5f` or owner
+acceptance.
 
 The #111 history also contains recovered S5 commit `de396e7`. It has the same
 parent, tree, and stable patch ID as #110's `19585da`; it is preserved as
@@ -56,12 +58,14 @@ queued state, queued disable/remove, and a genuine same-job restart recovery;
 those observations are evidence only and are not yet merged or owner-accepted.
 
 The separate #111 NTFS run used tested source `05fb35c153dd3f177b900292d39998da3774b5e4`
-and is published at current PR head `ef085229471301043a50f4b668901d9c956fb407`.
-That source includes the focused product correction which persists fixed
-durable diagnostics and maps them to typed desktop scan-console presentation;
-it is unmerged code, not an evidence-only documentation change. The merged
-implementation boundary remains `3ebac5f`, and owner acceptance remains a
-separate decision.
+and its report was published in reviewed revision `ef085229471301043a50f4b668901d9c956fb407`.
+The current PR head is `f8140349e436261bc95cc336e177f556bce19783`; it adds
+later durable/API validation and harness cleanup without rerunning the
+installed cases. The tested source includes the focused product correction
+which persists fixed durable diagnostics and maps them to typed desktop
+scan-console presentation; it is unmerged code, not an evidence-only
+documentation change. The merged implementation boundary remains `3ebac5f`,
+and owner acceptance remains a separate decision.
 
 Agent 2 found no product or contract defect and did not rerun S5. Its local
 validation passed storage tests (77), desktop feature-on unit tests (92),
@@ -69,8 +73,9 @@ desktop feature-on clippy, driver syntax, Markdownlint, privacy, and format
 checks under Rust/Cargo `1.98.1`. The full desktop Cargo command reached 92
 passing unit tests but failed its local Rustdoc phase with `E0463` missing
 extern crates; `pnpm check` stopped at the unavailable Node `24.20.0`/`uv`
-environment. GitHub PRs #110 (`e209b8a`) and #111 (`ef08522`) each have all
-ten required checks green; no acceptance or merge follows from these checks.
+environment. GitHub PR #110 (`e209b8a`) and current PR #111 (`f8140349`) now
+both have all ten required checks green. No acceptance or merge follows from
+these checks.
 
 Agent 3's strict quiet-host preflight was completed fail-closed in draft PR
 [#108](https://github.com/guilhermebmichelin-create/fruitboard/pull/108) at
@@ -96,7 +101,7 @@ The baseline was checked against GitHub before local work started:
 | September 12 installed verification | `19585da7bef9ffdec06b71e0627df1b3f7ceb2f`, parent exactly `origin/main`; test/documentation-only diff |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact `3ebac5f`, success, all nine jobs |
 | Foundation jobs | `docs-policy`, `client`, `rust-portable`, `migration`, `windows-foundation`, `security`, `filesystem-watcher-windows`, `enumeration-windows`, `scan-execution-windows` |
-| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), and #111 (`ef08522`, NTFS/product); all remain unmerged |
+| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), and #111 (`f8140349`, NTFS/product; reviewed report revision `ef08522`); all remain unmerged |
 | PR #99 | Closed, never merged; validation-only combined-build history at `9c211ad` |
 | Open issues | #33, #36-#41, #47, #48, and #107 |
 
@@ -144,8 +149,9 @@ older merged baseline, and the #106 fixed validation tested the unmerged,
 patch-identical candidate `ded02ac`, not `3ebac5f`. Neither is silently
 relabeled as an installed run on the current head. The #110 queued/restart
 record used `19585da`; the #111 NTFS record used unmerged product source
-`05fb35c` and was published at `ef08522`. These tested-source, PR-head,
-merged-code, and owner-acceptance boundaries remain separate.
+`05fb35c` and was published at reviewed revision `ef08522`, while the current
+PR head is `f8140349`. These tested-source, PR-head, merged-code, and
+owner-acceptance boundaries remain separate.
 
 | ID | Merged implementation | Automated tests/evidence | Installed evidence | Remaining acceptance |
 | --- | --- | --- | --- | --- |
@@ -225,7 +231,7 @@ the Agent 2 follow-up remains coordinated below:
 | --- | --- | --- |
 | 1 | Agent 3 | **Quiet-host gate failed closed at `2561d3f`; final normal-config evidence is published at `a44653b` / draft #108.** DriveFS, Defender verification, sibling activity, and idle-proof gates were ineligible for qualification. The later before/candidate/current-main timings and profiles are diagnostic only; no quiet-host claim or promotion follows. |
 | 2 | Agent 2 | **Completed evidence follow-up at `e209b8a` / draft #110.** The existing S5 regression and September 12 installed artifacts are isolated and published; no product/contract defect was found and no S5 rerun was performed. Local focused checks pass; all ten required GitHub checks are green. Any future Agent 2 reproduction window takes exclusive priority over heavy validation. |
-| 3 | Agent 1 / Agent 3 review | **Draft #111 at `ef08522` is the mixed NTFS/product follow-up.** Its J evidence used `05fb35c`; review the durable diagnostic persistence and typed desktop error mapping separately from the local-NTFS observations, then rebase it onto #110 without replaying `de396e7`. |
+| 3 | Agent 1 / Agent 3 review | **Draft #111 at current head `f8140349` is the mixed NTFS/product follow-up; its reviewed report revision was `ef08522`.** Its J evidence used `05fb35c`; review the durable diagnostic persistence and typed desktop error mapping separately from the local-NTFS observations, then rebase it onto #110 without replaying `de396e7`. |
 
 Before and throughout Agent 3's measurement, and during any Agent 2
 reproduction window, pause heavy Rust, Tauri, Cargo, pnpm, packaging,
@@ -343,7 +349,8 @@ was made by this task.
   `3ebac5f` baseline, Foundation run `34428758835`, the published-but-unmerged
   `19585da` installed evidence, draft #108's fail-closed preflight and
   diagnostic `a44653b` normal measurements, draft #110's `e209b8a` Agent 2
-  evidence head, and draft #111's `ef08522` NTFS/product head. State that
+  evidence head, and draft #111's current `f8140349` NTFS/product head (the
+  reviewed report revision was `ef08522`). State that
   #111's installed J run used unmerged `05fb35c`, and that its durable
   diagnostic and desktop error-mapping changes need product review. Include
   the #110/#111 duplicate-S5 mapping and the ordered Agent 3 -> Agent 2
@@ -386,7 +393,7 @@ the safe sequence is:
    #110 queued/restart/disable/remove rows and adding #111's denied,
    ResourceLimit, and hardlink rows. Skip any now-empty formatting replay.
    Re-run the ten required checks on that rebased #111 head; the current
-   `ef08522` checks are not combined evidence.
+    `f8140349` checks are not combined evidence.
 4. Rebase #109 onto the resulting merged baseline, refresh only live-head
    references, and merge the closeout packet last after explicit owner
    decisions. Any budget, fixture, platform, contract, or P2 acceptance change
@@ -404,24 +411,24 @@ The isolated checkout at
 `C:\Users\guilh\AppData\Local\Temp\fruitboard-phase2-integration-20260912`
 was created from verified `origin/main` `3ebac5f7a76c3425620ceba59e6078b32fb6cd85`.
 It replayed PR #110's `19585da` and `e209b8a` first, then PR #111's later
-harness, product, and report commits. PR #111's recovered `de396e7` was not
-replayed: it has the same parent, tree, and stable patch ID as `19585da`. The
-later `2eb629f` replay was empty after the shared-file resolution and was
-skipped, so no recovery work was duplicated.
+harness, product, and report commits through current head `f8140349`. PR #111's
+recovered `de396e7` was not replayed: it has the same parent, tree, and stable
+patch ID as `19585da`. The later `2eb629f` replay was empty after the
+shared-file resolution and was skipped, so no recovery work was duplicated.
 
 The replay had real conflicts in the checklist and installed-journey README;
 the resolution retained #110's queued/running/restart/disable/remove entries
 and #111's denied-traversal, unchanged-bound `ResourceLimit`, hardlink, product
 diagnostic, and report-index entries. The add/add queued report conflict was
 resolved to the canonical #110 bytes. The final synthetic combined checkout
-head is `431a7e2a3dd2b0c7f54df7f8363432fef7f843c6` on local branch
+head is `f7ebbf4e61ffef9501c4804763f1c6e469e6c486` on local branch
 `integration/phase2-stack-20260912`; it was not pushed and is not a merge
 commit on GitHub.
 
 The combined audit began only after Agent 2's liaison reported no active
 reproduction window, lock, or matching Cargo/NTFS process. No S5 or NTFS
 experiment was rerun. The individual green checks on PR heads #108 `a44653b`,
-PR #110 `e209b8a`, and PR #111 `ef08522` remain per-PR evidence; they are not
+PR #110 `e209b8a`, and PR #111 `f8140349` remain per-PR evidence; they are not
 combined integration evidence.
 
 ## Validation and non-actions
@@ -437,19 +444,19 @@ are:
 - Combined repository privacy verification: PASS (286 files).
 - Combined Node syntax checks: PASS (20 scripts; host Node `26.4.0`).
 - Combined Python syntax check: PASS for `inspect-foundation-smoke-db.py`.
-- Combined `cargo test -p fruitboard-storage --locked --lib`: PASS (77/77).
+- Combined `cargo test -p fruitboard-storage --locked --lib`: PASS (79/79).
 - Combined `cargo test -p fruitboard-scan-execution --locked --lib`: PASS
   (56 passed, 1 intentional benchmark-gate test ignored).
 - Combined `cargo test -p fruitboard-desktop --features scan-console --locked
-  --lib`: PASS (93/93).
+  --lib`: PASS (94/94).
 - Combined focused clippy with `-D warnings`: PASS for storage,
   scan-execution, and desktop with `scan-console`.
 - Full `pnpm check` is not claimed: the host has Node `26.4.0` while the
   repository pins `24.20.0`. This is an environment limitation, not product
   or performance evidence; the pinned Rust and checked-in Prettier/markdownlint
   tool versions above passed.
-- GitHub draft PRs #108 `a44653b`, #110 `e209b8a`, and #111 `ef08522` retain
-  their ten passing required checks. Draft #109's final owned head is subject
+- GitHub draft PRs #108 `a44653b`, #110 `e209b8a`, and #111 `f8140349` each
+  have all ten required checks green. Draft #109's final owned head is subject
   to the same normal required checks after this packet update.
 - No full build, installed run, performance run, issue mutation, merge, Phase
   2 acceptance, or production activation was performed by this closeout.
