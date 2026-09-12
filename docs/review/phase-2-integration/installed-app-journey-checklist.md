@@ -279,7 +279,7 @@ at reviewed commit `19585da` with `origin/main` baseline `3ebac5f`:
 | 9. Watcher follow-up | The installed burst convergence remains covered by [#106](installed-journey/run-20260909-fixed-validation.md#53-scenario-3--burst-changes-appearing-in-committed-library-results), with its candidate-to-merged patch identity recorded there. | Reused; no relabelling |
 | 10. Cancel/unavailable/retry | The new record adds queued disable and queued remove: both queued jobs are cancelled before mutation can publish, with disabled state persisted and removed locations detached. #106 remains the source for installed cancellation/unavailable/exhaustion observations. | Queued disable/remove observed |
 
-queued/restart observations from the historical driver. The follow-up
+The follow-up
 [remaining local NTFS record](installed-journey/run-20260912-ntfs-cases.md)
 uses a separate lock-verifying orchestration wrapper and does not rerun that
 lease-recovery experiment.
