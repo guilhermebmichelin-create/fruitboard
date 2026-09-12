@@ -11,8 +11,10 @@ handoff `5cc8fb549966ebd53c135540b2f4c68339269680`. The code candidate under
 review is `879010d8f3ae91c6f62409cb04ee1f1c8066ab15`, whose direct parent is
 the #111 durable-diagnostics commit
 `f7ebbf4e61ffef9501c4804763f1c6e469e6c486`. This review covers the combined
-tree at `37cd6c...`; the focused #112 corrections recorded here are separate
-and do not edit Agent 1's acceptance packet.
+tree at `37cd6c...`; at review time the focused #112 corrections recorded here
+were separate from Agent 1's packet. They were later replayed into the final
+integration candidate, so this file is historical provenance for the earlier
+review and is not the approval record for the later candidate SHA.
 
 ## Findings by severity
 

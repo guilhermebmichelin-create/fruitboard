@@ -64,7 +64,9 @@ not an evidence-only documentation change. The merged implementation boundary
 remains `3ebac5f`, and owner acceptance remains a separate decision.
 
 Draft PR [#112](https://github.com/guilhermebmichelin-create/fruitboard/pull/112)
-is at `eace2e643f462e2cf2b8074ecd66007e2a21d074`. Its disposition is explicit:
+is at `5164a6f54a389b1f5fb0ebe7bf89f1ae27c7b584`, after the supplied
+`eace2e643f462e2cf2b8074ecd66007e2a21d074` plus focused hardening and a
+documentation-only lint correction. Its disposition is explicit:
 the original `3ebac5f` current-main `Failed`/`Partial` artifact remains
 unexplained and was not reproduced. It adds bounded, path-free
 `partial_class` coverage and a sanitized benchmark protocol; later passes do
@@ -106,7 +108,7 @@ The baseline was checked against GitHub before local work started:
 | September 12 installed verification | `19585da7bef9ffdec06b71e0627df1b3f7ceb2f`, parent exactly `origin/main`; test/documentation-only diff |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact `3ebac5f`, success, all nine jobs |
 | Foundation jobs | `docs-policy`, `client`, `rust-portable`, `migration`, `windows-foundation`, `security`, `filesystem-watcher-windows`, `enumeration-windows`, `scan-execution-windows` |
-| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), #111 (`f8140349`, NTFS/product; reviewed report revision `ef08522`), and #112 (`eace2e6`, benchmark diagnostics); all remain unmerged |
+| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), #111 (`f8140349`, NTFS/product; reviewed report revision `ef08522`), and #112 (`5164a6f`, benchmark diagnostics after focused hardening); ready-for-review #113 is the synthetic combined candidate; all remain unmerged |
 | PR #99 | Closed, never merged; validation-only combined-build history at `9c211ad` |
 | Open issues | #33, #36-#41, #47, #48, and #107 |
 
@@ -269,7 +271,7 @@ These are concrete choices, not decisions made by this packet.
   normal-config timings remain diagnostic rather than qualification evidence.
   The historical 14,267 ms warm p95 is not rewritten. The current-main series
   also retains one `Failed`/`Partial` non-authoritative iteration at 11,137 ms.
-  #112 records that the original Partial is unexplained and was not reproduced.
+  PR #112 records that the original Partial is unexplained and was not reproduced.
   Its bounded diagnostic coverage does not identify the original cause, and
   later passes do not establish performance acceptance. The owner must either
   authorize a new eligible quiet-host A/B or make a named host-class/target
@@ -356,13 +358,13 @@ was made by this task.
   `19585da` installed evidence, draft #108's fail-closed preflight and
   diagnostic `a44653b` normal measurements, draft #110's `e209b8a` Agent 2
   evidence head, draft #111's current `f8140349` NTFS/product head (reviewed
-  report revision `ef08522`), and draft #112's `eace2e6` benchmark-diagnostic
-  head. State that #112 leaves the original Partial unexplained and not
+  report revision `ef08522`), and draft #112's `5164a6f` benchmark-diagnostic
+  head (the supplied `eace2e6` plus focused hardening). State that #112 leaves the original Partial unexplained and not
   reproduced, adds bounded diagnostic coverage, and does not establish its
   cause or performance acceptance. State that #111's installed J run used
   unmerged `05fb35c`, and that its durable diagnostic and desktop error-mapping
   changes need product review. Include the #110/#111 duplicate-S5 mapping, the
-  #110 -> #111 -> #112 dependency, and the frozen combined-candidate Agent 2
+  the #110 -> #111 -> #112 dependency, and the frozen combined-candidate Agent 2
   review. It is not a Phase 2 acceptance statement.
 - **#47:** Request the missing DriveFS UI mode capture, disposable synced
   leaves, and cloud/pause-resume consent, or record an explicit owner scope
@@ -400,12 +402,12 @@ stack, the safe sequence is:
    tree- and stable-patch-identical recovered `de396e7`, retain its historical
    mapping to `19585da`, and replay the later harness, `05fb35c` product fix,
    and NTFS-report work. Resolve common checklist/index files by retaining all
-   #110 queued/restart/disable/remove rows and adding #111's denied,
+   PR #110 queued/restart/disable/remove rows and adding #111's denied,
    ResourceLimit, and hardlink rows. Skip any now-empty formatting replay.
    Re-run the ten required checks on that rebased #111 head; the current
    `ef08522` checks are not combined evidence.
 4. Rebase #112 onto the resulting #110+#111 product/evidence tip. Preserve
-   #111's durable diagnostic propagation, add #112's bounded `partial_class`
+   PR #111's durable diagnostic propagation, add #112's bounded `partial_class`
    reporting and sanitized benchmark protocol, and run all ten required checks
    on the rebased #112 head. Do not treat the original Partial as explained or
    as performance acceptance.
@@ -433,16 +435,18 @@ union work. #111's recovered `de396e7` was not replayed because it has the same
 parent, tree, and stable patch ID as `19585da`; it remains historical
 provenance.
 
-The branch now cherry-picks #112's `eace2e6` as `879010d`. The result retains
-PR #111's durable diagnostic propagation (`finish_scan_run_with_error` and its
-closed durable vocabulary) while carrying #112's bounded path-free
-`partial_class` through both worker paths and emitting only sanitized fixed
-protocol fields. The checklist and installed-journey README retain the union
-of #110's queued/restart/disable/remove entries and #111's denied,
-`ResourceLimit`, hardlink, diagnostic, and report-index entries. No S5 or NTFS
-experiment was rerun. The final candidate SHA is frozen only after these
-metadata edits are committed and the existing branch is published; it is a
-review candidate, not merged main or Phase 2 acceptance.
+The branch cherry-picks #112's supplied `eace2e6` as `879010d`, then replays
+focused hardening `a68b9d8`, the historical review-record pin `10b9841`, and
+the documentation-only lint correction `5164a6f`. The result retains PR #111's
+durable diagnostic propagation (`finish_scan_run_with_error` and its closed
+durable vocabulary) while carrying #112's bounded path-free `partial_class`
+through both worker paths, shared-worker regression coverage, authoritative
+timing filtering, and sanitized fixed protocol fields. The checklist and
+installed-journey README retain the union of #110's queued/restart/disable/
+remove entries and #111's denied, `ResourceLimit`, hardlink, diagnostic, and
+report-index entries. No S5 or NTFS experiment was rerun. The final candidate
+SHA is recorded explicitly in ready-for-review PR #113 after this metadata
+commit; it is a review candidate, not merged main or Phase 2 acceptance.
 
 The pre-#112 combined validation at `f7ebbf4` is historical for #110/#111 and
 does not validate #112. Fresh ten-context checks and an independent Agent 2
@@ -472,9 +476,9 @@ candidate:
   scan-console --locked --lib` (92), and feature-on desktop clippy; the full
   desktop doctest phase failed locally with `E0463` after the unit tests passed.
 - GitHub draft PR #108 at `a44653b`, #110 at `e209b8a`, and #111 at
-  `f8140349` each have all ten required checks green; #112 `eace2e6` has
-  successful Foundation and Packaging Smoke runs, but its full ten-context
-  result and the combined candidate checks are required after publication.
+  `f8140349` each have all ten required checks green; #112 at `5164a6f` and
+  ready-for-review #113 have fresh ten-context checks required/recorded after
+  their latest source/candidate updates.
   Draft PR #109 is this documentation branch; its updated packet-only head
   remains subject to the normal required checks.
 - No full build, installed run, performance run, issue mutation, merge, Phase

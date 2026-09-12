@@ -13,7 +13,7 @@ are not rewritten here.
 | --- | --- |
 | `main` | `3ebac5f7a76c3425620ceba59e6078b32fb6cd85` (PR #91) |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact current head, success, all nine Foundation jobs |
-| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), #111 (`f8140349`, NTFS/product; reviewed report revision `ef08522`), and #112 (`eace2e6`, benchmark diagnostics); all remain unmerged |
+| Open pull requests | Draft #108 (`a44653b`, performance), #109 (closeout), #110 (`e209b8a`, restart/queued), #111 (`f8140349`, NTFS/product; reviewed report revision `ef08522`), and #112 (`5164a6f`, benchmark diagnostics after the supplied `eace2e6` plus focused hardening); ready-for-review #113 is the synthetic combined candidate; all remain unmerged |
 | PR #99 | Closed without merge; validation-only combined-build history |
 | Open issues | #33, #36-#41, #47, #48, #107 |
 
@@ -64,7 +64,7 @@ not by itself provide owner acceptance.
 | #109 | This closeout packet and coordination index |
 | #110 / `e209b8a` | Agent 2 queued/running/terminal, queued disable/remove, and genuine same-job restart evidence; no product fix |
 | #111 / `ef08522` | Mixed product-and-evidence change: local-NTFS denied traversal, unchanged-bound `ResourceLimit`, and in-root hardlink evidence, plus the durable-diagnostic and desktop scan-console correction at tested source `05fb35c`; it is not evidence-only |
-| #112 / `eace2e6` | Correctness/diagnostics follow-up: the original current-main `Partial` remains unexplained and was not reproduced; bounded `partial_class` coverage and sanitized benchmark protocol were added, with no performance qualification or acceptance claim |
+| #112 / `5164a6f` | Correctness/diagnostics follow-up: the original current-main `Partial` remains unexplained and was not reproduced; bounded `partial_class` coverage, shared-worker regression coverage, authoritative timing filtering, and sanitized benchmark protocol were added, with no performance qualification or acceptance claim |
 
 The #111 branch also carries recovered S5 commit `de396e7`. Its tree and
 stable patch ID are identical to #110's `19585da`, so it is historical
@@ -170,9 +170,10 @@ The owner decisions are collected in the [closeout packet](acceptance-packet-202
 Agent 3's first quiet performance window failed closed before measurement in
 draft #108 at `2561d3f`; no quiet-host qualification was claimed. Its later
 normal-config current-main series retains the `Failed`/`Partial` finding above.
-PR #112 did not reproduce the original result; its `partial_class` field and
-sanitized protocol identify future occurrences without explaining the
-historical one. Agent 2's follow-up is isolated in draft #110 at `e209b8a`,
+PR #112 did not reproduce the original result; its `partial_class` field,
+focused regression/aggregation hardening, and sanitized protocol identify
+future occurrences without explaining the historical one. Agent 2's
+follow-up is isolated in draft #110 at `e209b8a`,
 with no S5 rerun and no product defect identified. No heavy Cargo, Rust,
 Tauri, pnpm, packaging, benchmark, or installed validation was run during
 Agent 2's reproduction window. Prebuild artifacts outside a measurement
