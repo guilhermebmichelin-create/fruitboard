@@ -13,7 +13,7 @@ are not rewritten here.
 | --- | --- |
 | `main` | `3ebac5f7a76c3425620ceba59e6078b32fb6cd85` (PR #91) |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact current head, success, all nine Foundation jobs |
-| Open pull requests | None |
+| Open pull requests | Draft #108 (performance preflight) and draft #109 (closeout); Agent 2 evidence PR pending |
 | PR #99 | Closed without merge; validation-only combined-build history |
 | Open issues | #33, #36-#41, #47, #48, #107 |
 
@@ -72,7 +72,7 @@ provenance limits remain explicit.
 | P2-08 | #73/#77/#78/#81/#82 UI/native/lifecycle; #95 alignment | Feature-on CI and IPC/adapter/lifecycle tests | #92 journey; #106 S1-S4/S6; September 12 native/UI queued snapshot and invalidation | Full criterion remains Partial |
 | P2-09 | #68/#69/#71/#81/#82 watcher/coalescing/reconnect | #97 automated queue/burst/fence tests | #92 follow-ups; #106 isolated burst pass | Overflow timing and #47 scope |
 | P2-10 | #81 static no-parser/content-I/O guards and fixture equality | Dependency/privacy, static, preservation checks | Native-adapter independence only; no runtime spy | Static-versus-runtime decision |
-| P2-11 | #67/#72/#86/#93/#94/#98 benchmark work | F1 reproduced; contended warm p95 14,267 ms vs 10 s; F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions |
+| P2-11 | #67/#72/#86/#93/#94/#98 benchmark work | F1 reproduced; contended warm p95 14,267 ms vs 10 s; Agent 3 first quiet-host window failed closed before measurement; F3 unmeasured | No installed performance qualification | F1/F2/F3 decisions |
 | P2-12 | #80 checkpoint, merged map, #91 refresh | Run 34428758835 passes all nine Foundation jobs | #92/#106 plus September 12 report with `19585da` provenance | Decisions, then explicit owner acceptance |
 
 P2-08's historical `Complete` wording is not carried forward: the current
@@ -118,12 +118,13 @@ The owner decisions are collected in the [closeout packet](acceptance-packet-202
 - Inline onboarding: accept inline Preferences as the Phase 2 entry path, or
   defer the route choice to a named later phase.
 
-The required window order is Agent 3's quiet performance window first, then
-Agent 2's safety follow-up after all measurement processes exit. Prebuild
-artifacts outside the measurement window and pause heavy Cargo, Rust, Tauri,
-pnpm, and packaging builds throughout Agent 3's measurements. Do not overlap
-windows or relabel a failed quiet preflight as qualification. Do not request
-another S5 run without a specific evidence defect.
+Agent 3's first quiet performance window failed closed before measurement in
+draft #108 at `2561d3f`; no quiet-host qualification was claimed. Agent 2's
+safety follow-up comes next after the host is released. Prebuild artifacts
+outside the measurement window and pause heavy Cargo, Rust, Tauri, pnpm, and
+packaging builds throughout any future measurement. Do not overlap windows or
+relabel a failed quiet preflight as qualification. Do not request another S5
+run without a specific evidence defect.
 
 ## Standing gates
 
