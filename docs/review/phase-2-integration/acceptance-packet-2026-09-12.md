@@ -157,9 +157,9 @@ fix. The September 12 installed record separately captures the genuinely
 running-lease case: after an exact-PID hard kill, the same job and retry chain
 reached attempt two, the old run became `interrupted/restart`, and a fresh run
 completed with 8,000 published rows. It also records queued disable/remove
-with `runId: null` before mutation. The report and driver remain pending
-transfer/publication and owner review; they do not promote P2-04, P2-05, P2-06,
-or P2-08.
+with `runId: null` before mutation. The report and driver are published in
+draft PR #110, pending review and owner acceptance; they do not promote P2-04,
+P2-05, P2-06, or P2-08.
 
 No additional S5 run is requested without a specific evidence defect. A future
 Agent 2 safety window is for driver hardening or newly identified safety
@@ -283,9 +283,10 @@ was made by this task.
   then record the owner's static-boundary versus runtime-spy choice. Do not
   claim a runtime spy before it exists.
 - **#41:** Keep the aggregator open and link the current packet, exact
-  `3ebac5f` baseline, Foundation run `34428758835`, the pending `19585da`
-  installed evidence, draft #108's fail-closed Agent 3 result, draft #110's
-  `e209b8a` Agent 2 evidence head, and the ordered Agent 3 -> Agent 2 windows.
+  `3ebac5f` baseline, Foundation run `34428758835`, the published-but-unmerged
+  `19585da` installed evidence, draft #108's fail-closed Agent 3 result, draft
+  #110's `e209b8a` Agent 2 evidence head, and the ordered Agent 3 -> Agent 2
+  windows.
   It is not a Phase 2 acceptance statement.
 - **#47:** Request the missing DriveFS UI mode capture, disposable synced
   leaves, and cloud/pause-resume consent, or record an explicit owner scope
@@ -309,8 +310,8 @@ Draft PRs #108, #109, and #110 are open. If the owner later advances the
 remaining work, the safe order is:
 
 1. Agent 3's first quiet-host preflight is complete at `2561d3f` / draft
-   #108 and is non-qualifying; no measurements were started. Keep F2 open and
-   do not relabel historical contended samples.
+   #108 and is non-qualifying; no quiet-host measurements were started. Keep
+   F2 open and do not relabel historical contended samples.
 2. Agent 2's follow-up is complete at `e209b8a` / draft #110; review its
    evidence and the now-complete required checks. No S5 rerun is warranted
    absent a specific evidence defect.
