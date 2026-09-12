@@ -1844,6 +1844,26 @@ fn retry_exhausted_reports_conflict_not_requeue() {
 }
 
 #[test]
+fn durable_specific_scan_errors_map_to_closed_codes() {
+    assert_eq!(
+        super::map_job_error_code(Some("access_denied")),
+        Some(crate::foundation::errors::ErrorCode::AccessDenied)
+    );
+    assert_eq!(
+        super::map_job_error_code(Some("resource_limit")),
+        Some(crate::foundation::errors::ErrorCode::ResourceLimit)
+    );
+    assert_eq!(
+        super::map_job_error_code(Some("unsupported")),
+        Some(crate::foundation::errors::ErrorCode::Unsupported)
+    );
+    assert_eq!(
+        super::map_job_error_code(Some("unavailable")),
+        Some(crate::foundation::errors::ErrorCode::Unavailable)
+    );
+}
+
+#[test]
 fn storage_busy_maps_to_unavailable_without_leaking_diagnostics() {
     use fruitboard_storage::StorageError;
     let scan = map_scan_storage_error(StorageError::Busy);

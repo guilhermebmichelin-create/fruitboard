@@ -501,12 +501,13 @@ impl ScanWorker {
         } else {
             ScanRunOutcome::Failed
         };
-        match db.finish_scan_run(
+        match db.finish_scan_run_with_error(
             &scan.leased.run.id,
             &scan.leased.run.session_id,
             &scan.leased.run.lease_token,
             now,
             terminal,
+            durable_error_code(outcome),
         ) {
             Ok(state) => self.execution(scan, status_from_state(state), outcome, None, None),
             Err(error) => self.execution_fenced(scan, outcome, &error),
@@ -576,12 +577,13 @@ impl ScanWorker {
             let Ok(mut guard) = db.lock() else {
                 return self.execution(scan, ScanExecutionStatus::Fenced, outcome, None, None);
             };
-            guard.finish_scan_run(
+            guard.finish_scan_run_with_error(
                 &scan.leased.run.id,
                 &scan.leased.run.session_id,
                 &scan.leased.run.lease_token,
                 now,
                 terminal,
+                durable_error_code(outcome),
             )
         };
         match finished {
@@ -677,6 +679,22 @@ fn status_from_state(state: ScanRunState) -> ScanExecutionStatus {
         ScanRunState::Cancelled => ScanExecutionStatus::Cancelled,
         ScanRunState::Interrupted => ScanExecutionStatus::Interrupted,
         ScanRunState::Running => ScanExecutionStatus::Fenced,
+    }
+}
+
+fn durable_error_code(outcome: Option<enumeration::Outcome>) -> Option<&'static str> {
+    match outcome {
+        Some(enumeration::Outcome::Denied) => Some("access_denied"),
+        Some(enumeration::Outcome::UnsupportedFilesystem) => Some("unsupported"),
+        Some(enumeration::Outcome::ResourceLimit) => Some("resource_limit"),
+        Some(enumeration::Outcome::RootUnavailable) => Some("unavailable"),
+        Some(enumeration::Outcome::Cancelled) => Some("cancelled"),
+        Some(
+            enumeration::Outcome::Partial
+            | enumeration::Outcome::Invalid
+            | enumeration::Outcome::SinkFailed,
+        ) => Some("worker_failed"),
+        Some(enumeration::Outcome::Complete) | None => None,
     }
 }
 
