@@ -448,10 +448,10 @@ and #111's denied-traversal, unchanged-bound `ResourceLimit`, hardlink, product
 diagnostic, and report-index entries. The add/add queued report conflict was
 resolved to the canonical #110 bytes. The pre-#112 synthetic combined checkout
 head was `f7ebbf4e61ffef9501c4804763f1c6e469e6c486` before #112. The existing
-integration branch then cherry-picked #112's `eace2e6` as `879010d`; its final
-candidate SHA is frozen only after this closeout metadata is refreshed and the
-branch is published. It is a synthetic review candidate, not a merge commit on
-GitHub.
+integration branch then cherry-picked #112's `eace2e6` as `879010d`. The final
+candidate is now published as draft #113 at frozen SHA
+`5cc8fb549966ebd53c135540b2f4c68339269680`. It is a synthetic review
+candidate, not a merge commit on GitHub.
 
 The combined audit began only after Agent 2's liaison reported no active
 reproduction window, lock, or matching Cargo/NTFS process. No S5 or NTFS
