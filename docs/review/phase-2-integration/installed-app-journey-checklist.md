@@ -286,9 +286,9 @@ lease-recovery experiment.
 
 | Remaining case | Installed observation | Status |
 | --- | --- | --- |
-| Denied traversal | Disposable nested ACL denial was applied and directly probed as same-user access denial; the installed scan was required to return `failed/access_denied` while the committed rows and last-success marker stayed unchanged. | See NTFS record; no FAT32/DriveFS claim |
-| ResourceLimit | The accepted synthetic 10,000-observation root was committed first; one additional `.flp` was then scanned against the unchanged bound and was required to return `failed/resource_limit` without partial publication or false missing rows. | See NTFS record; budget unchanged |
-| Hardlinks | Two hardlink aliases were both inside the scanned root; removing/restoring one alias was required to produce one Missing/one Present and then two independent Present locations. | See NTFS record; local NTFS only |
+| Denied traversal | On live `origin/main` `3ebac5f`, the disposable nested ACL denial was applied and directly probed as same-user `EPERM`; the installed scan reached terminal `failed/access_denied` after its retry chain while all four committed rows and the last-success marker stayed unchanged. | [NTFS record](installed-journey/run-20260912-ntfs-cases.md); PASS, local NTFS only |
+| ResourceLimit | The accepted synthetic 10,000-file manifest was retained unchanged; its scanned `roots` subroot committed 8,000 baseline rows. A disposable 2,001-file overflow made 10,001 expected observations against the unchanged bound and reached terminal `failed/resource_limit` without partial publication or false missing rows. | [NTFS record](installed-journey/run-20260912-ntfs-cases.md); PASS after focused diagnostic fix, budget unchanged |
+| Hardlinks | Two true hardlink aliases were both inside the scanned root; removing alias A produced one Missing/one Present, and restoring it produced two Present locations with distinct location IDs. | [NTFS record](installed-journey/run-20260912-ntfs-cases.md); PASS, local NTFS only |
 
 ## Gate and handoff
 
