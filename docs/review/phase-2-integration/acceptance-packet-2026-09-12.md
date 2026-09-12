@@ -26,18 +26,27 @@ The active sources are now:
 | [Reconciliation report](reconciliation-2026-09-08.md) | Preserved historical ledger and dated addenda |
 | [This packet](acceptance-packet-2026-09-12.md) | Current evidence classes, decisions, coordination, and proposed updates |
 
-The S5 regression and its preserved 2026-09-10 disposition are copied, not
-moved, from the dirty main checkout into Agent 2's isolated branch. The
-September 12 driver, installed report, checklist addendum, and index changes
-remain source copies in the dirty main checkout until Agent 2 publishes the
-focused evidence branch. The source checkout remains untouched by this
-closeout. Agent 2 owns validation and publication of that branch; its contents
-are not merged evidence until reviewed and validated.
+The S5 regression and its preserved 2026-09-10 disposition are retained in
+Agent 2's isolated branch. The September 12 driver, installed report,
+checklist addendum, and index changes are now published there in draft PR
+[#110](https://github.com/guilhermebmichelin-create/fruitboard/pull/110) at
+head `e209b8a` (base S5 pin `19585da` plus one focused evidence commit). The
+dirty main checkout's source copies remain untouched. The branch contents are
+still evidence only: not merged and not owner-accepted.
 
 The September 12 installed verification used reviewed commit `19585da`, whose
 diff from `3ebac5f` is test/documentation only. The additive report records
 queued state, queued disable/remove, and a genuine same-job restart recovery;
 those observations are evidence only and are not yet merged or owner-accepted.
+
+Agent 2 found no product or contract defect and did not rerun S5. Its local
+validation passed storage tests (77), desktop feature-on unit tests (92),
+desktop feature-on clippy, driver syntax, Markdownlint, privacy, and format
+checks under Rust/Cargo `1.98.1`. The full desktop Cargo command reached 92
+passing unit tests but failed its local Rustdoc phase with `E0463` missing
+extern crates; `pnpm check` stopped at the unavailable Node `24.20.0`/`uv`
+environment. GitHub PR #110 currently has seven of ten required checks green
+and three still running; no acceptance or merge follows from these checks.
 
 Agent 3's first quiet-host window was completed fail-closed in draft PR [#108](https://github.com/guilhermebmichelin-create/fruitboard/pull/108)
 at `2561d3f`. DriveFS activity, unverified Defender exclusion, sibling
@@ -55,7 +64,7 @@ The baseline was checked against GitHub before local work started:
 | September 12 installed verification | `19585da7bef9ffdec06b71e0627df1b3f7ceb2f`, parent exactly `origin/main`; test/documentation-only diff |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact `3ebac5f`, success, all nine jobs |
 | Foundation jobs | `docs-policy`, `client`, `rust-portable`, `migration`, `windows-foundation`, `security`, `filesystem-watcher-windows`, `enumeration-windows`, `scan-execution-windows` |
-| Open pull requests | Draft #108 (performance preflight) and draft #109 (this closeout); Agent 2 evidence PR pending |
+| Open pull requests | Draft #108 (performance preflight), #109 (closeout), and #110 (Agent 2 evidence); all remain unmerged |
 | PR #99 | Closed, never merged; validation-only combined-build history at `9c211ad` |
 | Open issues | #33, #36-#41, #47, #48, and #107 |
 
@@ -165,7 +174,7 @@ non-qualifying; the Agent 2 follow-up remains coordinated below:
 | Order | Owner | Window and required controls |
 | --- | --- | --- |
 | 1 | Agent 3 | **Completed fail-closed at `2561d3f` / draft #108.** DriveFS, Defender verification, sibling activity, and idle-proof gates were ineligible; no build or timing was started and no quiet-host claim was made. |
-| 2 | Agent 2 | Follow-up safety window after the completed Agent 3 preflight, all processes exit, and the host is released. Own driver hardening and any specific new safety evidence; publish the existing S5 regression plus September 12 installed artifacts from the isolated branch. Do not repeat S5 without a named evidence defect. If a new installed run is authorized, prebuild outside the lock, acquire the existing exclusive Foundation Smoke lock, archive reversibly, and close the app before release. |
+| 2 | Agent 2 | **Completed evidence follow-up at `e209b8a` / draft #110.** The existing S5 regression and September 12 installed artifacts are isolated and published; no product/contract defect was found and no S5 rerun was performed. Local focused checks pass; GitHub checks are 7/10 complete with `scan-execution-windows`, `windows-foundation`, and `windows-packaging-smoke` pending. |
 
 Before and throughout Agent 3's measurement, pause heavy Rust, Tauri, Cargo,
 pnpm, and packaging builds. Do not start a sibling build, installed run, or
@@ -275,8 +284,9 @@ was made by this task.
   claim a runtime spy before it exists.
 - **#41:** Keep the aggregator open and link the current packet, exact
   `3ebac5f` baseline, Foundation run `34428758835`, the pending `19585da`
-  installed evidence, draft #108's fail-closed Agent 3 result, and the ordered
-  Agent 3 -> Agent 2 windows. It is not a Phase 2 acceptance statement.
+  installed evidence, draft #108's fail-closed Agent 3 result, draft #110's
+  `e209b8a` Agent 2 evidence head, and the ordered Agent 3 -> Agent 2 windows.
+  It is not a Phase 2 acceptance statement.
 - **#47:** Request the missing DriveFS UI mode capture, disposable synced
   leaves, and cloud/pause-resume consent, or record an explicit owner scope
   exclusion. Do not report another blocked inventory as a run.
@@ -286,27 +296,28 @@ was made by this task.
 - **#107:** Record that #106 demonstrated successor convergence after a
   terminal `follow_up_requested` transition, while the September 12 evidence
   separately demonstrates same-job recovery from a genuinely running lease.
-  Ask Agent 2 to validate and publish the isolated test/report artifacts; do
-  not request another S5 run without a specific evidence defect. Require a
-  product/contract change only if review establishes a genuine defect.
+  Agent 2 found no defect and published the isolated test/report artifacts in
+  draft #110; do not request another S5 run without a specific evidence
+  defect. Require a product/contract change only if review establishes a
+  genuine defect.
 
 No issue is closed, and no owner acceptance is inferred by these proposals.
 
 ## Dependency and merge order
 
-Draft PRs #108 and #109 are open, with Agent 2's evidence PR still pending. If
-the owner later advances the remaining work, the safe order is:
+Draft PRs #108, #109, and #110 are open. If the owner later advances the
+remaining work, the safe order is:
 
 1. Agent 3's first quiet-host preflight is complete at `2561d3f` / draft
    #108 and is non-qualifying; no measurements were started. Keep F2 open and
    do not relabel historical contended samples.
-2. After Agent 3's window is complete and the host is idle, have Agent 2
-   validate/publish `19585da` plus the copied September 12 installed artifacts
-   on the isolated evidence branch. Run only driver-hardening or specifically
-   defective safety follow-up; do not duplicate S5 by default.
-3. Refresh this packet at the exact final evidence/performance heads, then
-   review the focused evidence, performance, and closeout draft PRs in that
-   order. No merge or owner acceptance is implied by green checks.
+2. Agent 2's follow-up is complete at `e209b8a` / draft #110; review its
+   evidence and wait for the three remaining required checks. No S5 rerun is
+   warranted absent a specific evidence defect.
+3. Refresh this packet at the exact final evidence/performance heads after the
+   remaining checks settle, then review the focused evidence, performance, and
+   closeout draft PRs in that order. No merge or owner acceptance is implied by
+   green checks.
 4. Resolve F1/F2/F3, #47/#48 scope, P2-10 evidence strength, inline
    onboarding, and S5. Any budget, fixture, platform, or contract change
    requires an explicit owner decision and its own remeasurement/evidence.
@@ -331,6 +342,14 @@ The final validation results for this branch are:
 - The package scripts reported the host's Node `26.4.0` versus the repository
   pin `24.20.0`; this is a docs-validation environment warning, not product
   or performance evidence.
+- Agent 2's isolated branch passed `cargo test -p fruitboard-storage
+  --locked --lib` (77), `cargo test -p fruitboard-desktop --features
+  scan-console --locked --lib` (92), and feature-on desktop clippy; the full
+  desktop doctest phase failed locally with `E0463` after the unit tests passed.
+- GitHub draft PR #108 has all ten required checks green; #109 has all ten
+  required checks green; #110 has seven green and three pending at this
+  snapshot (`scan-execution-windows`, `windows-foundation`,
+  `windows-packaging-smoke`).
 - No full build, installed run, performance run, issue mutation, merge, Phase
   2 acceptance, or production activation was performed by this documentation
   closeout. Draft PR #109 was opened for review; it is not a merge or
