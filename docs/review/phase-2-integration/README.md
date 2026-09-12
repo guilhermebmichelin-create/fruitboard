@@ -13,7 +13,7 @@ are not rewritten here.
 | --- | --- |
 | `main` | `3ebac5f7a76c3425620ceba59e6078b32fb6cd85` (PR #91) |
 | Foundation CI | [Run 34428758835](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34428758835), exact current head, success, all nine Foundation jobs |
-| Open pull requests | Draft #108 (performance preflight) and draft #109 (closeout); Agent 2 evidence PR pending |
+| Open pull requests | Draft #108 (performance preflight), #109 (closeout), and #110 (Agent 2 evidence); all remain unmerged |
 | PR #99 | Closed without merge; validation-only combined-build history |
 | Open issues | #33, #36-#41, #47, #48, #107 |
 
@@ -55,10 +55,10 @@ not by itself provide owner acceptance.
 The #92 installed journey was recorded on an older merged baseline. The #106
 fixed validation tested unmerged candidate `ded02ac`, patch-identical to the
 fix in #104, not the current `3ebac5f`. The September 12 installed report was
-verified from `19585da`, whose diff from `3ebac5f` is test/documentation only;
-its queued-state, queued disable/remove, and genuine same-job restart
-observations remain pending transfer, merge, and owner acceptance. Those
-provenance limits remain explicit.
+verified from `19585da`, whose diff from `3ebac5f` is test/documentation only.
+The queued-state, queued disable/remove, and genuine same-job restart
+observations are published in draft #110 at `e209b8a`, but remain unmerged and
+owner-unaccepted. Those provenance limits remain explicit.
 
 | ID | Merged implementation | Automated evidence | Installed evidence | Remaining |
 | --- | --- | --- | --- | --- |
@@ -94,9 +94,9 @@ unpublished `19585da` pin covers the terminal-follow-up path and adds no
 product fix. The September 12 installed report separately records a genuinely
 running lease at exact-PID kill, same-job/retry-chain recovery at attempt two,
 queued disable/remove with `runId: null`, and terminal queued/running states.
-The report and driver are pending isolated-branch transfer, merge, and owner
-review; no contract change is proposed. Do not request another S5 run without
-a specific evidence defect.
+The report and driver are isolated in draft #110; Agent 2 found no defect and
+no contract change is proposed. Do not request another S5 run without a
+specific evidence defect.
 
 ## Remaining decisions and coordination
 
@@ -120,11 +120,12 @@ The owner decisions are collected in the [closeout packet](acceptance-packet-202
 
 Agent 3's first quiet performance window failed closed before measurement in
 draft #108 at `2561d3f`; no quiet-host qualification was claimed. Agent 2's
-safety follow-up comes next after the host is released. Prebuild artifacts
-outside the measurement window and pause heavy Cargo, Rust, Tauri, pnpm, and
-packaging builds throughout any future measurement. Do not overlap windows or
-relabel a failed quiet preflight as qualification. Do not request another S5
-run without a specific evidence defect.
+follow-up is now isolated in draft #110 at `e209b8a`, with no S5 rerun and no
+product defect identified. Prebuild artifacts outside the measurement window
+and pause heavy Cargo, Rust, Tauri, pnpm, and packaging builds throughout any
+future measurement. Do not overlap windows or relabel a failed quiet preflight
+as qualification. Do not request another S5 run without a specific evidence
+defect.
 
 ## Standing gates
 

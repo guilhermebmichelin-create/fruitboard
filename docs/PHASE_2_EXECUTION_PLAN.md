@@ -67,7 +67,7 @@ stay historical stall failure evidence. Prior #91 heads stay as history.
 | Partially evidenced (acceptance pending) | #39 no-parser boundary and additional #37 guards | Merged PR #81 adds static no-parser/no-content-I/O policy guards plus synthetic-fixture source-byte preservation assertions; these checks are not an installed-app proof or a runtime content-read spy |
 | Measured (qualification and owner decision pending) | #41/P2-11 benchmark and #79 budget/governance brief | Original report remains historical; the [2026-09-08 re-run](review/phase-2-integration/benchmark-triage-20260908/rerun-report.md), recorded at pre-#85 baseline `51f45af`, reproduces F1, records warm p95 14,267 ms versus 10 s, and leaves F3 unmeasured. Merged [PR #93](https://github.com/guilhermebmichelin-create/fruitboard/pull/93) (`106335a`) adds contended filesystem-port profiling, not an idle-host performance pass. Merged #94 (`d342ec1`) removes the duplicate enumeration metadata query; merged #98 (`7e0e9f6`) validates that candidate with contended A/B and diagnostic cleanup (both sides fail 10 s p95; no qualification claimed). Agent 3's first quiet-host window failed closed before measurement in draft #108 at `2561d3f`; F2 remains open. F1/F3 scale options are in merged PR #96 (`326fb0a`) as a proposal only with its §2.9 correction, not an approved scale design |
 | Recorded (owner acceptance pending) | #41/P2-12 checkpoint (#80) | The checkpoint and reconciliation report remain historical records. The current [closeout packet](review/phase-2-integration/acceptance-packet-2026-09-12.md) refreshes the live baseline, evidence classes, open decisions, and coordination order without rewriting those reports |
-| Next gates | Agent 2 safety follow-up; owner decisions | Agent 3's first quiet-host preflight failed closed before measurement at `2561d3f`; have Agent 2 publish/validate the existing S5 and September 12 evidence on its isolated branch. Do not request another S5 run without a specific evidence defect. Resolve F1/F2/F3, platform scope, P2-10 evidence strength, inline onboarding, and criterion-by-criterion acceptance. Keep production scanning hidden until P2-03 through P2-08 have integrated evidence |
+| Next gates | Owner decisions and remaining checks | Agent 3's first quiet-host preflight failed closed before measurement at `2561d3f`; Agent 2 published/validated the existing S5 and September 12 evidence at `e209b8a` in draft #110, with no defect and no S5 rerun. Wait for the remaining required checks, then resolve F1/F2/F3, platform scope, P2-10 evidence strength, inline onboarding, and criterion-by-criterion acceptance. Keep production scanning hidden until P2-03 through P2-08 have integrated evidence |
 | Open/unverified | DriveFS modes (#47), cross-volume/FAT32 identity (#48) | Merged [PR #90](https://github.com/guilhermebmichelin-create/fruitboard/pull/90) (`f487aa1`) records the exact blockers and setup needed. No platform qualification or exclusion is claimed |
 | Deferred | Parsing (#39), logical grouping, Kanban, playback, sync, PWA | Phase 2 is filesystem-only; bounded independent Rust-parser spike follows accepted MVP |
 
@@ -295,10 +295,9 @@ the current closeout packet records their evidence classes separately from
 acceptance. Any local or unmerged agent work remains provisional and is not
 used as merged evidence.
 
-The remaining sequence is: (1) coordinate Agent 3's quiet-host A/B window with
-heavy builds paused; (2) after its samples and logs are complete, coordinate
-Agent 2's safety follow-up and publish the existing installed evidence; (3)
-resolve F1 (10,005 observations versus
+The remaining sequence is: (1) Agent 3's first quiet-host preflight has failed
+closed before measurement; (2) Agent 2's safety follow-up is published at
+`e209b8a` in draft #110 with no defect and no S5 rerun; (3) resolve F1 (10,005 observations versus
 the 10,000 staging quota), F2 (contended warm p95 14,267 ms versus the 10 s
 target), and F3 (the 100,000-entry set remains unmeasured); (4) land #47/#48
 evidence or record explicit owner scope decisions; and (5) finish the owner's
