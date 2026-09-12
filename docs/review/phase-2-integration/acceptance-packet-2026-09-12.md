@@ -434,7 +434,7 @@ parent, tree, and stable patch ID as `19585da`; it remains historical
 provenance.
 
 The branch now cherry-picks #112's `eace2e6` as `879010d`. The result retains
-#111's durable diagnostic propagation (`finish_scan_run_with_error` and its
+PR #111's durable diagnostic propagation (`finish_scan_run_with_error` and its
 closed durable vocabulary) while carrying #112's bounded path-free
 `partial_class` through both worker paths and emitting only sanitized fixed
 protocol fields. The checklist and installed-journey README retain the union

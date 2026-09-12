@@ -170,7 +170,7 @@ The owner decisions are collected in the [closeout packet](acceptance-packet-202
 Agent 3's first quiet performance window failed closed before measurement in
 draft #108 at `2561d3f`; no quiet-host qualification was claimed. Its later
 normal-config current-main series retains the `Failed`/`Partial` finding above.
-#112 did not reproduce the original result; its `partial_class` field and
+PR #112 did not reproduce the original result; its `partial_class` field and
 sanitized protocol identify future occurrences without explaining the
 historical one. Agent 2's follow-up is isolated in draft #110 at `e209b8a`,
 with no S5 rerun and no product defect identified. No heavy Cargo, Rust,
@@ -184,7 +184,7 @@ S5 or NTFS run is requested absent a specific evidence defect.
 
 Code/evidence review and Phase 2 acceptance are separate gates. This existing
 isolated integration branch replays #110's canonical `19585da`, preserves
-#111's durable diagnostic propagation and NTFS evidence, and includes #112's
+PR #111's durable diagnostic propagation and NTFS evidence, and includes #112's
 bounded `partial_class` reporting plus sanitized benchmark protocol. It is a
 synthetic review candidate, not merged main and not owner acceptance. The exact
 candidate SHA and its ten required GitHub checks are recorded only after the
