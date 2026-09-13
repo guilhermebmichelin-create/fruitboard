@@ -369,8 +369,8 @@ The owner-ready source sequence is:
    candidate; do not treat it as the next merge vehicle.
 
 Keep PR #108's performance record diagnostic: its quiet-host gate failed closed,
-the retained current-main `Failed`/`Partial` iteration is unexplained, and
-#112 did not reproduce it. Any budget, fixture, platform, contract, or P2
+the retained current-main `Failed`/`Partial` iteration is unexplained, and the
+PR #112 record did not reproduce it. Any budget, fixture, platform, contract, or P2
 acceptance change needs its own owner decision and evidence.
 
 This packet itself is documentation/coordination only. It does not merge,

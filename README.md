@@ -39,9 +39,9 @@ carry the current dependency map, evidence boundaries, and owner decision
 list. Historical failed replays remain historical and performance remains
 unqualified.
 
-The current owner-ready source sequence is #110 -> #111 -> #112. #111 and
-#112 are already stacked on their parents; #113 is an older synthetic
-candidate. After each owner squash merge, update the next dependent PR against
+The current owner-ready source sequence is #110 -> #111 -> #112. The #111 and
+the #112 branches are already stacked on their parents; the #113 branch is an older
+synthetic candidate. After each owner squash merge, update the next dependent PR against
 the verified actual `main`, excluding the old parent's commits. Agents prepare
 and verify; the owner retains merge and acceptance authority.
 

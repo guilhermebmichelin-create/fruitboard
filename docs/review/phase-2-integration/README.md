@@ -190,8 +190,8 @@ At this handoff, the live dependency heads are #110 `e209b8ad46adfc2d66d2c2b1828
 (based on `main` `3ebac5f7a76c3425620ceba59e6078b32fb6cd85`), #111
 `a3b90a461f32a0ab2e49f42840da7fbdeceb6673` (based on #110), and #112
 `9da0272fb2fefac9775028ed6bf8013459c10cad` (based on #111). The historical
-#113 candidate is `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`, based directly on
-`main`; it is not the current stack head.
+The #113 candidate is `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`, based
+directly on `main`; it is not the current stack head.
 
 The current source stack already contains #110's one canonical S5 patch
 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`. Recovered `de396e7` is historical
