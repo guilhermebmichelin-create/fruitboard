@@ -13,11 +13,14 @@ enabled on `main` (2026-09-07; see [DEVELOPMENT.md](DEVELOPMENT.md#enforced-bran
 accepted**: the reproducible Tauri/React shell now includes Rust-owned local
 SQLite, one persisted startup-view preference, automated quality/security
 gates, and a Windows packaging smoke. It still has no parser, project workflow,
-sync, or PWA. Phase 2 proceeds under epic #33. The current merged baseline and
-live review state are maintained in the [dated live review status table](docs/review/phase-2-integration/README.md#live-review-status-2026-09-12).
-The material implementation provenance is merged through PR #106, and the
-final reconciliation refresh is PR #91; historical merge and CI references
-remain in the integration index and dated reports.
+sync, or PWA. Phase 2 proceeds under epic #33. The verified source baseline for
+this documentation refresh is `71848732216d4ab4e13e73c820b2b8e4d17bddbe`,
+which includes the squash merges of #110 (`e2948f1`), #111 (`914d7bd`),
+the merged #112 (`00884ba`) and #114 (`7184873`).
+The [dated live review status table](docs/review/phase-2-integration/README.md#live-review-status-2026-09-13)
+records the exact current heads and whether #112 and #114 have actually merged.
+Historical merge, tested-source, and CI references remain in the integration
+index and dated reports.
 
 Implemented behavior, automated evidence, installed evidence, and owner
 acceptance stay separate — none is Phase 2 acceptance. P2-08 remains Partial
@@ -27,10 +30,12 @@ integrated evidence and owner acceptance.
 
 The canonical installed validation remains the merged PR #106 report
 `installed-journey/run-20260909-fixed-validation.md`: S1–S4 PASS, S6 PASS,
-and S5 is the terminal-follow-up/successor path. Agent 2's later evidence
-separately verifies genuine running-lease same-job recovery and queued
-disable/remove, with no product or contract defect found; it remains
-unmerged evidence and does not close #107 or accept Phase 2.
+and S5 is the terminal-follow-up/successor path. Merged #110 separately
+publishes Agent 2's queued/running/terminal, queued disable/remove, and
+genuine running-lease same-job evidence; it remains installed evidence and
+does not close #107 or accept Phase 2. The #111 NTFS report remains tied to its
+tested product source even though the PR's product and evidence changes are
+now merged.
 
 The [Phase 2 integration index](docs/review/phase-2-integration/README.md),
 [execution plan](docs/PHASE_2_EXECUTION_PLAN.md), and [2026-09-12 acceptance
@@ -39,11 +44,11 @@ carry the current dependency map, evidence boundaries, and owner decision
 list. Historical failed replays remain historical and performance remains
 unqualified.
 
-The current owner-ready source sequence is #110 -> #111 -> #112. The #111 and
-the #112 branches are already stacked on their parents; the #113 branch is an older
-synthetic candidate. After each owner squash merge, update the next dependent PR against
-the verified actual `main`, excluding the old parent's commits. Agents prepare
-and verify; the owner retains merge and acceptance authority.
+The source sequence is now merged #110 -> #111 -> #112 -> #114. #112's
+diagnostic changes and #114's executable qualification runbook/validator are
+in main, but no qualification run or acceptance is recorded. PR #113 remains
+an older synthetic candidate. Agents prepare and verify; the owner retains Phase 2 acceptance,
+scope, budget, and issue-closure authority.
 
 Tracking starts at
 [Phase 2 epic #33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)
@@ -103,5 +108,7 @@ The canonical repository is public since 2026-09-07 at
 repository, not the product rules: privacy rules are unchanged (no telemetry or
 third-party tracking), FLP files remain read-only inputs, private paths and
 project data stay out of commits and logs, review evidence discipline still
-applies, and the owner merges every pull request manually; agents prepare and
-review changes, while owner acceptance and decision authority remain separate.
+applies, and merge authority is exercised only for reviewed, checked pull
+requests; agents prepare and review changes, while owner acceptance and
+decision authority remain separate. A documentation merge does not accept
+Phase 2 or authorize production scanning.

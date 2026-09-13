@@ -26,25 +26,26 @@ The active sources are now:
 | [Reconciliation report](reconciliation-2026-09-08.md)                           | Preserved historical ledger and dated addenda                           |
 | [This packet](acceptance-packet-2026-09-12.md)                                  | Current evidence classes, decisions, coordination, and proposed updates |
 
-The S5 regression and its preserved 2026-09-10 disposition are retained in
-Agent 2's isolated branch. The September 12 driver, installed report,
-checklist addendum, and index changes are published in draft PR
-[#110](https://github.com/guilhermebmichelin-create/fruitboard/pull/110).
-The dirty main checkout's source copies remain untouched. The branch contents
-are still evidence only: not merged and not owner-accepted.
+The S5 regression and its preserved 2026-09-10 disposition were published by
+merged PR [#110](https://github.com/guilhermebmichelin-create/fruitboard/pull/110)
+at head `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a`, with merge commit
+`e2948f1bcc03af162ff95ba06ddd6033f2547da6`. The September 12 driver,
+installed report, checklist addendum, and index changes remain installed
+evidence from canonical source `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`;
+they are merged as records, not owner acceptance. The dirty main checkout's
+source copies remain untouched.
 
-Draft PR [#111](https://github.com/guilhermebmichelin-create/fruitboard/pull/111)
-was reviewed at
-`ef085229471301043a50f4b668901d9c956fb407`. Its current head is recorded in
-the [dated live review status table](README.md#live-review-status-2026-09-12).
-It is a mixed product-and-evidence change, not an
-evidence-only PR: its local-NTFS report records denied traversal, unchanged-
-bound `ResourceLimit`, and in-root hardlink observations, while tested source
-`05fb35c153dd3f177b900292d39998da3774b5e4` changes durable product-owned diagnostics and desktop scan-console
-mapping for `access_denied`, `resource_limit`, `unsupported`, `unavailable`,
-and `worker_failed`. The installed run used `05fb35c` and was not rerun for
-the later hardening revision. Neither tested source, reviewed/current PR head,
-nor its product changes are part of the merged baseline or owner acceptance.
+PR [#111](https://github.com/guilhermebmichelin-create/fruitboard/pull/111) was
+merged at head `606635c06b6eabf345c3e91fa95409eee654afea` with merge commit
+`914d7bd2475a11a5e7286086f15bce1d4bd148a5`. It is a mixed product-and-evidence
+change, not an evidence-only PR: its local-NTFS report records denied
+traversal, unchanged-bound `ResourceLimit`, and in-root hardlink observations,
+while tested source `05fb35c153dd3f177b900292d39998da3774b5e4` changes durable
+product-owned diagnostics and desktop scan-console mapping for `access_denied`,
+`resource_limit`, `unsupported`, `unavailable`, and `worker_failed`. The
+installed run used `05fb35c` and was not rerun for the later hardening revision.
+The product changes are in merged `main`, but the installed observations remain
+tied to their tested source and are not owner acceptance.
 
 The #111 history also contains recovered S5 commit `de396e7`. It has the same
 parent, tree, and stable patch ID as the canonical S5 source
@@ -59,20 +60,30 @@ The September 12 installed verification used canonical source
 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`, whose diff from `3ebac5f` is
 test/documentation only. The additive report records queued state, queued
 disable/remove, and a genuine same-job restart recovery; those observations
-are evidence only and are not yet merged or owner-accepted.
+are now published in merged #110, remain installed evidence, and are not
+owner-accepted.
 
-The separate #111 NTFS run used tested source `05fb35c153dd3f177b900292d39998da3774b5e4`
-and its report was published in reviewed revision `ef085229471301043a50f4b668901d9c956fb407`.
+The separate #111 NTFS run used tested source
+`05fb35c153dd3f177b900292d39998da3774b5e4` and its report was published in
+reviewed revision `ef085229471301043a50f4b668901d9c956fb407`.
 The later hardening revision adds durable/API validation and harness cleanup
-without rerunning the installed cases. The tested source includes the focused product correction
-which persists fixed durable diagnostics and maps them to typed desktop
-scan-console presentation; it is unmerged code, not an evidence-only
-documentation change. The merged implementation boundary remains `3ebac5f`,
-and owner acceptance remains a separate decision.
+without rerunning the installed cases. The tested source includes the focused
+product correction which persists fixed durable diagnostics and maps them to
+typed desktop scan-console presentation; that correction is now in merged
+`main`, while the installed observations remain historical tested-source
+evidence. Owner acceptance remains a separate decision.
 
-Draft PR [#112](https://github.com/guilhermebmichelin-create/fruitboard/pull/112)
-has its current head in the dated status table; its earlier diagnostic
-revision is historical. Its disposition is explicit:
+PR [#112](https://github.com/guilhermebmichelin-create/fruitboard/pull/112)
+merged at head `386b4c9808bca0853dbe71757f121d4106b6d82e` with merge commit
+`00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8`, based on the verified merged #111
+baseline. Its diagnostic revisions are now in main; they remain diagnostic and
+do not establish performance qualification. PR [#114](https://github.com/guilhermebmichelin-create/fruitboard/pull/114)
+merged at head `0aa9020c5f524de7f7d0f78226f500f5e021baf3` with merge commit
+`71848732216d4ab4e13e73c820b2b8e4d17bddbe4`; it adds the qualification runbook
+and report validator, but no qualification run. Both merge states were
+verified on GitHub; neither establishes owner acceptance.
+
+The #112 disposition is explicit:
 the original `3ebac5f` current-main `Failed`/`Partial` artifact remains
 unexplained and was not reproduced. It adds bounded, path-free
 `partial_class` coverage and a sanitized benchmark protocol; later passes do
@@ -105,11 +116,16 @@ changes, and historical classifications remain unchanged.
 
 ## Live GitHub baseline
 
-The baseline and current PR heads were checked against GitHub before local
-work started. See the [dated live review status table](README.md#live-review-status-2026-09-12)
-for the exact OIDs and dependency state. It records the current source-stack
-head separately from the older combined candidate and from the installed
-evidence sources.
+The verified source baseline is
+`71848732216d4ab4e13e73c820b2b8e4d17bddbe`, the squash merge commit for #114
+after #112's merge commit `00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8`; it also
+contains #111's merge commit `914d7bd2475a11a5e7286086f15bce1d4bd148a5` and
+the #110 merge commit `e2948f1bcc03af162ff95ba06ddd6033f2547da6`. See the
+[dated live review status table](README.md#live-review-status-2026-09-13) for
+the exact OIDs and current PR state. GitHub reports #110, #111, #112, and #114
+as merged at this snapshot.
+The source-stack state is not inferred from a synthetic candidate or an
+installed evidence source.
 
 Main protection is unchanged. It requires pull requests and ten named
 contexts with strict up-to-date branches. The nine-job Foundation run for the
@@ -117,14 +133,14 @@ merged baseline is not described as the ten-context protection result.
 
 ## Source-stack and installed-source boundaries
 
-The current stack is #110 `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a` -> #111
-`a3b90a461f32a0ab2e49f42840da7fbdeceb6673` -> #112
-`9da0272fb2fefac9775028ed6bf8013459c10cad`. PR #111 is already based on #110,
-and #112 is already based on #111; therefore #112 is the current source-stack
-head. PR #113 is a separate older synthetic combined candidate at
-`e90b03cc0bddd1a449e817ea2d89708a85c82ef1`, based on `main`, not a refresh of
-the current stack. Its own green checks do not validate the newer stack. This
-distinction is a review dependency, not an acceptance statement.
+The merged source sequence is #110 -> #111 -> #112 -> #114. #112's diagnostic
+follow-up and #114's qualification-runbook/validator changes are in the merged
+baseline, but no qualification run or owner acceptance is recorded. PR #113 is
+a separate older synthetic combined
+candidate at `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`, based on the earlier
+`main` baseline, not a refresh of the current source state. Its own green
+checks do not validate an unmerged newer stack. This distinction is a review
+dependency, not an acceptance statement.
 
 The independent review artifact in the #112/#113 history reviewed earlier
 candidate `37cd6c6ec1bef00af03456ddd6155cd0c704c8b8` and explicitly says it is
@@ -133,11 +149,13 @@ No GitHub review approval is inferred here; green checks are CI provenance only.
 
 Agent 2's installed evidence used canonical S5 source
 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`, whose diff from merged `main` is
-test/documentation-only. The #111 installed NTFS cases used unmerged product
+test/documentation-only. The #111 installed NTFS cases used tested product
 source `05fb35c153dd3f177b900292d39998da3774b5e4` and reviewed report revision
 `ef085229471301043a50f4b668901d9c956fb407`; the current #111 head was not used
-to relabel those observations. The #92 and #106 installed records retain their
-recorded baselines. None of these sources is owner acceptance.
+to relabel those observations. The #111 product correction is now in merged
+`main`, but no installed NTFS case was rerun on that merged source. The #92 and
+the #106 installed records retain their recorded baselines. None of these sources
+is owner acceptance.
 
 ## Merged implementation and evidence classes
 
@@ -170,6 +188,11 @@ canonical S5 source
 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f` is unmerged test/documentation
 provenance and is not listed as a merged implementation.
 
+The merged implementation record also includes #110 at merge commit
+`e2948f1bcc03af162ff95ba06ddd6033f2547da6` and #111 at merge commit
+`914d7bd2475a11a5e7286086f15bce1d4bd148a5`. Their merge records do not
+convert the historical installed observations into current-head evidence.
+
 ## P2-01 through P2-12 evidence ledger
 
 Installed records have their own provenance. The #92 journey was recorded on an
@@ -178,21 +201,25 @@ patch-identical candidate `ded02ac`, not `3ebac5f`. Neither is silently
 relabeled as an installed run on the current head. The #110 queued/restart
 record used canonical source
 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`; the #111 NTFS record used
-unmerged product source `05fb35c153dd3f177b900292d39998da3774b5e4` and was
+tested product source `05fb35c153dd3f177b900292d39998da3774b5e4` and was
 published at reviewed revision
-`ef085229471301043a50f4b668901d9c956fb407`. These tested-source, PR-head,
-merged-code, and owner-acceptance boundaries remain separate.
+`ef085229471301043a50f4b668901d9c956fb407`. The product changes from both
+merged PRs are now in main at `914d7bd`, but those installed observations have
+not been silently relabeled as current-head runs. Tested-source, PR-head,
+merged-code, CI, and owner-acceptance boundaries remain separate.
+
+<!-- markdownlint-disable MD060 -->
 
 | ID    | Merged implementation                                                              | Automated tests/evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Installed evidence                                                                                                                                                                                                                                           | Remaining acceptance                                                   |
 | ----- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
 | P2-01 | #34/#35 picker, settings, and inline onboarding implementation                     | Client/Windows CI and #58 fake-adapter keyboard/narrow evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | #92 picker cancel/selection, persistence, and restart; #54 picker record                                                                                                                                                                                     | Owner decision on inline onboarding and criterion acceptance           |
 | P2-02 | #59 reconciliation core, #64 enumeration, #70 worker                               | Deterministic reconciliation and Windows fixture tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | #92 add/modify/rename and remove/restore convergence                                                                                                                                                                                                         | Platform scope and owner acceptance                                    |
-| P2-03 | #62/#70 safety path plus #85 fault cases                                           | Partial/offline/cancel/resource-limit fault-injection tests; #111 adds focused diagnostic mapping tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | #92 cancellation and unavailable-root retention; #111 `ef08522` records local-NTFS denied traversal and unchanged-bound `ResourceLimit` passes, tested from unmerged `05fb35c`                                                                               | Denied/limited traversal and owner acceptance                          |
+| P2-03 | #62/#70 safety path plus #85 fault cases                                           | Partial/offline/cancel/resource-limit fault-injection tests; #111 adds focused diagnostic mapping tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | #92 cancellation and unavailable-root retention; #111 `ef08522` records local-NTFS denied traversal and unchanged-bound `ResourceLimit` passes, tested from historical source `05fb35c`                                                                               | Denied/limited traversal and owner acceptance                          |
 | P2-04 | #60/#61/#70 durable state, #82 recovery, #104 active-slot fix                      | Migration/scan-execution gates, #97 convergence/stale fences, and #104 regression                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | #92 persistence/cancel/recovery; #101/#102 historical stall; #106 S1/S4/S6 pass and S5 successor path; #110 queued/running/terminal states and genuine same-job restart recovery; #111 `de396e7` is tree-identical recovered S5 provenance, not new evidence | Installed S5 path disposition and owner acceptance                     |
 | P2-05 | #60/#62/#85 lease, disable/remove, staging, and stale-publication paths            | Lease, disable/remove, and publication tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | #92 disable-while-running retention; September 12 queued disable and queued remove cancel before publication                                                                                                                                                 | Installed evidence is pending review and owner acceptance              |
 | P2-06 | #62/#85 atomic publication, crash/rollback, backup, and migration paths            | Crash, recovery, backup, and migration tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | #92 clean restart/interrupted recovery; #106 did not establish a genuine crash with a running lease; September 12 hard-kill copy proves a running lease, then same job/retry chain recovery                                                                  | Correctly classified crash-recovery evidence and owner acceptance      |
-| P2-07 | #59/#62/#85 identity, alias, rename, and replacement paths                         | Alias and rename tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | #92 rename convergence; #111 `ef08522` true in-root hardlink-alias result on local NTFS, tested from unmerged `05fb35c`                                                                                                                                      | #48 decision/qualification and owner acceptance                        |
-| P2-08 | #73/#77/#78/#81/#82 IPC, native adapter, lifecycle, and supervision; #95 alignment | Feature-on CI and IPC/adapter/lifecycle/recovery tests; #104 regression; #111 diagnostic-mapping tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | #92 journey; #106 S1-S4/S6 installed observations; #110 native/UI queued snapshot and queued invalidation; #111's unmerged `05fb35c` changes durable diagnostics and typed desktop error presentation; full criterion remains Partial                        | Full-criterion review remains Partial, not Complete                    |
+| P2-07 | #59/#62/#85 identity, alias, rename, and replacement paths                         | Alias and rename tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | #92 rename convergence; #111 `ef08522` true in-root hardlink-alias result on local NTFS, tested from historical source `05fb35c`                                                                                                                                      | #48 decision/qualification and owner acceptance                        |
+| P2-08 | #73/#77/#78/#81/#82 IPC, native adapter, lifecycle, and supervision; #95 alignment | Feature-on CI and IPC/adapter/lifecycle/recovery tests; #104 regression; #111 diagnostic-mapping tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | #92 journey; #106 S1-S4/S6 installed observations; #110 native/UI queued snapshot and queued invalidation; #111's tested-source `05fb35c` product changes for durable diagnostics and typed desktop error presentation; full criterion remains Partial                        | Full-criterion review remains Partial, not Complete                    |
 | P2-09 | #68/#69/#71/#81/#82 watcher, coalescing, generation, and reconnect paths           | #97 automated queue/burst/fence counts and watcher tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | #92 follow-ups; #106 isolated burst pass; real overflow timing and DriveFS remain unverified                                                                                                                                                                 | Installed timing/overflow evidence, #47 decision, and owner acceptance |
 | P2-10 | #81 static no-parser/no-content-I/O guards and fixture-byte equality               | Dependency/privacy checks, static guards, and preservation tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Native-adapter independence was observed; no runtime content-read spy was run                                                                                                                                                                                | Owner chooses static boundary or runtime spy gate                      |
 | P2-11 | #67/#72 harness, #86 rerun, #93 profile, #94 cleanup, #98 validation               | F1 reproduced; historical contended warm p95 14,267 ms versus 10 s; Agent 3's strict quiet-host gate failed closed, while draft #108 `a44653b` records normal-config diagnostic medians 14,879 / 10,120 / 14,982 ms and p95 values 44,778 / 10,391 / 25,601 ms plus before/candidate/current-main profiles; current-main retains 9/10 authoritative iterations plus one `Failed`/`Partial` at 11,137 ms. #112 records the original Partial as unexplained and not reproduced, and adds bounded diagnostic coverage plus a sanitized protocol. Later passes do not establish its cause or performance acceptance; F3 remains unmeasured | No installed performance qualification                                                                                                                                                                                                                       | F1/F2/F3 decisions and any owner-approved remeasurement                |
@@ -202,7 +229,19 @@ The table deliberately does not use `Complete` as a synonym for “merged” or
 “automated checks pass.” P2-08's older `Complete` wording is superseded by the
 reconciled Partial disposition. No acceptance ID is promoted by this packet.
 
+For the installed-evidence cells, `unmerged` qualifies the historical tested
+source, not the current GitHub status of #111. The #111 product changes are in
+merged main `914d7bd`; the local-NTFS observations remain tied to `05fb35c`.
+
+<!-- markdownlint-enable MD060 -->
+
 ## S5: genuine crash recovery versus terminal follow-up
+
+Current status: #110, #111, #112, and #114 are merged in main. #112 merged at
+`00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8`; #114 merged at
+`71848732216d4ab4e13e73c820b2b8e4d17bddbe4`. The ordered records below retain
+the historical review sequence; neither merge establishes qualification or
+owner acceptance.
 
 The #106 run must be read as two different state-machine paths:
 
@@ -229,12 +268,13 @@ running-lease case: after an exact-PID hard kill, the same job and retry chain
 reached attempt two, the old run became `interrupted/restart`, and a fresh run
 completed with 8,000 published rows. It also records queued disable/remove
 with `runId: null` before mutation. The report and driver are published in
-draft PR #110, pending review and owner acceptance; they do not promote P2-04,
+merged PR #110; the reviewed evidence still requires owner acceptance and does
+not promote P2-04,
 P2-05, P2-06, or P2-08.
 
-Draft #111 repeats the recovered S5 tree in `de396e7`, but that commit has the
-same parent, tree, and stable patch ID as `19585da`; it is not another recovery
-run. The current dependency stack has already retained #110's `19585da`
+The #111 historical review record repeats the recovered S5 tree in `de396e7`, but
+that commit has the same parent, tree, and stable patch ID as `19585da`; it is
+not another recovery run. The current dependency stack has already retained #110's `19585da`
 canonical and removed the duplicate from the live #111/#112 source ancestry.
 Do not drop or replay `de396e7` during future updates; preserve it only as
 historical provenance. Shared checklist/index files already carry the #110
@@ -244,8 +284,9 @@ below.
 
 The #111 product portion is separately reviewable: tested source `05fb35c`
 persists fixed worker/storage diagnostic codes and the desktop scan console maps
-those durable codes to typed user-facing errors. It is not evidence-only and it
-is not merged into `3ebac5f`; no owner acceptance follows from its green checks.
+those durable codes to typed user-facing errors. It is not evidence-only. Its
+product changes are merged in `914d7bd`; the installed observations remain tied
+to `05fb35c`, and no owner acceptance follows from its green checks.
 
 No additional S5 or NTFS run is requested for this stack. A future run would
 require a newly identified evidence defect and separate owner authorization; it
@@ -264,6 +305,12 @@ the Agent 2 follow-up remains coordinated below:
 | 2     | Agent 2                    | **Completed evidence follow-up in PR #110.** The existing S5 regression and September 12 installed artifacts are isolated and published; no product/contract defect was found and no S5 rerun was performed. Its recorded checks are not a GitHub approval or owner acceptance.                                                                                                                 |
 | 3     | Agent 1 / Agent 3 review   | **Review PR #111 as the mixed NTFS/product follow-up.** Its reviewed report revision is the unmerged NTFS evidence source recorded above; review durable diagnostic persistence and typed desktop error mapping separately from the local-NTFS observations, and do not replay `de396e7`.                                                                                                       |
 | 4     | Agent 2 independent review | **Review the older combined candidate after comparing it with the current #110 → #111 → #112 source stack.** Check that #111's durable diagnostic propagation remains intact alongside #112's `partial_class` reporting and sanitized benchmark protocol. This is a code/evidence gate only; it does not establish the original Partial's cause, performance acceptance, or Phase 2 acceptance. |
+
+The ordered table preserves the historical coordination plan. Current GitHub
+state is #110, #111, #112, and #114 merged in main; #112's diagnostics and
+The #114 runbook/validator remain non-qualification evidence. The #111 report
+revision is historical installed evidence even though its product changes are
+merged; it is not a current-head rerun.
 
 Before and throughout Agent 3's measurement, and during any Agent 2
 reproduction window, pause heavy Rust, Tauri, Cargo, pnpm, packaging,
@@ -300,7 +347,7 @@ was made by this task.
 - **#33:** Keep the epic open. Link this packet after it is merged, state that
   implementation and evidence are present but F1/F2/F3, platform scope,
   P2-10, onboarding, S5 disposition, and owner acceptance remain open. Note
-  that draft #111 is a mixed product-and-evidence change, not evidence-only.
+  that merged #111 is a mixed product-and-evidence change, not evidence-only.
 - **#36, #37, #38, and #40:** Replace “implementation pending” wording with
   “implementation merged; acceptance evidence is classified in the 2026-09-12
   packet.” Keep each open until the owner accepts its criterion and any named
@@ -309,10 +356,10 @@ was made by this task.
   then record the owner's static-boundary versus runtime-spy choice. Do not
   claim a runtime spy before it exists.
 - **#41:** Keep the aggregator open and link this packet plus the [dated live
-  status table](README.md#live-review-status-2026-09-12). State that the
-  current source stack is #110 → #111 → #112, while #113 is an older combined
+  status table](README.md#live-review-status-2026-09-13). State that the
+  current source stack is #110 → #111 → #112 → #114, while #113 is an older combined
   candidate; its checks are not acceptance. Preserve the canonical S5 source
-  `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`, the unmerged #111 product
+  `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`, the tested #111 product
   source `05fb35c153dd3f177b900292d39998da3774b5e4`, and the report revision
   `ef085229471301043a50f4b668901d9c956fb407`. State that the original Partial
   remains unexplained and not reproduced, #112 adds bounded diagnostics
@@ -329,7 +376,7 @@ was made by this task.
   terminal `follow_up_requested` transition, while the September 12 evidence
   separately demonstrates same-job recovery from a genuinely running lease.
   Agent 2 found no defect and published the isolated test/report artifacts in
-  draft #110. Draft #111's `de396e7` is tree- and patch-identical S5 recovery
+  merged #110. #111's `de396e7` is tree- and patch-identical S5 recovery
   provenance, not a second run; keep the canonical full S5 source above when rebasing the
   stack. No additional S5 or NTFS run is requested unless a specific new
   evidence defect is identified and separately authorized.
@@ -338,17 +385,28 @@ was made by this task.
 
 No issue is closed, and no owner acceptance is inferred by these proposals.
 
-## Dependency and merge order
+## Current dependency and merge order
 
-The [dated status table](README.md#live-review-status-2026-09-12) records the
-current dependency facts. The source stack is #110 → #111 → #112, with #112
+GitHub verification records main at `71848732216d4ab4e13e73c820b2b8e4d17bddbe`,
+with #110 squash-merged as `e2948f1bcc03af162ff95ba06ddd6033f2547da6`, #111
+squash-merged as `914d7bd2475a11a5e7286086f15bce1d4bd148a5`, #112
+squash-merged as `00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8`, and #114
+squash-merged as this main SHA. #109 is the documentation-only publication
+vehicle and must be checked against the exact main head immediately before its
+guarded merge. PR #113 is a historical synthetic candidate, not a merge
+prerequisite.
+
+## Historical dependency and merge order
+
+The dated status table referenced by this historical section records the
+historical dependency facts. The historical source stack was #110 -> #111 -> #112, with #112
 as its head. PR #113 is an older synthetic combined candidate based on
 `main`; it is not the current source-stack head. The installed evidence remains
 tied to canonical S5 source
-`19585dae7bef9ffdec06b71e0627df1b3f7ceb2f` and to #111's unmerged product
+`19585dae7bef9ffdec06b71e0627df1b3f7ceb2f` and to #111's tested product
 source `05fb35c153dd3f177b900292d39998da3774b5e4` where applicable.
 
-The owner-ready source sequence is:
+The historical owner-ready source sequence was:
 
 1. Review/mark PR #110 ready and have the owner squash-merge its current head
    `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a`. Its installed observations and
@@ -373,8 +431,10 @@ the retained current-main `Failed`/`Partial` iteration is unexplained, and the
 PR #112 record did not reproduce it. Any budget, fixture, platform, contract, or P2
 acceptance change needs its own owner decision and evidence.
 
-This packet itself is documentation/coordination only. It does not merge,
-post, close, accept, or activate anything.
+This packet is documentation and coordination only. It does not constitute
+issue comments or closures, owner acceptance, a budget or scope decision,
+production scanning, or Phase 3 activation. The separately guarded #109 merge
+publishes these facts and does not change those boundaries.
 
 ## Cross-PR integration audit
 
@@ -415,10 +475,10 @@ combined evidence by the published #112 candidate.
 
 The owned #109 branch is documentation-only. The final publication checks are:
 
-- Targeted Markdownlint v0.23.2 on the four owned documents: **pass**, 0
+- Targeted Markdownlint v0.23.2 on the five owned documents: **pass**, 0
   issues.
-- Prettier v3.9.6 check on the four owned documents: **pass**, all matched.
-- `node scripts/verify-repository-privacy.mjs`: **pass** (279 files).
+- Prettier v3.9.6 check on the five owned documents: **pass**, all matched.
+- `node scripts/verify-repository-privacy.mjs`: **pass** (295 files).
 - `git diff --check`: **pass** for the owned documentation diff.
 - GitHub CI for the resulting #109 head: verified after push; all ten required
   contexts must be successful before handoff.
@@ -426,6 +486,7 @@ The owned #109 branch is documentation-only. The final publication checks are:
 The historical combined-audit checks above are not relabeled as checks newly
 run by this packet. Agent 2's recorded storage, desktop, driver, build, and
 installed results are likewise cited as prior evidence, not rerun here. No
-full source build, installed run, performance run, issue mutation, merge,
-approval, Phase 2 acceptance, or production activation was performed by this
-documentation slice. Agents prepare and review; the owner merges and accepts.
+full source build, installed run, performance run, issue mutation, approval,
+Phase 2 acceptance, or production activation was performed by this
+documentation slice. The owner-authorized #109 publication merge is guarded
+by the exact pushed head and required CI; it does not accept Phase 2.

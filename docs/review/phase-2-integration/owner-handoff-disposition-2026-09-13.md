@@ -1,68 +1,98 @@
-# Phase 2 owner-ready disposition — 2026-09-13
+# Phase 2 owner-ready disposition - 2026-09-13
 
-Status: **owner-ready merge handoff; Phase 2 is not accepted.** This is a
-local, evidence-based disposition. It does not claim a prior GitHub approval,
-merge, issue closure, budget change, scan activation, or Phase 3 work.
+Status: **ready to publish the factual documentation refresh; Phase 2 is not
+accepted.** This handoff does not authorize issue comments or closures, a
+budget/scope/fixture change, production scanning, or Phase 3 work.
 
 ## Independently verified live state
 
-The fetched Git refs and GitHub PR metadata agree on this dependency state:
+Only GitHub-verified merge metadata is recorded as merged here:
 
-| Item | Verified SHA / boundary | Provenance and checks |
+| Item | Current GitHub state | Boundary and evidence |
 | --- | --- | --- |
-| `main` | `3ebac5f7a76c3425620ceba59e6078b32fb6cd85` | Merged implementation boundary |
-| #110 | `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a`, based on `main` | Installed evidence was tested from canonical `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`; ten required GitHub contexts are green |
-| #111 | `a3b90a461f32a0ab2e49f42840da7fbdeceb6673`, based on #110 | NTFS observations used product source `05fb35c153dd3f177b900292d39998da3774b5e4` and report revision `ef085229471301043a50f4b668901d9c956fb407`; ten required contexts are green |
-| #112 | `9da0272fb2fefac9775028ed6bf8013459c10cad`, based on #111 | Current source-stack head; ten required contexts are green |
-| #113 | `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`, based on `main` | Historical synthetic candidate; ten required contexts are green |
-| #109 before this correction | `c66f9ba0ad12e5363a5b2f62a8eb006f5109e601` | Four-document publication; ten required contexts were green |
+| `main` | `71848732216d4ab4e13e73c820b2b8e4d17bddbe` | Baseline after the verified #110, #111, #112, and #114 squash merges |
+| #110 | Head `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a`; merge `e2948f1bcc03af162ff95ba06ddd6033f2547da6` | Merged; publishes queued/running/terminal, queued disable/remove, and genuine same-job restart evidence; no acceptance decision |
+| #111 | Head `606635c06b6eabf345c3e91fa95409eee654afea`; merge `914d7bd2475a11a5e7286086f15bce1d4bd148a5` | Merged mixed NTFS/product hardening; installed observations remain tied to tested source `05fb35c153dd3f177b900292d39998da3774b5e4` and report `ef085229471301043a50f4b668901d9c956fb407` |
+| #112 | Head `386b4c9808bca0853dbe71757f121d4106b6d82e`; merge `00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8` | Merged Agent 1-owned diagnostic/performance investigation; no performance qualification or Phase 2 acceptance |
+| #114 | Head `0aa9020c5f524de7f7d0f78226f500f5e021baf3`; merge `71848732216d4ab4e13e73c820b2b8e4d17bddbe` | Merged Agent 1-owned qualification runbook/validator; prepared, not executed, not qualification or acceptance |
+| #108 | Open draft; head `a44653bd27baaa5d2878c5a3bd118470cb6909dd` | Diagnostic record only: quiet-host gate failed closed at `2561d3f`; later normal-config measurements are not qualification |
+| #113 | Open ready; historical candidate `e90b03cc0bddd1a449e817ea2d89708a85c82ef1` | Synthetic combined candidate; no GitHub approval or merge; retain its evidence |
+| #109 | Documentation-only publication vehicle | Exact pushed head, required CI, guarded squash merge, and resulting `main` are verified separately from this snapshot |
 
-The `apps`, `crates`, `scripts`, and `tests` subtree object IDs are identical
-between #112 and #113:
+The current source, installed observations, CI results, and owner acceptance
+are separate facts. A green check proves only that the checked revision passed
+that check. It does not make an installed observation current-head evidence or
+accept a Phase 2 criterion.
 
-| Subtree | #112 and #113 tree ID |
-| --- | --- |
-| `apps` | `0c2d1661d2a524df203072eb6065f3914185c8c9` |
-| `crates` | `6bcdf100d7b25e104f92dc749b45318083362683` |
-| `scripts` | `f7554fda0f05c1cb255cc2361a59ee13046f7553` |
-| `tests` | `c4e09360f152d5c26c8a9735625747579c0481b9` |
+## Preserved evidence boundaries
 
-The only remaining #112/#113 differences are review and documentation files:
-the execution plan, integration index, acceptance packet, installed-journey
-README, and one independent-review document change.
-No source equivalence or installed case was rerun.
-
-## Review and handoff provenance
-
-The prior #109 publication is `c66f9ba`; its live handoff text contained stale
-rebase instructions. The independent review introduced in #112's `2680a24`
-and clarified by `de90668` reviewed earlier candidate
-`37cd6c6ec1bef00af03456ddd6155cd0c704c8b8` (code candidate
-`879010d8f3ae91c6f62409cb04ee1f1c8066ab15`). That review explicitly says it is
-historical provenance, not the approval record for later #113 SHA `e90b03c`.
-The live #113 PR has no GitHub review approval recorded. Green checks are CI
-provenance only.
-
-The current #110 -> #111 -> #112 stack already contains #110's single
-canonical S5 patch `19585da`. Recovered `de396e7` is historical provenance;
-duplicate-S5 removal is complete and must not be repeated during branch
-maintenance. Historical replay descriptions remain preserved in the packet.
+- Canonical S5 test/documentation source remains
+  `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`.
+- #111's recovered `de396e7` is historical duplicate-S5 provenance with the
+  same parent, tree, and stable patch ID as `19585da`; it must not be replayed
+  or deleted from the historical record.
+- The #111 installed NTFS report remains tested-source evidence from `05fb35c`
+  at reviewed report revision `ef085229471301043a50f4b668901d9c956fb407`.
+  The corresponding product changes are merged in `914d7bd`, but the NTFS run
+  was not silently relabeled as a run on that merged baseline.
+- #112 preserves the earlier diagnostic revisions, including
+  `eace2e643f462e2cf2b8074ecd66007e2a21d074`, and its merged head
+  `386b4c9`; it did not reproduce or explain the original #108 Partial.
+- #113's historical candidates, including `5cc8fb549966ebd53c135540b2f4c68339269680`,
+  `37cd6c6ec1bef00af03456ddd6155cd0c704c8b8`, and
+  `879010d8f3ae91c6f62409cb04ee1f1c8066ab15`, remain audit evidence. The
+  frozen `e90b03c` candidate is not a second merge path.
 
 ## Recommended dispositions
 
-- **#108:** retain its diagnostic artifacts as historical evidence and close
-  without merge only after linking that evidence to #112; do not call the
-  original `Failed`/`Partial` result explained or performance-qualified.
-- **#113:** preserve `e90b03c` and its checks as historical integration
-  evidence, then close without merge as superseded by the owner-maintained
-  #110 -> #111 -> #112 source stack. Do not retarget or merge it as a second
+- **#108:** retain as diagnostic evidence and recommend closing without merge
+  only after the owner links its classification to the #112 record. Do not
+  call the original `Failed`/`Partial` result explained or performance-
+  qualified.
+- **#113:** retain the synthetic replay and checks as historical evidence and
+  recommend closing without merge as superseded by the owner-maintained
+  #110/#111/#112/#114 source stack. Do not retarget or merge it as a second
   integration candidate.
 
-These are recommendations only; neither PR was closed by this handoff.
+Neither recommendation has been posted or applied.
 
-## Immediate owner handoff
+## Remaining qualification and acceptance decisions
 
-Review/mark #110 ready, then squash-merge #110 at `e209b8a`. If the owner does
-so, the next branch update must first fetch and verify actual `main`, then
-rebase only #111's commits after old parent `e209b8a` onto that main. The owner
-retains merge and Phase 2 acceptance authority.
+These are owner decisions and measurements still needed; none is accepted by
+this handoff, and no recommendation changes the existing budget or scope:
+
+- Decide F1 fixture alignment. The prepared recommendation is exactly 10,000
+  observations using `custom-9995`, seed `0`, and manifest
+  `a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a`.
+  Preserve the accepted 10,005-observation baseline hash
+  `8c3d85ec01299995208abfa450378b1b37c704e423593d7a4370ec465254afba` as
+  historical evidence unless the owner explicitly changes the contract.
+- Decide whether to authorize an eligible quiet-host F2 measurement, or defer
+  it with a named host-class/target decision. The current diagnostic medians
+  and p95 values are not qualification, and F3 scale evidence remains
+  unmeasured.
+- Decide F3 scale treatment and the current 10,000-entry contract; do not
+  adopt a new limit or budget from a recommendation alone.
+- Decide Phase 2 scope for #47 DriveFS and #48 FAT32/cross-volume identity, and
+  obtain the exact qualified runs if they remain in scope.
+- Decide the P2-09 overflow/timing evidence boundary and P2-10 static versus
+  runtime content-read-spy gate.
+- Review inline onboarding, #107/S5 disposition, and each P2-01 through P2-12
+  criterion for explicit owner acceptance. P2-08 remains Partial; no criterion
+  is promoted by this documentation merge.
+
+The #114 runbook validates report aggregation from individual measurements; it
+does not supply a benchmark, a qualification result, or an acceptance change.
+No production scanning or Phase 3 activity is authorized.
+
+## Publication handoff
+
+The #109 branch contains documentation-only corrections for the verified
+`71848732216d4ab4e13e73c820b2b8e4d17bddbe` baseline and preserves the historical
+source/evidence distinctions.
+Before publication, fetch `origin/main` once, confirm it is still the exact
+baseline documented above, run documentation/privacy/formatting checks and the
+required CI, review the final five-document diff, mark #109 ready, and squash-
+merge with an exact head guard. Verify the resulting GitHub merge and final
+`main` SHA. Agent 1's merged source work remains attributed to Agent 1; the
+owner retains Phase 2 acceptance authority.
