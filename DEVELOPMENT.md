@@ -43,6 +43,78 @@ At least one review and all required checks are expected before merge. A PR may
 be intentionally experimental only when labeled as a spike, produces a written
 decision/result, and does not silently become production architecture.
 
+## Local build and disk-space rules
+
+The agent workflow must budget disk space as a shared resource. The September
+2026 audit found about 102 GiB of unique generated files across 24 Rust build
+directories. Separate worktrees had accumulated separate compiler caches;
+preserving important evidence did not require preserving every intermediate.
+
+The root [AGENTS.md](AGENTS.md) makes these rules part of future agent planning
+and prompt generation.
+
+### Cache allocation and scheduling
+
+- Default to one primary development cache (`target/` in the primary checkout)
+  and one reusable temporary validation cache per machine. Record the actual
+  absolute validation-cache path and owner in the task handoff; do not create a
+  fresh long-lived cache for each agent, worktree, or PR.
+- Set `CARGO_TARGET_DIR` explicitly for validation tasks. Reuse it sequentially
+  with the pinned toolchain and required configuration. A cached executable is
+  not proof of its source: record the actual source SHA, build command, and
+  binary hash for provenance-sensitive checks.
+- Run one heavyweight local build at a time. Never let concurrent tasks write
+  to the same target directory. Independent source editing and lightweight
+  review can proceed in parallel outside qualification windows.
+- Installed tests retain their existing exclusive host-lock requirements.
+  Performance qualification runs alone after build/fixture preparation, with
+  other agent, build, and test workloads quiescent.
+
+### Disk preflight
+
+Before a heavyweight build or fixture generation, inspect free space on every
+volume used by the checkout, Cargo target, temporary directory, and evidence.
+For example, on Windows:
+
+```powershell
+Get-PSDrive -PSProvider FileSystem |
+  Select-Object Name, Root, @{Name='FreeGiB'; Expression={[math]::Round($_.Free / 1GB, 2)}}
+```
+
+Maintain a **30 GiB free-space reserve**, allowing for expected additional build
+and evidence output. This is a local workflow reserve, not a scanner performance
+budget or acceptance criterion. If capacity is insufficient, first reuse an
+appropriate cache, select another suitable local volume, or reclaim verified
+obsolete compiler intermediates within the task's authorization. Do not disable
+required checks or delete evidence to make a build fit. Report the measured
+capacity and concrete remaining blocker if none of those options is available.
+
+Use exact-head CI and source-equivalence evidence to avoid redundant local
+builds of unchanged code. Changed PR heads still require their normal checks;
+successful CI is not installed-app or performance qualification evidence.
+
+### Evidence retention and cleanup
+
+Keep fixtures, reports, databases, logs, and binaries retained for evidence in
+an explicitly recorded location outside disposable compiler caches. Retain
+source/build provenance and hashes; private raw evidence stays outside Git.
+
+At task completion or merge, classify the generated output as active cache,
+reusable cache, retained evidence, or obsolete compiler intermediates. Clean up
+only verified obsolete intermediates when cleanup is authorized. Preserve the
+primary development cache by default. Rebuilding an old cleaned worktree may
+take longer; source and evidence must remain intact.
+
+Before deletion, inventory files, verify resolved absolute paths and ownership,
+check for active users and reparse points, and record worktree state. Do not
+broad-delete temporary folders, entire worktrees, or everything under `target`.
+Afterward, verify protected files/worktrees and measure actual free-space gain;
+logical directory sizes can double-count hardlinks.
+
+Every agent handoff must state the cache path/owner, current disk capacity,
+retained evidence location, and any cleanup or rebuild implications. These rules
+are procedural; no automatic deletion or monitoring service is installed.
+
 ## GitHub governance
 
 Protect `main` with:
