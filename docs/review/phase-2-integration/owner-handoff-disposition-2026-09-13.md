@@ -7,18 +7,21 @@ fixture change, production scanning, or Phase 3 work.
 
 ## Independently verified measurement-boundary state
 
-Only GitHub-verified merge metadata is recorded as merged here:
+Only GitHub-verified merge metadata is recorded as merged here. The current
+publication SHA and the measured-source SHA are intentionally separate:
 
-| Item | Current GitHub state | Boundary and evidence |
-| --- | --- | --- |
-| `main` | `69f27f64f26aa657182a9260cc8e78f28a5838fb` | Exact current-main source used by the dated scanner qualification after the verified #109, #110, #111, #112, and #114 merges |
-| #110 | Head `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a`; merge `e2948f1bcc03af162ff95ba06ddd6033f2547da6` | Merged; publishes queued/running/terminal, queued disable/remove, and genuine same-job restart evidence; no acceptance decision |
-| #111 | Head `606635c06b6eabf345c3e91fa95409eee654afea`; merge `914d7bd2475a11a5e7286086f15bce1d4bd148a5` | Merged mixed NTFS/product hardening; installed observations remain tied to tested source `05fb35c153dd3f177b900292d39998da3774b5e4` and report `ef085229471301043a50f4b668901d9c956fb407` |
-| #112 | Head `386b4c9808bca0853dbe71757f121d4106b6d82e`; merge `00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8` | Merged Agent 1-owned diagnostic/performance investigation; no performance qualification or Phase 2 acceptance |
-| #114 | Head `0aa9020c5f524de7f7d0f78226f500f5e021baf3`; merge `71848732216d4ab4e13e73c820b2b8e4d17bddbe` | Merged Agent 1-owned qualification runbook/validator; the dated current-only execution is recorded separately and is non-qualifying, not Phase 2 acceptance |
-| #108 | Open draft; head `a44653bd27baaa5d2878c5a3bd118470cb6909dd` | Diagnostic record only: quiet-host gate failed closed at `2561d3f`; later normal-config measurements are not qualification |
-| #113 | Open ready; historical candidate `e90b03cc0bddd1a449e817ea2d89708a85c82ef1` | Synthetic combined candidate; no GitHub approval or merge; retain its evidence |
-| #109 | Head `659189528d4cb30568fa7ebdd12c91b454052074`; merge `69f27f64f26aa657182a9260cc8e78f28a5838fb` | Merged documentation-only factual refresh; its resulting tree is the measured-source boundary for the dated qualification |
+| Item   | Current GitHub state                                                                              | Boundary and evidence                                                                                                                                                                     |
+| ------ | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main` | `origin/main` `83da093672b5e2154097c897af533821b04f2352`                                          | Current publication boundary: PR #116 merge, and the exact clean starting point for this documentation refresh                                                                            |
+| #110   | Head `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a`; merge `e2948f1bcc03af162ff95ba06ddd6033f2547da6` | Merged; publishes queued/running/terminal, queued disable/remove, and genuine same-job restart evidence; no acceptance decision                                                           |
+| #111   | Head `606635c06b6eabf345c3e91fa95409eee654afea`; merge `914d7bd2475a11a5e7286086f15bce1d4bd148a5` | Merged mixed NTFS/product hardening; installed observations remain tied to tested source `05fb35c153dd3f177b900292d39998da3774b5e4` and report `ef085229471301043a50f4b668901d9c956fb407` |
+| #112   | Head `386b4c9808bca0853dbe71757f121d4106b6d82e`; merge `00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8` | Merged Agent 1-owned diagnostic/performance investigation; no performance qualification or Phase 2 acceptance                                                                             |
+| #114   | Head `0aa9020c5f524de7f7d0f78226f500f5e021baf3`; merge `71848732216d4ab4e13e73c820b2b8e4d17bddbe` | Merged Agent 1-owned qualification runbook/validator; the dated current-only execution is recorded separately and is non-qualifying, not Phase 2 acceptance                               |
+| #115   | Head `c868a91a7fd74a969a9910dd89be212679f05707`; merge `f811cf3cf6c2e0bc4e3cd161bdcd9e063d53eb35` | Merged documentation-only build/disk-space rules; no measurement or acceptance change                                                                                                     |
+| #116   | Head `484c5eb2ab3bcf5bca1d2ad419009de5ec61046a`; merge `83da093672b5e2154097c897af533821b04f2352` | Merged documentation-only qualification publication; records the current-only run measured from `69f27f6`, not owner acceptance                                                           |
+| #108   | Open draft; head `a44653bd27baaa5d2878c5a3bd118470cb6909dd`                                       | Diagnostic record only: quiet-host gate failed closed at `2561d3f`; later normal-config measurements are not qualification                                                                |
+| #113   | Open ready; historical candidate `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`                       | Synthetic combined candidate; no GitHub approval or merge; retain its evidence                                                                                                            |
+| #109   | Head `659189528d4cb30568fa7ebdd12c91b454052074`; merge `69f27f64f26aa657182a9260cc8e78f28a5838fb` | Merged documentation-only factual refresh; this is the measured-source boundary for the dated qualification, not the current publication SHA                                              |
 
 The current source, installed observations, CI results, and owner acceptance
 are separate facts. A green check proves only that the checked revision passed
@@ -58,42 +61,33 @@ from the exact measured source pin `69f27f64f26aa657182a9260cc8e78f28a5838fb`.
 
 ## Recommended dispositions
 
-- **#108:** retain as diagnostic evidence and recommend closing without merge
-  only after the owner links its classification to the #112 record. Do not
-  call the original `Failed`/`Partial` result explained or performance-
-  qualified.
+- **#108:** retain as unexplained historical diagnostics and recommend closing
+  without merge only after the owner links its classification to the #112
+  record. Do not call the original `Failed`/`Partial` result explained or
+  performance-qualified.
 - **#113:** retain the synthetic replay and checks as historical evidence and
   recommend closing without merge as superseded by the owner-maintained
-  #110/#111/#112/#114 source stack. Do not retarget or merge it as a second
-  integration candidate.
+  #110/#111/#112/#114/#115/#116 publication stack. Do not retarget or merge it
+  as a second integration candidate.
 
 Neither recommendation has been posted or applied.
 
-## Remaining acceptance and scope decisions
+## Short owner decision list
 
-The fixture/profile choice and one current-only measurement are recorded above.
-The following acceptance and scope decisions remain; none is accepted by this
-handoff, and no recommendation changes the existing budget or scope:
+The fixture/profile choice is already recorded and used. F1/F2 are not pending
+selection decisions: do not reselect `custom-9995` or `repository-minimum`, and
+do not reinstate historical strict-profile/A/B requirements. The following are
+the remaining scope/acceptance decisions; none is accepted by this handoff.
 
-- F1 fixture alignment is recorded for this run as exactly 10,000 observations
-  using `custom-9995`, seed `0`, and manifest
-  `a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a`.
-  Preserve the accepted 10,005-observation baseline hash
-  `8c3d85ec01299995208abfa450378b1b37c704e423593d7a4370ec465254afba` as
-  historical evidence unless the owner explicitly changes the contract.
-- F2 has one current-only non-qualifying result: the unchanged warm-p95 target
-  was missed by 173 ms. Any future measurement needs a separately authorized
-  new run; this record does not authorize A/B testing, target changes, or a
-  rerun to seek a pass. F3 scale evidence remains unmeasured.
-- Decide F3 scale treatment and the current 10,000-entry contract; do not
-  adopt a new limit or budget from a recommendation alone.
-- Decide Phase 2 scope for #47 DriveFS and #48 FAT32/cross-volume identity, and
-  obtain the exact qualified runs if they remain in scope.
-- Decide the P2-09 overflow/timing evidence boundary and P2-10 static versus
-  runtime content-read-spy gate.
-- Review inline onboarding, #107/S5 disposition, and each P2-01 through P2-12
-  criterion for explicit owner acceptance. P2-08 remains Partial; no criterion
-  is promoted by this documentation merge.
+| Decision                     | Recommended scope decision                                                                                         | Technical alternative                                                                                                                                            | Information/approval still needed                                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| F3 and 10,000-entry contract | Defer 100,000-entry qualification and retain the existing 10,000-entry contract.                                   | Authorize coordinated end-to-end scaling, then measure memory/disk, latency, cancellation, crash recovery, and publication at 100,000.                           | Dated deferral or explicit scale-project authorization; #96 is proposal history only.                                            |
+| #47 DriveFS scope            | Exclude or explicitly leave DriveFS Mirror/Stream unverified for this phase.                                       | Authorize the exact DriveFS mode matrix with mode capture, hydration/placeholder, burst/rename/disconnect/watcher, side-effect, and cloud/pause-resume evidence. | Scope choice and, if included, a qualified synced test environment/consent.                                                      |
+| #48 FAT32/cross-volume scope | Exclude or explicitly leave FAT32/cross-volume identity unverified for this phase.                                 | Authorize genuine writable FAT32 USB/VHD and cross-volume runs with drive letter, serial, filesystem, allocation-unit, identity, and cleanup evidence.           | Scope choice and, if included, qualified media/consent; DriveFS, the system partition, and no-media devices are not substitutes. |
+| P2-09 watcher evidence       | Accept deterministic/local-NTFS synthetic evidence only within an explicit boundary.                               | Authorize OS-buffer overflow/timing and in-scope DriveFS evidence; code changes follow only a discovered defect.                                                 | Evidence boundary decision.                                                                                                      |
+| P2-10 content-read gate      | Accept static guards and fixture source-byte equality for the filesystem-only MVP.                                 | Add a runtime content-read spy test/CI gate with retained logs.                                                                                                  | Static-versus-spy decision; no runtime spy is claimed.                                                                           |
+| Onboarding and #107/S5       | Accept inline Preferences onboarding; close #107 as no defect after owner review; do not rerun S5.                 | Build a named first-run route or request defect-specific code/evidence only if review finds a concrete issue.                                                    | Scope confirmation and no-defect disposition.                                                                                    |
+| P2 acceptance                | Review the P2-01 through P2-12 ledger; keep P2-08 Partial until its listed requirements are evidenced or excluded. | Complete only owner-selected evidence/defect work.                                                                                                               | Criterion-by-criterion acceptance and any explicit exclusions.                                                                   |
 
 The #114 runbook validates report aggregation from individual measurements; it
 does not supply a benchmark, a qualification result, or an acceptance change.
@@ -102,12 +96,31 @@ No production scanning or Phase 3 activity is authorized.
 ## Publication handoff
 
 The #109/#114 documentation-only merge history includes merge commit
-`71848732216d4ab4e13e73c820b2b8e4d17bddbe`; the resulting `main` tree measured
-by this qualification is `69f27f64f26aa657182a9260cc8e78f28a5838fb`. This
-handoff preserves that source/evidence distinction.
-Publication is based on post-#115 main
-`f811cf3cf6c2e0bc4e3cd161bdcd9e063d53eb35`. Preserve the measured SHA
-above when the documentation baseline advances. Run documentation/privacy/formatting checks and the
-required CI, review the evidence diff, and verify the resulting GitHub merge
-and final `main` SHA. Agent 1's merged source work remains attributed to Agent
-1; the owner retains Phase 2 acceptance authority.
+`71848732216d4ab4e13e73c820b2b8e4d17bddbe`; the resulting source tree measured
+by this qualification is `69f27f64f26aa657182a9260cc8e78f28a5838fb`. Current
+publication is `origin/main` `83da093672b5e2154097c897af533821b04f2352`,
+from which this branch starts. This handoff preserves that source/evidence
+distinction. Run documentation/privacy/formatting checks and required CI on
+the new PR head, review the evidence diff, and verify any resulting GitHub
+merge and final `main` SHA. Agent 1's merged source work remains attributed to
+Agent 1; the owner retains Phase 2 acceptance authority.
+
+## Handoff controls and remaining information
+
+- No local build, fixture generation, installed run, S5/NTFS rerun, or compiler
+  cache was used. No cleanup is required; the primary workspace's dirty and
+  untracked files were preserved.
+- The only working volume used for this documentation task is `C:`. Final
+  capacity check: **69.17 GiB free of 475.45 GiB**; the 30 GiB reserve is
+  maintained. No `G:` build or evidence output was used.
+- Evidence links: [current qualification evidence](qualification-evidence-20260913.md),
+  [live review status](README.md#live-review-status-2026-09-13), the merged
+  [PR #116](https://github.com/guilhermebmichelin-create/fruitboard/pull/116),
+  historical diagnostics [PR #108](https://github.com/guilhermebmichelin-create/fruitboard/pull/108),
+  and superseded candidate [PR #113](https://github.com/guilhermebmichelin-create/fruitboard/pull/113).
+- Genuinely needed information is limited to owner dispositions: F3 scope,
+  #47/#48 inclusion or exclusion, watcher evidence boundary, P2-10 static or
+  runtime-spy gate, inline onboarding, #107/S5, and criterion-by-criterion
+  acceptance. If P2-08 stays in scope, a current-head installed proof of the
+  explicit Retry paths and the merged typed diagnostic presentation is still
+  needed; no defect is asserted from the older installed records.
