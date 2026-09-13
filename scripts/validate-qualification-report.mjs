@@ -287,7 +287,24 @@ function validateRecord(record, label, cancellation, fail) {
   }
 }
 
-function validateStatistics(statistics, label, expected, fail) {
+function deriveStatistics(values) {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  const medianMs =
+    sorted.length % 2 === 1
+      ? sorted[middle]
+      : (sorted[middle - 1] + sorted[middle]) / 2;
+  const rank = Math.max(1, Math.ceil(0.95 * sorted.length));
+  return {
+    sampleCount: sorted.length,
+    medianMs,
+    maxMs: sorted[sorted.length - 1],
+    nearestRankP95Ms: sorted[rank - 1],
+  };
+}
+
+function validateStatistics(statistics, label, expected, derived, fail) {
   if (!isObject(statistics)) {
     fail(`${label} is missing or not an object`);
     return;
@@ -302,6 +319,38 @@ function validateStatistics(statistics, label, expected, fail) {
     if (!duration(get(statistics, field)))
       fail(`${label}.${field} is missing or invalid`);
   }
+  if (derived === null) {
+    fail(`${label} cannot be derived from validated individual records`);
+    return;
+  }
+  if (get(statistics, "sampleCount") !== derived.sampleCount) {
+    fail(
+      `${label}.sampleCount does not match validated individual records (${derived.sampleCount})`,
+    );
+  }
+  for (const field of ["medianMs", "maxMs", "nearestRankP95Ms"]) {
+    if (
+      duration(get(statistics, field)) &&
+      get(statistics, field) !== derived[field]
+    ) {
+      fail(
+        `${label}.${field} does not match validated individual records (${derived[field]})`,
+      );
+    }
+  }
+}
+
+function recordLabel(record, fallback) {
+  return string(get(record, "label")) ? get(record, "label") : fallback;
+}
+
+function validateRecordAndReturnValid(record, label, cancellation, fail) {
+  let valid = true;
+  validateRecord(record, label, cancellation, (message) => {
+    valid = false;
+    fail(message);
+  });
+  return valid;
 }
 
 function validateReport(options) {
@@ -448,13 +497,6 @@ function validateReport(options) {
     }
     statistics = get(report, "statistics");
     cancellationStatistics = get(report, "cancellationStatistics");
-    validateStatistics(statistics, "statistics", options.iterations, fail);
-    validateStatistics(
-      cancellationStatistics,
-      "cancellationStatistics",
-      options.cancellations,
-      fail,
-    );
     const memory = get(report, "memory");
     if (
       !isObject(memory) ||
@@ -469,16 +511,20 @@ function validateReport(options) {
       fail("report.notes is missing or not an array");
   }
 
-  if (warmUp !== null) validateRecord(warmUp, "warmUp", false, fail);
-  iterations.forEach((record, index) =>
-    validateRecord(record, `iteration-${index + 1}`, false, fail),
+  const warmUpValid =
+    warmUp !== null &&
+    validateRecordAndReturnValid(warmUp, "warmUp", false, fail);
+  const iterationValid = iterations.map((record, index) =>
+    validateRecordAndReturnValid(record, `iteration-${index + 1}`, false, fail),
   );
-  cancellation.forEach((record, index) =>
-    validateRecord(record, `cancel-${index + 1}`, true, fail),
+  const cancellationValid = cancellation.map((record, index) =>
+    validateRecordAndReturnValid(record, `cancel-${index + 1}`, true, fail),
   );
   const successful = iterations.filter(
-    (record) =>
+    (record, index) =>
+      iterationValid[index] &&
       isObject(record) &&
+      get(record, "exitCode") === 0 &&
       get(record, "authoritative") === true &&
       get(record, "status") === "Published" &&
       get(record, "outcome") === "Complete" &&
@@ -489,9 +535,57 @@ function validateReport(options) {
   const failed = iterations.filter((record) => !successful.includes(record));
   if (successful.length !== options.iterations)
     fail("incomplete or non-authoritative measured observations");
+
+  const scanMeasurements = successful.map((record) => get(record, "scanMs"));
+  const derivedScanStatistics = deriveStatistics(scanMeasurements);
+  const successfulCancellations = cancellation.filter(
+    (record, index) =>
+      cancellationValid[index] &&
+      get(record, "exitCode") === 0 &&
+      get(record, "status") === "Cancelled" &&
+      get(record, "outcome") === "Cancelled" &&
+      duration(get(record, "stopLatencyMs")),
+  );
+  const cancellationMeasurements = successfulCancellations.map((record) =>
+    get(record, "stopLatencyMs"),
+  );
+  const derivedCancellationStatistics = deriveStatistics(
+    cancellationMeasurements,
+  );
+  validateStatistics(
+    statistics,
+    "statistics",
+    options.iterations,
+    derivedScanStatistics,
+    fail,
+  );
+  validateStatistics(
+    cancellationStatistics,
+    "cancellationStatistics",
+    options.cancellations,
+    derivedCancellationStatistics,
+    fail,
+  );
+
+  // The native benchmark driver returns ExitCode::SUCCESS only for terminal
+  // Published or Cancelled executions; the harness records that process code
+  // as exitCode. Treat every nonzero attempt as non-qualifying evidence.
+  const attemptsWithExit = [warmUp, ...iterations, ...cancellation].filter(
+    (record) => record !== null && record !== undefined,
+  );
+  attemptsWithExit.forEach((record) => {
+    if (get(record, "exitCode") !== 0) {
+      fail(
+        `${recordLabel(record, "attempt")} driver exitCode is not 0; successful driver termination is required`,
+      );
+    }
+  });
+
   const warmScan = get(warmUp, "scanMs");
   if (!duration(warmScan)) fail("warm-up timing is missing or invalid");
   else if (
+    !warmUpValid ||
+    get(warmUp, "exitCode") !== 0 ||
     get(warmUp, "authoritative") !== true ||
     get(warmUp, "status") !== "Published" ||
     get(warmUp, "outcome") !== "Complete" ||
@@ -502,21 +596,24 @@ function validateReport(options) {
     );
   else if (warmScan > 30_000)
     fail("first-discovery target missed: warm-up exceeds 30,000 ms");
-  const warmP95 = get(statistics, "nearestRankP95Ms");
+  const warmP95 = derivedScanStatistics?.nearestRankP95Ms;
   if (duration(warmP95) && warmP95 > 10_000)
     fail(
       "warm-reconciliation target missed: nearest-rank p95 exceeds 10,000 ms",
     );
-  const cancelP95 = get(cancellationStatistics, "nearestRankP95Ms");
+  const cancelP95 = derivedCancellationStatistics?.nearestRankP95Ms;
   if (duration(cancelP95) && cancelP95 > 1_000)
     fail("cooperative-stop target missed: cancellation p95 exceeds 1,000 ms");
-  cancellation.forEach((record) => {
+  cancellation.forEach((record, index) => {
     if (
+      !cancellationValid[index] ||
+      get(record, "exitCode") !== 0 ||
       get(record, "status") !== "Cancelled" ||
-      get(record, "outcome") !== "Cancelled"
+      get(record, "outcome") !== "Cancelled" ||
+      !duration(get(record, "stopLatencyMs"))
     )
       fail(
-        `cancellation record ${String(get(record, "label"))} is not terminal Cancelled`,
+        `cancellation record ${recordLabel(record, `cancel-${index + 1}`)} is not a successful terminal Cancelled attempt`,
       );
   });
   if (options.harnessExit !== 0)
@@ -525,21 +622,82 @@ function validateReport(options) {
   const attempts = [warmUp, ...iterations, ...cancellation].filter(
     (value) => value !== null && value !== undefined,
   );
+  const failedAttempts = [
+    {
+      record: warmUp,
+      valid: warmUpValid,
+      kind: "warm-up",
+      qualifying:
+        warmUpValid &&
+        get(warmUp, "exitCode") === 0 &&
+        get(warmUp, "authoritative") === true &&
+        get(warmUp, "status") === "Published" &&
+        get(warmUp, "outcome") === "Complete" &&
+        get(warmUp, "locationCount") === options.locations &&
+        duration(get(warmUp, "scanMs")),
+      fallback: "warmup",
+    },
+    ...iterations.map((record, index) => ({
+      record,
+      valid: iterationValid[index],
+      kind: "measured",
+      qualifying: successful.includes(record),
+      fallback: `iteration-${index + 1}`,
+    })),
+    ...cancellation.map((record, index) => ({
+      record,
+      valid: cancellationValid[index],
+      kind: "cancellation",
+      qualifying: successfulCancellations.includes(record),
+      fallback: `cancel-${index + 1}`,
+    })),
+  ]
+    .filter(
+      ({ record, qualifying }) =>
+        record !== null && record !== undefined && !qualifying,
+    )
+    .map(({ record, valid, kind, fallback, qualifying }) => {
+      const reasons = [];
+      if (!valid) reasons.push("record validation failed");
+      if (get(record, "exitCode") !== 0)
+        reasons.push(
+          `driver exitCode ${String(get(record, "exitCode"))} is not 0`,
+        );
+      if (!qualifying) {
+        reasons.push(
+          kind === "cancellation"
+            ? "cancellation is not a successful terminal Cancelled measurement"
+            : kind === "warm-up"
+              ? "warm-up is not authoritative Published Complete with the selected location count"
+              : "measured attempt is not authoritative Published Complete with the selected location count and scanMs",
+        );
+      }
+      return {
+        label: recordLabel(record, fallback),
+        kind,
+        reasons,
+      };
+    });
   return {
     disposition: failures.length === 0 ? "qualified" : "non-qualifying",
     harnessExit: options.harnessExit,
     measuredAttempts: iterations.length,
     successfulAuthoritative: successful.length,
-    authoritativeSampleCount: get(statistics, "sampleCount"),
+    authoritativeSampleCount: derivedScanStatistics?.sampleCount ?? 0,
     failedOrNonAuthoritative: failed.length,
-    failedLabels: failed.map((record) => get(record, "label")),
+    failedLabels: failed.map((record, index) =>
+      recordLabel(record, `iteration-${index + 1}`),
+    ),
+    failedAttemptLabels: failedAttempts.map(({ label }) => label),
+    attemptFailures: failedAttempts,
     validationFailures: failures,
     warmUp,
-    scanStatistics: statistics,
-    cancellationStatistics,
+    scanStatistics: derivedScanStatistics,
+    cancellationStatistics: derivedCancellationStatistics,
     budgetRows: get(report, "budgets"),
     attempts: attempts.map((record) => ({
       label: get(record, "label"),
+      exitCode: get(record, "exitCode"),
       status: get(record, "status"),
       authoritative: get(record, "authoritative"),
       outcome: get(record, "outcome"),

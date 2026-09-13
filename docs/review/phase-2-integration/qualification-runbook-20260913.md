@@ -13,6 +13,12 @@ The small reusable validator in
 `scripts/validate-qualification-report.mjs` is the executable report contract
 used below; it does not start a benchmark or change host state.
 
+Report validation is a report-integrity gate only. It does not prove host
+eligibility, source provenance, or full Phase 2 acceptance. The separate host
+preflight, exact-source/build evidence, platform-scope, and Phase 2 acceptance
+requirements remain binding and must be satisfied independently before any
+performance disposition is considered.
+
 ## Boundary and answer
 
 The recommended execution profile is:
@@ -30,12 +36,10 @@ The recommended execution profile is:
   first-discovery, warm-reconciliation, and cooperative-stop budgets on an
   eligible host.
 
-The combined Agent 1 candidate `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`
-is historical integration provenance only. It is not the current prospective
-source-stack head, is not merged, and is not a measurement boundary. At
-execution time, record the exact fetched `origin/main` SHA after the owner
-merges the selected source stack; do not substitute a PR head, historical
-integration candidate, or installed-evidence SHA.
+The current #112 source-stack head is historical review provenance only. It is
+not merged and is not a measurement boundary. At execution time, record the
+exact fetched `origin/main` SHA after the owner merges the selected source
+stack; do not substitute a PR head or installed-evidence SHA.
 
 The historical #108 before/candidate A/B is not part of this run. It was
 normal-configuration, contended evidence against older source boundaries and
@@ -127,7 +131,7 @@ that check is not performance evidence.
 
 | Check            | Read-only result                                                                                                                                                                                                                                                                                                                                                                | Qualification state                                                                                                 |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Source           | This runbook was reviewed against the historical combined candidate `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`; the exact execution SHA remains the fetched `origin/main` after merge. The current merged baseline does not yet contain the #112 sanitized harness/partial diagnostic fields.                                                                                   | **Blocked until source stack is merged**                                                                            |
+| Source           | This runbook was reviewed against the current #112 source stack; the exact execution SHA remains the fetched `origin/main` after merge. The current merged baseline does not yet contain the #112 sanitized harness/partial diagnostic fields.                                                                                                                                  | **Blocked until source stack is merged**                                                                            |
 | Pinned tools     | `.tools` Node `v24.20.0`, cargo/rustc `1.98.1`, rustfmt, and `x86_64-pc-windows-msvc` are available; pinned uv `0.12.9` is available. pnpm is `11.25.0`; the bundled Corepack reports `0.35.0` versus policy `0.36.0`, but neither Corepack/pnpm nor uv is used by the benchmark command.                                                                                       | Benchmark-required Node/Rust pins observable; package-manager drift is recorded, not made into a new benchmark gate |
 | Disk/volume      | `C:` is local `NTFS`, `510,511,804,416` bytes total and `2,645,377,024` bytes free at capture. The contracts specify recording capacity/free space but no minimum free-space acceptance threshold.                                                                                                                                                                              | Record again on the selected fixture volume                                                                         |
 | Existing fixture | No repository or `target` manifest exists. Historical raw reports are present and agree on the hashes above.                                                                                                                                                                                                                                                                    | **Prepare and verify a new/persistent fixture after owner selection**                                               |
@@ -190,7 +194,7 @@ $sourceRecord = [ordered]@{
   mergedMainSha = $finalMergedSha
   headSha = $headSha
   commit = ((git show -s --format="%H %s" $finalMergedSha).Trim())
-  prospectiveBoundary = "Agent 1 source-stack handoff; final boundary is merged origin/main"
+  prospectiveBoundary = "current #112 source-stack handoff; final boundary is merged origin/main"
 }
 $sourceRecord | ConvertTo-Json -Depth 4 |
   Set-Content -LiteralPath (Join-Path $reportsRoot "source-boundary.json") -Encoding utf8
@@ -198,9 +202,10 @@ $sourceRecord | ConvertTo-Json -Depth 4 |
 
 The recorded SHA is the source boundary. If it is still the pre-stack baseline,
 stop; do not build a PR head as a substitute. The final source must expose the
-issue #112 sanitized report path and the bounded `partial_class` driver field. If
-Agent 1 supplies a rebased/squashed equivalent, record that final merged SHA;
-do not require the unmerged `e90b03c` object to remain an ancestor.
+issue #112 sanitized report path and the bounded `partial_class` driver field.
+Record the final merged SHA supplied by the source-stack owner; no historical
+integration candidate or acceptance-documentation commit is required to remain
+an ancestor.
 
 ### 2. Build and hash the exact release driver
 
@@ -613,8 +618,15 @@ uses the actual camel-case fields `label`, `exitCode`, `totalMs`, `scanMs`,
 records additionally use `cancellationRequestedMs` and `stopLatencyMs`.
 The native driver's `scan_ms`, `location_count`, and `partial_class` are
 sanitized into those report fields; the validator does not invent alternate
-names. Statistics are `medianMs`, `maxMs`, `nearestRankP95Ms`, and
-`sampleCount`. The actual `measurement` fields also include `warmUpRuns`,
+names. The validator derives `medianMs`, `maxMs`, `nearestRankP95Ms`, and
+`sampleCount` from the validated authoritative measured records and compares
+all four values with the reported aggregates. It uses the harness's exact
+median and nearest-rank calculations, with no timing rounding. Cancellation
+statistics are derived separately from validated terminal cancellation
+records' `stopLatencyMs`; cancellation `scanMs` is not a substitute for
+cooperative-stop latency. Every warm-up, measured, and cancellation attempt
+must also have the driver's successful `exitCode` of `0`. The actual
+`measurement` fields also include `warmUpRuns`,
 `measuredIterations`, `statistics`, `firstRunReportedSeparately`,
 `sampleIntervalMs`, `cancelAfterMs`, and `settleMs`. Memory MiB values may be
 fractional; counts remain integers.
@@ -661,29 +673,37 @@ if ($validatorExit -ne 0) {
 }
 ```
 
-The report must retain all 10 measured records, including any failure, and the
-summary must make `disposition`, `successfulAuthoritative`,
-`authoritativeSampleCount`, and `failedOrNonAuthoritative` explicit. The
-sanitized #112 harness calculates timing statistics only from
-authoritative `Published`/`Complete` records with valid non-negative
-`scan_ms`; this does not excuse a failed record. A failed iteration, missing
-bounded/fixed diagnostic, missing cancellation metric, or missing memory
-metric makes this run non-qualifying even if the successful-sample p95 is under
-10,000 ms.
+The report must retain all 10 measured records, the warm-up, and all 3
+cancellation records, including failures. The summary must make
+`disposition`, `successfulAuthoritative`, `authoritativeSampleCount`,
+`failedOrNonAuthoritative`, and `attemptFailures` explicit. The validator
+derives scan statistics only from validated authoritative `Published`/
+`Complete` measured records with `exitCode: 0` and valid `scanMs`; it
+derives cancellation statistics only from validated terminal `Cancelled`
+records with `exitCode: 0` and valid `stopLatencyMs`. A reported aggregate
+that differs from those derived values is inconsistent and makes the run
+non-qualifying. Budget checks use the derived measurements, not an unverified
+summary. A failed attempt, missing bounded/fixed diagnostic, missing
+cancellation metric, or missing memory metric remains non-qualifying even if
+a successful subset's p95 is under 10,000 ms; failed records and their
+dispositions remain in the summary.
 
 ## Pass/fail disposition
 
 The run is qualified only if all of the following hold:
 
 - the selected preflight passes before timing;
-- warm-up is `Published` / `Complete` / authoritative with 10,000 locations;
+- warm-up is `Published` / `Complete` / authoritative with 10,000 locations
+  and driver `exitCode: 0`;
 - all 10 measured records are `Published` / `Complete` / authoritative with
-  10,000 locations and valid timings (`n=10`);
+  10,000 locations, driver `exitCode: 0`, and valid timings (`n=10`);
 - the warm-up scan time is `<=30,000 ms`;
 - measured nearest-rank warm p95 is `<=10,000 ms` (with `n=10`, this is the
-  maximum; report median and maximum too);
+  maximum; report median and maximum too), and all reported scan aggregates
+  match the derived values;
 - all 3 cancellation records are terminal `Cancelled` with valid stop latency
-  and cancellation p95 `<=1,000 ms`;
+  and driver `exitCode: 0`, with cancellation p95 `<=1,000 ms` derived from
+  `stopLatencyMs` rather than scan duration;
 - the required sanitized diagnostics and driver working-set metrics exist;
 - the report, provenance, raw console log, manifest, binary, and hashes are
   retained.
@@ -697,9 +717,11 @@ The validator treats a `Partial` result as retained diagnostic evidence, not a
 successful sample. A bounded `partialClass` makes the record compatible with
 the #112 sanitized schema, but the run is still non-qualifying when that
 record prevents the required ten authoritative measured samples. Missing or
-malformed numeric fields, missing iterations, missing metrics, or a failed
-cancellation record are likewise non-qualifying. No numeric value is rounded
-before a target comparison.
+malformed numeric fields, inconsistent aggregates, missing iterations, missing
+metrics, or a failed cancellation record are likewise non-qualifying. No
+timing value is rounded before aggregate comparison or a target comparison.
+This validator result still does not establish host eligibility, source
+provenance, or the remaining Phase 2 acceptance gates.
 
 Disposition rules are fail-closed:
 
