@@ -55,12 +55,37 @@ dispositions in `attemptFailures`.
   `node --check tests/qualification-report.test.mjs`: **pass**.
 - Prettier check for the changed package, validator, test, and runbook files:
   **pass**.
+- `pnpm.cmd privacy:check`: **pass** (293 files).
+- Root `pnpm.cmd lint`: Markdownlint, script checks, and recursive workspace
+  lint reached the Rust stage; the command exited `1` because `cargo clippy`
+  was unavailable in this environment.
+- Root `pnpm.cmd format:check`: all Prettier checks passed; the command exited
+  `1` because `cargo fmt` was unavailable in this environment.
+- Root `pnpm.cmd test`: the repository JavaScript tests (**103 passed**) and
+  workspace Vitest tests (**134 passed**) completed; the command exited `1`
+  at the final Rust stage because `cargo` was unavailable. No benchmark was
+  started.
 - `git diff --check`: **pass**.
 
 Report validation remains only a report-integrity gate. It does not prove host
 eligibility, source provenance, or full Phase 2 acceptance; those preflight,
 source/build, platform-scope, and acceptance requirements remain separate
 runbook gates.
+
+## Published CI evidence
+
+Both existing workflow files were explicitly dispatched on the published
+branch because the stacked PR base does not trigger the current workflow
+events. GitHub reports terminal success for both runs, and both runs checked
+the exact same head SHA:
+
+| Workflow                | Run                                                                                             | Checked SHA                                | Result      |
+| ----------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------ | ----------- |
+| Foundation CI           | [34759328316](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34759328316) | `ace76b8c96c2776eebcf31d474d708f9f09d4c07` | **success** |
+| Windows Packaging Smoke | [34759329996](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34759329996) | `ace76b8c96c2776eebcf31d474d708f9f09d4c07` | **success** |
+
+Dispatch acceptance was not treated as a check result; each run was queried
+after completion for its conclusion and head SHA.
 
 ## Source-stack coordination
 
