@@ -1,34 +1,38 @@
 # Phase 2 integration evidence index (#41)
 
-Status: **final factual refresh verified 2026-09-13; Phase 2 is not accepted.**
+Status: **acceptance-gap refresh verified 2026-09-13; Phase 2 is not accepted.**
 This index separates merged implementation, automated tests, installed
-observations, and owner acceptance. The [current acceptance packet](acceptance-packet-2026-09-12.md)
-owns the closeout decisions and coordination. The dated checkpoint,
-reconciliation, benchmark, and journey reports remain historical evidence and
-are not rewritten here. The current-only scanner qualification is recorded in
-[the 2026-09-13 evidence](qualification-evidence-20260913.md).
+observations, measured-source provenance, and owner acceptance. The [current
+acceptance packet](acceptance-packet-2026-09-12.md) owns the decision list and
+proposed issue/PR dispositions. The dated checkpoint, reconciliation,
+benchmark, and journey reports remain historical evidence and are not
+rewritten here. The current-only scanner qualification is recorded in [the
+2026-09-13 evidence](qualification-evidence-20260913.md).
 
 ## Live review status 2026-09-13
 
-This is the current table for the verified source baseline and PR state used by
-this refresh. A row says **merged** only when GitHub reports the PR as merged;
-an open or draft row is not a merged dependency. The `main` row is the exact
-main boundary used by the dated scanner qualification. Publication is based
-on post-#115 main `f811cf3cf6c2e0bc4e3cd161bdcd9e063d53eb35`;
-that documentation-only advance does not change the measured source pin.
+This is the current table for the fetched publication baseline and PR state
+used by this refresh. A row says **merged** only when GitHub reports the PR as
+merged; an open or draft row is not a merged dependency. The current
+publication boundary is `origin/main` at `83da093672b5e2154097c897af533821b04f2352`,
+the merge of PR #116. The scanner measurement is deliberately separate: its
+exact measured source is `69f27f64f26aa657182a9260cc8e78f28a5838fb`, before the
+documentation-only #115/#116 publication advances.
 
 <!-- markdownlint-disable MD060 -->
 
-| Item    | Verified head or boundary                                                                            | Live state, dependency, and check result                                                                                                                          |
-| ------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `main`  | `69f27f64f26aa657182a9260cc8e78f28a5838fb`                                                          | Current merged source used by the 2026-09-13 scanner qualification; includes merged #110, #111, #112, #114, and #109 documentation                          |
-| PR #108 | `a44653bd27baaa5d2878c5a3bd118470cb6909dd`                                                          | Open draft; diagnostic performance evidence only; its quiet-host gate failed closed; no qualification or acceptance claim                                          |
-| PR #109 | head `659189528d4cb30568fa7ebdd12c91b454052074`; merge `69f27f64f26aa657182a9260cc8e78f28a5838fb` | **Merged**; documentation-only factual refresh that established the measured-source boundary used by the dated qualification |
-| PR #110 | head `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a`; merge `e2948f1bcc03af162ff95ba06ddd6033f2547da6` | **Merged**; queued/running/terminal and same-job restart evidence is installed evidence from canonical source `19585da`; acceptance remains separate                 |
+| Item    | Verified head or boundary                                                                         | Live state, dependency, and check result                                                                                                                          |
+| ------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main`  | `83da093672b5e2154097c897af533821b04f2352`                                                        | **Current publication boundary**; PR #116 is merged. The measured scanner source remains `69f27f6`; no timing was rerun after the publication-only advances       |
+| PR #108 | `a44653bd27baaa5d2878c5a3bd118470cb6909dd`                                                        | Open draft; diagnostic performance evidence only; its quiet-host gate failed closed; no qualification or acceptance claim                                         |
+| PR #109 | head `659189528d4cb30568fa7ebdd12c91b454052074`; merge `69f27f64f26aa657182a9260cc8e78f28a5838fb` | **Merged**; documentation-only factual refresh that established the measured-source boundary used by the dated qualification                                      |
+| PR #110 | head `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a`; merge `e2948f1bcc03af162ff95ba06ddd6033f2547da6` | **Merged**; queued/running/terminal and same-job restart evidence is installed evidence from canonical source `19585da`; acceptance remains separate              |
 | PR #111 | head `606635c06b6eabf345c3e91fa95409eee654afea`; merge `914d7bd2475a11a5e7286086f15bce1d4bd148a5` | **Merged**; mixed NTFS/product change; installed NTFS observations remain tied to tested source `05fb35c` and report `ef085229`, not to a rerun on current `main` |
-| PR #112 | head `386b4c9808bca0853dbe71757f121d4106b6d82e`; merge `00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8` | **Merged**; diagnostic/performance follow-up is in main; no performance qualification or Phase 2 acceptance                            |
-| PR #113 | `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`                                                          | Open and ready; older synthetic combined candidate, superseded by the source baseline; its checks are historical candidate evidence, not a merge or acceptance                 |
-| PR #114 | head `0aa9020c5f524de7f7d0f78226f500f5e021baf3`; merge `71848732216d4ab4e13e73c820b2b8e4d17bddbe` | **Merged**; executable qualification runbook/validator is in main; the dated current-only run is recorded separately and is non-qualifying                            |
+| PR #112 | head `386b4c9808bca0853dbe71757f121d4106b6d82e`; merge `00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8` | **Merged**; diagnostic/performance follow-up is in main; no performance qualification or Phase 2 acceptance                                                       |
+| PR #113 | `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`                                                        | Open and ready; older synthetic combined candidate, superseded by the source baseline; its checks are historical candidate evidence, not a merge or acceptance    |
+| PR #114 | head `0aa9020c5f524de7f7d0f78226f500f5e021baf3`; merge `71848732216d4ab4e13e73c820b2b8e4d17bddbe` | **Merged**; executable qualification runbook/validator is in main; the dated current-only run is recorded separately and is non-qualifying                        |
+| PR #115 | head `c868a91a7fd74a969a9910dd89be212679f05707`; merge `f811cf3cf6c2e0bc4e3cd161bdcd9e063d53eb35` | **Merged**; documentation-only agent disk/cache rules; no scanner or acceptance change                                                                            |
+| PR #116 | head `484c5eb2ab3bcf5bca1d2ad419009de5ec61046a`; merge `83da093672b5e2154097c897af533821b04f2352` | **Merged**; publishes the current-only qualification evidence and records the already-approved `custom-9995`/`repository-minimum` run; no Phase 2 acceptance      |
 
 <!-- markdownlint-enable MD060 -->
 
@@ -36,12 +40,12 @@ The required contexts are `docs-policy`, `client`, `rust-portable`,
 `migration`, `windows-foundation`, `security`, `windows-packaging-smoke`,
 `enumeration-windows`, `filesystem-watcher-windows`, and
 `scan-execution-windows`. Green checks establish CI provenance only; they do
-not establish owner acceptance. The merged source sequence includes #110, #111,
-PR #112, and #114; the executable runbook has now been executed once on the exact
-current-main source, with its non-qualifying result recorded in the dated
-evidence. GitHub verification, not ancestry alone, determines merge status.
-PR #99 is closed without merge and remains validation-only history. Open issues
-remain #33, #36-#41, #47, #48, and #107.
+not establish owner acceptance. GitHub verification, not ancestry alone,
+determines merge status. Ten required checks passed on merged PR #116; that is
+CI provenance only. The executable runbook was executed once against measured
+source `69f27f6`, and its non-qualifying result is recorded in the dated
+evidence. PR #99 is closed without merge and remains validation-only history.
+GitHub currently leaves issues #33, #36-#41, #47, #48, and #107 open.
 
 ## Historical live review status 2026-09-12
 
@@ -94,8 +98,12 @@ These records establish provenance, not owner acceptance:
 | #106 / `b2fb62c`                   | Canonical fixed installed report; S5 partial; docs-only                             |
 | #91 / `3ebac5f`                    | Final reconciliation refresh and current baseline                                   |
 
-| #110 / `e2948f1`                  | Queued/running/terminal, queued disable/remove, and genuine same-job restart evidence; merged, no acceptance decision |
-| #111 / `914d7bd`                  | Mixed NTFS/product hardening; merged, while installed NTFS observations remain tied to `05fb35c` and `ef085229` |
+| #110 / `e2948f1` | Queued/running/terminal, queued disable/remove, and genuine same-job restart evidence; merged, no acceptance decision |
+| #111 / `914d7bd` | Mixed NTFS/product hardening; merged, while installed NTFS observations remain tied to `05fb35c` and `ef085229` |
+| #112 / `00884ba` | Bounded diagnostic coverage for the unexplained benchmark Partial; merged, no performance or acceptance decision |
+| #114 / `7184873` | Executable qualification runbook and validator; merged, no qualification or acceptance decision |
+| #115 / `f811cf3` | Agent disk/cache workflow rules; merged documentation-only change |
+| #116 / `83da093` | Current-only qualification evidence publication; merged documentation-only change, no Phase 2 acceptance |
 
 PR #99 (`9c211ad`) is closed and never merged. Agent 2's canonical S5 source
 is the Git-resolved commit
@@ -126,47 +134,70 @@ S5 patch once and does not duplicate the recovery work.
 
 ## P2-01 through P2-12
 
-The #92 installed journey was recorded on an older merged baseline. The #106
-fixed validation tested unmerged candidate `ded02ac`, patch-identical to the
-fix in #104, not the then-current `3ebac5f`. The September 12 queued/restart report
-was verified from
-`19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`, whose diff from `3ebac5f` is
-test/documentation only. The queued-state, queued disable/remove, and genuine
-same-job restart observations are published in merged PR #110, but remain
-historical installed evidence and owner-unaccepted. The separate NTFS report
-in merged PR #111 was published at reviewed revision
-`ef085229471301043a50f4b668901d9c956fb407`; it was tested from source
-`05fb35c153dd3f177b900292d39998da3774b5e4`. That source changes durable
-product-owned diagnostics and desktop scan-console mapping for `access_denied`,
-`resource_limit`, `unsupported`, and `unavailable`. The installed observations
-remain tied to their tested source, while the corresponding product correction
-is now in merged main; neither is owner acceptance.
+This is the current gap ledger at publication baseline `83da093`. It separates
+implementation, automated evidence, installed evidence, the remaining defect or
+evidence gap, and the decision still reserved to the owner. The installed
+records from #92, #106, #110, and #111 retain their own tested-source provenance;
+later merge does not turn them into current-head runs.
 
 <!-- markdownlint-disable MD060 -->
 
-| ID    | Merged implementation                                        | Automated evidence                                                                                                                                                                                                                                                                                                                                                                                                                              | Installed evidence                                                                                                                                                                                                   | Remaining                                      |
-| ----- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| P2-01 | #34/#35 picker, settings, and inline onboarding              | Client/Windows CI; #58 fake-adapter keyboard/narrow evidence                                                                                                                                                                                                                                                                                                                                                                                    | #92 picker, cancel, persistence, restart; #54 picker record                                                                                                                                                          | Onboarding decision and owner acceptance       |
-| P2-02 | #59 core, #64 enumeration, #70 worker                        | Deterministic and Windows fixture tests                                                                                                                                                                                                                                                                                                                                                                                                         | #92 add/modify/rename and remove/restore                                                                                                                                                                             | Platform scope and owner acceptance            |
-| P2-03 | #62/#70 safety path and #85 fault cases                      | Partial/offline/cancel/resource-limit fault tests                                                                                                                                                                                                                                                                                                                                                                                               | #92 cancellation and unavailable-root retention; #111 `ef08522` local-NTFS denied traversal and unchanged-bound `ResourceLimit` pass, tested from historical source `05fb35c`                                                 | Denied/limited traversal and owner acceptance  |
-| P2-04 | #60/#61/#70 durability, #82 recovery, #104 active-slot fix   | Migration/worker gates; #97 fences; #104 regression                                                                                                                                                                                                                                                                                                                                                                                             | #92 persistence/cancel/recovery; #106 S1-S4/S6 pass, S5 successor path; #110 queued/running/terminal states and genuine same-job restart; #111 `de396e7` is tree-identical recovered S5 provenance, not new evidence | S5 disposition and owner acceptance            |
-| P2-05 | #60/#62/#85 lease, disable/remove, staging                   | Lease and stale-publication tests                                                                                                                                                                                                                                                                                                                                                                                                               | #92 disable-while-running retention; September 12 queued disable/remove                                                                                                                                              | Evidence review and owner acceptance           |
-| P2-06 | #62/#85 atomic publication and crash/backup paths            | Crash, recovery, backup, migration tests                                                                                                                                                                                                                                                                                                                                                                                                        | #92 restart/recovery; September 12 genuine running-lease hard-kill recovery                                                                                                                                          | Correct crash-path review and owner acceptance |
-| P2-07 | #59/#62/#85 identity, alias, rename paths                    | Alias and rename tests                                                                                                                                                                                                                                                                                                                                                                                                                          | #92 rename; #111 `ef08522` true in-root hardlink alias result, local NTFS only, tested from historical source `05fb35c`                                                                                                       | #48 decision/qualification                     |
-| P2-08 | #73/#77/#78/#81/#82 UI/native/lifecycle; #95 alignment       | Feature-on CI and IPC/adapter/lifecycle tests; #111 tests durable diagnostic mapping                                                                                                                                                                                                                                                                                                                                                            | #92 journey; #106 S1-S4/S6; #110 native/UI queued snapshot and invalidation; #111's tested-source `05fb35c` product changes for durable diagnostics and typed desktop error presentation                                              | Full criterion remains Partial                 |
-| P2-09 | #68/#69/#71/#81/#82 watcher/coalescing/reconnect             | #97 automated queue/burst/fence tests                                                                                                                                                                                                                                                                                                                                                                                                           | #92 follow-ups; #106 isolated burst pass                                                                                                                                                                             | Overflow timing and #47 scope                  |
-| P2-10 | #81 static no-parser/content-I/O guards and fixture equality | Dependency/privacy, static, preservation checks                                                                                                                                                                                                                                                                                                                                                                                                 | Native-adapter independence only; no runtime spy                                                                                                                                                                     | Static-versus-runtime decision                 |
-| P2-11 | #67/#72/#86/#93/#94/#98/#114 benchmark work                    | [Current-only qualification](qualification-evidence-20260913.md) uses owner-approved `custom-9995` on merged `main` `69f27f6`; 10/10 measured attempts are authoritative, but warm nearest-rank p95 is 10,173 ms versus the unchanged 10,000 ms target. Validator disposition is non-qualifying; F3 remains unmeasured | No installed performance qualification                                                                                                                                                                               | Record result; retain Phase 2 acceptance boundary |
-| P2-12 | #80 checkpoint, merged map, #91 refresh                      | Run 34428758835 passes all nine Foundation jobs                                                                                                                                                                                                                                                                                                                                                                                                 | #92/#106 plus September 12 report with canonical S5 provenance                                                                                                                                                       | Decisions, then explicit owner acceptance      |
+| ID              | Merged implementation                                                                                    | Automated tests/evidence                                                                                                    | Installed evidence                                                                                                                                                                                                            | Remaining defect/evidence gap                                                                                                                                                                                                                                                                                                                | Owner decision                                                                                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P2-01           | #34/#35 picker, settings, and inline Preferences onboarding                                              | Client/Windows CI; #58 fake-adapter keyboard, narrow, and axe evidence                                                      | [#92 root selection and settings](installed-journey/run-20260908.md) and #54 picker record                                                                                                                                    | No current-head installed accessibility capture for the complete Preferences path; no product defect is recorded.                                                                                                                                                                                                                            | Recommended scope decision: accept the existing inline entry path. A separate first-run route is later UI work, not a current acceptance prerequisite.                     |
+| P2-02           | #59 reconciliation core, #64 enumeration, #70 worker                                                     | Deterministic reconciler and Windows enumeration/fixture tests                                                              | [#92 installed convergence](installed-journey/run-20260908.md) covers add, modify, rename, remove, and restore                                                                                                                | Installed observations are historical local-NTFS evidence. DriveFS and non-NTFS behavior remain unverified under #47/#48.                                                                                                                                                                                                                    | Accept the local-NTFS/filesystem-only boundary, or keep #47/#48 in scope and run their platform evidence.                                                                  |
+| P2-03           | #62/#70 safety path, #85 fault cases, and #111 diagnostic hardening                                      | Partial/offline/denied/cancel/resource-limit fault tests and typed diagnostic mapping                                       | [#92 retention](installed-journey/run-20260908.md) plus [#111 NTFS cases](installed-journey/run-20260912-ntfs-cases.md) from tested source `05fb35c`                                                                          | The installed #111 observations were not rerun on merged `914d7bd`; mid-watch ACL, network, and DriveFS cases remain absent.                                                                                                                                                                                                                 | Accept local-NTFS evidence with explicit platform limits, or authorize the named platform/ACL work.                                                                        |
+| P2-04           | #60/#61/#70 durability, #82 recovery, and #104 active-slot fix                                           | Migration/worker gates, #97 fences, and #104 regression                                                                     | [#92 recovery](installed-journey/run-20260908.md) plus [#110 queued/running/terminal and same-job recovery](installed-journey/run-20260912-queued-restart.md)                                                                 | No S5 product or contract defect was found. #107 still needs the owner’s disposition of terminal-follow-up versus genuine running-lease recovery.                                                                                                                                                                                            | Record the two S5 paths and close #107 as no defect after review, or request defect-specific work; do not rerun S5 by default.                                             |
+| P2-05           | #60/#62/#85 lease, disable/remove, staging, and stale-publication paths                                  | Lease, disable/remove, and publication tests                                                                                | #92 disable-while-running retention plus #110 queued disable/remove before publication                                                                                                                                        | No stale-publication defect is identified. The installed evidence is historical-source evidence, not a current-head replay.                                                                                                                                                                                                                  | Accept the evidence union, or identify the exact current-head installed scenario required; no general rerun is implied.                                                    |
+| P2-06           | #62/#85 atomic publication, crash/rollback, backup, and migration paths                                  | Crash, recovery, backup, migration, and atomic-publication tests                                                            | #92 interrupted recovery plus #110 hard-kill with a genuinely running lease and same-job retry-chain recovery                                                                                                                 | The running-lease gap is covered by #110; remaining work is review of evidence provenance and owner acceptance, not another crash run.                                                                                                                                                                                                       | Accept the combined automated and installed evidence; request a new run only for a specific evidence defect.                                                               |
+| P2-07           | #59/#62/#85 identity, alias, rename, and replacement paths                                               | Alias, rename, and per-location transition tests                                                                            | #92 rename plus [#111 in-root hardlink aliases](installed-journey/run-20260912-ntfs-cases.md), local NTFS, tested from `05fb35c`                                                                                              | FAT32 and cross-volume identity remain unverified; the installed alias run is not a current-head run.                                                                                                                                                                                                                                        | Accept local-NTFS identity and exclude #48, or authorize a genuine FAT32/cross-volume run.                                                                                 |
+| P2-08 (Partial) | #73/#77/#78/#81/#82 UI/native lifecycle and supervision, #95 alignment, and #111 diagnostic presentation | Feature-on CI, typed IPC/client/native, lifecycle/recovery, axe, keyboard/narrow fake-adapter, and diagnostic-mapping tests | [#92 journey](installed-journey/run-20260908.md), [#106 fixed validation](installed-journey/run-20260909-fixed-validation.md), and [#110 queued/restart evidence](installed-journey/run-20260912-queued-restart.md)           | The exact unmet requirements are listed below: explicit Retry did not converge after cancellation or exhausted unavailable-root retry; #111’s merged diagnostic presentation has no current-head installed revalidation; fake-adapter keyboard/narrow captures are not installed-native proof; and no owner has accepted the full criterion. | Decide whether the recorded Retry failures require a product fix, and whether the existing evidence boundary is sufficient. Do not promote the criterion from this report. |
+| P2-09           | #68/#69/#71/#81/#82 watcher, coalescing, generation, and reconnect paths                                 | #97 synthetic burst/coverage-loss/fence counts and watcher tests                                                            | #92 follow-ups and #106 isolated burst convergence; no real overflow timing                                                                                                                                                   | No controlled OS-buffer overflow/timing record and no DriveFS watcher evidence exist. Installed burst convergence is not a timing qualification.                                                                                                                                                                                             | Accept deterministic/local-NTFS watcher scope, or authorize the separate overflow/timing and #47 runs.                                                                     |
+| P2-10           | #81 static no-parser/no-content-I/O guards and fixture equality                                          | Dependency/privacy checks, static guards, and source-byte preservation tests                                                | Native adapter independence was observed; no runtime content-read spy was run                                                                                                                                                 | Static evidence does not observe every integrated runtime file-open call. A runtime spy remains an optional evidence-strength choice.                                                                                                                                                                                                        | Recommended scope decision: accept static guards plus byte equality. Alternative: require a runtime content-read spy, which is technical test work.                        |
+| P2-11           | #67/#72/#86/#93/#94/#98/#114 benchmark and validator work                                                | Harness, validator, resource-limit, and benchmark diagnostics                                                               | [Current-only qualification](qualification-evidence-20260913.md) measured source `69f27f6`; 10/10 scans were authoritative, but warm nearest-rank p95 was 10,173 ms versus 10,000 ms. No installed performance qualification. | F2 is a recorded non-qualifying result; F3/100,000-entry memory is unmeasured. The approved fixture/profile are not pending selections.                                                                                                                                                                                                      | Decide how to treat the 100,000-entry proposal and the existing 10,000-entry contract; no A/B or strict-profile rerun is requested.                                        |
+| P2-12           | #80 checkpoint and the merged implementation/CI map                                                      | PR #116’s ten required checks passed; this is CI provenance, not acceptance                                                 | #92/#106/#110 installed records retain tested-source provenance                                                                                                                                                               | No single current-head installed journey covers every criterion, and P2-08, platform scope, P2-10, performance, and owner acceptance remain open.                                                                                                                                                                                            | Review the rows and record explicit owner acceptance for P2-01 through P2-12; keep production scanning hidden until the gate is met.                                       |
 
 <!-- markdownlint-enable MD060 -->
 
+### Why P2-08 remains Partial
+
+P2-08 is not held back merely because its implementation PRs are separate or
+because owner acceptance is missing. The current evidence leaves these
+individual requirements unmet:
+
+1. The installed journey's explicit Retry requirement is not demonstrated.
+   After cancellation, Retry returned `The scan state changed. Refresh the
+status and try again.`; after an unavailable root exhausted its automatic
+   retry chain, restoring the root and selecting Retry also did not reconcile.
+   These are the recorded D2/D3 observations in [the #92 run](installed-journey/run-20260908.md),
+   not a new claim that the merged code is defective.
+2. The typed durable diagnostic and desktop error-presentation correction from
+   #111 is merged at `914d7bd`, but the installed NTFS observations were tested
+   from `05fb35c`. No installed current-head run demonstrates that the merged
+   presentation is the one exercised by the user journey.
+3. The planned evidence includes keyboard, narrow-layout, and accessibility
+   coverage. The available rendered captures are explicitly fake-adapter
+   evidence; the installed records do not provide a current-head capture of
+   the complete scan-console state set. This is an evidence boundary, not proof
+   of an accessibility defect.
+4. The criterion requires the complete Scan/Cancel/Retry and Library journey to
+   be usable, honest, and persistent. #110 closes the durable queued-state and
+   running-lease restart observations, but it does not close the Retry or
+   current-head presentation gaps above.
+
+The owner must decide whether D2/D3 represent an intended exhausted/cancelled
+retry policy or require a product correction, and whether the existing
+fake-adapter plus historical installed evidence is sufficient for this
+criterion. Until then, `Partial` is the evidence disposition; it is not a
+defect declaration or an owner decision.
+
 In the P2-03, P2-07, and P2-08 rows, `05fb35c` identifies the source used for
-the installed observations; it does not describe the current merge state.
-The related #111 product changes are merged at `914d7bd`, while the installed
-observations remain historical. P2-08's historical `Complete` wording is not carried forward: the current
-disposition is Partial because the full installed/owner boundary was not
-established. No P2 acceptance ID is promoted here.
+the installed observations; it does not describe the current merge state. The
+related #111 product changes are merged at `914d7bd`, while the installed
+observations remain historical. P2-08's historical `Complete` wording is not
+carried forward because the individual Retry, current-head presentation, and
+installed accessibility evidence gaps above remain unresolved. No P2
+acceptance ID is promoted here.
 
 ## S5 disposition
 
@@ -193,13 +224,14 @@ evidence defect and separate owner authorization.
 
 ## Dependency and decision coordination
 
-The verified current source baseline is main
-`69f27f64f26aa657182a9260cc8e78f28a5838fb`, including merged #110 (`e2948f1`),
-PR #111 (`914d7bd`), #112 (`00884ba`), and the merged #114. The owner retains
-Phase 2 acceptance authority; the historical coordination text below is
-preserved for provenance.
+The verified current publication baseline is `origin/main`
+`83da093672b5e2154097c897af533821b04f2352`, merged by PR #116 after #115.
+The exact measured source remains `69f27f64f26aa657182a9260cc8e78f28a5838fb`;
+The #115 and #116 changes are documentation-only publication advances after that run. The
+owner retains Phase 2 acceptance authority; the historical coordination text
+below is preserved for provenance.
 
-The [closeout packet's concise decision table](acceptance-packet-2026-09-12.md#owner-decision-list)
+The [closeout packet's concise decision table](acceptance-packet-2026-09-12.md#current-owner-decision-list---2026-09-13)
 is the single owner decision list. It covers F1/F2/F3, DriveFS/FAT32 scope,
 watcher timing/overflow, P2-10, inline onboarding, and #107 without converting
 any recommendation into acceptance.
@@ -230,20 +262,22 @@ NTFS run is requested absent a specific evidence defect.
 
 ## Integration and merge readiness
 
-For the current merged source boundary, #110, #111, #112, and #114 are merged
-in main `69f27f64f26aa657182a9260cc8e78f28a5838fb`. #114 adds the executable
-qualification runbook and validator; the current-only qualification run is
-recorded in [the dated evidence](qualification-evidence-20260913.md) and is
+For the current publication boundary, #110, #111, #112, #114, #115, and #116
+are merged in `origin/main` `83da093672b5e2154097c897af533821b04f2352`.
+PR #116 publishes the current-only qualification evidence; the exact measured
+source remains `69f27f64f26aa657182a9260cc8e78f28a5838fb`. The run is recorded
+in [the dated evidence](qualification-evidence-20260913.md) and is
 non-qualifying. Neither the run nor this documentation changes Phase 2
 acceptance.
 The historical readiness sequence below is not a request to replay old source
 heads or to merge an Agent 1-owned PR again.
 
-Code/evidence review and Phase 2 acceptance are separate gates. The current
-source-stack order is #110 -> #111 -> #112 -> #114 in the merged baseline
-documented above. PR #113 is an older synthetic combined candidate based on `main`, not
-the current source-stack head; its checks and independent review are evidence
-for that candidate only.
+Code/evidence review and Phase 2 acceptance are separate gates. The merged
+implementation/evidence sequence is #110 -> #111 -> #112 -> #114; #115 and
+The #116 changes are documentation-only publication advances. PR #113 is an older
+synthetic combined candidate based on the earlier `main`, not the current
+source-stack head; its checks and independent review are evidence for that
+candidate only.
 Installed evidence remains tied to its recorded sources, including canonical
 S5 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f` and the tested #111 product
 source `05fb35c153dd3f177b900292d39998da3774b5e4`. The product changes are
@@ -263,7 +297,8 @@ provenance only; duplicate-S5 removal is already complete in the current stack
 and is not a future rebase action. Historical replay descriptions retain their
 original SHAs and wording below for provenance.
 
-The earlier owner-ready sequence was:
+The following owner-ready sequence is historical and closed by the merges above;
+it is not a current action list:
 
 1. Review/mark #110 ready and have the owner squash-merge `e209b8a`.
 2. After fetching and verifying the actual new `main`, rebase only #111's own
@@ -280,12 +315,18 @@ The earlier owner-ready sequence was:
    and refresh only live-head references. Keep this factual publication
    separate from unresolved Phase 2 acceptance.
 
+The 2026-09-13 qualification record already used the owner-approved
+`custom-9995` fixture and `repository-minimum` profile. Those are recorded
+choices, not pending selections. The historical strict-profile and A/B
+recommendations are not requirements for this refresh and do not authorize a
+new measurement.
+
 Agents prepare and verify changes. The owner merges pull requests and makes
 acceptance, scope, budget, and issue-closure decisions. #108 remains
-diagnostic evidence only and carries no performance acceptance; #113 remains
-historical until the owner decides its disposition. None of these steps accepts
-Phase 2, changes budgets or scope, closes issues, or activates production
-scanning.
+unexplained historical diagnostic evidence only and carries no performance
+acceptance; #113 remains a superseded historical candidate, with closure
+without merge proposed but not applied. None of these steps accepts Phase 2,
+changes budgets or scope, closes issues, or activates production scanning.
 
 ## Standing gates
 
