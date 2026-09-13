@@ -1,65 +1,75 @@
 # Qualification runbook validation (2026-09-13)
 
-Status: **runbook validation only; not performance evidence and not a
-qualification run.** No benchmark, release build, host preflight, Defender
-query, DriveFS action, or process termination was performed for this check.
+Status: **validator correctness regression only; not performance evidence and
+not a qualification run.** No benchmark, release build, host preflight,
+Defender query, DriveFS action, process termination, host/security change, or
+budget change was performed for this check.
 
-## Checks performed
+## Live state and preserved reproductions
 
-- Parsed all six PowerShell blocks in
-  `qualification-runbook-20260913.md` with the PowerShell AST parser without
-  invoking any block: **0 parse errors**.
-- Parsed `scripts/validate-qualification-report.mjs` with `node --check`:
-  **0 syntax errors**.
-- Exercised the validator against disposable synthetic JSON reports. The
-  `qualified` result below means only that the validator accepted the complete
-  synthetic schema; it is not a benchmark result.
+The live pre-edit state was verified before changing files:
 
-| Synthetic case          | Exit | Disposition      | Observed validation                      |
-| ----------------------- | ---: | ---------------- | ---------------------------------------- |
-| Complete passing report |    0 | `qualified`      | All required records and metrics valid   |
-| Target miss             |    1 | `non-qualifying` | Warm p95 above 10,000 ms                 |
-| Missing iteration       |    1 | `non-qualifying` | Measured count is not 10                 |
-| `Partial` result        |    1 | `non-qualifying` | Non-authoritative measured observation   |
-| Missing metrics         |    1 | `non-qualifying` | Missing working-set metric               |
-| Malformed numeric data  |    1 | `non-qualifying` | Numeric string rejected                  |
-| Cancellation failure    |    1 | `non-qualifying` | Non-terminal/invalid cancellation record |
-| Boolean numeric         |    1 | `non-qualifying` | Boolean `scanMs` rejected                |
-| Negative numeric        |    1 | `non-qualifying` | Negative memory rejected                 |
-| Malformed record        |    1 | `non-qualifying` | Non-object iteration rejected            |
-| `NaN` numeric           |    1 | `non-qualifying` | Non-finite timing rejected               |
-| `Infinity` numeric      |    1 | `non-qualifying` | Non-finite timing rejected               |
-| Fractional target miss  |    1 | `non-qualifying` | `10000.5` compared without rounding      |
+- PR #114 was open at `802c20a7ce6bc16f553740e11251d4d3ca42fa5c`.
+- Its then-base was the historical combined #113 candidate
+  `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`.
+- The linked qualification worktree was the requested sibling worktree.
+- Preserved inputs were read from the requested `fruitboard-review114-AR8mUM`
+  temporary directory.
+  The preserved JSON files were not edited.
 
-- Used `buildPlan`, `writePlan`, `validateSyntheticManifest`, and
-  `computeManifestHash` from the existing generator API in a disposable
-  temporary directory, then removed that directory. Result: hardlinks
-  `created`; 9,995 primary FLP files, 5 aliases, 4 other files, 10,000
-  observations; canonical manifest SHA-256
-  `a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a`.
-- Confirmed the #112 harness and native driver syntax with `node --check` and
-  ran the focused generator/benchmark-scaffold tests: **17 passed**. These
-  tests did not start the real benchmark; the scaffold test uses its
-  environment-only fallback.
-- Imported the actual #112 `parseBenchmarkArgs` function and exercised every
-  option used by the runbook; the complete option surface and report-field
-  markers were present. The parser accepts `--warmup`, but the execution path
-  does not consume `parsed.warmup`; it uses the source constant
-  `WARM_UP_RUNS = 1`, which is why the runbook omits that non-binding option.
+Running the pre-edit validator against those inputs produced the confirmed
+defects:
 
-The checked source-stack references were the historical combined candidate
-`e90b03cc0bddd1a449e817ea2d89708a85c82ef1` and #112 head `9da0272`; their
-benchmark harness, driver, and generator file blobs are identical. Neither
-SHA is an execution boundary. A future run must record the exact merged
-`origin/main` SHA at execution time.
+| Preserved case       | Individual measurements                              | Reported aggregate                                                        | Pre-edit result       | Corrected result at checked candidate `2d03abac5654a7f7dfc05b22ff5f9ce85784cc16`     |
+| -------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------ |
+| `baseline`           | scan `100` x10; stop `100` x3; all attempt exits `0` | scan n=10/median/max/p95 `10/100/100/100`; cancellation n=3/`100/100/100` | exit `0`, `qualified` | exit `0`, `qualified`                                                                |
+| `hidden-scan-miss`   | scan `100,100,100,100,100,100,100,100,100,20000`     | scan n=10/median/max/p95 `10/100/100/100`                                 | exit `0`, `qualified` | exit `1`, `non-qualifying`; derived max/p95 `20000`, aggregate mismatch, budget miss |
+| `hidden-cancel-miss` | stop `100,100,2000`; scan `100` x10                  | cancellation n=3/median/max/p95 `3/100/100/100`                           | exit `0`, `qualified` | exit `1`, `non-qualifying`; derived max/p95 `2000`, aggregate mismatch, budget miss  |
+| `nonzero-child`      | measured `iteration-0` exit `1`; all other exits `0` | scan/cancellation aggregates both reported all `100`                      | exit `0`, `qualified` | exit `1`, `non-qualifying`; failed attempt retained and marked exit `1`              |
 
-## Final static checks
+The corrected summaries were written only to disposable temporary output paths.
+The validator now derives timing statistics from qualifying validated records,
+compares median, maximum, nearest-rank p95, and sample count with the report,
+and applies budgets to those derived values. Cancellation uses
+`stopLatencyMs`, not cancellation `scanMs`. The native driver contract was
+confirmed in `crates/scan-execution/examples/benchmark.rs`: process exit `0`
+means terminal `Published` or `Cancelled`; all other attempt exits are
+non-qualifying. Summaries retain attempt `exitCode` and explain failed attempt
+dispositions in `attemptFailures`.
 
-- Targeted Markdownlint: **pass**.
-- Prettier check for the corrected runbook, validation record, and validator:
+## Regression and static checks
+
+- `node --test tests/qualification-report.test.mjs`: **20 passed**. This
+  committed suite uses disposable synthetic reports and cleanup and covers a
+  valid pass, understated scan/cancellation summaries, each aggregate field,
+  nonzero warm-up/measured/cancellation exits, missing and non-authoritative
+  attempts, malformed numbers, fractional target misses, missing required
+  metrics, and the scan-duration/stop-latency distinction.
+- `node --test tests/benchmark-scaffold.test.mjs tests/synthetic-tree.test.mjs`:
+  **17 passed**. These are the pre-existing benchmark/scaffold tests and are
+  recorded separately; they are not coverage of the new qualification
+  validator.
+- `node --test "tests/*.test.mjs"`: **103 passed**; the normal repository
+  JavaScript test glob discovered the new suite.
+- `node --check scripts/validate-qualification-report.mjs` and
+  `node --check tests/qualification-report.test.mjs`: **pass**.
+- Prettier check for the changed package, validator, test, and runbook files:
   **pass**.
-- Repository privacy verification: **pass** (293 files).
 - `git diff --check`: **pass**.
 
-The temporary synthetic reports and generator fixture are outside the
-repository and are not retained as benchmark evidence.
+Report validation remains only a report-integrity gate. It does not prove host
+eligibility, source provenance, or full Phase 2 acceptance; those preflight,
+source/build, platform-scope, and acceptance requirements remain separate
+runbook gates.
+
+## Source-stack coordination
+
+PR #112 remains open at source-stack head
+`9da0272fb2fefac9775028ed6bf8013459c10cad`; actual merged `origin/main` is
+still the required future performance execution boundary. PR #113 remains open
+at `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`; its historical acceptance
+documentation was excluded. #114's own commits were rebased onto the current
+source-stack head, leaving only the runbook/validator/test changes above on
+this branch.
+
+No benchmark or performance qualification is claimed by this record.
