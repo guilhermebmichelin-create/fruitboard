@@ -265,6 +265,20 @@ row.
 | 10. Cancel/unavailable/retry | Cancel and unavailable-root retention were observed. Prior rows stayed visible. Retry after cancellation returned `The scan state changed. Refresh the status and try again.`; restored unavailable work also did not converge after its automatic retry budget was exhausted. | [Run record](installed-journey/run-20260908.md#native-scan-cancel-and-retry)          | Defects/gaps recorded; successful Retry unverified |
 | 11. Cleanup                  | Graceful close completed; the installed NSIS package was uninstalled with exit code 0. The run-specific synthetic fixtures, dedicated DB, and recoverable pre-existing Foundation Smoke archive remain for evidence review; normal user data was not touched.                  | [Run record](installed-journey/run-20260908.md#cleanup-and-boundary)                  | Package removed; review artifacts retained         |
 
+## #107 installed addendum — 2026-09-12
+
+The historical table above is preserved. The additive [#107 queued-state and
+restart record](installed-journey/run-20260912-queued-restart.md) supplies the
+following later observations from a clean, feature-enabled installed package
+at reviewed commit `19585da` with `origin/main` baseline `3ebac5f`:
+
+| Step | Addendum observation | Status |
+| --- | --- | --- |
+| 4. Scan now | Native and UI evidence show the target `running` while two other roots are durably `queued` with null `runId`; a terminal completed target follows restart. | Queued/running/terminal observed |
+| 6. Restart survival | A database copy taken 54 ms after exact-PID hard kill contains the target `running` lease and 1,536 open staged observations. After relaunch, the same job/retry chain is attempt 2 with a fresh completed run and 8,000 committed rows. | Same-job restart recovery observed |
+| 9. Watcher follow-up | The installed burst convergence remains covered by [#106](installed-journey/run-20260909-fixed-validation.md#53-scenario-3--burst-changes-appearing-in-committed-library-results), with its candidate-to-merged patch identity recorded there. | Reused; no relabelling |
+| 10. Cancel/unavailable/retry | The new record adds queued disable and queued remove: both queued jobs are cancelled before mutation can publish, with disabled state persisted and removed locations detached. #106 remains the source for installed cancellation/unavailable/exhaustion observations. | Queued disable/remove observed |
+
 ## Gate and handoff
 
 The operator reports the exact combined commit, the feature-enabled CI URL,

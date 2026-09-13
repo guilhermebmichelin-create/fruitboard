@@ -4,6 +4,10 @@ This directory contains the supporting record for the installed Windows run
 entered in the [installed-app checklist](../installed-app-journey-checklist.md).
 The run record is [run-20260908.md](run-20260908.md).
 
+The additive #107 verification is [run-20260912-queued-restart.md](run-20260912-queued-restart.md).
+Its review-only driver is [queued-state-restart.mjs](queued-state-restart.mjs).
+The historical run records and the preserved S5 disposition remain unchanged.
+
 The evidence classes are intentionally separate:
 
 - `run-20260908.md` records observations from the unsigned, installed
