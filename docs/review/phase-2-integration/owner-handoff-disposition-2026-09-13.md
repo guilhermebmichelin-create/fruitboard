@@ -111,7 +111,7 @@ Agent 1; the owner retains Phase 2 acceptance authority.
   cache was used. No cleanup is required; the primary workspace's dirty and
   untracked files were preserved.
 - The only working volume used for this documentation task is `C:`. Final
-  capacity check: **64.33 GiB free of 475.45 GiB**; the 30 GiB reserve is
+  capacity check: **63.45 GiB free of 475.45 GiB**; the 30 GiB reserve is
   maintained. No `G:` build or evidence output was used.
 - Evidence links: [current qualification evidence](qualification-evidence-20260913.md),
   [live review status](README.md#live-review-status-2026-09-13), the merged
