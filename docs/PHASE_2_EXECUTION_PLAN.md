@@ -11,18 +11,39 @@ referenced by issues.
 
 ## Current status
 
-Final 2026-09-10 refresh: merged `origin/main` is now
-`cccaa67867250ca6708d1aab43a6dbcb758c8a9d` (PR #104, merged 2026-09-10).
-Since PR #89 (`0b7612d`), main has merged #90, #100, #92, #93, #102, #96
-(proposal only), #101 (historical stall baseline), #103, #105 (`smol-toml`
-1.7.1 security fix for GHSA-7w5x-hrqm-74c2), #94, #98, #95, #97, and #104
-(queue-stall fix, 2 files). Current CI: Foundation `34426244554` on `ff5d8ee`
-success (all 9 jobs); Foundation `34426947016` on `cccaa67` in progress (not
-cited as green); Foundation `34399884756` on `f63a1d3` success (security
-fixed). The #94 merge-commit run `34424255475` was cancelled by the next
-push; its PR-branch dispatch was green and the tree is covered by
-`34426244554`. Implemented behavior, automated evidence, installed evidence,
-and acceptance stay separate.
+The [dated live review status table](review/phase-2-integration/README.md#live-review-status-2026-09-13)
+is the current-head authority for `main` and PRs #108-#114. The verified source
+baseline for this refresh is `71848732216d4ab4e13e73c820b2b8e4d17bddbe`, which
+contains merged #110, #111, #112, and #114. #112 merged at
+`00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8` and #114 merged at this baseline;
+merged #114 adds the executable qualification runbook/validator but no qualification
+run. Installed records retain their tested-source provenance. Green checks
+establish CI provenance only; they do not establish owner acceptance.
+
+Agent 2's final S5 verification found no product or contract defect and did not
+rerun S5. Its recorded installed evidence is now published by merged #110; the
+packet records the disposition and the owner decision list. The original
+benchmark `Partial` remains unexplained, and no performance result is
+qualified.
+
+## Historical status snapshot
+
+The following earlier snapshot is retained for provenance. Its head references
+and planning language do not override the dated status table above.
+
+Current live refresh: `origin/main` is
+`3ebac5f7a76c3425620ceba59e6078b32fb6cd85` (PR #91, merged 2026-09-10).
+Since PR #89 (`0b7612d`), main has merged subsequent PRs: #90, #100, #92,
+and #93. The next merges were #102, #96 (proposal only), and #101
+(historical stall baseline).
+The remaining merges are #103, #105, #94, #98, #95, #97, #104, #106, and
+PR #91. Foundation CI run `34428758835` is successful
+on the exact current head with all nine Foundation jobs. Draft PRs #108
+(`a44653b`), #109 (closeout), #110 (`e209b8a`), #111 (`f8140349`), and #112
+(`eace2e6`) are open
+and unmerged; PR #99 is closed without merge and remains validation-only
+history. Implemented behavior, automated evidence, installed evidence, and
+owner acceptance stay separate.
 
 Merged #92 records the installed journey (`run-20260908.md`): persistence,
 paging, watcher follow-up convergence, cancellation retention, and
@@ -35,37 +56,56 @@ candidate with contended A/B and diagnostic cleanup (Foundation `34424822082`
 success). Merged #104 (`cccaa67`) skips failed retry while the root active
 slot is owned (2 files; regression fails pre-fix, passes post-fix). Fixed
 installed validation lives in merged PR #106 (canonical corrected report; this
-plan carries no duplicate copy): S1–S4 PASS, S6 PASS, S5 PARTIAL (successor
-convergence; same-job not demonstrated; tracked as open issue #107). No
-acceptance claimed. The current criterion-by-criterion ledger is in the
+plan carries no duplicate copy): S1-S4 PASS, S6 PASS, S5 PARTIAL (successor
+convergence after an already-terminal follow-up; a genuine crash with a
+running lease at restart is a separate path. The existing automated same-job
+requeue test covers that path; issue #107 tracks disposition and any evidence
+gap. No contract change is proposed unless Agent 2 establishes a defect, and
+no acceptance is claimed. The current criterion-by-criterion ledger is in the
 [2026-09-08 reconciliation
 report](review/phase-2-integration/reconciliation-2026-09-08.md) with its
-final 2026-09-10 addendum and P2-01–P2-12 table. Historical runs (including
+final 2026-09-10 addendum and P2-01-P2-12 table. Historical runs (including
 `986ca61`/`15b7f17`/`c3d3292` packaging sidecar-timeout fails with retry
 disposition, and the unpublished `cccd6da` claims superseded by actual merges)
 stay in that report's historical sections.
 
-Validation-only PR #99 (`9c211ad`, never merges, never implies constituent
-safety) stays historical. Merged #96 stays a proposal only. Merged #101/#102
+The following historical review-head summary is deliberately classified
+separately and does not override the current status above:
+PR #110 carries the queued/restart evidence from tested `19585da`; PR #111 carries
+the local-NTFS denied-traversal, unchanged-bound `ResourceLimit`, and hardlink
+evidence plus the durable-diagnostic and desktop scan-console correction from
+tested source `05fb35c`. The J run is not evidence from merged `3ebac5f`, and
+PR #111 is not evidence-only documentation. Its recovered S5 `de396e7` has the
+same parent, tree, and stable patch ID as #110's `19585da`; the integration
+strategy keeps `19585da` canonical and does not replay a second recovery patch.
+
+The current [closeout packet](review/phase-2-integration/acceptance-packet-2026-09-12.md)
+owns the live coordination summary and proposed issue updates. Validation-only
+PR #99 (`9c211ad`) is closed, never merged, and never implies constituent
+safety; it stays historical. Merged #96 stays a proposal only. Merged #101/#102
 stay historical stall failure evidence. Prior #91 heads stay as history.
 
-| State | Work | Evidence or next action |
-| --- | --- | --- |
-| Delivered | Phase 1 foundation, accepted; #34 native picker/root storage | PRs #20-32 and #44; installed picker evidence in `docs/review/issue-34/` via #54 |
-| Delivered | #35 persistent rename/enabled settings, inline onboarding, failure/focus fixes | PRs #55/#56/#58; CI and regression tests; not scanner execution |
-| Delivered | #35 rendered desktop/narrow keyboard verification | [Evidence](review/issue-35/README.md) and PR #58; fake-adapter rendering is labeled separately from installed-app evidence |
-| Partially evidenced (acceptance pending) | #36 bounded reconciliation, #64 Windows enumeration, and #70 scan worker | PRs #59/#64/#70; deterministic reconciliation, bounded handle-bound enumeration, and the end-to-end worker are merged; the installed #92 run observed add/modify/rename and remove/restore convergence on `main`; P2-02/P2-03 acceptance remains open |
-| Partially evidenced (acceptance pending) | #38 durable scan execution foundation | PRs #60/#61/#70/#85 and [durable execution evidence](PHASE_2_DURABLE_EXECUTION.md); durable state-machine and worker fault coverage is merged; the installed #92 run observed persisted settings, cancellation retention, and interrupted-work recovery, while durable queued observation remains unverified in that record. Merged #95 aligns Library scan actions with durable state; merged #97 adds durable-queue and watcher-burst verification; merged #104 skips failed retry while the root active slot is owned. Installed queued snapshot and burst timing remain open; S5 successor-vs-same-job is tracked as #107. P2-04/P2-05 and owner review remain open |
-| Decision pending | Inline Preferences onboarding instead of a separate first-run route | Implementation documented; owner review remains separate from the accepted scanner contracts |
-| Partially evidenced (acceptance pending) | #40 staging/publication/read model plus #77 responsive staged batches and #85 durability close-out | PR #62, PR #77, and PR #85; atomic publication, bounded batches, crash/recovery, fault-injection, alias, and stale-publication tests are merged; the installed #92 run observed cancellation/unavailable retention and interrupted recovery, while installed alias qualification and P2-03/P2-06/P2-07 acceptance remain open |
-| Implemented (feature-gated; acceptance pending) | #73 scan-console IPC, #78 native Library adapter, and #82 native watcher host | PRs #73/#77/#78/#81/#82 plus merged #95 Library/durable-state alignment; six typed commands, scoped permissions, native supervision, root mapping, shutdown recovery, and feature-on CI are merged; the installed #92 run observed paging, persistence, cancellation retention, and native work. P2-08/full-criterion acceptance remains open |
-| Implemented (automated evidence; qualification pending) | #37 watcher foundation, durable follow-up adapter, and native supervisor | PRs #68/#69/#71/#81/#82 plus merged #97 durable-queue/watcher-burst verification provide bounded coalescing, coverage-loss handling, generation fencing, reconnect backoff, and joined host loops; the installed #92 run observed watcher follow-ups and convergence, but installed burst timing, real overflow timing, and DriveFS evidence remain open; merged #97 counts are automated evidence and do not fill the installed column |
-| Partially evidenced (acceptance pending) | #39 no-parser boundary and additional #37 guards | Merged PR #81 adds static no-parser/no-content-I/O policy guards plus synthetic-fixture source-byte preservation assertions; these checks are not an installed-app proof or a runtime content-read spy |
-| Measured (qualification and owner decision pending) | #41/P2-11 benchmark and #79 budget/governance brief | Original report remains historical; the [2026-09-08 re-run](review/phase-2-integration/benchmark-triage-20260908/rerun-report.md), recorded at pre-#85 baseline `51f45af`, reproduces F1, records warm p95 14,267 ms versus 10 s, and leaves F3 unmeasured. Merged [PR #93](https://github.com/guilhermebmichelin-create/fruitboard/pull/93) (`106335a`) adds contended filesystem-port profiling, not an idle-host performance pass. Merged #94 (`d342ec1`) removes the duplicate enumeration metadata query; merged #98 (`7e0e9f6`) validates that candidate with contended A/B and diagnostic cleanup (both sides fail 10 s p95; no qualification claimed); quiet-host A/B still required. F1/F3 scale options are in merged PR #96 (`326fb0a`) as a proposal only with its §2.9 correction, not an approved scale design |
-| Recorded (owner acceptance pending) | #41/P2-12 checkpoint (#80) | [Checkpoint](review/phase-2-integration/checkpoint-2026-09-07.md) remains historical; the current [reconciliation report](review/phase-2-integration/reconciliation-2026-09-08.md) incorporates merged #90/#92/#93/#94/#95/#96/#97/#98/#100/#101/#102/#103/#104/#105 plus #82/#85/#86/#88/#89, with the final 2026-09-10 addendum (live `cccaa67` baseline, #106 canonical fixed validation, S5 tracked as #107) and the P2-01–P2-12 table, while preserving historical failed replays |
-| Next gates | Installed-app verification; owner decisions; platform and performance closure | Merged #95/#97/#104 supply the Library/durable-state, queue/watcher, and retry-sweep fixes; fixed installed validation lives in merged PR #106 (canonical; S5 PARTIAL tracked as #107 with no acceptance claimed). Remaining decisions only: F1 fixture, F2 qualification, F3 scope, platform qualification/exclusions, P2-10 boundary, and final acceptance. Agent 1 owns merges per explicit user authorization (owner retains acceptance/decision authority; branch protection unchanged). Keep production scanning hidden until P2-03 through P2-08 have integrated evidence. #91 merges last after #106 |
-| Open/unverified | DriveFS modes (#47), cross-volume/FAT32 identity (#48) | Merged [PR #90](https://github.com/guilhermebmichelin-create/fruitboard/pull/90) (`f487aa1`) records the exact blockers and setup needed. No platform qualification or exclusion is claimed |
-| Deferred | Parsing (#39), logical grouping, Kanban, playback, sync, PWA | Phase 2 is filesystem-only; bounded independent Rust-parser spike follows accepted MVP |
+<!-- markdownlint-disable MD060 -->
+
+| State                                                   | Work                                                                                               | Evidence or next action                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Delivered                                               | Phase 1 foundation, accepted; #34 native picker/root storage                                       | PRs #20-32 and #44; installed picker evidence in `docs/review/issue-34/` via #54                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Delivered                                               | #35 persistent rename/enabled settings, inline onboarding, failure/focus fixes                     | PRs #55/#56/#58; CI and regression tests; not scanner execution                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Delivered                                               | #35 rendered desktop/narrow keyboard verification                                                  | [Evidence](review/issue-35/README.md) and PR #58; fake-adapter rendering is labeled separately from installed-app evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Partially evidenced (acceptance pending)                | #36 bounded reconciliation, #64 Windows enumeration, and #70 scan worker                           | PRs #59/#64/#70; deterministic reconciliation, bounded handle-bound enumeration, and the end-to-end worker are merged; the installed #92 run observed add/modify/rename and remove/restore convergence; merged #111 adds the denied-traversal and unchanged-bound `ResourceLimit` implementation/evidence, while those installed observations remain tested from `05fb35c` on local NTFS; P2-02/P2-03 acceptance remains open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Partially evidenced (acceptance pending)                | #38 durable scan execution foundation                                                              | PRs #60/#61/#70/#85 and [durable execution evidence](PHASE_2_DURABLE_EXECUTION.md); durable state-machine and worker fault coverage is merged; the installed #92 run observed persisted settings, cancellation retention, and interrupted-work recovery. Merged #95 aligns Library scan actions with durable state; merged #97 adds durable-queue and watcher-burst verification; merged #104 skips failed retry while the root active slot is owned. Merged #110 publishes queued/running/terminal state and genuine same-job restart evidence tested from canonical `19585da`; merged #111 retains the recovered `de396e7` only as historical provenance. P2-04/P2-05 and owner review remain open                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Decision pending                                        | Inline Preferences onboarding instead of a separate first-run route                                | Implementation documented; owner review remains separate from the accepted scanner contracts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Partially evidenced (acceptance pending)                | #40 staging/publication/read model plus #77 responsive staged batches and #85 durability close-out | PR #62, PR #77, and PR #85; atomic publication, bounded batches, crash/recovery, fault-injection, alias, and stale-publication tests are merged; the installed #92 run observed cancellation/unavailable retention and interrupted recovery. Merged #110 adds queued disable/remove and a genuine running-lease hard-kill/restart record; merged #111 adds local-NTFS hardlink evidence and durable diagnostic/desktop error presentation, while the installed NTFS source remains `05fb35c`. Installed alias qualification and P2-03/P2-06/P2-07 acceptance remain open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Implemented (feature-gated; acceptance pending)         | #73 scan-console IPC, #78 native Library adapter, and #82 native watcher host                      | PRs #73/#77/#78/#81/#82 plus merged #95 Library/durable-state alignment and #111 diagnostic mapping; six typed commands, scoped permissions, native supervision, root mapping, shutdown recovery, and feature-on CI are merged; the installed #92 run observed paging, persistence, cancellation retention, and native work. P2-08/full-criterion acceptance remains open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Implemented (automated evidence; qualification pending) | #37 watcher foundation, durable follow-up adapter, and native supervisor                           | PRs #68/#69/#71/#81/#82 plus merged #97 durable-queue/watcher-burst verification provide bounded coalescing, coverage-loss handling, generation fencing, reconnect backoff, and joined host loops; the installed #92 run observed watcher follow-ups and convergence, but installed burst timing, real overflow timing, and DriveFS evidence remain open; merged #97 counts are automated evidence and do not fill the installed column                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Partially evidenced (acceptance pending)                | #39 no-parser boundary and additional #37 guards                                                   | Merged PR #81 adds static no-parser/no-content-I/O policy guards plus synthetic-fixture source-byte preservation assertions; these checks are not an installed-app proof or a runtime content-read spy                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Measured (qualification and owner decision pending)     | #41/P2-11 benchmark and #79 budget/governance brief                                                | Original report remains historical; the [2026-09-08 re-run](review/phase-2-integration/benchmark-triage-20260908/rerun-report.md), recorded at pre-#85 baseline `51f45af`, reproduces F1, records warm p95 14,267 ms versus 10 s, and leaves F3 unmeasured. Merged [PR #93](https://github.com/guilhermebmichelin-create/fruitboard/pull/93) (`106335a`) adds contended filesystem-port profiling, not an idle-host performance pass. Merged #94 (`d342ec1`) removes the duplicate enumeration metadata query; merged #98 (`7e0e9f6`) validates that candidate with contended A/B and diagnostic cleanup (both sides fail 10 s p95; no qualification claimed). #108 records normal-config current-main at 9/10 authoritative with one retained `Failed`/`Partial` iteration at 11,137 ms; Agent 3's first quiet-host window failed closed before measurement at `2561d3f`; merged #112 records that original Partial as unexplained and not reproduced, and adds bounded diagnostic coverage plus a sanitized protocol. Later passes do not establish its cause or performance acceptance. F1/F3 scale options are in merged PR #96 (`326fb0a`) as a proposal only with its §2.9 correction, not an approved scale design |
+| Recorded (owner acceptance pending)                     | #41/P2-12 checkpoint (#80)                                                                         | The checkpoint and reconciliation report remain historical records. The current [closeout packet](review/phase-2-integration/acceptance-packet-2026-09-12.md) refreshes the live baseline, evidence classes, open decisions, and coordination order without rewriting those reports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Next gates                                              | Owner decisions and remaining checks                                                               | Agent 3's first quiet-host preflight failed closed before measurement at `2561d3f`; merged #110 publishes the September 12 S5 evidence with no defect and no S5 rerun; merged #111 carries the mixed NTFS/product hardening, and merged #112 adds bounded `partial_class` reporting plus a sanitized benchmark protocol. Merged #114 makes the qualification runbook/report validator executable but has not run qualification. These checks and artifacts remain separate from Phase 2 acceptance. Resolve F1/F2/F3, platform scope, P2-10 evidence strength, inline onboarding, and criterion-by-criterion acceptance. Keep production scanning hidden until P2-03 through P2-08 have integrated evidence                                                                                                                                                                                                                                                                                                                   |
+| Open/unverified                                         | DriveFS modes (#47), cross-volume/FAT32 identity (#48)                                             | Merged [PR #90](https://github.com/guilhermebmichelin-create/fruitboard/pull/90) (`f487aa1`) records the exact blockers and setup needed. No platform qualification or exclusion is claimed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Deferred                                                | Parsing (#39), logical grouping, Kanban, playback, sync, PWA                                       | Phase 2 is filesystem-only; bounded independent Rust-parser spike follows accepted MVP                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+<!-- markdownlint-enable MD060 -->
 
 ## Visible completion scenario
 
@@ -191,16 +231,16 @@ one completed enumeration. It is an isolated library, with no renderer command
 or production traversal. A failed or incomplete enumeration returns no change
 set, including no positive updates. Staging is disposable until atomic apply.
 
-| Previous versus observed | Decision |
-| --- | --- |
-| Same normalized path, same identity/size/mtime | No file change; run freshness advances separately |
-| Same path, same qualified identity, changed size/mtime | Modified filesystem metadata; no claim about content equality |
-| Same path, both qualified identities differ | Replacement, retaining path history and assigning the observed physical association; never silently continue the old physical file |
-| Same path, identity unavailable on either side | Path continuity only, explicitly uncertain; changed metadata is modification evidence, never proof of identity |
-| Old path absent, new path has same qualified identity | Record old path missing and new path present; emit rename evidence only for an unambiguous one-old/one-new match |
-| Two or more paths share an identity | Preserve every location; identity lookup is non-unique, and ambiguous alias changes do not prove a rename |
-| Missing path observed again | Restore that location's presence; separately flag replacement if qualified identity changed |
-| Unseen path after incomplete/offline/cancelled traversal | No transition; previous committed state remains intact |
+| Previous versus observed                                 | Decision                                                                                                                           |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Same normalized path, same identity/size/mtime           | No file change; run freshness advances separately                                                                                  |
+| Same path, same qualified identity, changed size/mtime   | Modified filesystem metadata; no claim about content equality                                                                      |
+| Same path, both qualified identities differ              | Replacement, retaining path history and assigning the observed physical association; never silently continue the old physical file |
+| Same path, identity unavailable on either side           | Path continuity only, explicitly uncertain; changed metadata is modification evidence, never proof of identity                     |
+| Old path absent, new path has same qualified identity    | Record old path missing and new path present; emit rename evidence only for an unambiguous one-old/one-new match                   |
+| Two or more paths share an identity                      | Preserve every location; identity lookup is non-unique, and ambiguous alias changes do not prove a rename                          |
+| Missing path observed again                              | Restore that location's presence; separately flag replacement if qualified identity changed                                        |
+| Unseen path after incomplete/offline/cancelled traversal | No transition; previous committed state remains intact                                                                             |
 
 A rename signal is advisory physical-locator evidence, not a logical-project
 merge and not deletion of the old path's history. Cross-root moves, unsupported
@@ -231,20 +271,20 @@ The schema PR must implement this policy without cascading away file history.
 
 ## Acceptance ownership and evidence
 
-| ID | Acceptance criterion | Owner | Required evidence |
-| --- | --- | --- | --- |
-| P2-01 | Existing root settings/picker remain safe and accessible | #34/#35 | Installed selection/cancel evidence; settings restart tests; rendered narrow/keyboard follow-up |
-| P2-02 | Unchanged tree causes no spurious file changes; add/modify/rename converge | #36 | Deterministic synthetic enumerator and qualified NTFS fixture tests |
-| P2-03 | Partial/offline/denied/cancelled/limited traversal never marks files missing | #36 + #40 | Fault injection for every outcome; compare committed rows before/after |
-| P2-04 | Generations, dedup, leases, backoff and cancellation obey the contracts | #38 | Fake-clock/state-machine tests including stale workers and both cancel/commit orderings |
-| P2-05 | Disable/remove while queued/running prevents stale publication | #38 + #40 | Concurrent operation tests; source marker hashes unchanged; re-enable fresh run |
-| P2-06 | Atomic publication and restart/backup recovery preserve valid data | #40 | Crash before/after staging/apply, migration rollback and backup/recovery fixtures |
-| P2-07 | Hardlink aliases and uncertain identity preserve per-path presence | #40 + #36 | Required two-location identity regression; rename/replacement tests; #48 limits stated |
-| P2-08 | Scan/Cancel/Retry and Library list are usable, honest and persistent | #38 controls; #40 list | Typed IPC/client/native integration tests, axe, keyboard and desktop/narrow evidence |
-| P2-09 | Watcher bursts/overflow/event loss converge through durable reconciliation | #37 | Synthetic burst/overflow/restart tests, bounded coalescing; #47 manual evidence for Drive claims |
-| P2-10 | No parsing, hydration or source mutation enters filesystem-only discovery | #39 + #36 | Dependency/privacy checks, content-read spy tests and source-byte preservation |
-| P2-11 | Performance/resource limits are measured and safely enforced | #36/#38/#40; #41 aggregates | Reproducible benchmark report with environment, targets, failures and resource-limit tests |
-| P2-12 | Complete visible journey works after integration | #41 | Merged PR mapping, CI results, Windows interactive journey, explicit unverified modes and owner acceptance |
+| ID    | Acceptance criterion                                                         | Owner                       | Required evidence                                                                                          |
+| ----- | ---------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| P2-01 | Existing root settings/picker remain safe and accessible                     | #34/#35                     | Installed selection/cancel evidence; settings restart tests; rendered narrow/keyboard follow-up            |
+| P2-02 | Unchanged tree causes no spurious file changes; add/modify/rename converge   | #36                         | Deterministic synthetic enumerator and qualified NTFS fixture tests                                        |
+| P2-03 | Partial/offline/denied/cancelled/limited traversal never marks files missing | #36 + #40                   | Fault injection for every outcome; compare committed rows before/after                                     |
+| P2-04 | Generations, dedup, leases, backoff and cancellation obey the contracts      | #38                         | Fake-clock/state-machine tests including stale workers and both cancel/commit orderings                    |
+| P2-05 | Disable/remove while queued/running prevents stale publication               | #38 + #40                   | Concurrent operation tests; source marker hashes unchanged; re-enable fresh run                            |
+| P2-06 | Atomic publication and restart/backup recovery preserve valid data           | #40                         | Crash before/after staging/apply, migration rollback and backup/recovery fixtures                          |
+| P2-07 | Hardlink aliases and uncertain identity preserve per-path presence           | #40 + #36                   | Required two-location identity regression; rename/replacement tests; #48 limits stated                     |
+| P2-08 | Scan/Cancel/Retry and Library list are usable, honest and persistent         | #38 controls; #40 list      | Typed IPC/client/native integration tests, axe, keyboard and desktop/narrow evidence                       |
+| P2-09 | Watcher bursts/overflow/event loss converge through durable reconciliation   | #37                         | Synthetic burst/overflow/restart tests, bounded coalescing; #47 manual evidence for Drive claims           |
+| P2-10 | No parsing, hydration or source mutation enters filesystem-only discovery    | #39 + #36                   | Dependency/privacy checks, content-read spy tests and source-byte preservation                             |
+| P2-11 | Performance/resource limits are measured and safely enforced                 | #36/#38/#40; #41 aggregates | Reproducible benchmark report with environment, targets, failures and resource-limit tests                 |
+| P2-12 | Complete visible journey works after integration                             | #41                         | Merged PR mapping, CI results, Windows interactive journey, explicit unverified modes and owner acceptance |
 
 Each implementation PR cites its acceptance IDs and supplies tests in that PR.
 Cross-issue criteria require integrated evidence before they count as complete.
@@ -258,17 +298,17 @@ fixture generator/seed. Run 10 measured iterations after one warm-up; report
 median, maximum and nearest-rank p95. Report first-run separately; do not call
 it cold-cache unless OS cache state was actually controlled.
 
-| Area | Proposed target | Failure behavior / measurement |
-| --- | --- | --- |
-| Baseline fixture | 10,000 FLP-named synthetic files across 1,000 directories; qualification set 100,000 entries | No private projects; no parser; include Unicode, long paths and aliases in correctness sets |
-| NTFS scan latency | Baseline first discovery <=30 s; unchanged warm reconciliation p95 <=10 s | Measure enumerate + stage + final apply; investigate misses, never skip safety checks |
-| Cancellation | UI acknowledgement <=250 ms; cooperative worker stop p95 <=1 s between responsive I/O calls | Blocking OS calls may exceed this; invalidate publication immediately, report observed stop latency honestly |
-| Working memory | Scanner incremental private memory <=128 MiB on the 100,000-entry set | Measure against idle app; bounded streaming, no full-tree in-memory accumulation |
-| Batch/staging | <=512 records per batch; <=256 MiB staging per run | Enforced quota failure retains prior results; benchmark disk use and cleanup |
-| Queue/leases | One worker, one follow-up/root; 30 s lease, renewal every 5 s | Fake-clock expiry tests; lease validation before all writes |
-| Retry budget | Three automatic retries at 1/2/4 s, bounded jitter <=20%; then explicit retry | Persist attempts; no tight loops on disconnected roots |
-| Progress/list | <=4 progress updates/s; <=200 records/page; baseline query p95 <=200 ms | Test throttling and page order; measure IPC query separately from rendering |
-| Root budget | Initially qualify <=100 configured roots | Validate budget before claiming larger scale; never silently ignore excess roots |
+| Area              | Proposed target                                                                              | Failure behavior / measurement                                                                               |
+| ----------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Baseline fixture  | 10,000 FLP-named synthetic files across 1,000 directories; qualification set 100,000 entries | No private projects; no parser; include Unicode, long paths and aliases in correctness sets                  |
+| NTFS scan latency | Baseline first discovery <=30 s; unchanged warm reconciliation p95 <=10 s                    | Measure enumerate + stage + final apply; investigate misses, never skip safety checks                        |
+| Cancellation      | UI acknowledgement <=250 ms; cooperative worker stop p95 <=1 s between responsive I/O calls  | Blocking OS calls may exceed this; invalidate publication immediately, report observed stop latency honestly |
+| Working memory    | Scanner incremental private memory <=128 MiB on the 100,000-entry set                        | Measure against idle app; bounded streaming, no full-tree in-memory accumulation                             |
+| Batch/staging     | <=512 records per batch; <=256 MiB staging per run                                           | Enforced quota failure retains prior results; benchmark disk use and cleanup                                 |
+| Queue/leases      | One worker, one follow-up/root; 30 s lease, renewal every 5 s                                | Fake-clock expiry tests; lease validation before all writes                                                  |
+| Retry budget      | Three automatic retries at 1/2/4 s, bounded jitter <=20%; then explicit retry                | Persist attempts; no tight loops on disconnected roots                                                       |
+| Progress/list     | <=4 progress updates/s; <=200 records/page; baseline query p95 <=200 ms                      | Test throttling and page order; measure IPC query separately from rendering                                  |
+| Root budget       | Initially qualify <=100 configured roots                                                     | Validate budget before claiming larger scale; never silently ignore excess roots                             |
 
 If measurements reject a target, amend this table with evidence and owner review
 before broadening support. CI correctness tests use deterministic clocks and
@@ -282,26 +322,45 @@ findings. Drive modes and non-NTFS identity remain unverified under #47/#48.
 Before claiming support, land their evidence or obtain an explicit owner scope
 exclusion; do not reinterpret unavailable environments as passing tests.
 
-The current merged boundary is `0b7612d` (PR #89), with the exact-commit
-[Foundation CI run](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/34293250231).
-The earlier `e5e777d`/PR #81 baseline and the `05d39ff`/PR #82 supervisor
-wave are historical inputs to the current state. Native watcher supervision,
-durability close-out coverage, and the benchmark triage re-run are now merged;
-the current ledger records their evidence classes separately from acceptance.
-Any local or unmerged agent work remains provisional and is not used as merged
-evidence.
+The merged boundary, current PR heads, and exact-head CI results are maintained
+in the [dated live review status table](review/phase-2-integration/README.md#live-review-status-2026-09-13).
+Earlier boundaries such as `0b7612d`/PR #89 remain historical inputs. Native
+watcher supervision, durability close-out coverage, the benchmark triage
+re-run, the fixed installed report, and the final reconciliation are merged;
+the current closeout packet records their evidence classes separately from
+acceptance. The merged #111 product changes are now part of `main`, but the
+installed NTFS observations remain tied to tested source `05fb35c` and report
+revision `ef08522`; they were not rerun on the merged baseline. #112 and #114
+are also merged in the current source baseline: #112 supplies diagnostics and
+the merged #114 supplies the executable runbook/validator, but neither supplies a
+qualification result or owner acceptance.
 
-The remaining sequence is: (1) run the packaged feature-enabled Windows
-journey against a merged commit using the
-[journey checklist](review/phase-2-integration/installed-app-journey-checklist.md);
-(2) resolve F1 (10,005 observations versus the 10,000 staging quota), F2
-(re-run p95 14,267 ms versus the 10 s target), and F3 (the 100,000-entry set
-remains unmeasured); (3) land #47/#48 evidence or record explicit owner scope
-decisions; and (4) finish the owner's criterion-by-criterion P2 checklist.
-The benchmark re-run is newer evidence, not a re-budget: its host was not idle,
-so the required F2 isolation decision remains open. No budget, platform, or
-acceptance promotion follows from merged implementation or CI alone. Keep
-production scanning hidden until P2-03 through P2-08 have integrated evidence.
+The current dependency order is #110 -> #111 -> #112 -> #114, with #114 as the
+source-stack head. GitHub verifies all four source PRs as merged; #114's
+qualification runbook and validator do not constitute a qualification run or
+owner acceptance.
+The verified source baseline is
+`71848732216d4ab4e13e73c820b2b8e4d17bddbe`, with merged #110 (`e2948f1`),
+merged #111 (`914d7bd`), #112 (`00884ba`), and #114. The #113 branch is an older
+synthetic combined candidate at
+`e90b03c`, based on `main`, and is not a replacement for the current baseline.
+The source history retains one canonical S5 source `19585da`; recovered
+`de396e7` is historical provenance and requires no future deduplication step.
+Agent 2's final verification found no S5 product or contract defect and did not
+rerun S5. Resolve F1/F2/F3, #47/#48, P2-09 timing/overflow, P2-10, inline
+onboarding, and the owner's criterion-by-criterion P2 checklist using the
+[closeout packet](review/phase-2-integration/acceptance-packet-2026-09-12.md).
+
+The source merge handoff has been verified for #110, #111, #112, and #114. Any
+future update to those PRs must first fetch and verify actual `main`, preserve
+the canonical S5 and installed-evidence union, and rerun the required checks on
+its new head. This #109 refresh is documentation-only and is rebased once onto
+the verified baseline; its squash merge does not accept Phase 2. #113 remains
+a historical candidate.
+The original benchmark `Partial` remains unexplained, performance remains
+unqualified, and no budget, platform, or acceptance promotion follows from
+merged implementation, CI, or a combined candidate. Keep production scanning
+hidden until P2-03 through P2-08 have integrated evidence and owner acceptance.
 
 Issue #39 records the chosen filesystem-only path and its no-parser evidence; it is
 not blocked waiting for a parser and does not authorize a production adapter.
