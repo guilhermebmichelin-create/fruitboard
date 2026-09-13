@@ -284,3 +284,45 @@ test("CLI parsing requires all explicit locations and an output estimate", () =>
   ]);
   assert.equal(options.estimatedAdditionalOutputBytes, 1.5 * GIB);
 });
+
+test("charges estimated output to a separate evidence volume", async (t) => {
+  const fixture = await makeFixture(t);
+  const result = preflightBuildStorage({
+    ...validOptions(fixture),
+    readCapacity: (_path, location) => ({
+      volumeKey:
+        location.role === "evidence" ? "evidence-volume" : "build-volume",
+      availableBytes: (location.role === "evidence" ? 34 : 40) * GIB,
+    }),
+  });
+  assert.equal(result.ok, false);
+  assert.ok(failureCodes(result).includes("estimated-output-breach"));
+  assert.equal(
+    result.volumes.find((v) => v.key === "evidence-volume").remainingBytes,
+    29 * GIB,
+  );
+});
+
+test("does not allow callers to lower the minimum reserve", async (t) => {
+  const fixture = await makeFixture(t);
+  const result = preflightBuildStorage({
+    ...validOptions(fixture),
+    reserveBytes: 0,
+  });
+  assert.equal(result.ok, false);
+  assert.ok(failureCodes(result).includes("invalid-reserve"));
+});
+
+test("uses the lowest capacity observation for a shared volume", async (t) => {
+  const fixture = await makeFixture(t);
+  let calls = 0;
+  const result = preflightBuildStorage({
+    ...validOptions(fixture),
+    readCapacity: () => ({
+      volumeKey: "shared",
+      availableBytes: (++calls === 1 ? 40 : 34) * GIB,
+    }),
+  });
+  assert.equal(result.ok, false);
+  assert.ok(failureCodes(result).includes("estimated-output-breach"));
+});

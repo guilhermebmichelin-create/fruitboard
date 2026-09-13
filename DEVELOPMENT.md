@@ -122,7 +122,7 @@ recursively scanned.
 
 The report lists available capacity for every relevant volume. Every relevant
 volume must retain at least 30 GiB, and the estimated additional output is
-charged conservatively to each volume containing a build or cache location.
+charged conservatively to each volume containing a build, cache, or evidence location.
 The selected cache is inspected, within the default 100,000-entry bound, for
 hardlinked files. A hardlink, unreadable entry, or incomplete scan prevents an
 isolated-cache result; an unchecked cache is never certified. Use

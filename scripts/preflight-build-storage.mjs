@@ -10,7 +10,7 @@ export const MIN_FREE_RESERVE_BYTES = 30 * GIB;
 export const DEFAULT_MAX_CACHE_ENTRIES = 100_000;
 
 const LOCATION_NAMES = ["source", "build", "cache", "evidence"];
-const WRITABLE_LOCATIONS = new Set(["build", "cache"]);
+const WRITABLE_LOCATIONS = new Set(["build", "cache", "evidence"]);
 const PATH_OPTIONS = Object.freeze({
   "--source": "sourcePath",
   "--source-root": "sourcePath",
@@ -259,7 +259,13 @@ function inspectVolumes(locations, estimateBytes, reserveBytes, readCapacity) {
 
   const volumes = [];
   for (const [key, entries] of observations) {
-    const first = entries[0].capacity;
+    const first = entries.reduce(
+      (lowest, entry) =>
+        entry.capacity.availableBytes < lowest.availableBytes
+          ? entry.capacity
+          : lowest,
+      entries[0].capacity,
+    );
     const roles = entries.map(({ location }) => location.role);
     const estimatedAdditionalOutputBytes = roles.some((role) =>
       WRITABLE_LOCATIONS.has(role),
@@ -534,6 +540,16 @@ export function preflightBuildStorage(options = {}) {
     );
   } catch (error) {
     result.failures.push(fail("invalid-reserve", error.message));
+    return result;
+  }
+
+  if (result.reserveBytes < MIN_FREE_RESERVE_BYTES) {
+    result.failures.push(
+      fail(
+        "invalid-reserve",
+        "reserveBytes cannot be below the 30 GiB minimum",
+      ),
+    );
     return result;
   }
 
