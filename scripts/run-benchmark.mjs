@@ -306,7 +306,177 @@ function summarizeMemory(
   };
 }
 
-function parseDriverLines(stdout) {
+const DRIVER_STATUSES = new Set([
+  "Published",
+  "Failed",
+  "Cancelled",
+  "Interrupted",
+  "Fenced",
+]);
+
+const DRIVER_OUTCOMES = new Set([
+  "Complete",
+  "Partial",
+  "Denied",
+  "RootUnavailable",
+  "Cancelled",
+  "ResourceLimit",
+  "SinkFailed",
+  "Invalid",
+  "UnsupportedFilesystem",
+]);
+
+const PARTIAL_CLASSES = new Set([
+  "partial_root_identity_unavailable",
+  "partial_directory_not_found",
+  "partial_directory_read",
+  "partial_directory_changed",
+  "partial_directory_identity_unavailable",
+  "partial_entry_disappeared",
+  "partial_metadata_read",
+  "partial_timestamp_out_of_range",
+  "partial_byte_size_out_of_range",
+  "partial_locator_key_too_long",
+  "partial_multiple",
+  "partial_unknown",
+]);
+
+const DIAGNOSTIC_CODES = new Set([
+  "access_denied",
+  "unsupported",
+  "resource_limit",
+  "unavailable",
+  "cancelled",
+  "worker_failed",
+  "driver_argument",
+  "driver_database_open",
+  "driver_worker_config",
+  "driver_session_start",
+  "driver_root_register",
+  "driver_root_list",
+  "driver_no_execution",
+  "driver_poll",
+  "driver_request_scan",
+  "storage_io_failed",
+  "storage_busy",
+  "storage_unsafe_location",
+  "storage_unsupported_sqlite",
+  "storage_unsupported_journal",
+  "storage_newer_schema",
+  "storage_invalid_schema",
+  "storage_migration_failed",
+  "storage_invalid_backup",
+  "storage_conflict",
+  "storage_staging_rejected",
+  "storage_not_found",
+  "storage_invalid_cursor",
+  "storage_stale_cursor",
+  "storage_database_failed",
+  ...PARTIAL_CLASSES,
+]);
+
+function safeInteger(value) {
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+function safeDuration(value) {
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function safeIdentifier(value) {
+  return typeof value === "string" && /^[0-9a-f-]{1,128}$/i.test(value)
+    ? value
+    : null;
+}
+
+function safeCode(value) {
+  return typeof value === "string" && DIAGNOSTIC_CODES.has(value)
+    ? value
+    : null;
+}
+
+function safeEnum(value, values) {
+  return typeof value === "string" && values.has(value) ? value : null;
+}
+
+function sanitizeDriverLine(value) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return { phase: "invalid_protocol" };
+  }
+  switch (value.phase) {
+    case "ready": {
+      const line = { phase: "ready" };
+      const elapsed = safeDuration(value.elapsed_ms);
+      const rootId = safeIdentifier(value.root_id);
+      const sessionId = safeIdentifier(value.session_id);
+      if (elapsed !== null) line.elapsed_ms = elapsed;
+      if (rootId !== null) line.root_id = rootId;
+      if (sessionId !== null) line.session_id = sessionId;
+      if (value.worker_config === "default") line.worker_config = "default";
+      return line;
+    }
+    case "scan_started":
+    case "cancellation_requested": {
+      const line = { phase: value.phase };
+      const elapsed = safeDuration(value.elapsed_ms);
+      if (elapsed !== null) line.elapsed_ms = elapsed;
+      return line;
+    }
+    case "scan_finished": {
+      const line = { phase: "scan_finished" };
+      const integerFields = [
+        "elapsed_ms",
+        "scan_ms",
+        "location_count",
+        "generation",
+        "changes_added",
+        "changes_modified",
+        "changes_replaced",
+        "changes_identity_uncertain",
+        "changes_missing",
+        "changes_restored",
+        "changes_renames",
+      ];
+      for (const field of integerFields) {
+        const fieldValue =
+          field === "elapsed_ms" || field === "scan_ms"
+            ? safeDuration(value[field])
+            : safeInteger(value[field]);
+        if (fieldValue !== null) line[field] = fieldValue;
+      }
+      const status = safeEnum(value.status, DRIVER_STATUSES);
+      const outcome = safeEnum(value.outcome, DRIVER_OUTCOMES);
+      const runId = safeIdentifier(value.run_id);
+      const jobId = safeIdentifier(value.job_id);
+      const errorCode = safeCode(value.error_code);
+      const partialClass = safeEnum(value.partial_class, PARTIAL_CLASSES);
+      if (status !== null) line.status = status;
+      if (outcome !== null) line.outcome = outcome;
+      if (typeof value.authoritative === "boolean") {
+        line.authoritative = value.authoritative;
+      }
+      if (runId !== null) line.run_id = runId;
+      if (jobId !== null) line.job_id = jobId;
+      line.error_code = errorCode;
+      if (typeof value.changes_computed === "boolean") {
+        line.changes_computed = value.changes_computed;
+      }
+      line.partial_class = partialClass;
+      return line;
+    }
+    case "error": {
+      const line = { phase: "error" };
+      const elapsed = safeDuration(value.elapsed_ms);
+      if (elapsed !== null) line.elapsed_ms = elapsed;
+      line.error_code = safeCode(value.error_code);
+      return line;
+    }
+    default:
+      return { phase: "unknown_protocol" };
+  }
+}
+
+export function parseDriverLines(stdout) {
   const lines = [];
   for (const raw of stdout.split("\n")) {
     const line = raw.trim();
@@ -314,9 +484,12 @@ function parseDriverLines(stdout) {
       continue;
     }
     try {
-      lines.push(JSON.parse(line));
+      lines.push(sanitizeDriverLine(JSON.parse(line)));
     } catch {
-      lines.push({ phase: "unparseable", raw: line });
+      // Never retain arbitrary driver output: it may contain a private path,
+      // file content, or a native error string. The phase is enough to flag a
+      // protocol violation; the raw line is not benchmark evidence.
+      lines.push({ phase: "unparseable" });
     }
   }
   return lines;
@@ -338,7 +511,8 @@ function runRecord({
     label,
     exitCode: child.code,
     totalMs: spawnFinishedAt - spawnStartedAt,
-    scanMs: started !== null && finished !== null ? finished.scan_ms : null,
+    scanMs:
+      started !== null && finished !== null ? (finished.scan_ms ?? null) : null,
     status: finished?.status ?? null,
     authoritative: finished?.authoritative ?? false,
     outcome: finished?.outcome ?? null,
@@ -346,13 +520,21 @@ function runRecord({
     generation: finished?.generation ?? null,
     changesComputed: finished?.changes_computed ?? null,
     errorCode: finished?.error_code ?? null,
-    failureMessage: failure?.message ?? null,
+    failureCode: failure?.error_code ?? null,
+    failureMessage:
+      failure === null ? null : (failure.error_code ?? "driver_error"),
+    partialClass: finished?.partial_class ?? null,
+    stderrObserved: child.stderrObserved,
     memory,
     lines,
   };
   if (cancelRequestedMs !== null && finished !== null) {
     record.cancellationRequestedMs = cancelRequestedMs;
-    record.stopLatencyMs = finished.elapsed_ms - cancelRequestedMs;
+    record.stopLatencyMs =
+      safeDuration(finished.elapsed_ms) !== null &&
+      finished.elapsed_ms >= cancelRequestedMs
+        ? finished.elapsed_ms - cancelRequestedMs
+        : null;
   }
   return record;
 }
@@ -385,8 +567,9 @@ async function runDriverProcess({
   });
   const exitCode = await new Promise((resolve) => {
     child.on("close", resolve);
-    child.on("error", (error) => {
-      stderr += `spawn error: ${error.message}\n`;
+    child.on("error", () => {
+      // Keep the observation, not the arbitrary OS/native message.
+      stderr += "spawn_error\n";
       resolve(-1);
     });
   });
@@ -406,7 +589,7 @@ async function runDriverProcess({
     finishedLine?.elapsed_ms ?? null,
   );
   return {
-    child: { code: exitCode, stderr: stderr.trim() },
+    child: { code: exitCode, stderrObserved: stderr.trim().length > 0 },
     lines,
     memory,
     cancelRequestedMs: cancelLine?.elapsed_ms ?? null,
@@ -414,7 +597,7 @@ async function runDriverProcess({
       label: "run",
       spawnStartedAt,
       spawnFinishedAt,
-      child: { code: exitCode },
+      child: { code: exitCode, stderrObserved: stderr.trim().length > 0 },
       lines,
       memory,
       cancelRequestedMs: cancelLine?.elapsed_ms ?? null,
@@ -507,19 +690,28 @@ function buildFixtureSummary(document) {
   };
 }
 
-function budgetResults({ warmUp, iterations, cancellation }) {
-  const authoritative = iterations.filter(
-    (iteration) => iteration.authoritative,
+function isAuthoritativeMeasurement(iteration) {
+  return (
+    iteration.authoritative === true &&
+    iteration.status === "Published" &&
+    iteration.outcome === "Complete" &&
+    safeDuration(iteration.scanMs) !== null
   );
+}
+
+export function budgetResults({ warmUp, iterations, cancellation }) {
+  const authoritative = iterations.filter(isAuthoritativeMeasurement);
   const scanTimes = authoritative
     .map((iteration) => iteration.scanMs)
-    .filter((value) => value !== null);
+    .filter((value) => safeDuration(value) !== null);
   const firstDiscoveryMs =
-    warmUp !== null && warmUp.authoritative ? warmUp.scanMs : null;
+    warmUp !== null && isAuthoritativeMeasurement(warmUp)
+      ? warmUp.scanMs
+      : null;
   const warmStats = statistics(scanTimes);
   const cancelTimes = (cancellation ?? [])
     .map((iteration) => iteration.stopLatencyMs)
-    .filter((value) => value !== null && value !== undefined);
+    .filter((value) => safeDuration(value) !== null);
   const cancelStats = statistics(cancelTimes);
   const memoryIncrements = (iterations ?? [])
     .map((iteration) => iteration.memory?.incrementalMb)
@@ -953,10 +1145,8 @@ export async function runCli(argv, { repoRoot = repositoryRoot() } = {}) {
     });
     run.record.label = `iteration-${index}`;
     environment.iterations.push(run.record);
-    if (run.child.code !== 0 && run.child.stderr.length > 0) {
-      environment.notes.push(
-        `iteration ${index} stderr: ${run.child.stderr.split("\n").slice(0, 3).join("; ")}`,
-      );
+    if (run.child.code !== 0 && run.child.stderrObserved) {
+      environment.notes.push(`iteration ${index} stderr_observed`);
     }
   }
 
