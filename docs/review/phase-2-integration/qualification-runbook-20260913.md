@@ -105,7 +105,7 @@ The existing raw artifacts agree on the canonical hashes and counts:
 | Role                   | FLP files | Alias locations | Other files | Scanner observations | Canonical manifest SHA-256                                         | Disposition                          |
 | ---------------------- | --------: | --------------: | ----------: | -------------------: | ------------------------------------------------------------------ | ------------------------------------ |
 | Accepted `baseline`    |    10,000 |               5 |           4 |           **10,005** | `8c3d85ec01299995208abfa450378b1b37c704e423593d7a4370ec465254afba` | Preserve as overflow safety evidence |
-| Approved `custom-9995` |     9,995 |               5 |           4 |           **10,000** | `a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a` | Used for the recorded run |
+| Approved `custom-9995` |     9,995 |               5 |           4 |           **10,000** | `a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a` | Used for the recorded run            |
 
 The generator counts primary `kind: "flp"` entries separately from alias
 locations. The scanner observes both primary and alias locations; `kind:

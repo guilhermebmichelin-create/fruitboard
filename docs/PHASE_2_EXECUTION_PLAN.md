@@ -15,7 +15,7 @@ The [dated live review status table](review/phase-2-integration/README.md#live-r
 is the current-head authority for `main` and PRs #108-#114. The measured
 source boundary for this refresh is
 `69f27f64f26aa657182a9260cc8e78f28a5838fb`, which contains merged #110, #111,
-#112, and #114 plus the final #109 documentation refresh. The executable
+PR #112, and #114 plus the final #109 documentation refresh. The executable
 qualification runbook was executed once; its current-only result is recorded
 in [the dated evidence](review/phase-2-integration/qualification-evidence-20260913.md)
 and is non-qualifying on the unchanged warm-p95 target. Installed records

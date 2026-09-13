@@ -13,7 +13,9 @@ are not rewritten here. The current-only scanner qualification is recorded in
 This is the current table for the verified source baseline and PR state used by
 this refresh. A row says **merged** only when GitHub reports the PR as merged;
 an open or draft row is not a merged dependency. The `main` row is the exact
-current-main boundary used by the dated scanner qualification.
+main boundary used by the dated scanner qualification. Publication is based
+on post-#115 main `f811cf3cf6c2e0bc4e3cd161bdcd9e063d53eb35`;
+that documentation-only advance does not change the measured source pin.
 
 <!-- markdownlint-disable MD060 -->
 
@@ -35,7 +37,7 @@ The required contexts are `docs-policy`, `client`, `rust-portable`,
 `enumeration-windows`, `filesystem-watcher-windows`, and
 `scan-execution-windows`. Green checks establish CI provenance only; they do
 not establish owner acceptance. The merged source sequence includes #110, #111,
-#112, and #114; the executable runbook has now been executed once on the exact
+PR #112, and #114; the executable runbook has now been executed once on the exact
 current-main source, with its non-qualifying result recorded in the dated
 evidence. GitHub verification, not ancestry alone, determines merge status.
 PR #99 is closed without merge and remains validation-only history. Open issues
@@ -193,7 +195,7 @@ evidence defect and separate owner authorization.
 
 The verified current source baseline is main
 `69f27f64f26aa657182a9260cc8e78f28a5838fb`, including merged #110 (`e2948f1`),
-#111 (`914d7bd`), #112 (`00884ba`), and the merged #114. The owner retains
+PR #111 (`914d7bd`), #112 (`00884ba`), and the merged #114. The owner retains
 Phase 2 acceptance authority; the historical coordination text below is
 preserved for provenance.
 

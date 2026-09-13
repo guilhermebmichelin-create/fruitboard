@@ -5,7 +5,7 @@ current-only run is non-qualifying on the unchanged warm-reconciliation target.
 This handoff does not authorize issue comments or closures, a budget/scope/
 fixture change, production scanning, or Phase 3 work.
 
-## Independently verified live state
+## Independently verified measurement-boundary state
 
 Only GitHub-verified merge metadata is recorded as merged here:
 
@@ -105,8 +105,9 @@ The #109/#114 documentation-only merge history includes merge commit
 `71848732216d4ab4e13e73c820b2b8e4d17bddbe`; the resulting `main` tree measured
 by this qualification is `69f27f64f26aa657182a9260cc8e78f28a5838fb`. This
 handoff preserves that source/evidence distinction.
-Before publication, fetch `origin/main` once, confirm it is still the exact
-baseline documented above, run documentation/privacy/formatting checks and the
+Publication is based on post-#115 main
+`f811cf3cf6c2e0bc4e3cd161bdcd9e063d53eb35`. Preserve the measured SHA
+above when the documentation baseline advances. Run documentation/privacy/formatting checks and the
 required CI, review the evidence diff, and verify the resulting GitHub merge
 and final `main` SHA. Agent 1's merged source work remains attributed to Agent
 1; the owner retains Phase 2 acceptance authority.
