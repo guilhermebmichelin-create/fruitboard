@@ -186,11 +186,42 @@ Installed evidence remains tied to its recorded sources, including canonical
 S5 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f` and the unmerged #111 product
 source `05fb35c153dd3f177b900292d39998da3774b5e4`.
 
-Agents prepare and review changes. The owner merges pull requests and makes
+At this handoff, the live dependency heads are #110 `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a`
+(based on `main` `3ebac5f7a76c3425620ceba59e6078b32fb6cd85`), #111
+`a3b90a461f32a0ab2e49f42840da7fbdeceb6673` (based on #110), and #112
+`9da0272fb2fefac9775028ed6bf8013459c10cad` (based on #111). The historical
+#113 candidate is `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`, based directly on
+`main`; it is not the current stack head.
+
+The current source stack already contains #110's one canonical S5 patch
+`19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`. Recovered `de396e7` is historical
+provenance only; duplicate-S5 removal is already complete in the current stack
+and is not a future rebase action. Historical replay descriptions retain their
+original SHAs and wording below for provenance.
+
+The owner-ready sequence is:
+
+1. Review/mark #110 ready and have the owner squash-merge `e209b8a`.
+2. After fetching and verifying the actual new `main`, rebase only #111's own
+   commits (the commits after its old parent `e209b8a`) onto that `main`,
+   excluding #110's commits. Preserve the #110/#111 installed-evidence union,
+   run the required checks on the resulting SHA, and leave review/merge to the
+   owner.
+3. After #111 is actually squash-merged, fetch and verify the resulting
+   `main`, then rebase only #112's own commits (the commits after its old
+   parent `a3b90a4`) onto that `main`, excluding the old #110/#111 parents.
+   Preserve the canonical S5 and installed-evidence union, run fresh checks,
+   and leave review/merge to the owner.
+4. After the source merges, update #109 once against that verified baseline
+   and refresh only live-head references. Keep this factual publication
+   separate from unresolved Phase 2 acceptance.
+
+Agents prepare and verify changes. The owner merges pull requests and makes
 acceptance, scope, budget, and issue-closure decisions. #108 remains
-diagnostic evidence only and carries no performance acceptance. None of these
-steps accepts Phase 2, changes budgets or scope, closes issues, or activates
-production scanning.
+diagnostic evidence only and carries no performance acceptance; #113 remains
+historical until the owner decides its disposition. None of these steps accepts
+Phase 2, changes budgets or scope, closes issues, or activates production
+scanning.
 
 ## Standing gates
 

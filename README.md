@@ -39,6 +39,12 @@ carry the current dependency map, evidence boundaries, and owner decision
 list. Historical failed replays remain historical and performance remains
 unqualified.
 
+The current owner-ready source sequence is #110 -> #111 -> #112. #111 and
+#112 are already stacked on their parents; #113 is an older synthetic
+candidate. After each owner squash merge, update the next dependent PR against
+the verified actual `main`, excluding the old parent's commits. Agents prepare
+and verify; the owner retains merge and acceptance authority.
+
 Tracking starts at
 [Phase 2 epic #33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)
 (Phase 1 epic

@@ -328,13 +328,26 @@ revision `ef08522` remain provisional: its durable diagnostic and desktop
 scan-console mapping changes are not part of merged `main`.
 
 The current dependency order is #110 → #111 → #112, with #112 as the
-source-stack head. The existing #113 branch is an older synthetic combined
-candidate and is not a replacement for that source-stack head. Agent 2's final
-verification found no S5 product or contract defect and did not rerun S5; the
-canonical S5 source remains the full Git-resolved commit recorded in the
-integration index. Resolve F1/F2/F3, #47/#48, P2-09 timing/overflow, P2-10,
-inline onboarding, and the owner's criterion-by-criterion P2 checklist using
-the [closeout packet](review/phase-2-integration/acceptance-packet-2026-09-12.md).
+source-stack head. The live heads are #110 `e209b8a`, #111 `a3b90a4`, and #112
+`9da0272`; #111 is already based on #110 and #112 is already based on #111.
+The existing #113 branch is an older synthetic combined candidate at
+`e90b03c`, based on `main`, and is not a replacement for that source-stack
+head. The current stack already retains one canonical S5 source
+`19585da`; recovered `de396e7` is historical provenance and requires no future
+deduplication step. Agent 2's final verification found no S5 product or
+contract defect and did not rerun S5. Resolve F1/F2/F3, #47/#48, P2-09
+timing/overflow, P2-10, inline onboarding, and the owner's
+criterion-by-criterion P2 checklist using the [closeout
+packet](review/phase-2-integration/acceptance-packet-2026-09-12.md).
+
+For the owner-ready merge handoff, review/mark #110 ready and squash-merge it
+first. After each owner squash merge, fetch and verify the actual `main`, then
+rebase only the next PR's own commits onto that `main`, excluding the old
+parent's commits: #111's own commits are after `e209b8a`, and #112's own commits
+are after `a3b90a4`. Preserve the canonical S5 and installed-evidence union,
+run fresh checks on each resulting SHA, and update #109 once after the source
+merges. Agents prepare and verify; the owner merges and accepts. #113 remains a
+historical candidate, and this sequence does not accept Phase 2.
 The original benchmark `Partial` remains unexplained, performance remains
 unqualified, and no budget, platform, or acceptance promotion follows from
 merged implementation, CI, or a combined candidate. Keep production scanning

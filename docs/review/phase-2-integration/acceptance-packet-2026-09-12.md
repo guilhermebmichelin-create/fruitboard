@@ -50,8 +50,10 @@ The #111 history also contains recovered S5 commit `de396e7`. It has the same
 parent, tree, and stable patch ID as the canonical S5 source
 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`; it is preserved as historical
 provenance, not counted as a second recovery experiment or duplicate recovery
-commit. The integration strategy keeps the canonical S5 patch once and
-transplants only #111's post-recovery work.
+commit. The current #111/#112 source stack already keeps the canonical S5 patch
+once, so duplicate-S5 removal is complete and is not a future rebase action.
+Historical replay descriptions below preserve the original transplant/drop
+language as evidence only.
 
 The September 12 installed verification used canonical source
 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`, whose diff from `3ebac5f` is
@@ -115,11 +117,19 @@ merged baseline is not described as the ten-context protection result.
 
 ## Source-stack and installed-source boundaries
 
-The current stack is #110 → #111 → #112. PR #111 is based on #110, and PR
-the #112 branch is based on #111; therefore #112 is the current source-stack
-head. PR #113 is a separate older synthetic combined candidate based on `main`, not a
-refresh of the current stack. Its own green checks do not validate the newer
-stack. This distinction is a review dependency, not an acceptance statement.
+The current stack is #110 `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a` -> #111
+`a3b90a461f32a0ab2e49f42840da7fbdeceb6673` -> #112
+`9da0272fb2fefac9775028ed6bf8013459c10cad`. PR #111 is already based on #110,
+and #112 is already based on #111; therefore #112 is the current source-stack
+head. PR #113 is a separate older synthetic combined candidate at
+`e90b03cc0bddd1a449e817ea2d89708a85c82ef1`, based on `main`, not a refresh of
+the current stack. Its own green checks do not validate the newer stack. This
+distinction is a review dependency, not an acceptance statement.
+
+The independent review artifact in the #112/#113 history reviewed earlier
+candidate `37cd6c6ec1bef00af03456ddd6155cd0c704c8b8` and explicitly says it is
+not an approval record for later candidate `e90b03cc0bddd1a449e817ea2d89708a85c82ef1`.
+No GitHub review approval is inferred here; green checks are CI provenance only.
 
 Agent 2's installed evidence used canonical S5 source
 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f`, whose diff from merged `main` is
@@ -224,12 +234,13 @@ P2-05, P2-06, or P2-08.
 
 Draft #111 repeats the recovered S5 tree in `de396e7`, but that commit has the
 same parent, tree, and stable patch ID as `19585da`; it is not another recovery
-run. The clean dependency strategy is to keep #110's `19585da` canonical,
-drop `de396e7` when #111 is rebased, and replay #111's later harness, product,
-and NTFS-report commits. Shared checklist/index files must be resolved by
-unioning the #110 queued/restart rows with the #111 denied, ResourceLimit, and
-hardlink rows. Empty formatting replays are skipped, while the historical SHAs
-remain cited.
+run. The current dependency stack has already retained #110's `19585da`
+canonical and removed the duplicate from the live #111/#112 source ancestry.
+Do not drop or replay `de396e7` during future updates; preserve it only as
+historical provenance. Shared checklist/index files already carry the #110
+queued/restart rows together with the #111 denied, ResourceLimit, and hardlink
+rows. Historical replay SHAs and their original descriptions remain cited
+below.
 
 The #111 product portion is separately reviewable: tested source `05fb35c`
 persists fixed worker/storage diagnostic codes and the desktop scan console maps
@@ -337,24 +348,30 @@ tied to canonical S5 source
 `19585dae7bef9ffdec06b71e0627df1b3f7ceb2f` and to #111's unmerged product
 source `05fb35c153dd3f177b900292d39998da3774b5e4` where applicable.
 
-If the owner later advances the stack, the safe sequence is:
+The owner-ready source sequence is:
 
-1. Keep PR #108's performance record diagnostic. Its quiet-host gate failed
-   closed; the retained current-main `Failed`/`Partial` iteration is
-   unexplained and was not reproduced by #112.
-2. Review PR #110 as the canonical queued/restart evidence carrier. Its
-   installed observations and green checks remain evidence, not acceptance.
-3. Rebase PR #111 onto #110, drop tree-identical recovered `de396e7` while
-   retaining its mapping to the canonical S5 source, preserve the later
-   harness/product/NTFS work, and rerun its required checks.
-4. Rebase PR #112 onto the resulting #110+#111 product/evidence tip, preserve
-   #111's diagnostic propagation, and rerun all required checks. Do not call
-   the original Partial explained or performance qualified.
-5. Freeze any combined candidate and obtain independent Agent 2 review against
-   that exact SHA. Agents prepare and review; the owner merges and accepts.
-6. Keep this documentation publication separate from owner acceptance. Any
-   budget, fixture, platform, contract, or P2 acceptance change needs its own
-   decision and evidence.
+1. Review/mark PR #110 ready and have the owner squash-merge its current head
+   `e209b8ad46adfc2d66d2c2b18288d0ef254eeb8a`. Its installed observations and
+   green checks remain evidence, not acceptance.
+2. After fetching and verifying the actual `main` produced by that squash
+   merge, update #111 by rebasing only its own commits (the commits after its
+   old parent `e209b8a`) onto actual `main`; exclude #110's old-parent commits.
+   Preserve the existing #110/#111 installed-evidence union, run fresh checks
+   on the resulting #111 SHA, and leave review/merge authority with the owner.
+3. After #111 is actually squash-merged, fetch and verify actual `main`, then
+   update #112 by rebasing only its own commits (the commits after its old
+   parent `a3b90a4`) onto actual `main`; exclude the old #110/#111 parents.
+   Preserve canonical S5 and the installed-evidence union, run fresh checks on
+   the resulting #112 SHA, and leave review/merge authority with the owner.
+4. After the source merges, update #109 once against that verified baseline and
+   refresh only live-head references. Keep this factual publication separate
+   from unresolved Phase 2 acceptance. PR #113 remains the older historical
+   candidate; do not treat it as the next merge vehicle.
+
+Keep PR #108's performance record diagnostic: its quiet-host gate failed closed,
+the retained current-main `Failed`/`Partial` iteration is unexplained, and
+#112 did not reproduce it. Any budget, fixture, platform, contract, or P2
+acceptance change needs its own owner decision and evidence.
 
 This packet itself is documentation/coordination only. It does not merge,
 post, close, accept, or activate anything.
