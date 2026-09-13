@@ -35,6 +35,11 @@ Fetched `origin/main` and the clean dedicated checkout both resolved to
 were verified at that boundary; the harness exposes sanitized diagnostics and
 the driver exposes bounded `partial_class` reporting.
 
+After timing completed, documentation-only PR #115 advanced live `main` to
+`f811cf3cf6c2e0bc4e3cd161bdcd9e063d53eb35`. The evidence branch was rebased
+onto that newer live base for publication; this did not change the measured
+source boundary, driver, fixture, or results, and no measurement was rerun.
+
 The release driver was built once for qualification in a fresh isolated target
 with:
 

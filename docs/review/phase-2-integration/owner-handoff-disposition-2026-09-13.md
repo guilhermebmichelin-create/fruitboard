@@ -18,7 +18,7 @@ Only GitHub-verified merge metadata is recorded as merged here:
 | #114 | Head `0aa9020c5f524de7f7d0f78226f500f5e021baf3`; merge `71848732216d4ab4e13e73c820b2b8e4d17bddbe` | Merged Agent 1-owned qualification runbook/validator; the dated current-only execution is recorded separately and is non-qualifying, not Phase 2 acceptance |
 | #108 | Open draft; head `a44653bd27baaa5d2878c5a3bd118470cb6909dd` | Diagnostic record only: quiet-host gate failed closed at `2561d3f`; later normal-config measurements are not qualification |
 | #113 | Open ready; historical candidate `e90b03cc0bddd1a449e817ea2d89708a85c82ef1` | Synthetic combined candidate; no GitHub approval or merge; retain its evidence |
-| #109 | Documentation-only publication vehicle | Exact pushed head, required CI, guarded squash merge, and resulting `main` are verified separately from this snapshot |
+| #109 | Head `659189528d4cb30568fa7ebdd12c91b454052074`; merge `69f27f64f26aa657182a9260cc8e78f28a5838fb` | Merged documentation-only factual refresh; its resulting tree is the measured-source boundary for the dated qualification |
 
 The current source, installed observations, CI results, and owner acceptance
 are separate facts. A green check proves only that the checked revision passed
