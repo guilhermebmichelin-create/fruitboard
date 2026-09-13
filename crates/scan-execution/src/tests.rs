@@ -698,6 +698,7 @@ fn denied_subtree_discards_staging_and_preserves_committed_rows() {
 
     let run = harness.run(&second.run_id);
     assert_eq!(run.state, ScanRunState::Failed);
+    assert_eq!(run.error_code.as_deref(), Some("access_denied"));
     assert_eq!(
         harness.staging_state(&second.run_id),
         ScanStageState::Discarded
@@ -705,6 +706,7 @@ fn denied_subtree_discards_staging_and_preserves_committed_rows() {
     let job = harness.db.scan_job(&second.job_id).expect("job");
     assert_eq!(job.state, ScanJobState::Failed);
     assert_eq!(job.attempt, 1);
+    assert_eq!(job.last_error_code.as_deref(), Some("access_denied"));
 }
 
 // P2-03: an offline root fails safely, waits out the persisted backoff with
@@ -729,6 +731,11 @@ fn offline_root_fails_then_persisted_retry_converges() {
     let job = harness.db.scan_job(&failed.job_id).expect("job");
     assert_eq!(job.state, ScanJobState::Failed);
     assert_eq!(job.attempt, 1);
+    assert_eq!(
+        harness.run(&failed.run_id).error_code.as_deref(),
+        Some("unavailable")
+    );
+    assert_eq!(job.last_error_code.as_deref(), Some("unavailable"));
 
     // Backoff is storage's 1s base plus at most 20% deterministic jitter.
     let eligible = ScanWorker::retry_eligible_at(&job);
@@ -1164,10 +1171,37 @@ fn stale_worker_cannot_commit_after_lease_expiry() {
     assert_eq!(execution.error_code.as_deref(), Some("storage_conflict"));
     assert!(execution.publication.is_none());
     assert_eq!(harness.committed(), before);
+    assert_eq!(harness.run(&execution.run_id).state, ScanRunState::Running);
+    assert_eq!(harness.run(&execution.run_id).error_code, None);
+    assert_eq!(
+        harness.db.scan_job(&execution.job_id).expect("job").state,
+        ScanJobState::Running
+    );
+    assert_eq!(
+        harness
+            .db
+            .scan_job(&execution.job_id)
+            .expect("job")
+            .last_error_code,
+        None
+    );
 
     // The reaper converts the expired run to interrupted and requeues the
     // same chain; after the backoff a fresh attempt completes the work.
     assert!(harness.drain(tree.clone()).is_none(), "not yet due");
+    assert_eq!(
+        harness.run(&execution.run_id).error_code.as_deref(),
+        Some("lease_expired")
+    );
+    assert_eq!(
+        harness
+            .db
+            .scan_job(&execution.job_id)
+            .expect("reaped job")
+            .last_error_code
+            .as_deref(),
+        Some("lease_expired")
+    );
     harness.clock.advance(1_001);
     let recovered = harness.drain(tree).expect("execution");
     assert_eq!(recovered.status, ScanExecutionStatus::Published);
@@ -2733,6 +2767,24 @@ fn p2_03_resource_limit_preserves_rows_and_snapshot_byte_identical() {
     assert_eq!(second.enumeration_outcome, Some(EnumOutcome::ResourceLimit));
     assert!(!second.authoritative);
     assert!(second.publication.is_none());
+    assert_eq!(
+        harness
+            .db
+            .scan_run(&second.run_id)
+            .expect("resource-limit run")
+            .error_code
+            .as_deref(),
+        Some("resource_limit")
+    );
+    assert_eq!(
+        harness
+            .db
+            .scan_job(&second.job_id)
+            .expect("resource-limit job")
+            .last_error_code
+            .as_deref(),
+        Some("resource_limit")
+    );
     assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
     assert_eq!(
         harness.staging_state(&second.run_id),

@@ -279,6 +279,17 @@ at reviewed commit `19585da` with `origin/main` baseline `3ebac5f`:
 | 9. Watcher follow-up | The installed burst convergence remains covered by [#106](installed-journey/run-20260909-fixed-validation.md#53-scenario-3--burst-changes-appearing-in-committed-library-results), with its candidate-to-merged patch identity recorded there. | Reused; no relabelling |
 | 10. Cancel/unavailable/retry | The new record adds queued disable and queued remove: both queued jobs are cancelled before mutation can publish, with disabled state persisted and removed locations detached. #106 remains the source for installed cancellation/unavailable/exhaustion observations. | Queued disable/remove observed |
 
+The follow-up
+[remaining local NTFS record](installed-journey/run-20260912-ntfs-cases.md)
+uses a separate lock-verifying orchestration wrapper and does not rerun that
+lease-recovery experiment.
+
+| Remaining case | Installed observation | Status |
+| --- | --- | --- |
+| Denied traversal | On live `origin/main` `3ebac5f`, the disposable nested ACL denial was applied and directly probed as same-user `EPERM`; the installed scan reached terminal `failed/access_denied` after its retry chain while all four committed rows and the last-success marker stayed unchanged. | [NTFS record](installed-journey/run-20260912-ntfs-cases.md); PASS, local NTFS only |
+| ResourceLimit | The accepted synthetic 10,000-file manifest was retained unchanged; its scanned `roots` subroot committed 8,000 baseline rows. A disposable 2,001-file overflow made 10,001 expected observations against the unchanged bound and reached terminal `failed/resource_limit` without partial publication or false missing rows. | [NTFS record](installed-journey/run-20260912-ntfs-cases.md); PASS after focused diagnostic fix, budget unchanged |
+| Hardlinks | Two true hardlink aliases were both inside the scanned root; removing alias A produced one Missing/one Present, and restoring it produced two Present locations with distinct location IDs. | [NTFS record](installed-journey/run-20260912-ntfs-cases.md); PASS, local NTFS only |
+
 ## Gate and handoff
 
 The operator reports the exact combined commit, the feature-enabled CI URL,

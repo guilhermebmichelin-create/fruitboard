@@ -263,13 +263,17 @@ struct Harness {
 
 impl Harness {
     fn new(label: &str) -> Self {
+        Self::with_config(label, WorkerConfig::default())
+    }
+
+    fn with_config(label: &str, worker_config: WorkerConfig) -> Self {
         let directory = TestDirectory::new(label);
         let clock = FakeScanClock::new();
         let mut database = Database::open(directory.path()).expect("open durable database");
         let root = database
             .add_scan_root("Synthetic", r"C:\synthetic-root")
             .expect("add synthetic root");
-        let worker = ScanWorker::new(WorkerConfig::default()).expect("worker configuration");
+        let worker = ScanWorker::new(worker_config).expect("worker configuration");
         let session_id = worker
             .start_session(&mut database, &clock)
             .expect("start session")
@@ -648,6 +652,25 @@ fn failed_runs_retry_manually_and_through_the_persisted_backoff() {
     assert_eq!(data[0]["state"], "failed");
     assert_eq!(data[0]["errorCode"], "unavailable");
     assert_eq!(data[0]["retryAvailable"], true);
+    let run_id = data[0]["runId"].as_str().expect("run id");
+    let database = harness.database.lock().unwrap();
+    assert_eq!(
+        database
+            .scan_run(run_id)
+            .expect("failed run")
+            .error_code
+            .as_deref(),
+        Some("unavailable")
+    );
+    assert_eq!(
+        database
+            .scan_job(&job_id)
+            .expect("failed job")
+            .last_error_code
+            .as_deref(),
+        Some("unavailable")
+    );
+    drop(database);
 
     // Manual retry before the persisted backoff eligibility.
     let data = ok_data(handle_retry_scan(
@@ -687,6 +710,79 @@ fn failed_runs_retry_manually_and_through_the_persisted_backoff() {
     ));
     assert_eq!(data[0]["state"], "completed");
     assert_eq!(data[0]["jobId"], job_id);
+}
+
+#[test]
+fn shared_worker_persists_resource_limit_and_status_without_publishing() {
+    let mut worker_config = WorkerConfig::default();
+    worker_config.enumeration_limits.max_observations = 2;
+    let harness = Harness::with_config("shared-resource-limit", worker_config);
+    let (runtime, _) = test_runtime();
+
+    ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    harness.tick(tree(many_files(2)));
+    let committed_before = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    assert_eq!(
+        committed_before["records"]
+            .as_array()
+            .expect("records")
+            .len(),
+        2
+    );
+
+    let started = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let job_id = started["jobId"].as_str().expect("job id").to_owned();
+    harness.tick(tree(many_files(3)));
+
+    let status = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(status[0]["state"], "failed");
+    assert_eq!(status[0]["errorCode"], "resource_limit");
+    assert_eq!(status[0]["retryAvailable"], true);
+    let run_id = status[0]["runId"].as_str().expect("run id");
+    let database = harness.database.lock().unwrap();
+    assert_eq!(
+        database
+            .scan_run(run_id)
+            .expect("failed run")
+            .error_code
+            .as_deref(),
+        Some("resource_limit")
+    );
+    assert_eq!(
+        database
+            .scan_job(&job_id)
+            .expect("failed job")
+            .last_error_code
+            .as_deref(),
+        Some("resource_limit")
+    );
+    drop(database);
+
+    let committed_after = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    assert_eq!(
+        committed_after, committed_before,
+        "a resource-limited shared run cannot publish a partial snapshot"
+    );
 }
 
 #[test]
@@ -1841,6 +1937,30 @@ fn retry_exhausted_reports_conflict_not_requeue() {
     assert_eq!(fresh.state, ScanJobState::Queued);
     assert_eq!(fresh.attempt, 0);
     assert_ne!(exhausted.retry_chain_id, fresh.retry_chain_id);
+}
+
+#[test]
+fn durable_specific_scan_errors_map_to_closed_codes() {
+    assert_eq!(
+        super::map_job_error_code(Some("access_denied")),
+        Some(crate::foundation::errors::ErrorCode::AccessDenied)
+    );
+    assert_eq!(
+        super::map_job_error_code(Some("resource_limit")),
+        Some(crate::foundation::errors::ErrorCode::ResourceLimit)
+    );
+    assert_eq!(
+        super::map_job_error_code(Some("unsupported")),
+        Some(crate::foundation::errors::ErrorCode::Unsupported)
+    );
+    assert_eq!(
+        super::map_job_error_code(Some("unavailable")),
+        Some(crate::foundation::errors::ErrorCode::Unavailable)
+    );
+    assert_eq!(
+        super::map_job_error_code(Some("native error: private path")),
+        Some(crate::foundation::errors::ErrorCode::Internal)
+    );
 }
 
 #[test]
