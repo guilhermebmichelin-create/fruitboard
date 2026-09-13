@@ -1,8 +1,7 @@
 # Phase 2 integration evidence index (#41)
 
-Status: **reconciled 2026-09-08, final 2026-09-10 refresh; live `origin/main`
-re-verified 2026-09-12 at `3ebac5f`; Phase 2 is not accepted.** This is the
-current summary index for
+Status: **reconciled 2026-09-08, final 2026-09-10 refresh against live
+`b2fb62c`; Phase 2 is not accepted.** This is the current summary index for
 P2-01 through P2-12. The detailed evidence ledger, GitHub provenance,
 acceptance conflict, decision table, and remaining gates are in the
 [2026-09-08 reconciliation report](reconciliation-2026-09-08.md) with its
@@ -23,11 +22,9 @@ merged evidence, not provisional.
 
 ## Current merged baseline
 
-The material implementation baseline is
+Merged `origin/main` is now
 `b2fb62c36a057985ab0eba02458f037fcb96c215` (PR #106, merged 2026-09-10).
-The live `origin/main` tip verified for the 2026-09-12 follow-up is
-`3ebac5f7a76c3425620ceba59e6078b32fb6cd85`, a docs-only refresh whose parent
-is that implementation baseline. The material provenance is:
+The material provenance is:
 
 | Merged PR | Commit | Current contribution |
 | --- | --- | --- |
@@ -114,25 +111,17 @@ The installed-app defect repair replay for PR #92 is recorded additively in
 original installed observations remain preserved on PR #92 and are not
 overwritten by that follow-up record.
 
-The 2026-09-12 #107 queued/restart recovery is preserved in the installed
-journey addendum, with the historical driver's provenance kept separate from
-the locked follow-up driver. The remaining denied-traversal, unchanged-bound
-`ResourceLimit`, and in-root hardlink cases are recorded separately in
-[`installed-journey/run-20260912-ntfs-cases.md`](installed-journey/run-20260912-ntfs-cases.md).
-That record is local NTFS evidence only; it does not qualify FAT32, DriveFS,
-network shares, performance, or Phase 2 acceptance.
-
 ## Acceptance ID evidence map (implementation | automated | installed | remaining)
 
 | ID | Implementation (merged `main`) | Automated evidence | Installed evidence | Remaining acceptance |
 | --- | --- | --- | --- | --- |
 | P2-01 | #34/#35 picker and settings work | Client and Windows CI; #58 rendered keyboard/narrow evidence (fake-adapter, labeled) | #92 selection/cancel, settings persistence, restart observation; #54 picker record | Criterion-specific owner acceptance |
 | P2-02 | #59 reconciliation core, #64 Windows enumeration, #70 hidden worker | Deterministic and Windows fixture tests | #92 add/modify/rename and remove/restore convergence | Broader platform qualification; owner acceptance |
-| P2-03 | #62/#70 behavior plus #85 `p2_03_*` fault cases (committed rows and success marker byte-for-byte, no publication) | Fault-injection tests green | #92 cancellation and unavailable-root retention; 2026-09-12 denied-traversal and unchanged-bound ResourceLimit runs pass on local NTFS after the focused diagnostic fix | Owner acceptance |
+| P2-03 | #62/#70 behavior plus #85 `p2_03_*` fault cases (committed rows and success marker byte-for-byte, no publication) | Fault-injection tests green | #92 cancellation and unavailable-root retention observed | Denied/limit cases; owner acceptance |
 | P2-04 | #60/#61/#70 durable state machine plus #82 host recovery plus #104 active-slot skip | `migration` and `scan-execution-windows` green; #97 mid-scan convergence, idle-burst collapse, stale-generation fencing; #104 regression fails pre-fix, passes post-fix | #92 persistence, cancellation, interrupted recovery; #101/#102 historical stall; #106 canonical S1/S4/S6 PASS plus S5 PARTIAL (successor; same-job not demonstrated; #107) | End-to-end acceptance including S5 disposition; owner acceptance |
 | P2-05 | #60/#62 plus #85 disable/remove, lease, staging, re-add, stale-publication; #82 ordering | Disable/remove and lease tests green | #92 disable-while-running retention observed | Queued-operation coverage; owner acceptance |
 | P2-06 | #62 plus #85 crash-before/after-stage, rollback, backup, migration fixtures | Crash/recovery and backup tests green | #92 clean restart and interrupted-work recovery observed | Owner acceptance |
-| P2-07 | #59/#62 plus #85 hardlink alias and rename/replacement tests | Alias and rename tests green | #92 rename convergence; 2026-09-12 true in-root hardlink alias run passes on local NTFS | #48 qualification; owner acceptance |
+| P2-07 | #59/#62 plus #85 hardlink alias and rename/replacement tests | Alias and rename tests green | #92 rename convergence observed; no installed hardlink-alias qualification | #48 qualification; owner acceptance |
 | P2-08 | #73/#77/#78/#81/#82 typed IPC, native adapter, responsiveness, lifecycle, supervision; #95 Library/durable-state alignment | Feature-on CI green; IPC/adapter/lifecycle/host-recovery tests green; #104 regression green | #92 journey; #101/#102 historical stall; #106 canonical S1–S4 PASS plus S6 PASS with S5 PARTIAL; `run-20260909.md` replay | Durable queued state; full-criterion owner acceptance (Partial, not Complete) |
 | P2-09 | #68/#69/#71/#81/#82 watcher, coalescing, coverage-loss, generation, reconnect, shutdown; #97 verification | Coalescing/overflow/stale tests green; #97 counts automated only; #104 sweep/claim regression green | #92 follow-ups; #101 burst NOT OBSERVED (historical stall); #106 canonical S3 burst PASS under isolation | Installed burst timing, real overflow timing, #47 DriveFS evidence; owner acceptance |
 | P2-10 | #81 static no-parser/no-content-I/O guards plus fixture source-byte equality | Static guards and preservation checks green | Installed-app independence observed via #92 native adapter (no parser content) | Runtime content-read spy decision; owner acceptance |
