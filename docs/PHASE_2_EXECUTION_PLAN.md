@@ -12,13 +12,15 @@ referenced by issues.
 ## Current status
 
 The [dated live review status table](review/phase-2-integration/README.md#live-review-status-2026-09-13)
-is the current-head authority for `main` and PRs #108-#114. The verified source
-baseline for this refresh is `71848732216d4ab4e13e73c820b2b8e4d17bddbe`, which
-contains merged #110, #111, #112, and #114. #112 merged at
-`00884ba87c47a24f3ad75aa31f34ef7efe4a5bb8` and #114 merged at this baseline;
-merged #114 adds the executable qualification runbook/validator but no qualification
-run. Installed records retain their tested-source provenance. Green checks
-establish CI provenance only; they do not establish owner acceptance.
+is the current-head authority for `main` and PRs #108-#114. The measured
+source boundary for this refresh is
+`69f27f64f26aa657182a9260cc8e78f28a5838fb`, which contains merged #110, #111,
+#112, and #114 plus the final #109 documentation refresh. The executable
+qualification runbook was executed once; its current-only result is recorded
+in [the dated evidence](review/phase-2-integration/qualification-evidence-20260913.md)
+and is non-qualifying on the unchanged warm-p95 target. Installed records
+retain their tested-source provenance. Green checks establish CI provenance
+only; they do not establish owner acceptance.
 
 Agent 2's final S5 verification found no product or contract defect and did not
 rerun S5. Its recorded installed evidence is now published by merged #110; the

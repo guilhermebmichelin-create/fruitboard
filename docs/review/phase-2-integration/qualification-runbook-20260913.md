@@ -1,10 +1,12 @@
 # Next scanner performance qualification runbook (2026-09-13)
 
-Status: **prepared, not executed**. This is one bounded P2-11 run for the
-current merged scanner implementation on the unchanged local-NTFS target. It
-does not amend a budget, limit, fixture definition, platform scope, or
-acceptance criterion. It does not qualify the installed desktop UI, DriveFS,
-FAT32/cross-volume identity, or the 100,000-entry memory target.
+Status: **executed once on 2026-09-13; non-qualifying for the unchanged warm-
+reconciliation target**. This is one bounded P2-11 run for the current merged
+scanner implementation on the unchanged local-NTFS target. It does not amend a
+budget, limit, fixture definition, platform scope, or acceptance criterion. It
+does not qualify the installed desktop UI, DriveFS, FAT32/cross-volume identity,
+or the 100,000-entry memory target. The sanitized result is recorded in
+[the qualification evidence](qualification-evidence-20260913.md).
 
 Basis: `scripts/benchmark-scan.md`, `scripts/run-benchmark.mjs`, PR #108's
 qualification capture, PR #112's diagnostic/sanitization capture, the
@@ -21,13 +23,13 @@ performance disposition is considered.
 
 ## Boundary and answer
 
-The recommended execution profile is:
+The approved execution profile for the recorded run was:
 
-- fixture: proposed `custom-9995`, seed `0`, exactly 10,000 scanner
-  observations, after the owner records that F1 choice;
-- source: the exact SHA of `origin/main` after the selected source stack is
-  merged into `main`, built as the release `benchmark` driver with locked
-  dependencies;
+- fixture: owner-approved `custom-9995`, seed `0`, exactly 10,000 scanner
+  observations;
+- source: exact fetched `origin/main` SHA
+  `69f27f64f26aa657182a9260cc8e78f28a5838fb`, built as the release `benchmark`
+  driver with locked dependencies;
 - operation: the existing `scripts/run-benchmark.mjs` path through the real
   Windows filesystem port, scan worker, staging, and atomic publication;
 - protocol: one first-run warm-up, 10 measured fresh-driver iterations against
@@ -37,22 +39,23 @@ The recommended execution profile is:
   eligible host.
 
 The current #112 source-stack head is historical review provenance only. It is
-not merged and is not a measurement boundary. At execution time, record the
-exact fetched `origin/main` SHA after the owner merges the selected source
-stack; do not substitute a PR head or installed-evidence SHA.
+not the measurement boundary. The recorded measurement boundary is the exact
+fetched `origin/main` SHA above; no PR head or installed-evidence SHA was
+substituted.
 
-The historical #108 before/candidate A/B is not part of this run. It was
+The historical #108 before/candidate A/B is not part of this run. It remains
 normal-configuration, contended evidence against older source boundaries and
-does not answer the current merged implementation question. Add A/B only if
-the owner explicitly selects an A/B protocol to answer a named unresolved
-optimization question; then run the current side as well and keep the A/B as a
-separate diagnostic experiment. No extra run is needed for the current-only
-qualification answer.
+does not answer the current merged implementation question. The approved
+current-only protocol intentionally did not add an A/B experiment; no
+historical A/B rerun is required for this qualification answer.
 
 ## Protocol and host-profile selection
 
-The owner must select the host profile before timing. The executable block in
-section 4 reads `FRUITBOARD_HOST_PROFILE` and accepts exactly one of:
+The owner-approved host profile for this execution was
+`repository-minimum`. The executable block in section 4 still reads
+`FRUITBOARD_HOST_PROFILE` and accepts exactly one of the profiles below for
+reproducibility and separately approved future runs. `strict-quiet-host` was
+not selected and its controls were not imposed.
 
 | Layer                   | `repository-minimum`                                                                                                                                                                                                                        | `strict-quiet-host`                                                                                                                                                                                                                                                   |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -81,9 +84,10 @@ record the raw samples either way.
 These are recommendations from previous reports, not additional acceptance
 gates:
 
-- `custom-9995` is the no-code F1 alignment recommendation. Retaining the
-  10,005-observation fixture instead requires a separately approved,
-  end-to-end limit change; raising one constant is not a valid fix.
+- The owner-approved `custom-9995` choice is the no-code F1 alignment used by
+  this run. Retaining the 10,005-observation fixture instead requires a
+  separately approved, end-to-end limit change; raising one constant is not a
+  valid fix.
 - Cache control, `profile-fs-calls`, traversal optimization, a historical A/B,
   and a 100,000-entry run are not needed to answer the current-only question.
   The warm-up must simply not be called `cold-cache` unless cache state was
@@ -101,7 +105,7 @@ The existing raw artifacts agree on the canonical hashes and counts:
 | Role                   | FLP files | Alias locations | Other files | Scanner observations | Canonical manifest SHA-256                                         | Disposition                          |
 | ---------------------- | --------: | --------------: | ----------: | -------------------: | ------------------------------------------------------------------ | ------------------------------------ |
 | Accepted `baseline`    |    10,000 |               5 |           4 |           **10,005** | `8c3d85ec01299995208abfa450378b1b37c704e423593d7a4370ec465254afba` | Preserve as overflow safety evidence |
-| Proposed `custom-9995` |     9,995 |               5 |           4 |           **10,000** | `a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a` | Recommended; owner selection pending |
+| Approved `custom-9995` |     9,995 |               5 |           4 |           **10,000** | `a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a` | Used for the recorded run |
 
 The generator counts primary `kind: "flp"` entries separately from alias
 locations. The scanner observes both primary and alias locations; `kind:
@@ -121,13 +125,14 @@ It is not assumed to be present in this checkout. A new fixture must be
 generated in a new empty directory or an owner-selected persistent fixture
 must validate to the exact hash; never hand-edit a manifest.
 
-## Readiness snapshot (2026-09-13)
+## Historical readiness snapshot (captured before this execution)
 
-No qualification benchmark, release build, installer, host preflight, or
-60-second measurement was started in this sibling window. A disposable
-synthetic fixture was generated and removed only for the runbook validation
-recorded in [the validation record](qualification-runbook-validation-20260913.md);
-that check is not performance evidence.
+At the time this snapshot was captured, no qualification benchmark, release
+build, installer, host preflight, or 60-second measurement had been started in
+this sibling window. It is retained as historical readiness context; the
+actual execution is recorded in [the qualification evidence](qualification-evidence-20260913.md).
+The disposable synthetic fixture used for the earlier
+runbook validation was not performance evidence.
 
 | Check            | Read-only result                                                                                                                                                                                                                                                                                                                                                                | Qualification state                                                                                                 |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -146,9 +151,10 @@ roots as part of this task.
 
 ## Exact execution sequence
 
-Replace only the run-root choice if the owner selects another local NTFS
-volume. Run after the owner decision, after the source stack is merged, and
-from a clean checkout. All evidence below is kept outside the repository.
+Replace only the run-root choice for a separately approved future run on
+another local NTFS volume. The recorded run used the owner decision, merged
+source, and clean checkout described above. All evidence below is kept outside
+the repository.
 The commands in this section are the `custom-9995` sequence; if the owner
 selects the 10,005 alternative, stop and obtain its separately approved
 coupled-limit protocol before using any execution command below.
@@ -740,20 +746,15 @@ historical unexplained #108 `Failed`/`Partial` as fixed. The original
 10,005-observation `ResourceLimit` evidence remains intact and separate from
 this proposed 10,000-observation qualification.
 
-## Minimal owner decisions
+## Recorded owner decision and execution outcome
 
-1. Record the recommended `custom-9995`, seed `0`, and canonical manifest hash
-   above, or explicitly choose the alternative. The alternative requires its
-   own approved protocol and is not silently substituted.
-2. Select the current-only qualification protocol in this runbook, or name the
-   specific unresolved question that justifies adding historical A/B runs.
-3. Provide a dedicated host window and set the selected profile plus the
-   quiescence attestations. If `strict-quiet-host` is selected, the owner
-   supplies the DriveFS pause/absence, a non-volume Defender exclusion that
-   covers the exact disposable fixture path, High performance state, and
-   60-second idle proof. This task changes none of those settings and
-   terminates no unrelated process.
-
-After those choices and the source-stack merge, the command sequence above is
-ready to run. No further benchmark investigation or broad acceptance-packet
-rewrite is required for this bounded qualification attempt.
+The owner-approved `custom-9995`, seed `0`, current-only protocol,
+`repository-minimum` profile, dedicated idle window, and unchanged targets were
+recorded before timing and used without substitution. The quiescence
+attestations were set only after the explicit process/lock audit; they were not
+inferred from setup approval alone. The run completed once and is
+non-qualifying solely because the derived warm-reconciliation nearest-rank p95
+was 10,173 ms against the unchanged 10,000 ms target. See
+[the sanitized qualification evidence](qualification-evidence-20260913.md) for
+the attempts, validator output, hashes, and limitations. Historical strict /
+A/B recommendations remain history and were not re-run.
