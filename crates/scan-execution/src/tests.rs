@@ -2664,12 +2664,159 @@ fn p2_03_partial_disappearance_preserves_rows_and_snapshot_byte_identical() {
     assert!(!execution.authoritative);
     assert!(execution.publication.is_none());
     assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Partial));
+    assert_eq!(
+        execution.partial_class,
+        Some(PartialClass::DirectoryNotFound)
+    );
     assert_eq!(execution.status, ScanExecutionStatus::Failed);
     assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
     assert_eq!(
         harness.staging_state(&execution.run_id),
         ScanStageState::Discarded
     );
+    let recovered = harness.scan(tree(vec![
+        file_entry("kept.flp", 101),
+        file_entry("other.flp", 102),
+        dir_entry("gone", 201, vec![file_entry("inner.flp", 301)]),
+    ]));
+    assert_eq!(recovered.status, ScanExecutionStatus::Published);
+    assert_eq!(recovered.enumeration_outcome, Some(EnumOutcome::Complete));
+    assert!(recovered.authoritative);
+    assert_eq!(recovered.partial_class, None);
+    assert!(recovered.publication.is_some());
+    let (_, recovered_marker, _) = committed_state(&harness);
+    assert_ne!(recovered_marker, before_marker);
+}
+
+// P2-03: the shared worker path preserves the bounded Partial diagnostic and
+// keeps a failed run behind the publication fence.
+#[test]
+fn shared_partial_resolution_reports_bounded_class_without_publishing() {
+    let mut harness = Harness::new("shared-partial");
+    let first = harness.scan(tree(vec![file_entry("kept.flp", 101)]));
+    assert_eq!(first.status, ScanExecutionStatus::Published);
+    let before_rows = harness.committed();
+    let before_marker = harness
+        .db
+        .scan_root_publication(&harness.root_id)
+        .expect("publication marker");
+    let before_bytes = committed_snapshot_bytes(&before_rows, &before_marker);
+
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let Harness {
+        directory,
+        db,
+        clock,
+        worker,
+        root_id,
+        ..
+    } = harness;
+    let shared = std::sync::Mutex::new(db);
+    let mut port = FakePort::new(tree(vec![
+        file_entry("kept.flp", 101),
+        vanishing_dir_entry("gone", 201, vec![file_entry("inner.flp", 301)]),
+    ]));
+    let execution = worker.execute_shared(&shared, scan, &mut port, &NeverCancelled, &clock);
+
+    assert_eq!(execution.status, ScanExecutionStatus::Failed);
+    assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Partial));
+    assert_eq!(
+        execution.partial_class,
+        Some(PartialClass::DirectoryNotFound)
+    );
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+
+    let guard = shared.lock().expect("shared database");
+    let after_rows = committed_rows(&guard, &root_id);
+    let after_marker = guard
+        .scan_root_publication(&root_id)
+        .expect("publication marker");
+    assert_eq!(after_rows, before_rows);
+    assert_eq!(after_marker, before_marker);
+    assert_eq!(
+        committed_snapshot_bytes(&after_rows, &after_marker),
+        before_bytes
+    );
+    assert_eq!(
+        guard
+            .scan_staging(&execution.run_id)
+            .expect("staging")
+            .state,
+        ScanStageState::Discarded
+    );
+    drop(guard);
+    drop(shared);
+    drop(directory);
+}
+
+#[test]
+fn partial_class_is_bounded_and_does_not_guess_after_truncation() {
+    fn report(
+        failures: Vec<enumeration::CoverageFailure>,
+        omitted: usize,
+    ) -> enumeration::EnumerationReport {
+        enumeration::EnumerationReport {
+            outcome: EnumOutcome::Partial,
+            authoritative: false,
+            root_qualification: None,
+            directories_visited: 0,
+            entries_examined: 0,
+            observations_discovered: 0,
+            batches_delivered: 0,
+            identity_unavailable: 0,
+            exclusions: Vec::new(),
+            omitted_exclusions: 0,
+            coverage_failures: failures,
+            omitted_coverage_failures: omitted,
+        }
+    }
+
+    let one = report(
+        vec![enumeration::CoverageFailure {
+            display_path: None,
+            kind: enumeration::CoverageFailureKind::MetadataRead,
+        }],
+        0,
+    );
+    assert_eq!(partial_class(&one), Some(PartialClass::MetadataRead));
+
+    let multiple = report(
+        vec![
+            enumeration::CoverageFailure {
+                display_path: None,
+                kind: enumeration::CoverageFailureKind::MetadataRead,
+            },
+            enumeration::CoverageFailure {
+                display_path: None,
+                kind: enumeration::CoverageFailureKind::DirectoryChanged,
+            },
+        ],
+        0,
+    );
+    assert_eq!(partial_class(&multiple), Some(PartialClass::Multiple));
+
+    let truncated = report(
+        vec![enumeration::CoverageFailure {
+            display_path: None,
+            kind: enumeration::CoverageFailureKind::MetadataRead,
+        }],
+        1,
+    );
+    assert_eq!(partial_class(&truncated), Some(PartialClass::Unknown));
+
+    let empty = report(Vec::new(), 0);
+    assert_eq!(partial_class(&empty), Some(PartialClass::Unknown));
+
+    let mut complete = empty;
+    complete.outcome = EnumOutcome::Complete;
+    assert_eq!(partial_class(&complete), None);
+    assert_eq!(PartialClass::Multiple.as_str(), "partial_multiple");
+    assert_eq!(PartialClass::Unknown.as_str(), "partial_unknown");
 }
 
 // P2-03: unsupported filesystems are non-authoritative and preserve state.
