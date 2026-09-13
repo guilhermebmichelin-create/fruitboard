@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
+[features]
+diagnostics = []
+
 [dependencies]
 fruitboard-storage.workspace = true
 fruitboard-filesystem-enumeration = { path = "../filesystem-enumeration" }
