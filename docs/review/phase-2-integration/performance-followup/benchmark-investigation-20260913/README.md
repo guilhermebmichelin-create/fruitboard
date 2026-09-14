@@ -25,26 +25,31 @@ be relabeled as an explanation of that event.
 
 | Item | Value |
 | --- | --- |
-| reviewed `origin/main` baseline | `83da093672b5e2154097c897af533821b04f2352` |
-| source used by the existing profilers | `83da093672b5e2154097c897af533821b04f2352` |
+| reviewed `origin/main` baseline at rebase | `1454fb3ddc64e5ac5b2703a68619314ab65af3f3` (PR #132 merge) |
+| source measured by the existing and phase profilers | `83da093672b5e2154097c897af533821b04f2352` |
+| instrumented source boundary (hardened) | diagnostic-only commit `de8d8b834f8ee4cf4bb46a15fb484973e76548da` on base `1454fb3ddc64e5ac5b2703a68619314ab65af3f3` |
 | earlier qualification measurement | `69f27f64f26aa657182a9260cc8e78f28a5838fb` (reported as `69f27f6`) |
 | fixture | `custom-9995`, seed `0`, exactly 10,000 observations |
 | fixture manifest SHA-256 | `a4760a282395adf43ee0433499c0a178f3d9e5e2faa0b1237256f26c1196d08a` |
 | fixture counts | 9,995 FLP files, 4 other files, 5 alias locations, 1,025 directories, 1,000 leaves, 10 empty directories |
 
 `origin/main` was fetched before the clean worktree was created. The two
-commits after `69f27f6` and before the reviewed baseline are documentation
-commits (`f811cf3` and `83da093`); their diff is confined to documentation
-and agent workflow files, with no production enumeration, storage,
-reconciliation, or publication change. Therefore the existing profiler
-measurements are against the reviewed merged code, not a changed production
-implementation.
+documentation commits after `69f27f6` and before `83da093` (`f811cf3` and
+`83da093`) are confined to documentation and agent workflow files, with no
+production enumeration, storage, reconciliation, or publication change. The
+spike was rebased onto the current `origin/main` `1454fb3`; between the measured
+source `83da093` and that base the only changes are documentation,
+agent-workflow, and build-tooling files, and `git diff 83da093 1454fb3 --
+crates apps packages` is empty, so the production path is unchanged. The
+profiler measurements recorded below were taken at `83da093` and are not
+relabeled.
 
 This spike adds only a feature-gated diagnostic phase profile in
 `scan-execution` and exposes it through the existing filesystem-call profiler.
-With the feature disabled, the production path remains unchanged. The
-phase-timed binary is therefore `83da093` plus the diagnostic-only changes in
-this spike; it is not qualification evidence.
+With the feature disabled the production path remains unchanged and is guarded
+by the unchanged non-feature CI step. The hardened instrumented source is
+diagnostic-only commit `de8d8b8` on `1454fb3`; the later branch commits change
+only the CI workflow and this report. It is not qualification evidence.
 
 The previously completed qualification run remains exactly as reported:
 source `69f27f6`, warm p95 `10,173 ms`, median `10,014 ms`, and 10/10
@@ -183,6 +188,11 @@ the only bucket that accounts for roughly four-fifths of direct enumeration;
 it is a proposal for a separately gated experiment, not an implementation in
 this spike.
 
+**Status: unapproved proposal.** No ancestor-validation code change, no
+production activation, and no retained-handle shortcut is part of this spike;
+the current fail-closed, name-relative reopen validation remains the only
+implementation.
+
 The correctness risk is substantial. The current name-relative reopen checks
 that every path component still resolves to the identity captured when the
 cursor was opened and prevents a reparse or replacement from escaping the
@@ -207,6 +217,33 @@ storage-internal diagnostic buckets for staging validation/insert/commit and
 publication read/plan/apply/commit. That would determine whether the roughly
 1.05-second storage phases contain a separately actionable cost without
 mistaking the mixed residual for SQLite time.
+
+## Instrumented artifact provenance
+
+The profiler runs above used the pre-hardening diagnostic source. The hardened
+diagnostic-only source is commit
+`de8d8b834f8ee4cf4bb46a15fb484973e76548da` on base
+`1454fb3ddc64e5ac5b2703a68619314ab65af3f3`. The later commits on this branch
+change only `.github/workflows/foundation.yml` and this report, so the
+instrumented Rust sources are identical at `de8d8b8` and every later head.
+Rebuilding the instrumented example with the pinned Rust 1.98.1 toolchain:
+
+```text
+CARGO_TARGET_DIR=<reusable-validation-cache> cargo build --release \
+  -p fruitboard-scan-execution --features diagnostics \
+  --example profile-fs-calls --locked
+```
+
+produces `profile-fs-calls.exe` (2,595,840 bytes) with SHA-256
+`86fed17954f541e03e6c37411a7e78c8c4339400854d0cb92ccd002d00936a6d`, retained
+as an independent copy outside the compiler cache. Moving the phase-JSON
+formatting from the example into `ScanPhaseProfile::to_json` preserves the
+exact field names, order, and numeric-only payload of the measured output, so
+the profiler JSON is unchanged. The diagnostics feature is now compiled and
+tested explicitly in CI (feature-enabled Clippy over all targets and
+`cargo test` in the `scan-execution-windows` job) in addition to the unchanged
+non-feature gate. This hardening rebuild measured no new scan performance and
+changes no target, limit, fixture, or acceptance result.
 
 ## Evidence and delivery
 
@@ -236,7 +273,8 @@ require a full rebuild, so cleanup should be deliberate and path-verified.
 
 Key retained SHA-256 values:
 
-- diagnostic phase binary: `8c6fd21e7c2912c41e2c7d0b08cd80a76a2889343b42bc65f8013cb6584b3042`
+- diagnostic phase binary (pre-hardening measurement): `8c6fd21e7c2912c41e2c7d0b08cd80a76a2889343b42bc65f8013cb6584b3042`
+- hardened diagnostic phase binary (`de8d8b8`): `86fed17954f541e03e6c37411a7e78c8c4339400854d0cb92ccd002d00936a6d`
 - native profiler binary: `b0170afca5257f37e5db121868c14e22a879bc34d0526f561a5c4cb0fabbb082`
 - end-to-end profiler raw JSONL: `55dc728604f448cedc3e8761c07ace9e863004ade1dc51c5f5b4535fa05e274a`
 - native profiler raw JSONL: `6c421ddb9224c6acbbdf7aacdec73230ae14f3a865588819f287b81c8d12cf78`
