@@ -251,7 +251,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | UUID / regex              | 1.26.1 / 1.13.1 | Opaque native IDs and diagnostic redaction     |
 | rusqlite / libsqlite3-sys | 0.40.2 / 0.38.2 | Bundled native SQLite and backup API           |
 | React / React DOM         | 19.2.8          | Shared client rendering                        |
-| Vite / React plugin       | 8.2.2 / 6.1.1   | Local development and production client bundle |
+| Vite / React plugin       | 8.3.0 / 6.1.1   | Local development and production client bundle |
 | TypeScript                | 6.0.3           | Strict shared-client compilation               |
 | Vitest                    | 5.0.0           | Client and adapter contract tests              |
 
