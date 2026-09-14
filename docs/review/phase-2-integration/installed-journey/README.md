@@ -12,6 +12,13 @@ locked NTFS driver [installed-ntfs-cases.mjs](installed-ntfs-cases.mjs), which
 is launched only through `scripts/run-installed-ntfs-cases.ps1`.
 The historical run records and the preserved S5 disposition remain unchanged.
 
+The additive P2-08 current-head retry/presentation revalidation is
+[run-20260914-p2o8-retry-presentation.md](run-20260914-p2o8-retry-presentation.md),
+with its review-only driver
+[p2o8-retry-state-capture.mjs](p2o8-retry-state-capture.mjs). It supplements,
+without replacing, the #92, #106, and #110 installed records and does not rerun
+the S5, NTFS, or benchmark cases.
+
 ## Supported locked-run entry point
 
 For a new locked installed local-NTFS evidence run, invoke the PowerShell
@@ -46,6 +53,11 @@ The evidence classes are intentionally separate:
 
 - The 2026-09-12 remaining-case run records only local NTFS observations. It
   does not qualify FAT32, DriveFS, network shares, or Phase 2 acceptance.
+
+- The 2026-09-14 P2-08 record is a current-head (`adab234`) installed
+  revalidation of the #92 D2/D3 retry gaps and the merged #111 typed
+  presentation. It does not rerun the NTFS cases, S5, or any benchmark and
+  makes no acceptance claim.
 
 No database, fixture contents, screenshots, personal projects, or machine
 identity are committed. The run-specific synthetic files and isolated
