@@ -216,10 +216,21 @@ All raw evidence is under
 - `provenance\` - source boundary, build artifacts, installer copy, fixture
   manifests, fixture tree hashes, and the read-only database inspection.
 
+### Validation cache handoff
+
+`%TEMP%\opencode\validation-target` (1.53 GiB) is the single reusable
+validation cache for this machine's next installed/desktop build. This task
+owned it exclusively through the run above and hands ownership to Agent C. Agent
+C may reuse it sequentially; no two tasks may write it concurrently. The cache
+contains the pinned `1.98.1-x86_64-pc-windows-msvc` release build of `adab234`
+and the cached `.tauri` NSIS tooling copied from the primary target. The cache
+is not evidence by itself; a binary is only proof together with the recorded
+source SHA, build command, and binary hash above.
+
 Classification:
 
 - **Active cache:** `%TEMP%\opencode\validation-target` is the reusable
-  validation cache and is handed off to Agent C (see below).
+  validation cache and is handed off to Agent C (see above).
 - **Reusable:** the `.tools` pinned toolchain and the pnpm store are shared
   machine resources and are unchanged.
 - **Retained evidence:** everything under
