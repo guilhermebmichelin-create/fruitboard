@@ -3506,3 +3506,243 @@ fn p2_05_queued_work_invalidated_by_disable_never_leased_after_reenable() {
     assert_ne!(fresh.job_id, queued_id);
     assert_eq!(harness.committed().len(), 1);
 }
+
+/// Regression coverage for the feature-gated diagnostic phase profile. These
+/// tests only exist under `--features diagnostics`; CI runs them explicitly so
+/// the instrumentation cannot silently drift from the production path.
+#[cfg(feature = "diagnostics")]
+mod diagnostics {
+    use super::*;
+
+    fn scan_profiled(
+        harness: &mut Harness,
+        tree: Entry,
+        profile: &Rc<RefCell<ScanPhaseProfile>>,
+    ) -> ScanExecution {
+        let mut port = FakePort::new(tree);
+        scan_profiled_port(harness, &mut port, profile)
+    }
+
+    fn scan_profiled_port<P: FilesystemPort>(
+        harness: &mut Harness,
+        port: &mut P,
+        profile: &Rc<RefCell<ScanPhaseProfile>>,
+    ) -> ScanExecution {
+        harness
+            .worker
+            .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+            .expect("enqueue manual scan");
+        harness
+            .worker
+            .poll_with_profile(
+                &mut harness.db,
+                &harness.session_id,
+                port,
+                &NeverCancelled,
+                &harness.clock,
+                Rc::clone(profile),
+            )
+            .expect("worker poll")
+            .expect("one execution")
+    }
+
+    #[test]
+    fn phase_counters_track_each_worker_phase_once_per_scan() {
+        let mut harness = Harness::new("diag-counters");
+        let profile = Rc::new(RefCell::new(ScanPhaseProfile::default()));
+        let execution = scan_profiled(&mut harness, tree(many_files(600)), &profile);
+        assert_eq!(execution.status, ScanExecutionStatus::Published);
+        assert!(execution.authoritative);
+
+        let recorded = profile.borrow();
+        assert_eq!(
+            recorded.enumeration.calls, 1,
+            "enumeration is measured once"
+        );
+        assert_eq!(
+            recorded.publication.calls, 1,
+            "publication is measured once"
+        );
+        assert_eq!(
+            recorded.change_plan.calls, 1,
+            "change plan is measured once"
+        );
+        assert!(
+            recorded.library_page.calls >= 1,
+            "a published run reads at least one library page"
+        );
+        assert_eq!(
+            recorded.reconciliation.calls, 1,
+            "an empty previous library reconciles the first scan"
+        );
+        assert_eq!(
+            recorded.staging_batch.calls, 2,
+            "600 records are staged as two 512-bounded batches"
+        );
+        assert!(
+            recorded.enumeration.nanos >= recorded.staging_batch.nanos,
+            "nested staging time stays inside the containing enumeration bucket"
+        );
+        assert!(
+            recorded.change_plan.nanos
+                >= recorded
+                    .library_page
+                    .nanos
+                    .saturating_add(recorded.reconciliation.nanos),
+            "nested page and reconciliation time stays inside change_plan"
+        );
+    }
+
+    #[test]
+    fn phase_counters_accumulate_across_scans_into_one_profile() {
+        let mut harness = Harness::new("diag-accumulate");
+        let profile = Rc::new(RefCell::new(ScanPhaseProfile::default()));
+        scan_profiled(&mut harness, tree(vec![file_entry("a.flp", 101)]), &profile);
+        scan_profiled(&mut harness, tree(vec![file_entry("a.flp", 101)]), &profile);
+        let recorded = profile.borrow();
+        assert_eq!(recorded.enumeration.calls, 2);
+        assert_eq!(recorded.publication.calls, 2);
+        assert_eq!(recorded.change_plan.calls, 2);
+    }
+
+    #[test]
+    fn phase_activation_restores_the_previous_profile() {
+        record_phase(DiagnosticPhase::Enumeration, 1);
+
+        let outer = Rc::new(RefCell::new(ScanPhaseProfile::default()));
+        let outer_guard = activate_phase_profile(Rc::clone(&outer));
+        record_phase(DiagnosticPhase::Enumeration, 5);
+        assert_eq!(outer.borrow().enumeration.calls, 1);
+
+        {
+            let inner = Rc::new(RefCell::new(ScanPhaseProfile::default()));
+            let _inner_guard = activate_phase_profile(Rc::clone(&inner));
+            record_phase(DiagnosticPhase::Publication, 7);
+            assert_eq!(inner.borrow().publication.calls, 1);
+            assert_eq!(
+                outer.borrow().enumeration.calls,
+                1,
+                "an inner activation must not record into the outer profile"
+            );
+            assert_eq!(outer.borrow().publication.calls, 0);
+        }
+
+        record_phase(DiagnosticPhase::Enumeration, 3);
+        assert_eq!(
+            outer.borrow().enumeration.calls,
+            2,
+            "dropping the inner guard restores the outer profile"
+        );
+
+        drop(outer_guard);
+        record_phase(DiagnosticPhase::Enumeration, 9);
+        assert_eq!(
+            outer.borrow().enumeration.calls,
+            2,
+            "recording with no active profile is a no-op"
+        );
+    }
+
+    #[test]
+    fn poll_scopes_its_profile_and_restores_the_caller_profile() {
+        let mut harness = Harness::new("diag-restore");
+        let outer = Rc::new(RefCell::new(ScanPhaseProfile::default()));
+        let outer_guard = activate_phase_profile(Rc::clone(&outer));
+
+        let inner = Rc::new(RefCell::new(ScanPhaseProfile::default()));
+        scan_profiled(&mut harness, tree(vec![file_entry("a.flp", 101)]), &inner);
+        assert_eq!(inner.borrow().enumeration.calls, 1);
+        assert_eq!(
+            outer.borrow().enumeration.calls,
+            0,
+            "the scan profile is scoped to the poll call"
+        );
+
+        record_phase(DiagnosticPhase::Enumeration, 11);
+        assert_eq!(
+            outer.borrow().enumeration.calls,
+            1,
+            "the caller profile is active again after poll returns"
+        );
+        drop(outer_guard);
+    }
+
+    #[test]
+    fn phase_counters_record_failed_and_partial_error_paths_without_publication() {
+        let mut harness = Harness::new("diag-offline");
+        let offline = Rc::new(RefCell::new(ScanPhaseProfile::default()));
+        let mut port = FakePort::offline(tree(vec![file_entry("a.flp", 101)]));
+        let execution = scan_profiled_port(&mut harness, &mut port, &offline);
+        assert_eq!(execution.status, ScanExecutionStatus::Failed);
+        {
+            let recorded = offline.borrow();
+            assert_eq!(recorded.enumeration.calls, 1, "the attempt is measured");
+            assert_eq!(
+                recorded.publication.calls, 0,
+                "a failed run never publishes"
+            );
+            assert_eq!(
+                recorded.change_plan.calls, 0,
+                "a failed run never plans changes"
+            );
+        }
+
+        let mut harness = Harness::new("diag-partial");
+        let partial = Rc::new(RefCell::new(ScanPhaseProfile::default()));
+        let partial_tree = tree(vec![vanishing_dir_entry(
+            "sub",
+            1,
+            vec![file_entry("a.flp", 101)],
+        )]);
+        let execution = scan_profiled(&mut harness, partial_tree, &partial);
+        assert_eq!(execution.status, ScanExecutionStatus::Failed);
+        assert!(execution.partial_class.is_some());
+        let recorded = partial.borrow();
+        assert_eq!(recorded.enumeration.calls, 1);
+        assert_eq!(recorded.publication.calls, 0);
+        assert_eq!(recorded.change_plan.calls, 0);
+    }
+
+    #[test]
+    fn production_poll_without_an_active_profile_records_nothing() {
+        let mut harness = Harness::new("diag-production");
+        let execution = harness.scan(tree(vec![file_entry("a.flp", 101)]));
+        assert_eq!(execution.status, ScanExecutionStatus::Published);
+        let probe = Rc::new(RefCell::new(ScanPhaseProfile::default()));
+        record_phase(DiagnosticPhase::Enumeration, 1);
+        assert_eq!(probe.borrow().enumeration.calls, 0);
+    }
+
+    #[test]
+    fn phase_profile_serializes_stable_path_free_json() {
+        let profile = ScanPhaseProfile {
+            enumeration: PhaseProfileCall {
+                calls: 1,
+                nanos: 42,
+            },
+            staging_batch: PhaseProfileCall { calls: 2, nanos: 7 },
+            change_plan: PhaseProfileCall { calls: 1, nanos: 9 },
+            library_page: PhaseProfileCall { calls: 3, nanos: 4 },
+            reconciliation: PhaseProfileCall { calls: 1, nanos: 5 },
+            publication: PhaseProfileCall { calls: 1, nanos: 6 },
+        };
+        let json = profile.to_json();
+        assert_eq!(
+            json,
+            concat!(
+                "{\"enumeration\":{\"calls\":1,\"nanos\":42},",
+                "\"staging_batch\":{\"calls\":2,\"nanos\":7},",
+                "\"change_plan\":{\"calls\":1,\"nanos\":9},",
+                "\"library_page\":{\"calls\":3,\"nanos\":4},",
+                "\"reconciliation\":{\"calls\":1,\"nanos\":5},",
+                "\"publication\":{\"calls\":1,\"nanos\":6}}"
+            )
+        );
+        assert!(
+            json.chars()
+                .all(|character| character.is_ascii_alphanumeric()
+                    || "{}:,_\"".contains(character)),
+            "serialized profile must contain only counters and fixed JSON punctuation"
+        );
+    }
+}

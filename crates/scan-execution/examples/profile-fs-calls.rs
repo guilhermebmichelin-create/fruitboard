@@ -12,7 +12,7 @@ use fruitboard_filesystem_enumeration::{
     Outcome, PortError, RootMetadata, WindowsFilesystemPort,
 };
 #[cfg(feature = "diagnostics")]
-use fruitboard_scan_execution::{PhaseProfileCall, ScanPhaseProfile};
+use fruitboard_scan_execution::ScanPhaseProfile;
 use fruitboard_scan_execution::{ScanExecutionStatus, ScanWorker, SystemClock, WorkerConfig};
 use fruitboard_storage::Database;
 use std::cell::RefCell;
@@ -150,24 +150,6 @@ impl DirectoryCursor for TimedDirectoryCursor {
             }),
         })
     }
-}
-
-#[cfg(feature = "diagnostics")]
-fn phase_call_json(call: PhaseProfileCall) -> String {
-    format!("{{\"calls\":{},\"nanos\":{}}}", call.calls, call.nanos)
-}
-
-#[cfg(feature = "diagnostics")]
-fn phases_json(profile: &ScanPhaseProfile) -> String {
-    format!(
-        "{{\"enumeration\":{},\"staging_batch\":{},\"change_plan\":{},\"library_page\":{},\"reconciliation\":{},\"publication\":{}}}",
-        phase_call_json(profile.enumeration),
-        phase_call_json(profile.staging_batch),
-        phase_call_json(profile.change_plan),
-        phase_call_json(profile.library_page),
-        phase_call_json(profile.reconciliation),
-        phase_call_json(profile.publication),
-    )
 }
 
 struct Arguments {
@@ -315,7 +297,7 @@ fn run_once(
     let filesystem_nanos = measured.filesystem_nanos();
     let residual_nanos = scan_nanos.saturating_sub(filesystem_nanos);
     #[cfg(feature = "diagnostics")]
-    let phase_suffix = format!(",\"phases\":{}", phases_json(&phase_profile.borrow()));
+    let phase_suffix = format!(",\"phases\":{}", phase_profile.borrow().to_json());
     #[cfg(not(feature = "diagnostics"))]
     let phase_suffix = String::new();
     let location_count = execution.publication.as_ref().map_or_else(

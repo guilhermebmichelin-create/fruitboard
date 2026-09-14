@@ -107,6 +107,13 @@ impl PhaseProfileCall {
         self.calls = self.calls.saturating_add(1);
         self.nanos = self.nanos.saturating_add(elapsed_nanos);
     }
+
+    /// Stable, path-free JSON object for one phase bucket. Field names and
+    /// order are the profiler output contract; the values are bounded call
+    /// counts and nanosecond durations only.
+    pub fn to_json(self) -> String {
+        format!("{{\"calls\":{},\"nanos\":{}}}", self.calls, self.nanos)
+    }
 }
 
 /// Diagnostic-only timings for the worker's mixed residual path.
@@ -124,6 +131,25 @@ pub struct ScanPhaseProfile {
     pub library_page: PhaseProfileCall,
     pub reconciliation: PhaseProfileCall,
     pub publication: PhaseProfileCall,
+}
+
+#[cfg(feature = "diagnostics")]
+impl ScanPhaseProfile {
+    /// Stable, path-free JSON object for every phase bucket. `enumeration`
+    /// contains the nested `staging_batch`, and `change_plan` contains the
+    /// nested `library_page` and `reconciliation`; consumers must not add a
+    /// nested bucket into its containing bucket.
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"enumeration\":{},\"staging_batch\":{},\"change_plan\":{},\"library_page\":{},\"reconciliation\":{},\"publication\":{}}}",
+            self.enumeration.to_json(),
+            self.staging_batch.to_json(),
+            self.change_plan.to_json(),
+            self.library_page.to_json(),
+            self.reconciliation.to_json(),
+            self.publication.to_json(),
+        )
+    }
 }
 
 #[cfg(feature = "diagnostics")]
