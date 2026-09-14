@@ -351,6 +351,30 @@ made and no acceptance ID is promoted.
 
 <!-- markdownlint-enable MD060 -->
 
+## Merged-state correction 2026-09-14
+
+The [status-table addendum 2026-09-14](#status-table-addendum-2026-09-14) above
+recorded its boundary and PR state as verified before the #117/#121/#120/#122
+merges. GitHub now reports those states superseded; this correction is added
+rather than rewriting the dated addendum or its rows.
+
+- Publication boundary: `origin/main` is
+  `3fcaa4ade3099105594b48eadc785731608c2824` (merge of PR #122), not `adab234`
+  (merge of PR #118).
+- PR #117 merged as `9ebcc9ffcdd94300b9ad2af22281be4ec8c187db`.
+- PR #121 merged as `13c0ba2af88673746a96e787fae315d2eca920a0` (squash of
+  updated head `e04ce92d0e69b9defd69b5615c0b047aac23ebfc`; the addendum's
+  `1342971` was the pre-update head). Its P2-08 installed evidence is now
+  published on `main`.
+- PR #120 merged as `fea3a8763d039c9855a368f7072a4f41acef8d85`.
+- PR #122 merged as `3fcaa4ade3099105594b48eadc785731608c2824`.
+- PR #119 remains an open draft, **UNMERGED** at
+  `f64decd5a4ae272c060ed647c4bb2ae077fa3c56`, so its addendum row is unchanged.
+
+The merges are documentation-only advances after measured source `69f27f6`: no
+scanner timing was rerun, P2-08 remains **Partial** with the same narrowed
+gaps, and no acceptance ID is promoted or owner decision recorded by them.
+
 ## Historical acceptance ownership and evidence snapshot - preserved
 
 The original four-column ownership table remains below as historical contract
