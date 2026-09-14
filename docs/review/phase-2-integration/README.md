@@ -47,6 +47,76 @@ source `69f27f6`, and its non-qualifying result is recorded in the dated
 evidence. PR #99 is closed without merge and remains validation-only history.
 GitHub currently leaves issues #33, #36-#41, #47, #48, and #107 open.
 
+## Unmerged evidence addendum 2026-09-14
+
+This addendum records the 2026-09-14 evidence state without rewriting the
+2026-09-13 tables or making any acceptance decision. The current publication
+boundary advanced to `origin/main`
+`adab234b9b17b45f87d30460fa643818161e7cf3`, the merge of PR #118. The measured
+scanner source remains `69f27f64f26aa657182a9260cc8e78f28a5838fb`; no timing was
+rerun after that documentation-only merge. An open draft is not a merged
+dependency, and neither PR below records an owner decision or promotes an
+acceptance ID.
+
+<!-- markdownlint-disable MD060 -->
+
+| Item    | Head                                       | Live state, dependency, and check result                                                                                                                                                               |
+| ------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `main`  | `adab234b9b17b45f87d30460fa643818161e7cf3` | **Current publication boundary**, the merge of PR #118 (acceptance-gap refresh); no scanner rerun follows that documentation-only advance                                                              |
+| PR #121 | `1342971cdcfe323dfdb8b8af8a8132b7ef2ed5a1` | Open draft, **UNMERGED**, based on `adab234`; P2-08 current-head installed retry/presentation/accessibility evidence; no owner acceptance follows                                                      |
+| PR #119 | `f64decd5a4ae272c060ed647c4bb2ae077fa3c56` | Open draft, **UNMERGED**, based on `adab234`; opt-in feature-gated diagnostics phase profile with regression tests and a proposed CI feature gate; diagnostic investigation only, no performance claim |
+
+<!-- markdownlint-enable MD060 -->
+
+### PR #121 P2-08 installed evidence (unmerged)
+
+The [P2-08 current-head run record](installed-journey/run-20260914-p2o8-retry-presentation.md)
+was executed once against installed `adab234` and is published only on the
+unmerged #121 branch. Raw logs, database copies, and screenshots stay outside
+Git. The run recorded:
+
+- D2: after cancellation the durable job is `cancelled`,
+  `retryAvailable=false`; the installed UI offers no rejected Retry, and the
+  enabled `Scan now` converges to `completed` (8,000 files observed).
+- D3: after the unavailable-root retry budget is exhausted (`failed`,
+  `attempt=4/4`, `last_error_code=unavailable`), the UI again offers no Retry;
+  restoring the root and running `Scan now` converges (10 files observed) while
+  prior committed results stay visible.
+- #111 presentation: the durable database and installed UI agree on typed
+  `cancelled` and `unavailable`; `queued`/`running`/`completed` render honest
+  counters with no fabricated percentage. The installed mount is
+  `data-review-adapter="native"` with no fake-adapter badge (D1 fixed).
+- Accessibility: desktop and 390x844 narrow captures, keyboard focus traces,
+  and an AX-tree capture for cancelled/completed/failed-unavailable; axe
+  reported exactly one moderate `region` finding per captured state and no
+  critical or serious violations. This is a minor finding for owner review,
+  not a defect claim.
+
+P2-08 remains **Partial** with narrowed gaps. D2/D3 converged on current head
+pending the owner's policy-versus-defect review, and the typed presentation is
+revalidated for `cancelled`/`unavailable`. The `access_denied`,
+`resource_limit`, `unsupported`, and `worker_failed` presentations were not
+produced because this run did not rerun the NTFS, overflow, or malformed
+cases; `queued`/`running` lack a keyboard trace and axe run, and `interrupted`
+was observed only durably. The full criterion and its acceptance remain the
+owner's decision; nothing in #121 promotes it.
+
+### PR #119 diagnostics investigation (unmerged)
+
+The [warm-reconciliation diagnostic investigation](performance-followup/benchmark-investigation-20260913/README.md)
+is published only on the unmerged #119 branch. It adds an opt-in,
+feature-gated phase counter to `scan-execution`, exposes it through the
+existing `profile-fs-calls` example, adds diagnostics regression tests, and
+adds a workflow step that would gate that feature build. Its measurements are
+diagnostic context only: they do not qualify performance, change a target,
+explain the historical `Partial`, or approve the proposed ancestor-validation
+fast path. The 2026-09-13 10,173 ms non-qualifying warm-p95 result is
+unchanged, and no performance claim is recorded from #119.
+
+The ten required contexts for both PRs, GitHub merge verification, and owner
+review remain separate gates. This addendum is evidence state only; no owner
+decision is recorded as made and Phase 2 remains unaccepted.
+
 ## Historical live review status 2026-09-12
 
 This earlier table is preserved for provenance. Its heads, dependencies, and
