@@ -248,7 +248,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | Tauri Rust / build        | 2.11.5 / 2.6.3  | Native desktop host and build integration      |
 | Tauri JavaScript / CLI    | 2.11.1 / 2.11.4 | Typed invoke adapter and desktop commands      |
 | Tauri shell plugin        | 2.3.6           | Rust-only inert sidecar packaging smoke        |
-| UUID / regex              | 1.26.0 / 1.13.1 | Opaque native IDs and diagnostic redaction     |
+| UUID / regex              | 1.26.1 / 1.13.1 | Opaque native IDs and diagnostic redaction     |
 | rusqlite / libsqlite3-sys | 0.40.2 / 0.38.2 | Bundled native SQLite and backup API           |
 | React / React DOM         | 19.2.8          | Shared client rendering                        |
 | Vite / React plugin       | 8.2.2 / 6.1.1   | Local development and production client bundle |
