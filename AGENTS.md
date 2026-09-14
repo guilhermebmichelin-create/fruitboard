@@ -33,6 +33,12 @@ needed. Do not add builds simply to satisfy the prompt template.
 - Run at most one heavyweight local build at a time. Never share a writable
   Cargo target directory between concurrent tasks. Set `CARGO_TARGET_DIR`
   explicitly when using the temporary validation cache.
+- Never hardlink-clone a writable Cargo output into another worktree, cache, or
+  retained-evidence location (`fs.link`, `mklink /H`, or an equivalent). Cargo
+  may rewrite that output in place, so the shared file identity can mutate a
+  historical binary. Reuse the one selected writable cache sequentially under
+  its named owner; retain a binary only as an independently copied file and
+  record its source/build provenance and hash.
 - If the reserve cannot be maintained, reuse existing compatible artifacts,
   use another suitable local volume, or reclaim verified obsolete compiler
   intermediates within the authorized scope. Continue independent lightweight
@@ -55,6 +61,31 @@ needed. Do not add builds simply to satisfy the prompt template.
 - On completion, identify cache ownership, reusable outputs, obsolete compiler
   intermediates, and evidence that must remain. Do not leave a new permanent
   multi-gigabyte cache for every completed PR.
+
+The read-only storage safeguard can be run before a heavyweight build or
+fixture generation:
+
+```powershell
+node scripts/preflight-build-storage.mjs --source <checkout> --build <build-output> --cache <cargo-cache> --evidence <retained-evidence> --estimated-output-gib <GiB>
+```
+
+It requires all four explicit directories, reports available capacity on each
+relevant volume, and fails if the current or estimated post-build capacity
+would be below the 30 GiB reserve. It resolves reparse points only along those
+explicit paths and scans only the selected cache. A cache hardlink, an
+unresolved or external reparse point under that cache, an unreadable entry, or
+a bounded scan that cannot finish is reported as unsafe/uncertain; an unchecked
+cache is never certified as isolated. Source/evidence, build/evidence, and
+cache/evidence overlaps are unsafe after resolution. A normal build/cache
+directory nested below the source checkout is allowed, while a cache containing
+the source is not. Unrelated read-only toolchain junctions outside the selected
+cache are not blanket-rejected or recursively scanned.
+
+Each writable cache must have one explicitly named owner and an absolute path
+recorded in the task handoff. Sequential reuse still requires that owner to
+coordinate the exclusive write window. This read-only preflight is a capacity
+and path/hardlink check; it does not prove continuing exclusivity and does not
+replace host coordination.
 
 These are workflow requirements, not an installed automatic cleanup service.
 They do not change benchmark acceptance targets or authorize deletion of user
