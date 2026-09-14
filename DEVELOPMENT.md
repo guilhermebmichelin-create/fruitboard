@@ -66,6 +66,11 @@ and prompt generation.
 - Run one heavyweight local build at a time. Never let concurrent tasks write
   to the same target directory. Independent source editing and lightweight
   review can proceed in parallel outside qualification windows.
+- Never hardlink-clone a writable Cargo output between worktrees or into
+  retained evidence (`fs.link`, `mklink /H`, or an equivalent). Cargo can write
+  that shared file identity in place and thereby change historical evidence.
+  Reuse the selected cache sequentially with one named owner; make independent
+  byte copies for retained binaries and record their provenance and hashes.
 - Installed tests retain their existing exclusive host-lock requirements.
   Performance qualification runs alone after build/fixture preparation, with
   other agent, build, and test workloads quiescent.
@@ -92,6 +97,41 @@ capacity and concrete remaining blocker if none of those options is available.
 Use exact-head CI and source-equivalence evidence to avoid redundant local
 builds of unchanged code. Changed PR heads still require their normal checks;
 successful CI is not installed-app or performance qualification evidence.
+
+#### Read-only storage preflight
+
+Before a heavyweight build or fixture generation, run the bounded,
+read-only preflight with existing, explicit locations:
+
+```powershell
+node scripts/preflight-build-storage.mjs --source <checkout> --build <build-output> --cache <cargo-cache> --evidence <retained-evidence> --estimated-output-gib <GiB>
+```
+
+`--source` identifies the protected checkout; `--build` identifies the
+writable build-output location; `--cache` identifies the one writable Cargo
+cache; and `--evidence` identifies retained reports/binaries that must remain
+independent. The command creates nothing and writes nothing. It resolves
+junctions/reparse points along those four paths before checking relationships:
+source/evidence, build/evidence, and cache/evidence overlap fails; a cache
+nested below the source checkout is allowed for the normal `target/` layout,
+but a cache that contains the source is rejected. Reparses encountered inside
+the selected cache are followed only when their targets remain inside that
+cache; external or unresolved targets remain uncertain and fail closed.
+Unrelated read-only toolchain junctions elsewhere are not blanket-rejected or
+recursively scanned.
+
+The report lists available capacity for every relevant volume. Every relevant
+volume must retain at least 30 GiB, and the estimated additional output is
+charged conservatively to each volume containing a build, cache, or evidence location.
+The selected cache is inspected, within the default 100,000-entry bound, for
+hardlinked files. A hardlink, unreadable entry, or incomplete scan prevents an
+isolated-cache result; an unchecked cache is never certified. Use
+`--max-cache-entries` only when the larger bounded scope is understood.
+
+Record the absolute cache path and its single owner in the task handoff before
+writing. The preflight does not prove that ownership remains exclusive during
+the build, and it does not replace coordination or the existing quiet window
+for installed tests and performance qualification.
 
 ### Evidence retention and cleanup
 
