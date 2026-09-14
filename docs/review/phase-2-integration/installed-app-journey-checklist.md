@@ -290,6 +290,28 @@ lease-recovery experiment.
 | ResourceLimit | The accepted synthetic 10,000-file manifest was retained unchanged; its scanned `roots` subroot committed 8,000 baseline rows. A disposable 2,001-file overflow made 10,001 expected observations against the unchanged bound and reached terminal `failed/resource_limit` without partial publication or false missing rows. | [NTFS record](installed-journey/run-20260912-ntfs-cases.md); PASS after focused diagnostic fix, budget unchanged |
 | Hardlinks | Two true hardlink aliases were both inside the scanned root; removing alias A produced one Missing/one Present, and restoring it produced two Present locations with distinct location IDs. | [NTFS record](installed-journey/run-20260912-ntfs-cases.md); PASS, local NTFS only |
 
+## P2-08 retry / presentation / accessibility addendum — 2026-09-14
+
+The historical table and the #107 addendum above are preserved. This addendum
+records the current-head installed revalidation of the three P2-08 gaps, run
+once against `origin/main` `adab234` with a fresh pinned release build. The
+full record, method, hashes, and limitations are in the
+[P2-08 retry/presentation run record](installed-journey/run-20260914-p2o8-retry-presentation.md);
+the driver is [p2o8-retry-state-capture.mjs](installed-journey/p2o8-retry-state-capture.mjs).
+Raw logs, database, and screenshots stay outside Git.
+
+<!-- markdownlint-disable MD060 -->
+
+| Step                         | Addendum observation                                                                                                                                                                                                                                                                                                                                                           | Status                                                       |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| 1. Provenance                | Source `adab234`, installer hash, installed-executable hash, toolchain, fixture seeds and canonical manifest hashes, 13 screenshots, JSONL transcript, and isolated database hash are recorded. On-disk fixture trees are byte-identical to fresh deterministic regeneration.                                                                                                   | Current-head installed; complete                            |
+| 4. Scan now                  | The installed native status reached `queued`, `running`, and `completed` with counters, `Total work unknown`, no percentage, and Cancel; the queued state was captured with a desktop and narrow screenshot after queueing behind a running scan.                                                                                                                              | Queued/running/terminal observed; complete                  |
+| 10. Cancel/unavailable/retry | After cancellation the durable job is `cancelled`/`error_code=cancelled` with `retryAvailable=false`; the UI offers no rejected Retry and the enabled `Scan now` converges. After the unavailable-root retry budget is exhausted (`failed`, `attempt=4/4`, `last_error_code=unavailable`), the UI again offers no Retry; restoring the root and running `Scan now` converges. | Retry policy revalidated; D2/D3 gaps closed on current head |
+| #111 presentation            | The installed UI and durable database agree on typed `cancelled` and `unavailable`; `queued`/`running`/`completed` render honest counters and no percentage. `access_denied`, `resource_limit`, `unsupported`, and `worker_failed` presentations were not produced (NTFS/overflow cases not rerun by this task).                                                              | Partial for the unproduced codes                            |
+| Accessibility                | Installed native mount is `data-review-adapter="native"` with no fake-adapter badge (D1 fixed). Desktop/narrow screenshots cover the console states; keyboard focus traces and an AX-tree capture cover cancelled/completed/failed; axe reported one moderate `region` finding per captured state and no critical/serious findings.                                            | Captured; minor `region` finding for owner review           |
+
+<!-- markdownlint-enable MD060 -->
+
 ## Gate and handoff
 
 The operator reports the exact combined commit, the feature-enabled CI URL,
