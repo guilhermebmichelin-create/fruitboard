@@ -23,10 +23,12 @@ Historical merge, tested-source, and CI references remain in the integration
 index and dated reports.
 
 Implemented behavior, automated evidence, installed evidence, and owner
-acceptance stay separate — none is Phase 2 acceptance. P2-08 remains Partial
-(PR #85's older `Complete` row is superseded; no full-criterion acceptance is
-recorded). Production scanning stays hidden until P2-03 through P2-08 have
-integrated evidence and owner acceptance.
+acceptance stay separate. The owner accepted Phase 2 with known gaps on
+2026-09-14 ([acceptance
+record](docs/review/phase-2-integration/acceptance-2026-09-14.md)); P2-08
+remains Partial (PR #85's older `Complete` row is superseded) and no
+full-criterion P2-08 acceptance is recorded. That acceptance does not activate
+production scanning; activation remains a separate owner action.
 
 The canonical installed validation remains the merged PR #106 report
 `installed-journey/run-20260909-fixed-validation.md`: S1–S4 PASS, S6 PASS,

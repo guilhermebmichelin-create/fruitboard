@@ -375,6 +375,23 @@ The merges are documentation-only advances after measured source `69f27f6`: no
 scanner timing was rerun, P2-08 remains **Partial** with the same narrowed
 gaps, and no acceptance ID is promoted or owner decision recorded by them.
 
+## Owner acceptance 2026-09-14
+
+The owner closed the Phase 2 evidence aggregator
+[#41](https://github.com/guilhermebmichelin-create/fruitboard/issues/41) as
+COMPLETED on 2026-09-14 and recorded Phase 2 as **accepted with known gaps**.
+Epic #33 remains open. The [acceptance
+record](review/phase-2-integration/acceptance-2026-09-14.md) owns the
+criterion-by-criterion disposition; this plan is not rewritten by it.
+
+<!-- markdownlint-disable MD060 -->
+
+| State                                 | Work                                                          | Evidence or next action                                                                                                                                                                                                                                                                            |
+| ------------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accepted with known gaps (2026-09-14) | Phase 2 accepted; #41 closed COMPLETED; epic #33 remains open | [Acceptance record](review/phase-2-integration/acceptance-2026-09-14.md): P2-08 stays Partial, #107/#47/#48 stay open, F1/F2/F3 and the performance non-qualification carry forward, and the bounded Rust-parser spike is the next step. No budget, scope, or production-activation change follows |
+
+<!-- markdownlint-enable MD060 -->
+
 ## Historical acceptance ownership and evidence snapshot - preserved
 
 The original four-column ownership table remains below as historical contract
