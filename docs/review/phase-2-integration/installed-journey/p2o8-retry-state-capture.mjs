@@ -52,13 +52,26 @@ for (const candidate of [
   () => require.resolve("axe-core/axe.min.js"),
   () => path.join(repoRoot, "node_modules", "axe-core", "axe.min.js"),
   () =>
-    path.join(repoRoot, "apps", "client", "node_modules", "axe-core", "axe.min.js"),
+    path.join(
+      repoRoot,
+      "apps",
+      "client",
+      "node_modules",
+      "axe-core",
+      "axe.min.js",
+    ),
   () => {
     const pnpmRoot = path.join(repoRoot, "node_modules", ".pnpm");
     const match = fs
       .readdirSync(pnpmRoot)
       .find((entry) => entry.startsWith("axe-core@"));
-    return path.join(pnpmRoot, match ?? "", "node_modules", "axe-core", "axe.min.js");
+    return path.join(
+      pnpmRoot,
+      match ?? "",
+      "node_modules",
+      "axe-core",
+      "axe.min.js",
+    );
   },
 ]) {
   try {
@@ -366,7 +379,10 @@ async function screenshot(send, name, width, height) {
   if (!base64) return null;
   const file = path.join(screenshotsDirectory, `${name}.png`);
   fs.writeFileSync(file, Buffer.from(base64, "base64"));
-  return { file: path.relative(journeyRoot, file), bytes: fs.statSync(file).size };
+  return {
+    file: path.relative(journeyRoot, file),
+    bytes: fs.statSync(file).size,
+  };
 }
 
 function elementDescriptor() {
@@ -420,12 +436,22 @@ async function accessibilityTree(send, label) {
     .map((node) => ({
       role: node.role?.value,
       name: node.name?.value ?? "",
-      disabled: node.properties?.find((p) => p.name === "disabled")?.value?.value ?? null,
+      disabled:
+        node.properties?.find((p) => p.name === "disabled")?.value?.value ??
+        null,
     }))
     .filter((node) =>
-      ["button", "link", "heading", "status", "alert", "list", "listitem", "tab", "textbox"].includes(
-        node.role,
-      ),
+      [
+        "button",
+        "link",
+        "heading",
+        "status",
+        "alert",
+        "list",
+        "listitem",
+        "tab",
+        "textbox",
+      ].includes(node.role),
     );
   const summary = {
     count: nodes.length,
@@ -442,7 +468,13 @@ async function accessibilityTree(send, label) {
 
 async function runAxe(send, label) {
   if (!axeSource) {
-    log({ kind: "axe", label, method: "AX", ran: false, reason: "axe-core not resolvable" });
+    log({
+      kind: "axe",
+      label,
+      method: "AX",
+      ran: false,
+      reason: "axe-core not resolvable",
+    });
     return null;
   }
   const expression = `(async () => {
@@ -466,7 +498,13 @@ async function runAxe(send, label) {
     log({ kind: "axe", label, method: "AX", ...result });
     return result;
   } catch (error) {
-    log({ kind: "axe", label, method: "AX", ran: false, reason: String(error) });
+    log({
+      kind: "axe",
+      label,
+      method: "AX",
+      ran: false,
+      reason: String(error),
+    });
     return null;
   }
 }
@@ -597,7 +635,10 @@ async function main() {
   });
 
   const fixtureRoot = path.join(journeyRoot, "fixture");
-  const cancellationFixtureRoot = path.join(journeyRoot, "cancellation-fixture");
+  const cancellationFixtureRoot = path.join(
+    journeyRoot,
+    "cancellation-fixture",
+  );
   const primaryRootsDirectory = path.join(fixtureRoot, "roots");
   const leaves = fs
     .readdirSync(primaryRootsDirectory, { withFileTypes: true })
@@ -613,14 +654,25 @@ async function main() {
 
   let app;
   let connection;
-  const result = { pass: false, d2: null, d3: null, presentation: [], states: [] };
+  const result = {
+    pass: false,
+    d2: null,
+    d3: null,
+    presentation: [],
+    states: [],
+  };
   try {
     app = await launchApp();
     await sleep(3500);
     const target = await discover(app.port);
     connection = await connect(target);
     const { websocket, send } = connection;
-    log({ kind: "app-ready", method: "UI", url: target.url, title: target.title });
+    log({
+      kind: "app-ready",
+      method: "UI",
+      url: target.url,
+      title: target.title,
+    });
 
     const consoleState = await invoke(send, "get_scan_console_state", {
       schemaVersion: 1,
@@ -722,7 +774,10 @@ async function main() {
       if (d2Running.timedOut) throw new Error("D2 never reached running");
       d2RunningObserved = d2Running.status;
       if (attempt === 1) {
-        result.states.push({ label: "running", status: compactStatus(d2Running.status) });
+        result.states.push({
+          label: "running",
+          status: compactStatus(d2Running.status),
+        });
       }
       const cancelResult = await invoke(send, "cancel_scan", {
         schemaVersion: 1,
@@ -740,14 +795,21 @@ async function main() {
       if (settled.status?.state === "cancelled") {
         d2Cancelled = settled;
       } else {
-        log({ kind: "d2-cancel-race-lost", attempt, status: compactStatus(settled.status) });
+        log({
+          kind: "d2-cancel-race-lost",
+          attempt,
+          status: compactStatus(settled.status),
+        });
       }
     }
     if (d2Cancelled.timedOut || !d2Cancelled.status) {
       throw new Error("D2 never reached cancelled after retries");
     }
     await captureState(send, "d2-cancelled", { keyboard: 10, a11y: true });
-    result.states.push({ label: "cancelled", status: compactStatus(d2Cancelled.status) });
+    result.states.push({
+      label: "cancelled",
+      status: compactStatus(d2Cancelled.status),
+    });
     result.presentation.push({
       label: "cancelled",
       state: d2Cancelled.status?.state,
@@ -767,7 +829,10 @@ async function main() {
     if ((d2Cancelled.status?.retryAvailable ?? false) !== false) {
       throw new Error("D2 cancellation unexpectedly offered Retry");
     }
-    const d2Click = await clickByAriaLabelPrefix(send, "Scan now Long Scan Root");
+    const d2Click = await clickByAriaLabelPrefix(
+      send,
+      "Scan now Long Scan Root",
+    );
     log({ kind: "d2-scan-now-click", result: d2Click });
     if (!d2Click.clicked || d2Click.disabled) {
       throw new Error("D2 UI Scan now control was not actionable");
@@ -783,7 +848,8 @@ async function main() {
     await captureState(send, "d2-completed", { keyboard: 10, a11y: true });
     result.d2 = {
       cancelledState: compactStatus(d2Cancelled.status),
-      retryOfferedAfterCancel: (d2Cancelled.status?.retryAvailable ?? false) !== false,
+      retryOfferedAfterCancel:
+        (d2Cancelled.status?.retryAvailable ?? false) !== false,
       actionableControl: d2Click.label ?? null,
       convergedState: compactStatus(d2Completed.status),
       converged: true,
@@ -796,7 +862,11 @@ async function main() {
 
     const movedLeaf = path.join(primaryRootsDirectory, `${leaves[0]}__moved`);
     fs.renameSync(primaryLeaf, movedLeaf);
-    log({ kind: "d3-root-moved", from: path.relative(journeyRoot, primaryLeaf), to: path.relative(journeyRoot, movedLeaf) });
+    log({
+      kind: "d3-root-moved",
+      from: path.relative(journeyRoot, primaryLeaf),
+      to: path.relative(journeyRoot, movedLeaf),
+    });
 
     // Deterministically request a scan of the now-unavailable root. If the
     // watcher already enqueued one, the native call coalesces safely.
@@ -819,8 +889,14 @@ async function main() {
         `D3 did not reach an exhausted failed state: ${JSON.stringify(compactStatus(d3Failure.status))}`,
       );
     }
-    await captureState(send, "d3-failed-unavailable", { keyboard: 10, a11y: true });
-    result.states.push({ label: "failed-unavailable", status: compactStatus(d3Failure.status) });
+    await captureState(send, "d3-failed-unavailable", {
+      keyboard: 10,
+      a11y: true,
+    });
+    result.states.push({
+      label: "failed-unavailable",
+      status: compactStatus(d3Failure.status),
+    });
     result.presentation.push({
       label: "failed-unavailable",
       state: d3Failure.status?.state,
@@ -837,11 +913,16 @@ async function main() {
     log({ kind: "d3-actions", method: "UI", ui: d3Actions });
 
     fs.renameSync(movedLeaf, primaryLeaf);
-    log({ kind: "d3-root-restored", path: path.relative(journeyRoot, primaryLeaf) });
+    log({
+      kind: "d3-root-restored",
+      path: path.relative(journeyRoot, primaryLeaf),
+    });
     const d3Click = await clickByAriaLabelPrefix(send, "Scan now Primary Root");
     log({ kind: "d3-scan-now-click", result: d3Click });
     if (!d3Click.clicked || d3Click.disabled) {
-      throw new Error("D3 UI Scan now control was not actionable after restore");
+      throw new Error(
+        "D3 UI Scan now control was not actionable after restore",
+      );
     }
     const d3Completed = await waitForStatus(
       send,
@@ -850,11 +931,13 @@ async function main() {
       300000,
       "d3-completed-after-restore",
     );
-    if (d3Completed.timedOut) throw new Error("D3 did not converge after restore");
+    if (d3Completed.timedOut)
+      throw new Error("D3 did not converge after restore");
     await captureState(send, "d3-completed-after-restore");
     result.d3 = {
       exhaustedState: compactStatus(d3Failure.status),
-      retryOfferedAfterExhaustion: (d3Failure.status?.retryAvailable ?? false) !== false,
+      retryOfferedAfterExhaustion:
+        (d3Failure.status?.retryAvailable ?? false) !== false,
       actionableControl: d3Click.label ?? null,
       convergedState: compactStatus(d3Completed.status),
       converged: true,
@@ -871,7 +954,10 @@ async function main() {
     );
     if (!queuedRunning.timedOut) {
       await screenshot(send, "running-desktop");
-      result.states.push({ label: "running", status: compactStatus(queuedRunning.status) });
+      result.states.push({
+        label: "running",
+        status: compactStatus(queuedRunning.status),
+      });
       const queueResponse = await invoke(send, "scan_now", {
         schemaVersion: 1,
         rootId: primaryRoot.id,
@@ -884,7 +970,10 @@ async function main() {
       });
       if (queuedStatus?.state === "queued") {
         await captureState(send, "queued");
-        result.states.push({ label: "queued", status: compactStatus(queuedStatus) });
+        result.states.push({
+          label: "queued",
+          status: compactStatus(queuedStatus),
+        });
         result.presentation.push({
           label: "queued",
           state: queuedStatus.state,

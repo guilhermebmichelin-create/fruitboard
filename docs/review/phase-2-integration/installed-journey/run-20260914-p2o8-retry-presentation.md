@@ -26,17 +26,17 @@ under `%TEMP%\opencode\evidence\p2o8-verify-20260914\`; none of it is committed.
 
 <!-- markdownlint-disable MD060 -->
 
-| Item                | Recorded value                                                                                                                                                  |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Source boundary     | `adab234b9b17b45f87d30460fa643818161e7cf3` (`docs(#41): refresh Phase 2 acceptance gaps (#118)`), fetched `origin/main`, clean detached checkout               |
-| Worktree            | `%USERPROFILE%\fruitboard-p2o8-verify` (exact absolute path retained in the out-of-tree evidence)                                                               |
-| Toolchain           | Node `v24.20.0`, pnpm `11.25.0`, cargo/rustc `1.98.1`, uv `0.12.9`, `x86_64-pc-windows-msvc`                                                                   |
+| Item                | Recorded value                                                                                                                                                        |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source boundary     | `adab234b9b17b45f87d30460fa643818161e7cf3` (`docs(#41): refresh Phase 2 acceptance gaps (#118)`), fetched `origin/main`, clean detached checkout                      |
+| Worktree            | `%USERPROFILE%\fruitboard-p2o8-verify` (exact absolute path retained in the out-of-tree evidence)                                                                     |
+| Toolchain           | Node `v24.20.0`, pnpm `11.25.0`, cargo/rustc `1.98.1`, uv `0.12.9`, `x86_64-pc-windows-msvc`                                                                          |
 | Build command       | `pnpm --filter @fruitboard/desktop exec tauri build --ci --no-sign --config src-tauri/tauri.package.conf.json --features packaging-smoke,scan-console --bundles nsis` |
-| Build cache         | `CARGO_TARGET_DIR=%TEMP%\opencode\validation-target` (single owner: this task; handed off to Agent C below), 1.53 GiB after the run                            |
-| Installer           | `Fruitboard Foundation Smoke_0.1.0_x64-setup.exe`, 2,935,414 bytes, SHA-256 `4262C732B8A0495F185BF8F41B897FF0922976A243433ACE51DC2AB3FF9840B6`                  |
-| Cargo release exe   | `fruitboard-desktop.exe`, 9,887,744 bytes, SHA-256 `116E4E1B2ADAC2EF756540591E2DCD003E35FD8B712ABA48B683226CAC569D90`                                         |
-| Installed exe (run) | `fruitboard-desktop.exe`, 9,887,744 bytes, SHA-256 `C6A9FDD5A877BC9E9F07B6F9AF0CDE63F2DE14CDD1B527049D2C4EA35C0E1FE0`                                         |
-| Sidecar             | `fruitboard-sidecar-smoke.exe`, 156,160 bytes, SHA-256 `E0CAB7A47D2BF62271D9106009053DA04253364CD052F3386F945F3AC3F1B397`                                      |
+| Build cache         | `CARGO_TARGET_DIR=%TEMP%\opencode\validation-target` (single owner: this task; handed off to Agent C below), 1.53 GiB after the run                                   |
+| Installer           | `Fruitboard Foundation Smoke_0.1.0_x64-setup.exe`, 2,935,414 bytes, SHA-256 `4262C732B8A0495F185BF8F41B897FF0922976A243433ACE51DC2AB3FF9840B6`                        |
+| Cargo release exe   | `fruitboard-desktop.exe`, 9,887,744 bytes, SHA-256 `116E4E1B2ADAC2EF756540591E2DCD003E35FD8B712ABA48B683226CAC569D90`                                                 |
+| Installed exe (run) | `fruitboard-desktop.exe`, 9,887,744 bytes, SHA-256 `C6A9FDD5A877BC9E9F07B6F9AF0CDE63F2DE14CDD1B527049D2C4EA35C0E1FE0`                                                 |
+| Sidecar             | `fruitboard-sidecar-smoke.exe`, 156,160 bytes, SHA-256 `E0CAB7A47D2BF62271D9106009053DA04253364CD052F3386F945F3AC3F1B397`                                             |
 
 <!-- markdownlint-enable MD060 -->
 
@@ -77,10 +77,10 @@ content and path) is:
 
 <!-- markdownlint-disable MD060 -->
 
-| Fixture                        | Files | Bytes     | Tree SHA-256 after run                                             | Fresh regeneration                                                 |
-| ------------------------------ | ----: | --------: | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| `fixture` (seed 20260908)      | 10009 | 25696697  | `ff7b18af63c059394ca29dc168c2e6110b1af171ad1c76ebf6c7a1c092f20050` | `ff7b18af63c059394ca29dc168c2e6110b1af171ad1c76ebf6c7a1c092f20050` |
-| `cancellation-fixture` (0909)  | 10009 | 25432217  | `3e14f756df16deba86be5ee7fb7ad4c95bcc2d192327af33a45f13f12bb34b52` | `3e14f756df16deba86be5ee7fb7ad4c95bcc2d192327af33a45f13f12bb34b52` |
+| Fixture                       | Files |    Bytes | Tree SHA-256 after run                                             | Fresh regeneration                                                 |
+| ----------------------------- | ----: | -------: | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `fixture` (seed 20260908)     | 10009 | 25696697 | `ff7b18af63c059394ca29dc168c2e6110b1af171ad1c76ebf6c7a1c092f20050` | `ff7b18af63c059394ca29dc168c2e6110b1af171ad1c76ebf6c7a1c092f20050` |
+| `cancellation-fixture` (0909) | 10009 | 25432217 | `3e14f756df16deba86be5ee7fb7ad4c95bcc2d192327af33a45f13f12bb34b52` | `3e14f756df16deba86be5ee7fb7ad4c95bcc2d192327af33a45f13f12bb34b52` |
 
 <!-- markdownlint-enable MD060 -->
 
@@ -110,14 +110,14 @@ control. This removes the #92 defect where a visible Retry was rejected with
 
 <!-- markdownlint-disable MD060 -->
 
-| Observation                  | Installed result                                                                                                                  |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Cancel command outcome       | `cancellation_requested` for the running job                                                                                      |
-| Durable job after cancel     | state `cancelled`, attempt 1/4, `last_error_code=cancelled`; run state `cancelled`, `error_code=cancelled`                        |
-| Status `retryAvailable`      | `false`                                                                                                                           |
-| Rendered controls at cancel  | no `Retry scan ...` button; `Scan now Long Scan Root` present and enabled                                                         |
-| Rendered user text           | "Execution Cancelled" and "The scan was cancelled. No new results were published."                                                |
-| Actionable re-run            | clicking `Scan now Long Scan Root` converged to `completed`, 8,000 files observed                                                 |
+| Observation                 | Installed result                                                                                           |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Cancel command outcome      | `cancellation_requested` for the running job                                                               |
+| Durable job after cancel    | state `cancelled`, attempt 1/4, `last_error_code=cancelled`; run state `cancelled`, `error_code=cancelled` |
+| Status `retryAvailable`     | `false`                                                                                                    |
+| Rendered controls at cancel | no `Retry scan ...` button; `Scan now Long Scan Root` present and enabled                                  |
+| Rendered user text          | "Execution Cancelled" and "The scan was cancelled. No new results were published."                         |
+| Actionable re-run           | clicking `Scan now Long Scan Root` converged to `completed`, 8,000 files observed                          |
 
 <!-- markdownlint-enable MD060 -->
 
@@ -134,15 +134,15 @@ root was restored.
 
 <!-- markdownlint-disable MD060 -->
 
-| Observation                        | Installed result                                                                                                       |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Failure presentation               | "Execution Failed" and "The folder is unavailable. Previous committed results were kept."                              |
-| `errorCode` while budget remained  | `unavailable`, `retryAvailable=true` (Retry would be offered below the budget)                                         |
-| Durable exhausted job              | state `failed`, attempt 4/4, `last_error_code=unavailable`; four runs state `failed`, `error_code=unavailable`         |
-| Status at exhaustion               | `retryAvailable=false`                                                                                                 |
-| Rendered controls at exhaustion    | no `Retry scan ...` button; `Scan now Primary Root` present and enabled                                                |
-| Actionable re-run after restore    | clicking `Scan now Primary Root` converged to `completed`, 10 files observed                                           |
-| Prior committed results preserved  | last successful results and committed rows stayed visible; the failure did not publish missing rows                    |
+| Observation                       | Installed result                                                                                               |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Failure presentation              | "Execution Failed" and "The folder is unavailable. Previous committed results were kept."                      |
+| `errorCode` while budget remained | `unavailable`, `retryAvailable=true` (Retry would be offered below the budget)                                 |
+| Durable exhausted job             | state `failed`, attempt 4/4, `last_error_code=unavailable`; four runs state `failed`, `error_code=unavailable` |
+| Status at exhaustion              | `retryAvailable=false`                                                                                         |
+| Rendered controls at exhaustion   | no `Retry scan ...` button; `Scan now Primary Root` present and enabled                                        |
+| Actionable re-run after restore   | clicking `Scan now Primary Root` converged to `completed`, 10 files observed                                   |
+| Prior committed results preserved | last successful results and committed rows stayed visible; the failure did not publish missing rows            |
 
 <!-- markdownlint-enable MD060 -->
 
@@ -157,13 +157,13 @@ head:
 
 <!-- markdownlint-disable MD060 -->
 
-| State              | Durable code observed | Client code   | `retryAvailable` | Rendered copy                                                                   |
-| ------------------ | --------------------- | ------------- | ---------------- | ------------------------------------------------------------------------------- |
-| `queued`           | (none)                | (none)        | false            | "Execution Queued", progress counters, "no percentage is estimated"            |
-| `running`          | (none)                | (none)        | false            | "Execution Running", counters, Cancel control                                  |
-| `completed`        | none                  | none          | false            | "Execution Completed", files observed                                           |
-| `cancelled`        | `cancelled`           | `cancelled`   | false            | "The scan was cancelled. No new results were published."                        |
-| `failed`           | `unavailable`         | `unavailable` | true / false     | "The folder is unavailable. Previous committed results were kept."              |
+| State       | Durable code observed | Client code   | `retryAvailable` | Rendered copy                                                       |
+| ----------- | --------------------- | ------------- | ---------------- | ------------------------------------------------------------------- |
+| `queued`    | (none)                | (none)        | false            | "Execution Queued", progress counters, "no percentage is estimated" |
+| `running`   | (none)                | (none)        | false            | "Execution Running", counters, Cancel control                       |
+| `completed` | none                  | none          | false            | "Execution Completed", files observed                               |
+| `cancelled` | `cancelled`           | `cancelled`   | false            | "The scan was cancelled. No new results were published."            |
+| `failed`    | `unavailable`         | `unavailable` | true / false     | "The folder is unavailable. Previous committed results were kept."  |
 
 <!-- markdownlint-enable MD060 -->
 
