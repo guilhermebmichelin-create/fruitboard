@@ -117,6 +117,38 @@ The ten required contexts for both PRs, GitHub merge verification, and owner
 review remain separate gates. This addendum is evidence state only; no owner
 decision is recorded as made and Phase 2 remains unaccepted.
 
+## Merged-state correction 2026-09-14
+
+The [Unmerged evidence addendum 2026-09-14](#unmerged-evidence-addendum-2026-09-14)
+recorded its boundary and merge state as verified before the #117/#121/#120/#122
+merges. GitHub now reports those states superseded; this correction is added
+rather than rewriting the dated addendum rows.
+
+- Publication boundary: `origin/main` is
+  `3fcaa4ade3099105594b48eadc785731608c2824` (merge of PR #122), not `adab234`
+  (merge of PR #118). The later merges are documentation-only, so the measured
+  scanner source remains `69f27f64f26aa657182a9260cc8e78f28a5838fb` and no
+  scanner timing was rerun.
+- PR #117 merged as `9ebcc9ffcdd94300b9ad2af22281be4ec8c187db`; PR #121 merged
+  as `13c0ba2af88673746a96e787fae315d2eca920a0`; PR #120 merged as
+  `fea3a8763d039c9855a368f7072a4f41acef8d85`; PR #122 merged as
+  `3fcaa4ade3099105594b48eadc785731608c2824`.
+- The addendum's PR #121 row is corrected: it is **MERGED**, not UNMERGED. Its
+  ten required contexts passed on the updated head
+  `e04ce92d0e69b9defd69b5615c0b047aac23ebfc` (original head
+  `1342971cdcfe323dfdb8b8af8a8132b7ef2ed5a1`), and the
+  [P2-08 current-head run record](installed-journey/run-20260914-p2o8-retry-presentation.md)
+  now publishes on `main` rather than only on the unmerged branch.
+- The addendum's PR #119 row remains accurate: still an open draft,
+  **UNMERGED** at `f64decd5a4ae272c060ed647c4bb2ae077fa3c56`, based on
+  `adab234`; its
+  [diagnostic investigation](performance-followup/benchmark-investigation-20260913/README.md)
+  still publishes only on the #119 branch.
+- The "ten required contexts for both PRs ... remain separate gates" sentence
+  now applies only to #119 and the still-open owner review. P2-08 remains
+  **Partial** with the same narrowed gaps; no acceptance ID is promoted and no
+  owner decision is recorded as made.
+
 ## Historical live review status 2026-09-12
 
 This earlier table is preserved for provenance. Its heads, dependencies, and
