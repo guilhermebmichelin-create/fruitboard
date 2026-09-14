@@ -11,6 +11,8 @@ use fruitboard_filesystem_enumeration::{
     DirectoryCursor, DirectoryEntry, FileMetadata, FilesystemPort, NeverCancelled, OpenedDirectory,
     Outcome, PortError, RootMetadata, WindowsFilesystemPort,
 };
+#[cfg(feature = "diagnostics")]
+use fruitboard_scan_execution::ScanPhaseProfile;
 use fruitboard_scan_execution::{ScanExecutionStatus, ScanWorker, SystemClock, WorkerConfig};
 use fruitboard_storage::Database;
 use std::cell::RefCell;
@@ -262,26 +264,48 @@ fn run_once(
     warm: bool,
 ) -> Result<String, String> {
     let profile = Rc::new(RefCell::new(Profile::default()));
+    #[cfg(feature = "diagnostics")]
+    let phase_profile = Rc::new(RefCell::new(ScanPhaseProfile::default()));
     let mut port = TimedFilesystemPort::new(Rc::clone(&profile));
     let clock = SystemClock;
     let started = Instant::now();
     worker
         .request_manual_scan(db, root_id, &clock)
         .map_err(|error| error.to_string())?;
-    let execution = worker
-        .poll(db, session_id, &mut port, &NeverCancelled, &clock)
+    let maybe_execution = {
+        #[cfg(feature = "diagnostics")]
+        {
+            worker.poll_with_profile(
+                db,
+                session_id,
+                &mut port,
+                &NeverCancelled,
+                &clock,
+                Rc::clone(&phase_profile),
+            )
+        }
+        #[cfg(not(feature = "diagnostics"))]
+        {
+            worker.poll(db, session_id, &mut port, &NeverCancelled, &clock)
+        }
+    };
+    let execution = maybe_execution
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "worker returned no execution".to_string())?;
     let scan_nanos = started.elapsed().as_nanos();
     let measured = profile.borrow();
     let filesystem_nanos = measured.filesystem_nanos();
     let residual_nanos = scan_nanos.saturating_sub(filesystem_nanos);
+    #[cfg(feature = "diagnostics")]
+    let phase_suffix = format!(",\"phases\":{}", phase_profile.borrow().to_json());
+    #[cfg(not(feature = "diagnostics"))]
+    let phase_suffix = String::new();
     let location_count = execution.publication.as_ref().map_or_else(
         || "null".to_string(),
         |publication| publication.location_count.to_string(),
     );
     Ok(format!(
-        "{{\"tool\":\"profile-fs-calls-v1\",\"run\":{},\"label\":{},\"scan_ms\":{},\"status\":{},\"outcome\":{},\"authoritative\":{},\"location_count\":{},\"filesystem_call_sum_ms\":{},\"residual_ms\":{},\"filesystem\":{{\"inspect_root\":{},\"open_root\":{},\"next_entry\":{},\"read_metadata\":{},\"open_directory\":{}}}}}",
+        "{{\"tool\":\"profile-fs-calls-v1\",\"run\":{},\"label\":{},\"scan_ms\":{},\"status\":{},\"outcome\":{},\"authoritative\":{},\"location_count\":{},\"filesystem_call_sum_ms\":{},\"residual_ms\":{},\"filesystem\":{{\"inspect_root\":{},\"open_root\":{},\"next_entry\":{},\"read_metadata\":{},\"open_directory\":{}}}{}}}",
         run_index,
         json_string(if warm || run_index > 0 {
             "warm"
@@ -304,6 +328,7 @@ fn run_once(
         call_json(measured.next_entry),
         call_json(measured.read_metadata),
         call_json(measured.open_directory),
+        phase_suffix,
     ))
 }
 

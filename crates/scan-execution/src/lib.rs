@@ -50,8 +50,14 @@ use reconciliation::{
     Identity as PlanIdentity, Location as PlanLocation, Metadata as PlanMetadata,
     Observation as PlanObservation, Outcome as PlanOutcome, reconcile,
 };
+#[cfg(feature = "diagnostics")]
+use std::cell::RefCell;
 use std::path::Path;
+#[cfg(feature = "diagnostics")]
+use std::rc::Rc;
 use std::sync::Mutex;
+#[cfg(feature = "diagnostics")]
+use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod followups;
@@ -80,6 +86,145 @@ impl ScanClock for SystemClock {
                 millis as i64
             })
             .unwrap_or_default()
+    }
+}
+
+/// One diagnostic-only timing bucket for the scan worker phases.
+///
+/// The profile is available only with the `diagnostics` feature. It contains
+/// durations and bounded call counts, never paths, metadata, SQL, or host
+/// identifiers.
+#[cfg(feature = "diagnostics")]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct PhaseProfileCall {
+    pub calls: u64,
+    pub nanos: u128,
+}
+
+#[cfg(feature = "diagnostics")]
+impl PhaseProfileCall {
+    fn record(&mut self, elapsed_nanos: u128) {
+        self.calls = self.calls.saturating_add(1);
+        self.nanos = self.nanos.saturating_add(elapsed_nanos);
+    }
+
+    /// Stable, path-free JSON object for one phase bucket. Field names and
+    /// order are the profiler output contract; the values are bounded call
+    /// counts and nanosecond durations only.
+    pub fn to_json(self) -> String {
+        format!("{{\"calls\":{},\"nanos\":{}}}", self.calls, self.nanos)
+    }
+}
+
+/// Diagnostic-only timings for the worker's mixed residual path.
+///
+/// `enumeration` contains the traversal and its nested staging calls;
+/// `change_plan` contains its nested library-page reads and reconciliation;
+/// `publication` contains the complete fenced storage publication call. The
+/// nested buckets must not be added to their containing phase.
+#[cfg(feature = "diagnostics")]
+#[derive(Debug, Default)]
+pub struct ScanPhaseProfile {
+    pub enumeration: PhaseProfileCall,
+    pub staging_batch: PhaseProfileCall,
+    pub change_plan: PhaseProfileCall,
+    pub library_page: PhaseProfileCall,
+    pub reconciliation: PhaseProfileCall,
+    pub publication: PhaseProfileCall,
+}
+
+#[cfg(feature = "diagnostics")]
+impl ScanPhaseProfile {
+    /// Stable, path-free JSON object for every phase bucket. `enumeration`
+    /// contains the nested `staging_batch`, and `change_plan` contains the
+    /// nested `library_page` and `reconciliation`; consumers must not add a
+    /// nested bucket into its containing bucket.
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"enumeration\":{},\"staging_batch\":{},\"change_plan\":{},\"library_page\":{},\"reconciliation\":{},\"publication\":{}}}",
+            self.enumeration.to_json(),
+            self.staging_batch.to_json(),
+            self.change_plan.to_json(),
+            self.library_page.to_json(),
+            self.reconciliation.to_json(),
+            self.publication.to_json(),
+        )
+    }
+}
+
+#[cfg(feature = "diagnostics")]
+#[derive(Clone, Copy)]
+enum DiagnosticPhase {
+    Enumeration,
+    StagingBatch,
+    ChangePlan,
+    LibraryPage,
+    Reconciliation,
+    Publication,
+}
+
+#[cfg(feature = "diagnostics")]
+thread_local! {
+    static ACTIVE_PHASE_PROFILE: RefCell<Option<Rc<RefCell<ScanPhaseProfile>>>> = const { RefCell::new(None) };
+}
+
+#[cfg(feature = "diagnostics")]
+struct ActivePhaseProfile {
+    previous: Option<Rc<RefCell<ScanPhaseProfile>>>,
+}
+
+#[cfg(feature = "diagnostics")]
+impl Drop for ActivePhaseProfile {
+    fn drop(&mut self) {
+        ACTIVE_PHASE_PROFILE.with(|slot| {
+            slot.replace(self.previous.take());
+        });
+    }
+}
+
+#[cfg(feature = "diagnostics")]
+fn activate_phase_profile(profile: Rc<RefCell<ScanPhaseProfile>>) -> ActivePhaseProfile {
+    let previous = ACTIVE_PHASE_PROFILE.with(|slot| slot.replace(Some(profile)));
+    ActivePhaseProfile { previous }
+}
+
+#[cfg(feature = "diagnostics")]
+fn record_phase(phase: DiagnosticPhase, elapsed_nanos: u128) {
+    ACTIVE_PHASE_PROFILE.with(|slot| {
+        let Some(profile) = slot.borrow().as_ref().cloned() else {
+            return;
+        };
+        let mut profile = profile.borrow_mut();
+        let bucket = match phase {
+            DiagnosticPhase::Enumeration => &mut profile.enumeration,
+            DiagnosticPhase::StagingBatch => &mut profile.staging_batch,
+            DiagnosticPhase::ChangePlan => &mut profile.change_plan,
+            DiagnosticPhase::LibraryPage => &mut profile.library_page,
+            DiagnosticPhase::Reconciliation => &mut profile.reconciliation,
+            DiagnosticPhase::Publication => &mut profile.publication,
+        };
+        bucket.record(elapsed_nanos);
+    });
+}
+
+#[cfg(feature = "diagnostics")]
+struct PhaseTimer {
+    phase: DiagnosticPhase,
+    started: Instant,
+}
+
+#[cfg(feature = "diagnostics")]
+impl Drop for PhaseTimer {
+    fn drop(&mut self) {
+        record_phase(self.phase, self.started.elapsed().as_nanos());
+    }
+}
+
+#[cfg(feature = "diagnostics")]
+fn phase_timer(phase: DiagnosticPhase) -> PhaseTimer {
+    PhaseTimer {
+        phase,
+        started: Instant::now(),
     }
 }
 
@@ -231,15 +376,19 @@ impl ScanWorker {
             plan: PlanBuffer::default(),
         };
         let mut progress = enumeration::NoProgress;
-        let report = enumeration::enumerate_into_run(
-            port,
-            Path::new(&root_path),
-            &self.config.enumeration_limits,
-            cancellation,
-            &mut adapter,
-            scan.leased.run.id.clone(),
-            &mut progress,
-        );
+        let report = {
+            #[cfg(feature = "diagnostics")]
+            let _phase = phase_timer(DiagnosticPhase::Enumeration);
+            enumeration::enumerate_into_run(
+                port,
+                Path::new(&root_path),
+                &self.config.enumeration_limits,
+                cancellation,
+                &mut adapter,
+                scan.leased.run.id.clone(),
+                &mut progress,
+            )
+        };
         let StagingAdapter { db, plan, .. } = adapter;
         let outcome = report.outcome;
 
@@ -275,12 +424,17 @@ impl ScanWorker {
             FenceState::Held => {}
         }
         let changes = change_plan(db, &scan.leased.run.scan_root_id, &plan);
-        match db.publish_scan_run(
-            &scan.leased.run.id,
-            &scan.leased.run.session_id,
-            &scan.leased.run.lease_token,
-            clock.now_ms(),
-        ) {
+        let publish = {
+            #[cfg(feature = "diagnostics")]
+            let _phase = phase_timer(DiagnosticPhase::Publication);
+            db.publish_scan_run(
+                &scan.leased.run.id,
+                &scan.leased.run.session_id,
+                &scan.leased.run.lease_token,
+                clock.now_ms(),
+            )
+        };
+        match publish {
             Ok(publication) => self.execution(
                 &scan,
                 ScanExecutionStatus::Published,
@@ -339,15 +493,19 @@ impl ScanWorker {
             plan: PlanBuffer::default(),
         };
         let mut progress = enumeration::NoProgress;
-        let report = enumeration::enumerate_into_run(
-            port,
-            Path::new(&root_path),
-            &self.config.enumeration_limits,
-            cancellation,
-            &mut adapter,
-            scan.leased.run.id.clone(),
-            &mut progress,
-        );
+        let report = {
+            #[cfg(feature = "diagnostics")]
+            let _phase = phase_timer(DiagnosticPhase::Enumeration);
+            enumeration::enumerate_into_run(
+                port,
+                Path::new(&root_path),
+                &self.config.enumeration_limits,
+                cancellation,
+                &mut adapter,
+                scan.leased.run.id.clone(),
+                &mut progress,
+            )
+        };
         let plan = adapter.plan;
         let outcome = report.outcome;
 
@@ -382,6 +540,8 @@ impl ScanWorker {
         }
         let changes = change_plan_shared(db, &scan.leased.run.scan_root_id, &plan);
         let publish = {
+            #[cfg(feature = "diagnostics")]
+            let _phase = phase_timer(DiagnosticPhase::Publication);
             let Ok(mut guard) = db.lock() else {
                 return self.resolve_shared(db, &scan, clock, false, Some(outcome), None);
             };
@@ -417,6 +577,22 @@ impl ScanWorker {
             return Ok(None);
         };
         Ok(Some(self.execute(db, scan, port, cancellation, clock)))
+    }
+
+    /// Diagnostic-only variant of [`Self::poll`] that records the mixed
+    /// residual phases around the unchanged production path.
+    #[cfg(feature = "diagnostics")]
+    pub fn poll_with_profile<P: FilesystemPort, C: Cancellation>(
+        &self,
+        db: &mut Database,
+        session_id: &str,
+        port: &mut P,
+        cancellation: &C,
+        clock: &dyn ScanClock,
+        profile: Rc<RefCell<ScanPhaseProfile>>,
+    ) -> Result<Option<ScanExecution>, StorageError> {
+        let _active_profile = activate_phase_profile(profile);
+        self.poll(db, session_id, port, cancellation, clock)
     }
 
     /// Requeue failed jobs whose persisted automatic-retry backoff (1/2/4 s
@@ -966,6 +1142,8 @@ impl ChangeSummary {
 /// cannot be made inside the reference bounds (huge histories, unreadable
 /// pages, duplicate or invalid paths) — that never blocks publication.
 fn change_plan(db: &Database, root_id: &str, buffer: &PlanBuffer) -> Option<ChangeSummary> {
+    #[cfg(feature = "diagnostics")]
+    let _phase = phase_timer(DiagnosticPhase::ChangePlan);
     if buffer.truncated {
         return None;
     }
@@ -973,14 +1151,17 @@ fn change_plan(db: &Database, root_id: &str, buffer: &PlanBuffer) -> Option<Chan
     let mut cursor = None;
     let mut snapshot = None;
     loop {
-        let page = db
-            .query_library(&LibraryQuery {
+        let page = {
+            #[cfg(feature = "diagnostics")]
+            let _phase = phase_timer(DiagnosticPhase::LibraryPage);
+            db.query_library(&LibraryQuery {
                 scan_root_id: root_id.to_owned(),
                 page_size: MAX_LIBRARY_PAGE_SIZE,
                 cursor: cursor.clone(),
                 snapshot: snapshot.clone(),
             })
-            .ok()?;
+            .ok()?
+        };
         for location in &page.locations {
             previous.push(plan_location(location));
         }
@@ -996,7 +1177,11 @@ fn change_plan(db: &Database, root_id: &str, buffer: &PlanBuffer) -> Option<Chan
     if previous.len().saturating_add(buffer.observations.len()) > PlanBuffer::CAPACITY {
         return None;
     }
-    let plan = reconcile(&previous, &buffer.observations, PlanOutcome::Complete).ok()?;
+    let plan = {
+        #[cfg(feature = "diagnostics")]
+        let _phase = phase_timer(DiagnosticPhase::Reconciliation);
+        reconcile(&previous, &buffer.observations, PlanOutcome::Complete).ok()?
+    };
     Some(ChangeSummary::from_plan(&plan))
 }
 
@@ -1009,6 +1194,8 @@ fn change_plan_shared(
     root_id: &str,
     buffer: &PlanBuffer,
 ) -> Option<ChangeSummary> {
+    #[cfg(feature = "diagnostics")]
+    let _phase = phase_timer(DiagnosticPhase::ChangePlan);
     if buffer.truncated {
         return None;
     }
@@ -1017,6 +1204,8 @@ fn change_plan_shared(
     let mut snapshot = None;
     loop {
         let page = {
+            #[cfg(feature = "diagnostics")]
+            let _phase = phase_timer(DiagnosticPhase::LibraryPage);
             let guard = db.lock().ok()?;
             guard
                 .query_library(&LibraryQuery {
@@ -1042,7 +1231,11 @@ fn change_plan_shared(
     if previous.len().saturating_add(buffer.observations.len()) > PlanBuffer::CAPACITY {
         return None;
     }
-    let plan = reconcile(&previous, &buffer.observations, PlanOutcome::Complete).ok()?;
+    let plan = {
+        #[cfg(feature = "diagnostics")]
+        let _phase = phase_timer(DiagnosticPhase::Reconciliation);
+        reconcile(&previous, &buffer.observations, PlanOutcome::Complete).ok()?
+    };
     Some(ChangeSummary::from_plan(&plan))
 }
 
@@ -1104,6 +1297,8 @@ struct StagingAdapter<'a> {
 
 impl RunScopedStorage for StagingAdapter<'_> {
     fn stage_batch(&mut self, _run_id: &str, batch: ObservationBatch) -> Result<(), SinkError> {
+        #[cfg(feature = "diagnostics")]
+        let _phase = phase_timer(DiagnosticPhase::StagingBatch);
         let now = self.clock.now_ms();
         if now >= self.next_renewal_ms {
             self.db
@@ -1192,6 +1387,8 @@ struct SharedStagingAdapter<'a> {
 
 impl RunScopedStorage for SharedStagingAdapter<'_> {
     fn stage_batch(&mut self, _run_id: &str, batch: ObservationBatch) -> Result<(), SinkError> {
+        #[cfg(feature = "diagnostics")]
+        let _phase = phase_timer(DiagnosticPhase::StagingBatch);
         let now = self.clock.now_ms();
         if now >= self.next_renewal_ms {
             let renewed = {

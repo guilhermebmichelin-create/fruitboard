@@ -359,3 +359,7 @@ jobs:
           cargo fmt --all --check
           cargo clippy -p fruitboard-scan-execution --all-targets --locked -- -D warnings
           cargo test -p fruitboard-scan-execution --locked
+      - name: Gate the opt-in diagnostic phase profile
+        run: |
+          cargo clippy -p fruitboard-scan-execution --all-targets --features diagnostics --locked -- -D warnings
+          cargo test -p fruitboard-scan-execution --features diagnostics --locked
