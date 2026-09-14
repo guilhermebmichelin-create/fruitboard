@@ -330,6 +330,27 @@ policy or require a product correction, and whether the evidence boundary is
 sufficient. Until then, Partial is the evidence disposition, not a defect
 declaration or owner decision.
 
+## Status-table addendum 2026-09-14
+
+This addendum adds current rows without rewriting the ledger, the table, or any
+historical section above. The current publication boundary advanced to
+`origin/main` `adab234b9b17b45f87d30460fa643818161e7cf3`, the merge of PR #118;
+the measured scanner source remains
+`69f27f64f26aa657182a9260cc8e78f28a5838fb`. Both referenced PRs are
+**UNMERGED** open drafts based on `adab234`. No owner decision is recorded as
+made and no acceptance ID is promoted.
+
+<!-- markdownlint-disable MD060 -->
+
+| State                                                 | Work                                                                                                                        | Evidence or next action                                                                                                                                                                                                                                                           |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Boundary (addendum)                                   | #118 acceptance-gap refresh merged as `adab234`                                                                             | Current `origin/main`, a documentation-only advance after measured source `69f27f6`, so the scanner timing is unchanged                                                                                                                                                           |
+| Unmerged evidence (addendum, no acceptance)           | PR #121 P2-08 installed retry/presentation revalidation at `1342971`                                                        | Executed once on installed `adab234`: D2/D3 converged, typed `cancelled`/`unavailable` presentation revalidated, desktop/narrow/keyboard/AX captures with one moderate axe `region` finding; D2/D3 policy-versus-defect disposition and owner acceptance remain open              |
+| P2-08 (addendum, still Partial)                       | Narrows the 2026-09-13 gap: D2/D3 observed on the current head; #111 presentation revalidated for `cancelled`/`unavailable` | Remaining gaps: `access_denied`, `resource_limit`, `unsupported`, and `worker_failed` presentations unproduced (NTFS/overflow/malformed cases not rerun); `queued`/`running` lack keyboard/axe; `interrupted` only durable; full criterion and owner acceptance remain unpromoted |
+| Unmerged diagnostics (addendum, no performance claim) | PR #119 feature-gated `scan-execution` phase diagnostics and regression coverage at `f64decd`                               | Diagnostic investigation only; the 10,173 ms non-qualifying warm-p95 result is unchanged; the proposed ancestor-validation fast path is a proposal for separate gating, not approved; owner review remains open                                                                   |
+
+<!-- markdownlint-enable MD060 -->
+
 ## Historical acceptance ownership and evidence snapshot - preserved
 
 The original four-column ownership table remains below as historical contract
