@@ -101,12 +101,21 @@ pub(crate) struct Location {
     pub(crate) _lock: File,
 }
 
+/// Only lock contention is retryable. Any other OS failure keeps its error
+/// kind so a real filesystem problem is not mislabeled as a busy database.
+pub(crate) fn lock_failure(error: std::fs::TryLockError) -> StorageError {
+    match error {
+        std::fs::TryLockError::WouldBlock => StorageError::Busy,
+        std::fs::TryLockError::Error(error) => StorageError::from(error),
+    }
+}
+
 impl Location {
     pub(crate) fn acquire(app_data: &Path) -> Result<Self> {
         let directory = app_data.join("storage");
         private_directory(&directory)?;
         let lock = private_file(&directory.join("owner.lock"), false)?;
-        lock.try_lock().map_err(|_| StorageError::Busy)?;
+        lock.try_lock().map_err(lock_failure)?;
         for name in DATABASE_FILES {
             check_path(&directory.join(name))?;
         }
