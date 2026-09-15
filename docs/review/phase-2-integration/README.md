@@ -1,6 +1,6 @@
 # Phase 2 integration evidence index (#41)
 
-Status: **acceptance-gap refresh verified 2026-09-13; Phase 2 is not accepted.**
+Status: **Phase 2 accepted with known gaps on 2026-09-14; P2-08 remains Partial.** The [2026-09-14 acceptance record](acceptance-2026-09-14.md) owns the decision; see the [post-acceptance addendum](#post-acceptance-addendum-2026-09-15) for the current state.
 This index separates merged implementation, automated tests, installed
 observations, measured-source provenance, and owner acceptance. The [current
 acceptance packet](acceptance-packet-2026-09-12.md) owns the decision list and
@@ -148,6 +148,75 @@ rather than rewriting the dated addendum rows.
   now applies only to #119 and the still-open owner review. P2-08 remains
   **Partial** with the same narrowed gaps; no acceptance ID is promoted and no
   owner decision is recorded as made.
+
+## Post-acceptance addendum 2026-09-15
+
+Status: **Phase 2 accepted with known gaps on 2026-09-14; P2-08 remains
+Partial.** This addendum records the post-acceptance state without rewriting
+any dated row above. The owner decision is
+[acceptance-2026-09-14.md](acceptance-2026-09-14.md); it was published by
+merged PR #132 (`1454fb3`) after the owner closed the Phase 2 evidence
+aggregator #41 COMPLETED on `2026-09-14T04:31:53Z`.
+
+That record disposes P2-01 through P2-12: P2-01 through P2-07 and P2-09
+through P2-12 are accepted (P2-11 carried with performance non-qualification;
+P2-12 as the phase checkpoint), with the recorded platform, provenance, and
+evidence boundaries carried forward. P2-08 stays **Partial** with four narrowed
+gaps. Acceptance is documentation only: it does not activate production
+scanning, promote P2-08, amend a budget, quota, fixture, or target, or start
+Phase 3; the bounded Rust-parser spike is the stated next step.
+
+The publication boundary is `origin/main`
+`274d155b7a3f6c86ea5009a6dcb172596d6d3dfa`, the merge of PR #142, with
+Foundation CI `success` on that head. The measured scanner source remains
+`69f27f64f26aa657182a9260cc8e78f28a5838fb`; no timing was rerun after the
+documentation-only advances, so the non-qualifying warm nearest-rank p95 remains
+`10,173 ms` against the unchanged `10,000 ms` target.
+
+### Post-acceptance merges
+
+GitHub reports these pull requests merged; they publish documentation and
+evidence only and promote no criterion.
+
+<!-- markdownlint-disable MD060 -->
+
+| PR   | Merge     | Scope                                                                                                                                                                             |
+| ---- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #137 | `b76bac7` | [Phase 2 residual close-out packet](residual-closeout-20260914.md) (2026-09-14); record only, no GitHub mutation                                                                  |
+| #139 | `eeea1b6` | [Non-NTFS scanner scope decision](../../research/non-ntfs-scope-decision-20260915.md); local NTFS is the supported scope, DriveFS/FAT32/cross-volume excluded, #47/#48 stay open |
+| #140 | `c72fbc4` | `AGENTS.md` plain-language summary requirement for generated prompts and reviews                                                                                                  |
+| #141 | `7c7c477` | [Bounded Rust-parser fixture-manifest proposal](../../research/parser-fixture-manifest-proposal-20260914.md) for #138                                                            |
+| #142 | `274d155` | [Phase 2 residual disposition drafts](residual-disposition-drafts-2026-09-14.md) (2026-09-14); record only, no issue/PR mutation                                                  |
+
+<!-- markdownlint-enable MD060 -->
+
+PR #119 (`58538cd`) is also now **MERGED**. The "Unmerged evidence addendum
+2026-09-14" and "Merged-state correction 2026-09-14" rows above that describe it
+as an open draft are superseded by that merge. Its feature-gated phase
+diagnostics remain diagnostic context only: they do not explain the historical
+`Partial`, qualify performance, or approve the ancestor-validation fast path.
+
+### Observed issue state (recorded, not decided)
+
+GitHub reports the following at recording time; this index mutates no issue.
+
+<!-- markdownlint-disable MD060 -->
+
+| Item     | Observed state                          | Note                                                                          |
+| -------- | --------------------------------------- | ----------------------------------------------------------------------------- |
+| #41      | CLOSED COMPLETED `2026-09-14T04:31:53Z` | Phase 2 evidence aggregator; acceptance-record provenance                     |
+| #33      | CLOSED `2026-09-15T02:41:05Z`           | Phase 2 epic; was open at acceptance                                          |
+| #107     | CLOSED COMPLETED `2026-09-15T01:46:45Z` | S5 restart-contract follow-up; was carried open at acceptance                 |
+| #36/#37/#39 | CLOSED as accepted (comments 2026-09-15) | P2-02/P2-03/P2-07/P2-09/P2-10/P2-11 accepted; platform and perf boundaries carried |
+| #38/#40  | OPEN                                    | Keep-open rationale posted 2026-09-15; carry the P2-08 evidence-only residual, no code fix ordered |
+| #47, #48 | OPEN                                    | Non-NTFS scope excluded by #139, but kept open as unverified-territory markers |
+| #138     | OPEN                                    | Spike open; fixture-manifest plan approved 2026-09-15 (merged #141); manifest PR authorized, spike starts after its merge |
+
+<!-- markdownlint-enable MD060 -->
+
+All dated 2026-09-13 and 2026-09-14 rows above are preserved verbatim. This
+addendum is record-only: it rewrites no dated row, merges or closes nothing, and
+records no acceptance decision beyond the owner's 2026-09-14 acceptance.
 
 ## Historical live review status 2026-09-12
 
