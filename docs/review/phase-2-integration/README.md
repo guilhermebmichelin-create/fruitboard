@@ -509,3 +509,55 @@ changes budgets or scope, closes issues, or activates production scanning.
   evidence and the owner accepts Phase 2.
 - The epic and child issues remain open. No message, merge, closure, acceptance,
   or production scanning action is authorized by this index.
+
+## Publication addendum 2026-09-15 (#145/#146)
+
+Status: **Phase 2 accepted with known gaps on 2026-09-14; P2-08 remains
+Partial.** This addendum records two post-acceptance publications without
+rewriting any dated row above. Both merged pull requests publish documentation
+and evidence only: neither promotes a criterion, amends a budget, fixture, or
+target, mutates an issue, or starts the bounded Rust-parser spike.
+
+The publication boundary is `origin/main`
+`bd2fb1ec7781425d5a27abbcc45e244f1c28a49e`, the merge of PR #146, with
+Foundation CI `success` on that head. The boundary advanced from the
+[post-acceptance addendum's](#post-acceptance-addendum-2026-09-15) `274d155`
+through the intervening documentation-only merges #143 (integration-index
+refresh) and #144 (P2-08 follow-up proposal) to the two publications below,
+which are not re-recorded here. The measured scanner source remains
+`69f27f64f26aa657182a9260cc8e78f28a5838fb`, and no timing was rerun after these
+documentation-only advances.
+
+<!-- markdownlint-disable MD060 -->
+
+| PR   | Merge     | Scope                                                                                                                                                                                                                                                                                                                                                        |
+| ---- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #145 | `02d5b82` | [Parser fixture-corpus manifest scaffold](../../../fixtures/parser-corpus/manifest.md) for spike #138: records the owner-authoring method decision and the slot/version-row allocation, but commits no fixture byte or digest and force-adds no file, so every slot stays `not covered` and the spike remains blocked |
+| #146 | `bd2fb1e` | [P2-08 gaps 1-3 installed evidence](installed-journey/run-20260915-p2o8-gaps-evidence.md), executed once on `02d5b82`: gaps 1a (`access_denied`) and 1b (`resource_limit`) are evidenced, gap 2 (`queued`/`running` keyboard and axe) is evidenced, gaps 1c (`unsupported`), 1d (`worker_failed`), and 3 (stable rendered `interrupted`) remain open, and the gap 4 full-criterion disposition is owner-only |
+
+<!-- markdownlint-enable MD060 -->
+
+P2-08 remains **Partial**. The #146 record reproduces the merged #121 D2/D3
+convergence on `02d5b82`, carries one moderate `region` axe finding for the
+owner to resolve or explicitly accept, and orders no product fix. No P2
+acceptance ID is promoted.
+
+### Publication issue observations (recorded, not decided)
+
+GitHub reports the following at recording time; this addendum mutates no issue.
+
+<!-- markdownlint-disable MD060 -->
+
+| Item        | Observed state                | Note                                                                       |
+| ----------- | ----------------------------- | -------------------------------------------------------------------------- |
+| #38/#40     | OPEN                          | Carry the P2-08 evidence-only residual; the #146 gaps 1c/1d/3 remain open  |
+| #47, #48    | OPEN                          | Non-NTFS scope excluded by #139; kept open as unverified-territory markers |
+| #138        | OPEN                          | Spike open; the #145 scaffold does not start it and no corpus is populated |
+| #36/#37/#39 | CLOSED COMPLETED (2026-09-15) | P2-02/P2-03/P2-07/P2-09/P2-10/P2-11 accepted; carried boundaries unchanged |
+
+<!-- markdownlint-enable MD060 -->
+
+All dated 2026-09-13, 2026-09-14, and 2026-09-15 rows above are preserved
+verbatim. This addendum is record-only: it rewrites no dated row, mutates no
+issue, pull request, or comment, merges nothing, and records no acceptance
+decision beyond the owner's 2026-09-14 acceptance.
