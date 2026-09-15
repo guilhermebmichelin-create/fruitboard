@@ -26,6 +26,23 @@ Every generated implementation or validation prompt must include:
 Documentation-only and read-only tasks may state that no local build/cache is
 needed. Do not add builds simply to satisfy the prompt template.
 
+## Plain-language summaries for the owner
+
+The owner is learning software development and does not follow every
+technical detail. Every response that generates agent prompts or reviews
+completed work must also include, in the chat reply (not in the prompt or
+review file itself):
+
+- **Before/with each prompt:** a short ELI5 summary saying what the agent
+  will do, why it matters, and what good output looks like — one or two
+  plain sentences per prompt, no jargon, or jargon explained in place.
+- **With each review:** a short ELI5 summary of what was actually done,
+  what was verified, and what still needs the owner's decision — again in
+  plain sentences, plus one thing the owner can learn from it where natural.
+
+Technical precision stays in the prompts, files, and evidence; the summary
+is a translation layer, never a substitute for it.
+
 ## Build and cleanup boundaries
 
 - Inspect existing worktrees and caches before creating new ones. Keep separate
