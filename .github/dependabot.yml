@@ -1,4 +1,8 @@
 version: 2
+# Dependabot remains the weekly update mechanism. The GitHub-native CodeQL and
+# dependency review drafts for issue #148 (.github/workflows/codeql.yml and
+# .github/workflows/dependency-review.yml) complement these updates; they do
+# not replace them and change nothing in this file.
 updates:
   - package-ecosystem: npm
     directory: /

@@ -1,0 +1,61 @@
+name: CodeQL
+
+# Draft for owner review under issue #148. Merging this file enables the
+# GitHub-native CodeQL analysis; it is not a required check and no branch
+# protection is changed here. The existing executable baseline (repository
+# privacy gate, `pnpm audit --audit-level high`, RustSec/cargo-audit) stays
+# authoritative until the owner validates this workflow on a real pull request
+# and records the decision on #148. Never add signing or release secrets to
+# this or any pull-request job.
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "41 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # Only the analyze job needs write access, and only for code scanning
+      # results. GitHub limits fork pull request tokens independently.
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: rust
+            build-mode: none
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63
+        with:
+          category: /language:${{ matrix.language }}

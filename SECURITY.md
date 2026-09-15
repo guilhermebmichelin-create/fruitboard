@@ -192,11 +192,17 @@ print only fixed safe text.
 - GitHub dependency review, CodeQL, and GitHub secret protection were
   unavailable on the private GitHub Free plan when this control was recorded.
   The repository became public on 2026-09-07, so they are now available on the
-  current plan; enabling them remains a separate, deliberate step (tracked with
-  the [enforced branch protection](DEVELOPMENT.md#enforced-branch-protection)
-  rollout). Until enabled, the executable privacy regressions,
-  `pnpm audit`, and RustSec checks below remain the baseline; never represent an
-  unavailable or skipped integration as a passing security check.
+  current plan; enabling them remains a separate, deliberate step tracked by
+  issue #148. Draft workflow files for CodeQL
+  (`.github/workflows/codeql.yml`, JavaScript/TypeScript and Rust with
+  `build-mode: none`) and dependency review
+  (`.github/workflows/dependency-review.yml`, `fail-on-severity: high`) are
+  prepared for owner review in that issue. Enabling secret-scanning push
+  protection is an owner-only repository setting and is not performed by any
+  workflow. Until each product is enabled and validated on a real pull request,
+  the executable privacy regressions, `pnpm audit --audit-level high`, and
+  RustSec checks below remain the baseline; a draft or unavailable integration
+  is never represented as a passing security check.
 - Add Python dependency auditing with the parser environment; the current empty
   research lock has no parser dependency and PyFLP remains blocked.
 - Generate an SBOM for installers including the Python sidecar.
