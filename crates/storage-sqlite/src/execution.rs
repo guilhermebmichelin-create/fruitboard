@@ -786,11 +786,24 @@ fn enqueue_scan_tx(
         .optional()?;
     if let Some((job_id, state, existing_follow_up)) = active {
         let follow_up_requested = if state == ScanJobState::Running.as_str() {
+            // A trigger that lands on a running attempt is newer than any
+            // durable cancellation already recorded for it (cancellation
+            // requests clear the pending follow-up), so it supersedes that
+            // cancellation: the attempt ends interrupted rather than
+            // cancelled, and `finish_scan_run_with_error` schedules the
+            // successor. A cancellation committed after this trigger clears
+            // the follow-up again and wins. The durable ledger is the ordering
+            // authority.
             transaction.execute(
                 "UPDATE scan_job
-                 SET follow_up_requested = 1, updated_at_ms = ?1
+                 SET follow_up_requested = 1, cancellation_requested = 0, updated_at_ms = ?1
                  WHERE id = ?2",
                 params![now_ms, &job_id],
+            )?;
+            transaction.execute(
+                "UPDATE scan_run SET cancellation_requested = 0
+                 WHERE scan_job_id = ?1 AND state = 'running'",
+                [&job_id],
             )?;
             transaction.execute(
                 "UPDATE scan_stage SET state = 'discarded', updated_at_ms = ?1
@@ -1055,7 +1068,9 @@ impl Database {
     }
 
     /// Queue one scan per root. A queued or running root already owns the
-    /// active slot; running work records one coalesced follow-up request.
+    /// active slot; running work records one coalesced follow-up request. A
+    /// trigger on a running attempt also supersedes a pending cancellation:
+    /// the attempt ends interrupted (never cancelled) and the successor runs.
     pub fn enqueue_scan(
         &mut self,
         root_id: &str,
@@ -1235,7 +1250,10 @@ impl Database {
 
     /// Persist a cancellation request. A running worker remains running until
     /// it observes the request or its lease is reaped; terminal outcomes are
-    /// returned unchanged so a late cancel cannot roll back a commit.
+    /// returned unchanged so a late cancel cannot roll back a commit. The
+    /// durable request clears a pending follow-up: the cancellation is the
+    /// newer instruction, so the attempt must end cancelled instead of
+    /// spawning a successor.
     pub fn request_scan_cancellation(&mut self, run_id: &str, now_ms: i64) -> Result<ScanRunState> {
         self.transaction(|transaction| {
             let run = select_run(transaction, run_id)?;
@@ -1247,7 +1265,8 @@ impl Database {
                 [run_id],
             )?;
             transaction.execute(
-                "UPDATE scan_job SET cancellation_requested = 1, updated_at_ms = ?1
+                "UPDATE scan_job SET cancellation_requested = 1, follow_up_requested = 0,
+                     updated_at_ms = ?1
                  WHERE id = ?2 AND state = 'running'",
                 params![now_ms, &run.scan_job_id],
             )?;
@@ -1273,8 +1292,13 @@ impl Database {
                     Ok(ScanJobState::Cancelled)
                 }
                 ScanJobState::Running => {
+                    // The durable cancellation also clears a pending follow-up
+                    // (same ordering rule as `request_scan_cancellation`): a
+                    // newer cancellation beats an older trigger, while a later
+                    // trigger supersedes this cancellation in `enqueue_scan`.
                     transaction.execute(
-                        "UPDATE scan_job SET cancellation_requested = 1, updated_at_ms = ?1
+                        "UPDATE scan_job SET cancellation_requested = 1,
+                             follow_up_requested = 0, updated_at_ms = ?1
                          WHERE id = ?2 AND state = 'running'",
                         params![now_ms, job_id],
                     )?;
@@ -1364,16 +1388,21 @@ impl Database {
                 return Err(StorageError::Conflict);
             }
             // A worker's explicit cancellation is equivalent to a durable
-            // request. It therefore wins over a pending follow-up trigger.
+            // request. Cancellation requests clear a pending follow-up, so a
+            // follow-up that is still set here is strictly newer than the last
+            // cancellation: it supersedes the cancellation for this attempt,
+            // which ends interrupted, and the successor is scheduled below.
+            // The durable ledger is the ordering authority.
             let cancellation_requested = run.cancellation_requested
                 || parse_flag(job_cancel)?
                 || outcome == ScanRunOutcome::Cancelled;
             let follow_up_requested = parse_flag(follow_up)?;
-            let invalidated_by_follow_up = follow_up_requested && !cancellation_requested;
-            let effective_outcome = if cancellation_requested {
-                ScanRunOutcome::Cancelled
-            } else if invalidated_by_follow_up {
+            let invalidated_by_follow_up = follow_up_requested;
+            let cancellation_flag = cancellation_requested && !invalidated_by_follow_up;
+            let effective_outcome = if invalidated_by_follow_up {
                 ScanRunOutcome::Interrupted
+            } else if cancellation_requested {
+                ScanRunOutcome::Cancelled
             } else {
                 outcome
             };
@@ -1413,7 +1442,7 @@ impl Database {
                  WHERE id = ?6 AND state = 'running'",
                 params![
                     state.as_str(),
-                    i64::from(cancellation_requested),
+                    i64::from(cancellation_flag),
                     now_ms,
                     effective_outcome.as_str(),
                     error_code,
@@ -1427,17 +1456,18 @@ impl Database {
                  WHERE id = ?5 AND state = 'running'",
                 params![
                     state.as_str(),
-                    i64::from(cancellation_requested),
+                    i64::from(cancellation_flag),
                     now_ms,
                     error_code,
                     &run.scan_job_id,
                 ],
             )?;
 
-            // A trigger received during traversal invalidates this attempt;
-            // its observations cannot become authoritative. User cancellation
-            // never auto-retries.
-            if invalidated_by_follow_up && effective_outcome != ScanRunOutcome::Cancelled {
+            // A trigger received during traversal (even while a stale
+            // cancellation was pending) invalidates this attempt; its
+            // observations cannot become authoritative, and the deduplicated
+            // successor is scheduled in this same transaction.
+            if invalidated_by_follow_up {
                 let _ = enqueue_scan_tx(
                     transaction,
                     &run.scan_root_id,
