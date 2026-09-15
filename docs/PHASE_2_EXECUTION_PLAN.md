@@ -302,6 +302,45 @@ not silently relabeled as current-head runs.
 
 <!-- markdownlint-enable MD060 -->
 
+### P2-11 performance disposition note - 2026-09-15
+
+The canonical P2-01 through P2-12 ledger is the integration index's
+[P2-01 through P2-12 section](review/phase-2-integration/README.md#p2-01-through-p2-12);
+the acceptance-gap ledger above is the dated 2026-09-13 plan copy, and its
+P2-11 row is not rewritten here.
+
+Measured facts are unchanged: the current-only qualification on measured source
+`69f27f6` returned 10/10 authoritative scans with a warm nearest-rank p95 of
+`10,173 ms` against the unchanged `10,000 ms` target, so F2 stays
+non-qualifying, and the 100,000-entry qualification set with its provisional
+`<=128 MiB` working-memory F3 target stays **unmeasured**. No rerun,
+optimization, or budget change is performed here.
+
+Three explicit disposition options are on record for P2-11; the owner selects
+between them. None is selected by this note, and the measured overage must
+never become a pass by inaction or by an unapproved target change:
+
+1. **Accept the 173 ms overage.** The owner explicitly decides that the
+   `10,173 ms` warm-p95 result satisfies the existing `10,000 ms` target for
+   the accepted local-NTFS scope. The decision is recorded against the
+   unchanged target: it is not a target amendment, the overage stays visible,
+   and F3/100,000-entry memory stays unmeasured.
+2. **Retarget with evidence.** Amend the provisional scan-latency budget in
+   [Proposed targets accepted as provisional budgets](#proposed-targets-accepted-as-provisional-budgets)
+   only after new reviewable evidence (a fresh measured run or a recorded
+   measurement analysis) plus explicit owner review. The existing `10,173 ms`
+   result alone does not establish a replacement target, and CI correctness
+   tests still may not assert hardware-sensitive absolute timing.
+3. **Optimize.** Keep the `10,000 ms` target and run a bounded optimization
+   with its own evidence and checks, followed by a fresh qualification run on
+   the resulting source. The diagnostics from merged #119 and the proposed
+   ancestor-validation fast path remain diagnostic/proposal history only;
+   neither is approved optimization work here.
+
+Under all three options, F1/F2/F3 stay as recorded, no quota, fixture, or
+target change follows, and production scanning stays hidden. F3/100,000-entry
+memory remains unmeasured either way.
+
 ### Why P2-08 remains Partial
 
 P2-08 is not Partial merely because implementation PRs are separate or because

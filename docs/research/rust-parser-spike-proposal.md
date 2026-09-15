@@ -31,7 +31,7 @@ rejects, or defers it as a separate decision.
 
 | Bound          | Proposal                                                                                                                                                               |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Active work    | 15 calendar days from spike start (spike issue approved and fixture manifest owner-approved, whichever is later).                                                      |
+| Active work    | 15 calendar days from spike start, the later of spike issue approval and the owner-approved fixture manifest being merged.                                             |
 | Hard stop      | 21 calendar days. Work stops and records what was measured; an incomplete spike closes as inconclusive rather than being extended silently.                            |
 | Prototype size | One research-only read-only Rust binary behind the replaceable `FlpParser` boundary. No production workspace crate, no adapter wiring, no scanner or packaging change. |
 | Field bound    | Four fields, staged two then two: saved FL Studio version and base tempo first; channel names and sample references only after the first stage meets its matrix.       |
@@ -41,6 +41,57 @@ rejects, or defers it as a separate decision.
 
 If a bound is reached, the recorded default outcome is "no selection". A bound
 change is a new owner decision, not something the spike grants itself.
+
+### Abort criteria
+
+The spike aborts early - and records the shortfall without selecting a parser -
+when any of these occurs:
+
+- Stage 1 (saved FL Studio version and base tempo) fails the approved corpus
+  matrix; stage 2 is not started and the spike closes with a written shortfall.
+- The fixture gate is not met: the manifest is declined, a required case family
+  or version row cannot be lawfully produced and the owner does not explicitly
+  record it as "not covered", or allocated slots are still empty when the time
+  box ends.
+- The 21-calendar-day hard stop is reached. Incomplete work closes as
+  inconclusive; there is no silent extension and no partial pass.
+- The prototype breaks the safety boundary (read-only input, no plugin/DLL/
+  script loading, bounded IO, typed per-file failure, byte-identical input), or
+  it would need a production dependency, network access, a writable FLP path,
+  or files outside the approved corpus.
+- Any bound (time, size, field, version, or corpus) would have to change; a
+  bound change is a new owner decision, so the run stops and records what was
+  measured.
+- The owner withdraws the spike approval or the fixture authorization.
+
+An abort records the evidence measured to that point, the criterion that
+stopped the work, and the default "no selection"; it authorizes no PyFLP
+production adoption and no product adapter.
+
+### Corpus done
+
+The corpus is done - and the spike clock may start - only when all of the
+following hold:
+
+- The dedicated fixture manifest PR is owner-approved and merged, and every
+  fixture byte is committed through that manifest.
+- Every committed entry carries source/provenance, license, the exact saved FL
+  version, pre-registered expected values, SHA-256, and privacy approval.
+- The required case families are present: the baseline, every version row the
+  owner can lawfully produce with a genuine saved version, at least one
+  absent-field case, the single-property-difference pair, and the truncation,
+  unknown-event, malformed-length, and resource-limit robustness derivatives
+  of the approved base.
+- Every allocated slot is either committed as covered or explicitly recorded
+  as "not covered" by the owner; nothing is substituted and reserved slots
+  stay reserved.
+- The prototype's measurements and parses run only against that merged
+  manifest, never against ad-hoc, scaffold, or personal files.
+
+A scaffold manifest with empty `not covered` slots (for example the current
+[`fixtures/parser-corpus/manifest.md`](../../fixtures/parser-corpus/manifest.md)
+scaffold), a manifest still under review, or any personal file is not a done
+corpus; the spike does not start.
 
 ## Explicit questions
 
@@ -250,8 +301,16 @@ It ships no product behavior and selects no parser by itself.
 
 ## Time and size bound
 
-- Time: 15 calendar days of active work from issue start, hard stop at 21
-  calendar days.
+- Time: 15 calendar days of active work from spike start, where spike start is
+  the later of issue start and the owner-approved fixture manifest being
+  merged; hard stop at 21 calendar days.
+- Abort: stage-1 matrix failure, an unassemblable corpus, the hard stop, a
+  safety-boundary break, a required bound change, or a withdrawn approval ends
+  the spike with a recorded shortfall and no selection.
+- Corpus done: the spike starts only on an approved and merged fixture
+  manifest whose entries carry provenance, license, exact saved version,
+  pre-registered expected values, SHA-256, and privacy approval, with every
+  slot covered or explicitly owner-recorded as "not covered".
 - Size: one read-only research prototype behind the `FlpParser` boundary, four
   staged fields, up to six version rows, up to twelve owner-approved fixtures,
   and no production crate or dependency change.
