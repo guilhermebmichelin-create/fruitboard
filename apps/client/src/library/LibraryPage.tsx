@@ -640,10 +640,15 @@ function ConnectedLibraryPage({
 
   const page = pageState.kind === "ready" ? pageState.page : null;
   const pageHasRecords = page !== null && page.records.length > 0;
-  const staleResults = statuses.some(statusNeedsPreviousResults);
-  const rootUnavailable = statuses.some((status) =>
-    isScanAvailabilityUnavailable(status.root.availability),
-  );
+  const selectedStatus =
+    resolvedRootId === null
+      ? null
+      : (statuses.find((status) => status.root.id === resolvedRootId) ?? null);
+  const staleResults =
+    selectedStatus !== null && statusNeedsPreviousResults(selectedStatus);
+  const rootUnavailable =
+    selectedStatus !== null &&
+    isScanAvailabilityUnavailable(selectedStatus.root.availability);
   const showEmptyForMissingRoots = hasNoRoots && pageState.kind !== "error";
   const libraryState =
     pageState.kind === "error"
@@ -662,10 +667,6 @@ function ConnectedLibraryPage({
                   ? "empty"
                   : "populated";
 
-  const selectedStatus =
-    resolvedRootId === null
-      ? null
-      : (statuses.find((status) => status.root.id === resolvedRootId) ?? null);
   const selectedRootLabel =
     selectedStatus === null
       ? null

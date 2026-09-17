@@ -543,6 +543,63 @@ describe("LibraryPage", () => {
     expect(adapter.calls.scanNow).toEqual([rootA.id]);
   });
 
+  it("keeps a sibling root's unavailable status out of the selected root's banners", async () => {
+    const unavailableRoot = {
+      ...rootB,
+      availability: "unavailable" as const,
+    };
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA, unavailableRoot],
+      files: [makeRecord(rootA, "location-a", "Healthy.flp", "Healthy.flp")],
+    });
+    const user = userEvent.setup();
+    const view = renderLibrary(adapter);
+
+    await screen.findByRole("heading", { name: "Healthy.flp" });
+    expect(
+      view.container.querySelector('[data-library-state="populated"]'),
+    ).toBeTruthy();
+    expect(
+      view.container.querySelector('[data-library-state="stale-results"]'),
+    ).toBeNull();
+    expect(screen.queryByText("Showing previous committed results")).toBeNull();
+    expect(
+      screen.queryByRole("heading", { name: "A scan root is unavailable" }),
+    ).toBeNull();
+
+    await user.selectOptions(
+      screen.getByLabelText("Scan root"),
+      unavailableRoot.id,
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "A scan root is unavailable",
+      }),
+    ).toBeTruthy();
+  });
+
+  it("keeps a healthy empty selected root's panel when a sibling is unavailable", async () => {
+    const unavailableRoot = {
+      ...rootB,
+      availability: "unavailable" as const,
+    };
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA, unavailableRoot],
+    });
+    const view = renderLibrary(adapter);
+
+    expect(
+      await screen.findByRole("heading", { name: "No committed files yet" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "A scan root is unavailable" }),
+    ).toBeNull();
+    expect(screen.queryByText("Showing previous committed results")).toBeNull();
+    expect(
+      view.container.querySelector('[data-library-state="empty"]'),
+    ).toBeTruthy();
+  });
+
   it("does not expose a recovery action for a disabled exhausted root", async () => {
     const disabledRoot = { ...rootA, enabled: false };
     const adapter = createFakeLibraryScanAdapter({

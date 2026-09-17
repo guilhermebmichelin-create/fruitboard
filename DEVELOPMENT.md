@@ -502,24 +502,30 @@ smallest regression test that would have caught it.
 
 ## Pull-request CI
 
-`.github/workflows/foundation.yml` runs six stable, always-present jobs for
-pull requests to `main`, pushes to `main`, and manual dispatch. Jobs do not use
-path filters or job-level conditions, so a skipped check cannot look like a
-successful quality signal.
+`.github/workflows/foundation.yml` runs nine stable, always-present jobs for
+pull requests to `main`, pushes to `main`, and manual dispatch. The separate
+`windows-packaging-smoke` workflow supplies the tenth required status context.
+Jobs do not use path filters or job-level conditions, so a skipped check cannot
+look like a successful quality signal.
 
 ### Foundation pull-request checks
 
-| Job                  | Runner  | Scope                                                                       | Local equivalent                                                                                                                               |
-| -------------------- | ------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs-policy`        | Ubuntu  | Markdown, script/policy tests, tracked and unignored-file privacy scan      | `pnpm privacy:check && pnpm lint:docs && pnpm lint:scripts`                                                                                    |
-| `client`             | Ubuntu  | Frozen install, lint, typecheck, component tests, production web build      | `pnpm --recursive --if-present lint && pnpm typecheck && pnpm --recursive --if-present test && pnpm --filter @fruitboard/client build`         |
-| `rust-portable`      | Ubuntu  | Rustfmt, warning-denied Clippy, portable SQLite storage tests               | `cargo fmt --all --check; cargo clippy -p fruitboard-storage --all-targets --locked -- -D warnings; cargo test -p fruitboard-storage --locked` |
-| `migration`          | Ubuntu  | Latest creation, every supported upgrade, killed migration, backup recovery | `cargo test -p fruitboard-storage --locked`                                                                                                    |
-| `windows-foundation` | Windows | Exact Node/Rust/Python/uv/pnpm/SQLite pins and complete production build    | `pnpm.cmd check`                                                                                                                               |
-| `security`           | Ubuntu  | Privacy regressions, high-severity npm audit, RustSec advisory audit        | `pnpm privacy:check; pnpm audit --audit-level high; cargo audit`                                                                               |
+| Job                          | Runner  | Scope                                                                                                                          | Local equivalent                                                                                                                                                                                                                                                                                                                              |
+| ---------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docs-policy`                | Ubuntu  | Markdown, script/policy tests, tracked and unignored-file privacy scan                                                         | `pnpm privacy:check && pnpm lint:docs && pnpm lint:scripts && node --test "tests/*.test.mjs"`                                                                                                                                                                                                                                                 |
+| `client`                     | Ubuntu  | Frozen install, lint, typecheck, component tests, production web build                                                         | `pnpm --recursive --if-present lint && pnpm --recursive --if-present typecheck && pnpm --recursive --if-present test && pnpm --filter @fruitboard/client build`                                                                                                                                                                               |
+| `rust-portable`              | Ubuntu  | Rustfmt, warning-denied Clippy, portable storage and reconciliation tests                                                      | `cargo fmt --all --check; cargo clippy -p fruitboard-storage --all-targets --locked; cargo test -p fruitboard-storage --locked; cargo clippy -p fruitboard-reconciliation --all-targets --locked; cargo test -p fruitboard-reconciliation --locked`                                                                                           |
+| `migration`                  | Ubuntu  | Latest creation, every supported upgrade, killed migration, backup recovery, and the named durable execution/publication tests | `cargo test -p fruitboard-storage --locked` (all storage tests; the job selects the 28 named migration/recovery/execution/publication filters)                                                                                                                                                                                                |
+| `windows-foundation`         | Windows | Exact Node/Rust/Python/uv/pnpm/SQLite pins, complete production build, and feature-enabled scan-console tests/Clippy           | `pnpm.cmd check; cargo test -p fruitboard-desktop --features scan-console --locked; cargo clippy -p fruitboard-desktop --features scan-console --all-targets --locked -- -D warnings`                                                                                                                                                         |
+| `security`                   | Ubuntu  | Privacy regressions, high-severity npm audit, RustSec advisory audit                                                           | `node scripts/verify-repository-privacy.mjs; pnpm audit --audit-level high; cargo audit`                                                                                                                                                                                                                                                      |
+| `filesystem-watcher-windows` | Windows | Filesystem-watcher crate fmt, warning-denied Clippy, and Windows tests                                                         | `cargo fmt --all -- --check; cargo clippy -p fruitboard-filesystem-watcher --all-targets --locked -- -D warnings; cargo test -p fruitboard-filesystem-watcher --locked`                                                                                                                                                                       |
+| `enumeration-windows`        | Windows | Filesystem-enumeration crate fmt, warning-denied Clippy, and Windows tests                                                     | `cargo fmt --all --check; cargo clippy -p fruitboard-filesystem-enumeration --all-targets --locked -- -D warnings; cargo test -p fruitboard-filesystem-enumeration --locked`                                                                                                                                                                  |
+| `scan-execution-windows`     | Windows | Scan-execution crate fmt, warning-denied Clippy, tests, and the opt-in diagnostics feature                                     | `cargo fmt --all --check; cargo clippy -p fruitboard-scan-execution --all-targets --locked -- -D warnings; cargo test -p fruitboard-scan-execution --locked; cargo clippy -p fruitboard-scan-execution --all-targets --features diagnostics --locked -- -D warnings; cargo test -p fruitboard-scan-execution --features diagnostics --locked` |
 
 The complete local pre-merge gate remains `pnpm.cmd check` on Windows with the
-pinned toolchains. `cargo audit` requires the separately installed RustSec CLI;
+pinned toolchains, plus the feature-enabled scan-console test and Clippy
+commands from the table whenever that surface changes. `cargo audit` requires
+the separately installed RustSec CLI;
 CI installs the exact `cargo-audit` 0.22.2 release and runs it against
 `Cargo.lock`. `.cargo/audit.toml` denies every new RustSec warning. Its explicit
 17-advisory baseline covers 12 Tauri GTK3/WebKit transitive crates that are
@@ -550,13 +556,17 @@ private advisory. CODEOWNERS names the actual current maintainer for repository
 policy, native code, security policy, and migrations; it is an ownership signal,
 not a substitute for independent review.
 
-Avoid an expensive full installer build on every tiny PR until build duration is
-measured. Run a scheduled/manual Windows packaging smoke and make it required on
-release candidates. Add a macOS compile/package lane before declaring macOS
-portability, not after platform-specific assumptions accumulate.
+Trigger decision: with the enforced branch protection,
+`windows-packaging-smoke` is a required status check and must report on every
+pull request, so its initial `paths:` filter was dropped (with the
+enforced-protection rollout) and an expensive full installer build on every tiny
+PR is the accepted current cost. That cost is revisited only by an explicit
+owner decision to remove the check from branch protection. Add a macOS
+compile/package lane before declaring macOS portability, not after
+platform-specific assumptions accumulate.
 
 `.github/workflows/windows-packaging-smoke.yml` implements that separate smoke.
-It runs when packaging inputs change, on a monthly schedule, or by manual
+It runs on every pull request to `main`, on a monthly schedule, and by manual
 dispatch. The single Windows job has read-only repository permission, immutable
 action SHAs, no secrets, and no artifact upload. The hosted runner uses
 `pnpm.cmd smoke:windows:foundation:hosted` to exercise package, signature,
@@ -564,7 +574,8 @@ install, native launch/exit, sidecar, data-preservation, reinstall, and uninstal
 behavior without claiming an interactive desktop. The complete local equivalent
 is `pnpm.cmd smoke:windows:foundation`, which additionally proves WebView2
 inspection, audio capability signals, timings, and graceful window close. The
-six always-present Foundation CI jobs remain unchanged.
+nine always-present Foundation CI jobs plus this smoke are the ten required
+checks enforced on `main`.
 
 ### Release workflow
 

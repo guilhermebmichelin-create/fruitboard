@@ -146,9 +146,12 @@ and backup/recovery API. Tauri resolves local app data and owns the database
 behind a Mutex. Issue #16 connects that repository to exact read/write command
 contracts and an accessible Preferences control without exposing paths, SQL,
 connections, or recovery authority to the renderer.
-The remaining proposed package/crate directories are still created only by the
-PR that first owns their behavior; empty architectural scaffolding remains
-deliberately avoided.
+Phase 2 realized the scanner as the four crates mapped under
+[Scanner crate map](#scanner-crate-map) instead of the single proposed
+`crates/scanner`; `crates/parser-protocol` is still uncreated and waits for the
+bounded parser spike. The remaining proposed package/crate directories are
+still created only by the PR that first owns their behavior; empty
+architectural scaffolding remains deliberately avoided.
 
 ## Desktop framework evaluation
 
@@ -317,6 +320,30 @@ flowchart LR
    low-frequency idle schedule trigger reconciliation.
 7. A file becomes `missing` only after a successful reconciliation of an
    available root. Missing is reversible. It is never a delete.
+
+### Scanner crate map
+
+The Phase 2 scanner is four focused crates. The original single
+`crates/scanner` proposal was superseded when the slices landed:
+
+- `crates/filesystem-enumeration` — bounded, metadata-only Windows traversal,
+  boundary-owned locator keys, and typed per-run outcomes; no parser, database,
+  watcher, renderer, or source-file mutation capability (steps 2 and 6).
+- `crates/reconciliation` — deterministic per-path change decisions over
+  normalized metadata; no I/O and no persistence (steps 4-5).
+- `crates/filesystem-watcher` — handle-bound watcher with fixed-window
+  coalescing and a sticky coverage-loss signal; hints are never authority
+  (steps 3 and 6).
+- `crates/scan-execution` — durable worker composing enumeration,
+  reconciliation, and storage staging/publication behind typed fences, plus the
+  watcher follow-up adapter (steps 4-7).
+
+`crates/storage-sqlite` owns the durable queue, leases, staging ledger, and
+atomic publication the worker calls, and the Tauri host
+(`apps/desktop/src-tauri/src/foundation/scan_console_host.rs`) owns the single
+worker, process session, poll loop, and Windows watcher supervisor. The runner
+stays hidden: only the explicit `scan-console` cargo feature compiles the
+scanner crates, and production scanning still requires an owner activation.
 
 Use Rust's cross-platform `notify` abstraction initially; on Windows it selects
 `ReadDirectoryChangesW`. Keep the watcher behind a port so a targeted Win32
