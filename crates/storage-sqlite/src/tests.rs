@@ -509,12 +509,99 @@ fn invalid_or_incomplete_backups_and_existing_destinations_are_preserved() {
 }
 
 #[test]
-fn raw_sqlite_errors_never_escape_in_storage_diagnostics() {
+fn raw_sqlite_and_io_errors_never_escape_in_storage_diagnostics() {
     let source = rusqlite::Error::InvalidParameterName("private project.flp".into());
     let safe = StorageError::from(source);
+    assert_eq!(safe, StorageError::Database(DatabaseDetail::Sqlite(None)));
     assert_eq!(safe.to_string(), "storage_database_failed");
     assert!(!format!("{safe:?}").contains("private"));
     assert!(std::error::Error::source(&safe).is_none());
+
+    let constraint = StorageError::from(rusqlite::Error::SqliteFailure(
+        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CONSTRAINT_UNIQUE),
+        Some("UNIQUE constraint failed: scan_root.canonical_path".to_owned()),
+    ));
+    assert_eq!(
+        constraint,
+        StorageError::Database(DatabaseDetail::Sqlite(Some(
+            rusqlite::ErrorCode::ConstraintViolation
+        )))
+    );
+    assert_eq!(constraint.to_string(), "storage_database_failed");
+    assert!(!format!("{constraint:?}").contains("scan_root"));
+    assert!(std::error::Error::source(&constraint).is_none());
+
+    let io = StorageError::from(std::io::Error::new(
+        std::io::ErrorKind::PermissionDenied,
+        r"C:\Users\example\private\fruitboard.db",
+    ));
+    assert_eq!(
+        io,
+        StorageError::Database(DatabaseDetail::Io(std::io::ErrorKind::PermissionDenied))
+    );
+    assert_eq!(io.to_string(), "storage_database_failed");
+    assert!(!format!("{io:?}").contains("example"));
+    assert!(std::error::Error::source(&io).is_none());
+}
+
+#[test]
+fn lock_contention_is_busy_while_other_lock_failures_keep_their_kind() {
+    assert_eq!(
+        crate::files::lock_failure(std::fs::TryLockError::WouldBlock),
+        StorageError::Busy
+    );
+    assert_eq!(
+        crate::files::lock_failure(std::fs::TryLockError::Error(std::io::Error::from(
+            std::io::ErrorKind::PermissionDenied
+        ))),
+        StorageError::Database(DatabaseDetail::Io(std::io::ErrorKind::PermissionDenied))
+    );
+}
+
+#[test]
+fn malformed_policy_is_distinct_from_an_unsupported_runtime() {
+    assert!(matches!(
+        verify_policy(r#"{"schemaVersion": 1}"#),
+        Err(StorageError::InvalidSchema)
+    ));
+    assert!(matches!(
+        verify_policy(
+            r#"{"sqlite":{"minimumWalSafeVersion":"9999.0.0","approvedFixedBackports":[]}}"#
+        ),
+        Err(StorageError::UnsupportedSqlite)
+    ));
+    assert!(verify_policy(include_str!("../../../tools/toolchain-policy.json")).is_ok());
+}
+
+#[test]
+fn scan_root_canonical_path_uniqueness_is_enforced_by_the_schema() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+
+    // The repository relies on the UNIQUE constraint added by migration 002
+    // instead of a separate pre-check and reports duplicates as a conflict.
+    assert!(matches!(
+        database.add_scan_root("Again", "C:\\Music\\Projects"),
+        Err(StorageError::Conflict)
+    ));
+
+    // A direct writer proves the guard is the schema, not only the repository.
+    let direct = database.transaction(|transaction| {
+        transaction
+            .execute(
+                "INSERT INTO scan_root
+                 (id, display_name, canonical_path, enabled, availability, last_error_code)
+                 VALUES ('direct-writer', 'Direct', 'C:\\Music\\Projects', 1, 'available', NULL)",
+                [],
+            )
+            .map_err(scan_root_write_error)?;
+        Ok(())
+    });
+    assert!(matches!(direct, Err(StorageError::Conflict)));
+    assert_eq!(database.list_scan_roots().unwrap().len(), 1);
 }
 
 fn assert_recovery_rejects_existing_artifact(name: &str) {
@@ -3584,7 +3671,7 @@ fn publication_rolls_back_visible_rows_and_ledger_on_apply_failure() {
             &second.run.lease_token,
             9,
         ),
-        Err(StorageError::Database)
+        Err(StorageError::Database(_))
     ));
     database
         .connection
@@ -3843,7 +3930,7 @@ fn retryable_staging_sql_failure_keeps_the_prior_stage_open() {
             5,
             &[staged_observation("second.flp", 1, 1, None)],
         ),
-        Err(StorageError::Database)
+        Err(StorageError::Database(_))
     ));
     database
         .connection

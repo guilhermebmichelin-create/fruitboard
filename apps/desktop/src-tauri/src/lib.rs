@@ -268,6 +268,15 @@ fn map_storage_error(error: StorageError) -> AppError {
         StorageError::NotFound => {
             AppError::new(ErrorCode::NotFound, DiagnosticCode::UnknownScanRoot)
         }
+        // A newer schema needs a compatible application rather than a retry; a
+        // failed migration is a terminal local failure. Neither branch exposes
+        // the database path, SQL, or the raw backend error.
+        StorageError::NewerSchema => {
+            AppError::new(ErrorCode::Unsupported, DiagnosticCode::StorageFailed)
+        }
+        StorageError::MigrationFailed => {
+            AppError::new(ErrorCode::Internal, DiagnosticCode::StorageFailed)
+        }
         _ => storage_failed(),
     }
 }
@@ -1010,7 +1019,10 @@ mod tests {
         for error in [
             StorageError::Io,
             StorageError::InvalidSchema,
-            StorageError::Database,
+            StorageError::Database(fruitboard_storage::DatabaseDetail::Sqlite(None)),
+            StorageError::Database(fruitboard_storage::DatabaseDetail::Io(
+                std::io::ErrorKind::PermissionDenied,
+            )),
         ] {
             let mapped = map_storage_error(error);
             assert_eq!(mapped.user().code, ErrorCode::Internal);
@@ -1019,6 +1031,22 @@ mod tests {
                 "storage_failed"
             );
         }
+
+        let newer = map_storage_error(StorageError::NewerSchema);
+        assert_eq!(newer.user().code, ErrorCode::Unsupported);
+        assert!(!newer.user().retryable);
+        assert_eq!(
+            newer.diagnostic().diagnostic_code.as_str(),
+            "storage_failed"
+        );
+
+        let migration = map_storage_error(StorageError::MigrationFailed);
+        assert_eq!(migration.user().code, ErrorCode::Internal);
+        assert!(!migration.user().retryable);
+        assert_eq!(
+            migration.diagnostic().diagnostic_code.as_str(),
+            "storage_failed"
+        );
     }
 
     fn test_root_directory(directory: &TestDirectory, name: &str) -> PathBuf {
