@@ -32,11 +32,17 @@ tables use partial and due-time indexes for one active job per root and bounded
 lease/queue recovery. Staging and publication tables are bounded by the
 filesystem-only checkpoint and remain outside the renderer.
 The singleton key is infrastructure identity, not a domain entity UUID.
-There is no foreign-key relationship between these two tables; foreign-key
-enforcement is enabled on every connection and tested with temporary relational
-tables. The broader logical product tables below remain proposals; migrations
-004 and 005 only ship the small device-local execution/publication subset
-listed above.
+Foreign keys are declared per shipped table rather than uniformly: the two
+infrastructure tables, `schema_migration` and `app_settings`, define none, the
+publication tables declare theirs (`file_location` references `project_file`,
+`scan_root`, and `scan_run`; `scan_stage` references `scan_run` and `scan_root`;
+`scan_stage_observation` references `scan_stage`) with detach or cascade
+behavior chosen per relationship, and the execution ledger (`scan_job`,
+`scan_run`, `scan_session`) deliberately stores bare root/job/session IDs so
+operational history survives root removal. Foreign-key enforcement is enabled
+on every connection and tested with temporary relational tables. The broader
+logical product tables below remain proposals; migrations 004 and 005 only ship
+the small device-local execution/publication subset listed above.
 
 Rust exposes typed preference methods and keeps the connection and transaction
 closure private. Issue #16 connects them to exact `get_startup_view` and
@@ -86,9 +92,9 @@ real hot-journal fixture proves that stale pages can replace Library with Home
 if recovery ignores the companion. Process
 termination evidence is not a hardware power-loss qualification.
 Projects, workflows, parser snapshots, tombstones, notes, and FTS remain
-deferred to their owning slices. Migrations 003 and 004 provide durable
-execution plus a fenced staging/publication boundary; they do not make the
-reconciliation core a production scanner.
+deferred to their owning slices. Migrations 003-005 provide durable execution,
+a fenced staging/publication boundary, and the locator-key/identity integration
+contract; none of them activates production scanning, and no parser exists.
 
 ## Modeling principles
 
@@ -410,11 +416,16 @@ desktop master.
 The [Phase 2 execution contracts](docs/PHASE_2_EXECUTION_PLAN.md) define root
 configuration revisions, generation/lease validation, run-scoped staging,
 atomic publication and recovery semantics for #36/#38/#40. Migration 003 ships
-the #38 execution portion and migration 004 adds the fenced staging/publication
-storage boundary plus a small committed location read model. Filesystem
-enumeration, the renderer Library journey, and streaming/resource measurement
-remain future slices. See the [durable execution evidence](docs/PHASE_2_DURABLE_EXECUTION.md)
-and [publication evidence](docs/PHASE_2_DURABLE_PUBLICATION.md).
+the #38 execution portion, migration 004 adds the fenced staging/publication
+storage boundary plus a small committed location read model, and migration 005
+adds the locator-key and bounded-identity integration contract. The bounded
+enumeration (#36), watcher foundation (#37), durable worker composition (#38),
+and staging/publication read model (#40) have since landed, together with the
+feature-gated scan console and Library adapter. Production scanning remains
+hidden and unqualified; assignment of the remaining platform and resource
+evidence stays with the Phase 2 integration index. See the
+[durable execution evidence](docs/PHASE_2_DURABLE_EXECUTION.md) and
+[publication evidence](docs/PHASE_2_DURABLE_PUBLICATION.md).
 
 `scan_root`
 
@@ -450,7 +461,8 @@ and [publication evidence](docs/PHASE_2_DURABLE_PUBLICATION.md).
 
 Run history is retained after root removal as detached operational evidence;
 the removed configuration is not recreated by an old job. Staging rows and
-committed file/location data arrive with #40.
+committed file/location data are shipped by migrations 004-005; production
+activation and platform/resource qualification remain separate.
 
 Detailed logs are rolling structured files, not unbounded database rows.
 
