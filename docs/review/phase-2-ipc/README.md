@@ -130,16 +130,19 @@ surfaces as `queued` with the interrupted run retained in the durable ledger.
 | job running | `already_running` (with runId) | `cancellation_requested` (with runId) | `already_running` (with runId) |
 | queued job cancelled | — | `cancelled` (runId null) | — |
 | running job, worker committed its outcome first | `already_running` (with runId) | `already_completed` / `already_cancelled` / `already_failed` | `already_running` (with runId) |
-| terminal cancelled | — | `already_cancelled` | `conflict` error |
+| terminal cancelled | — | `already_cancelled` | fresh chain → `queued` (new job id; terminal row retained, never revived) |
 | terminal completed | — | `already_completed` | `conflict` error |
-| terminal failed | — | `already_failed` | eligible job requeue → `queued`; exhausted or disabled job → `conflict` error |
-| terminal interrupted | — | `already_failed` | `conflict` error |
+| terminal failed | — | `already_failed` | eligible job requeue → `queued`; exhausted job → fresh chain → `queued` (new job id, exhausted row retained, budget never reset); disabled job → `conflict` error |
+| terminal interrupted | — | `already_failed` | fresh chain → `queued` (new job id; terminal row retained, never revived) |
 | unknown job | `not_found` error | `not_found` error | `not_found` error |
 | unknown/disabled root | `not_found` / `conflict` error | — | — |
 
-Notes: `retry_failed_scan_job` returns false for exhausted or disabled chains;
-the closed `ScanStartOutcome` union has no "already_failed", so the safe
-`conflict` error is used. Cancelled chains are never revived. Cancel/commit
+Notes: `retry_failed_scan_job` returns false for exhausted or disabled chains.
+An explicit `retry_scan` on a cancelled, interrupted, or unrevivable failed
+chain starts a fresh chain exactly like `scan_now` (new job id, attempt 0, new
+retry chain id) instead of the safe `conflict`; completed chains still return
+`conflict`, and disabled work still conflicts. Terminal rows are retained and
+never revived or budget-reset. Cancel/commit
 race: SQLite serializes the cancel write against the worker's terminal write,
 so whichever commits first decides the outcome. A first-time cancel of a
 running scan can therefore surface `already_cancelled` (or
@@ -150,7 +153,10 @@ recorded `runId` for reference.
 `retryAvailable` is false for terminal cancelled, interrupted, exhausted, and
 disabled work. The renderer uses the explicit `scan_now` action for those
 states. `scan_now` creates a new job and retry chain for terminal work; it
-never revives the old job or resets its automatic retry budget. The fake
+never revives the old job or resets its automatic retry budget. An explicit
+Retry issued against such a row converges through the same fresh-chain path
+(the client additionally falls back from a raced `conflict` to `scanNow`);
+`retryAvailable` itself is unchanged. The fake
 adapter follows this action contract rather than inventing recovery from a
 job id.
 
@@ -161,7 +167,7 @@ job id.
 | Feature off | `unavailable` |
 | Unknown root | `not_found` |
 | Unknown job | `not_found` |
-| Disabled root enqueue / terminal retry / terminal cancel race | `conflict` |
+| Disabled root enqueue / completed-terminal retry / terminal cancel race | `conflict` |
 | Storage busy | `unavailable` |
 | Malformed/wrong-root cursor or snapshot token | `invalid_cursor` |
 | Replaced committed snapshot | `stale_cursor` |
@@ -256,9 +262,10 @@ the typed unavailable envelope and `{enabled: false}`.
       running and mid-traversal, cancel mid-batches leaves prior snapshots
       untouched.
 - [x] Flagged test gaps closed: counters honesty (restart drops in-memory
-      counters, durable statuses/library survive), retry-exhausted → `conflict`
-      the same terminal recovery contract as the fake, `Busy` → `unavailable`, `invalid_cursor` vs
-      `stale_cursor` mismatch, event/error privacy (no paths/tokens/SQL).
+       counters, durable statuses/library survive), retry-exhausted → fresh
+       chain via `retry_scan` (terminal row retained, budget never reset),
+       the same terminal recovery contract as the fake, `Busy` → `unavailable`, `invalid_cursor` vs
+       `stale_cursor` mismatch, event/error privacy (no paths/tokens/SQL).
 - [ ] Owner accepts the native command/event surface against the client seam
       (`apps/client/src/library/contracts.ts` on the draft PR branch).
 - [ ] Client-adapter flip: the draft PR's `PlatformPort`/`LibraryScanAdapter`
