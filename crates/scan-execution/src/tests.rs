@@ -872,6 +872,65 @@ fn durable_cancellation_committed_before_apply_prevents_publish() {
     );
 }
 
+// P2-08 retry convergence: a trigger that lands after a cancellation request
+// supersedes the stale cancellation instead of being dropped. The attempt
+// ends interrupted and the queued successor converges.
+#[test]
+fn trigger_after_cancellation_request_runs_the_successor() {
+    let mut harness = Harness::new("cancel-then-trigger");
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    assert_eq!(
+        harness
+            .db
+            .request_scan_cancellation(&scan.leased.run.id, harness.clock.now_ms())
+            .expect("durable cancellation"),
+        ScanRunState::Running
+    );
+    // The user (or a watcher) asks for a scan while the cancelled attempt is
+    // still finishing. Storage clears the stale cancellation and records the
+    // follow-up.
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("coalesced follow-up");
+
+    let mut port = FakePort::new(tree(vec![file_entry("a.flp", 101)]));
+    let execution = harness.worker.execute(
+        &mut harness.db,
+        scan,
+        &mut port,
+        &NeverCancelled,
+        &harness.clock,
+    );
+    assert_eq!(execution.status, ScanExecutionStatus::Interrupted);
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+    assert!(harness.committed().is_empty());
+
+    // The successor is due and converges on the next poll.
+    let follow_up = harness
+        .drain(tree(vec![file_entry("a.flp", 101)]))
+        .expect("successor execution");
+    assert_eq!(follow_up.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        follow_up
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        1
+    );
+    assert_eq!(
+        harness.root_jobs().len(),
+        2,
+        "one superseded attempt, one successor"
+    );
+}
+
 // P2-03: the local cooperative cancellation token ends the run cancelled
 // with no publication and no retried work.
 #[test]

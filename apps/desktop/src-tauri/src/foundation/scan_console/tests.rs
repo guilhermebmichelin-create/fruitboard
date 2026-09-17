@@ -1241,7 +1241,7 @@ fn disabled_failed_roots_do_not_offer_or_start_recovery() {
 }
 
 #[test]
-fn terminal_jobs_reject_retry_and_report_already_outcomes() {
+fn completed_chains_reject_retry_and_missing_jobs_are_not_found() {
     let harness = Harness::new("terminal-jobs");
     let (runtime, _) = test_runtime();
 
@@ -1852,7 +1852,7 @@ fn restart_drops_in_memory_counters_but_durable_statuses_survive() {
 }
 
 #[test]
-fn retry_exhausted_reports_conflict_not_requeue() {
+fn retry_after_exhausted_unavailable_starts_a_fresh_chain() {
     let harness = Harness::new("retry-exhausted");
     let (runtime, _) = test_runtime();
 
@@ -1906,37 +1906,90 @@ fn retry_exhausted_reports_conflict_not_requeue() {
     assert_eq!(data[0]["state"], "failed");
     assert_eq!(data[0]["jobId"], job_id);
     assert_eq!(data[0]["retryAvailable"], false);
-    // The closed ScanStartOutcome union has no "already_failed": the native
-    // boundary reports the safe conflict; an explicit Scan now below creates
-    // a new job instead of reviving this exhausted chain.
-    assert_eq!(
-        error_code(handle_retry_scan(
-            &runtime,
-            &harness.service,
-            retry_request(&job_id)
-        )),
-        "conflict"
-    );
 
-    // Exhausted work is not revived by Retry. An explicit Scan now creates a
-    // separate job and retry chain while preserving the exhausted record.
+    // D3 convergence: restoring the root and issuing an explicit Retry
+    // supersedes the exhausted chain with a fresh one instead of returning the
+    // state-change conflict. The exhausted ledger row is retained, never
+    // reset, and the fresh chain converges.
     harness.clock.advance(1);
-    let fresh = ok_data(handle_scan_now(
+    let fresh = ok_data(handle_retry_scan(
         &runtime,
         &harness.service,
-        scan_now_request(&harness.root_id),
+        retry_request(&job_id),
     ));
     let fresh_job_id = fresh["jobId"].as_str().expect("fresh job id");
     assert_ne!(fresh_job_id, job_id);
     assert_eq!(fresh["outcome"], "queued");
-    let database = harness.database.lock().unwrap();
-    let exhausted = database.scan_job(&job_id).expect("exhausted job");
-    let fresh = database.scan_job(fresh_job_id).expect("fresh job");
-    assert_eq!(exhausted.state, ScanJobState::Failed);
-    assert_eq!(exhausted.attempt, exhausted.max_attempts);
-    assert_eq!(fresh.state, ScanJobState::Queued);
-    assert_eq!(fresh.attempt, 0);
-    assert_ne!(exhausted.retry_chain_id, fresh.retry_chain_id);
+    assert!(fresh["runId"].is_null());
+    {
+        let database = harness.database.lock().unwrap();
+        let exhausted = database.scan_job(&job_id).expect("exhausted job");
+        let successor = database.scan_job(fresh_job_id).expect("fresh job");
+        assert_eq!(exhausted.state, ScanJobState::Failed);
+        assert_eq!(exhausted.attempt, exhausted.max_attempts);
+        assert_eq!(successor.state, ScanJobState::Queued);
+        assert_eq!(successor.attempt, 0);
+        assert_ne!(exhausted.retry_chain_id, successor.retry_chain_id);
+    }
+    harness.tick(tree(vec![file_entry("a.flp", 101)]));
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "completed");
+    assert_eq!(data[0]["jobId"], fresh_job_id);
+    assert_eq!(data[0]["counters"]["filesObserved"], 1);
+}
+
+#[test]
+fn retry_after_cancelled_work_starts_a_fresh_chain() {
+    let harness = Harness::new("retry-after-cancel");
+    let (runtime, _) = test_runtime();
+
+    let first = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let cancelled_job_id = first["jobId"].as_str().expect("job id").to_owned();
+    ok_data(handle_cancel_scan(
+        &runtime,
+        &harness.service,
+        cancel_request(&cancelled_job_id),
+    ));
+
+    // D2 convergence: the renderer prefers `Scan now` after a cancellation,
+    // but an explicit Retry that arrives anyway (stale snapshot or direct
+    // API) starts a fresh chain instead of the old state-change conflict.
+    harness.clock.advance(1);
+    let retried = ok_data(handle_retry_scan(
+        &runtime,
+        &harness.service,
+        retry_request(&cancelled_job_id),
+    ));
+    let fresh_job_id = retried["jobId"].as_str().expect("fresh job id");
+    assert_ne!(fresh_job_id, cancelled_job_id);
+    assert_eq!(retried["outcome"], "queued");
+    assert!(retried["runId"].is_null());
+    {
+        let database = harness.database.lock().unwrap();
+        let cancelled = database.scan_job(&cancelled_job_id).expect("cancelled job");
+        let fresh = database.scan_job(fresh_job_id).expect("fresh job");
+        assert_eq!(cancelled.state, ScanJobState::Cancelled);
+        assert_eq!(fresh.state, ScanJobState::Queued);
+        assert_eq!(fresh.attempt, 0);
+        assert_ne!(cancelled.retry_chain_id, fresh.retry_chain_id);
+    }
+
+    harness.tick(tree(vec![file_entry("a.flp", 101)]));
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "completed");
+    assert_eq!(data[0]["jobId"], fresh_job_id);
 }
 
 #[test]

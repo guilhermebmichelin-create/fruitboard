@@ -299,14 +299,28 @@ impl ScanWorker {
 
     /// Queue a manual scan for one root through storage's dedup API. A queued
     /// or running root already owns the active slot; running work records one
-    /// coalesced follow-up request.
+    /// coalesced follow-up request that supersedes a pending cancellation.
     pub fn request_manual_scan(
         &self,
         db: &mut Database,
         root_id: &str,
         clock: &dyn ScanClock,
     ) -> Result<EnqueueResult, StorageError> {
-        db.enqueue_scan(root_id, ScanKind::Manual, clock.now_ms())
+        self.request_scan(db, root_id, ScanKind::Manual, clock)
+    }
+
+    /// Queue a scan of `kind` for one root through storage's dedup API. The
+    /// console's explicit Retry uses this to start a fresh chain when the
+    /// target chain is terminal (cancelled or budget-exhausted) instead of
+    /// dead-ending on a conflict.
+    pub fn request_scan(
+        &self,
+        db: &mut Database,
+        root_id: &str,
+        kind: ScanKind,
+        clock: &dyn ScanClock,
+    ) -> Result<EnqueueResult, StorageError> {
+        db.enqueue_scan(root_id, kind, clock.now_ms())
     }
 
     /// Lease the oldest due job and open its staging session. Returns `None`

@@ -40,7 +40,9 @@ use fruitboard_storage::{
     StorageError,
 };
 #[cfg(feature = "scan-console")]
-use fruitboard_storage::{LibraryQuery, MAX_LIBRARY_PAGE_SIZE, ScanJobState, ScanRootPublication};
+use fruitboard_storage::{
+    LibraryQuery, MAX_LIBRARY_PAGE_SIZE, ScanJobState, ScanKind, ScanRootPublication,
+};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 #[cfg(feature = "scan-console")]
@@ -422,13 +424,21 @@ impl ScanConsoleService {
     }
 
     fn scan_now(&self, root_id: String) -> Result<ScanStartResult, AppError> {
+        self.enqueue_scan(&root_id, ScanKind::Manual)
+    }
+
+    /// Queue `kind` for `root_id` and report the durable result. Shared by the
+    /// explicit Scan now command and the Retry fresh-chain fallback so both
+    /// converge identically (the enqueue dedups onto any active slot and wakes
+    /// the host when new work is queued).
+    fn enqueue_scan(&self, root_id: &str, kind: ScanKind) -> Result<ScanStartResult, AppError> {
         let host = self.host()?;
         let worker = host.clone_worker();
         let mut database = self.database.lock().map_err(|_| storage_failed())?;
         let result = worker
-            .request_manual_scan(&mut database, &root_id, self.clock.as_ref())
+            .request_scan(&mut database, root_id, kind, self.clock.as_ref())
             .map_err(map_enqueue_storage_error)?;
-        let job = latest_job_for_root(&database, &root_id).map_err(map_enqueue_storage_error)?;
+        let job = latest_job_for_root(&database, root_id).map_err(map_enqueue_storage_error)?;
         let run_id = running_run_id_for_job(&database, &job.id);
         let (outcome, state) = if !result.coalesced && job.state == ScanJobState::Queued {
             (ScanStartOutcome::Queued, Some(ScanExecutionState::Queued))
@@ -443,11 +453,11 @@ impl ScanConsoleService {
             }
         };
         if let Some(state) = state {
-            host.emit_transition(&root_id, state);
+            host.emit_transition(root_id, state);
             host.wake();
         }
         Ok(ScanStartResult {
-            root_id,
+            root_id: root_id.to_owned(),
             job_id: job.id,
             run_id,
             outcome,
@@ -511,8 +521,10 @@ impl ScanConsoleService {
 
     fn retry_scan(&self, job_id: String) -> Result<ScanStartResult, AppError> {
         let host = self.host()?;
-        let mut database = self.database.lock().map_err(|_| storage_failed())?;
-        let job = database.scan_job(&job_id).map_err(map_scan_storage_error)?;
+        let job = {
+            let database = self.database.lock().map_err(|_| storage_failed())?;
+            database.scan_job(&job_id).map_err(map_scan_storage_error)?
+        };
         match job.state {
             ScanJobState::Queued => Ok(ScanStartResult {
                 root_id: job.scan_root_id,
@@ -520,38 +532,53 @@ impl ScanConsoleService {
                 run_id: None,
                 outcome: ScanStartOutcome::AlreadyQueued,
             }),
-            ScanJobState::Running => Ok(ScanStartResult {
-                root_id: job.scan_root_id,
-                run_id: running_run_id_for_job(&database, &job_id),
-                job_id,
-                outcome: ScanStartOutcome::AlreadyRunning,
-            }),
-            ScanJobState::Failed => {
-                let requeued = database
-                    .retry_failed_scan_job(&job_id, self.clock.as_ref().now_ms())
-                    .map_err(map_scan_storage_error)?;
-                if !requeued {
-                    // The persisted retry budget is exhausted; the chain is
-                    // never revived. The closed ScanStartOutcome union has no
-                    // "already_failed", so this surfaces as the safe conflict.
-                    return Err(scan_job_conflict());
-                }
-                let root_id = job.scan_root_id;
-                host.emit_transition(&root_id, ScanExecutionState::Queued);
-                host.wake();
+            ScanJobState::Running => {
+                let run_id = {
+                    let database = self.database.lock().map_err(|_| storage_failed())?;
+                    running_run_id_for_job(&database, &job_id)
+                };
                 Ok(ScanStartResult {
-                    root_id,
+                    root_id: job.scan_root_id,
+                    run_id,
                     job_id,
-                    run_id: None,
-                    outcome: ScanStartOutcome::Queued,
+                    outcome: ScanStartOutcome::AlreadyRunning,
                 })
             }
-            // Cancelled chains are never implicitly or explicitly revived, and
-            // completed/interrupted work is terminal. The closed union has no
-            // matching outcome; surface the safe conflict.
-            ScanJobState::Cancelled | ScanJobState::Interrupted | ScanJobState::Completed => {
-                Err(scan_job_conflict())
+            ScanJobState::Failed => {
+                let requeued = {
+                    let mut database = self.database.lock().map_err(|_| storage_failed())?;
+                    database
+                        .retry_failed_scan_job(&job_id, self.clock.as_ref().now_ms())
+                        .map_err(map_scan_storage_error)?
+                };
+                if requeued {
+                    let root_id = job.scan_root_id;
+                    host.emit_transition(&root_id, ScanExecutionState::Queued);
+                    host.wake();
+                    return Ok(ScanStartResult {
+                        root_id,
+                        job_id,
+                        run_id: None,
+                        outcome: ScanStartOutcome::Queued,
+                    });
+                }
+                // The specific failed chain cannot be revived as-is: its
+                // persisted budget is exhausted or a newer attempt already
+                // owns the active slot. Start a fresh chain exactly like an
+                // explicit scan so Retry converges instead of dead-ending on
+                // the safe conflict; the failed row is retained, never reset.
+                self.enqueue_scan(&job.scan_root_id, ScanKind::Manual)
             }
+            // Cancelled and interrupted chains are never revived. An explicit
+            // Retry supersedes them with fresh work instead of returning the
+            // state-change conflict, because the user's action is a new scan
+            // request, not a request to roll the durable ledger back.
+            ScanJobState::Cancelled | ScanJobState::Interrupted => {
+                self.enqueue_scan(&job.scan_root_id, ScanKind::Manual)
+            }
+            // Completed work has nothing to retry; the renderer offers the
+            // explicit `Scan now` action for it.
+            ScanJobState::Completed => Err(scan_job_conflict()),
         }
     }
 

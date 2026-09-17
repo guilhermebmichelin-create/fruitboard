@@ -496,10 +496,29 @@ function ConnectedLibraryPage({
     });
     try {
       if (retry) {
-        if (status.jobId === null) {
-          throw new LibraryAdapterError("conflict");
+        let revived = false;
+        if (status.jobId !== null) {
+          try {
+            await adapter.retryScan(status.jobId);
+            revived = true;
+          } catch (retryError) {
+            // A status snapshot can race a terminal transition (the chain was
+            // cancelled or its retry budget exhausted after the control
+            // rendered). The durable ledger never revives a terminal chain,
+            // so a conflict falls back to a fresh explicit scan — the same
+            // user intent — instead of dead-ending on "state changed". Other
+            // typed failures still surface their own safe copy.
+            if (
+              !(retryError instanceof LibraryAdapterError) ||
+              retryError.code !== "conflict"
+            ) {
+              throw retryError;
+            }
+          }
         }
-        await adapter.retryScan(status.jobId);
+        if (!revived) {
+          await adapter.scanNow(rootId);
+        }
       } else {
         await adapter.scanNow(rootId);
       }
