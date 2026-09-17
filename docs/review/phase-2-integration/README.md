@@ -311,6 +311,17 @@ evidence gap, and the decision still reserved to the owner. The installed
 records from #92, #106, #110, and #111 retain their own tested-source provenance;
 later merge does not turn them into current-head runs.
 
+This section is the canonical P2-01 through P2-12 ledger for the Phase 2
+evidence and gap state; the owner decision remains the
+[2026-09-14 acceptance record](acceptance-2026-09-14.md). Dated duplicate
+copies - the 2026-09-13 acceptance-gap ledger in
+[PHASE_2_EXECUTION_PLAN.md](../../PHASE_2_EXECUTION_PLAN.md), the acceptance
+packet's [current](acceptance-packet-2026-09-12.md#current-p2-01-through-p2-12-gap-ledger---2026-09-13)
+and [historical](acceptance-packet-2026-09-12.md#historical-p2-01-through-p2-12-ledger---preserved)
+ledgers, and the acceptance-prep and reconciliation matrices - are provenance
+copies for their recorded dates and do not override this table. Future ledger
+updates are recorded here.
+
 <!-- markdownlint-disable MD060 -->
 
 | ID              | Merged implementation                                                                                    | Automated tests/evidence                                                                                                    | Installed evidence                                                                                                                                                                                                            | Remaining defect/evidence gap                                                                                                                                                                                                                                                                                                                | Owner decision                                                                                                                                                             |
