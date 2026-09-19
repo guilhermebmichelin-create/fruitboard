@@ -300,7 +300,7 @@ describe("native cancel/retry seam", () => {
 });
 
 describe("native status list seam", () => {
-  it("invokes only the typed list command and keeps native order", async () => {
+  it("accepts a queued native status with a null runId and keeps native order", async () => {
     const second = { ...baseStatus, root: { ...scanRoot, id: "root-2" } };
     const { transport, invoke } = transportWith(() =>
       okEnvelope([{ ...baseStatus }, second]),
@@ -311,6 +311,12 @@ describe("native status list seam", () => {
       "root-1",
       "root-2",
     ]);
+    expect(statuses[0]).toMatchObject({
+      state: "queued",
+      jobId: "job-1",
+      runId: null,
+      retryAvailable: false,
+    });
     expect(invoke).toHaveBeenCalledExactlyOnceWith(LIST_SCAN_STATUSES_COMMAND, {
       request: { schemaVersion: 1 },
     });
@@ -375,7 +381,7 @@ describe("native status list seam", () => {
     }
   });
 
-  it("rejects queued statuses that carry a runId or an error code", async () => {
+  it("rejects the queued status shape when it carries a historical runId", async () => {
     for (const patch of [
       { runId: "run-1" },
       { errorCode: "internal" },

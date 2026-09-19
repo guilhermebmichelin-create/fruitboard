@@ -718,13 +718,28 @@ fn build_scan_status(
         },
     };
     let run = job.and_then(|job| {
-        runs.iter()
-            .filter(|run| run.scan_job_id == job.id)
-            .max_by(|left, right| {
+        let runs_for_job = runs.iter().filter(|run| run.scan_job_id == job.id);
+        match state {
+            // A queued job has no current attempt. Its historical runs stay
+            // durable, but exposing one here would make the native packet
+            // contradict the client contract.
+            ScanExecutionState::Queued | ScanExecutionState::Idle => None,
+            // A running status belongs to the attempt that currently owns the
+            // lease, not to an older terminal/interrupted attempt.
+            ScanExecutionState::Running => runs_for_job
+                .filter(|run| run.state == fruitboard_storage::ScanRunState::Running)
+                .max_by(|left, right| {
+                    left.started_at_ms
+                        .cmp(&right.started_at_ms)
+                        .then_with(|| left.id.cmp(&right.id))
+                }),
+            // Terminal status keeps the identity of its latest durable run.
+            _ => runs_for_job.max_by(|left, right| {
                 left.started_at_ms
                     .cmp(&right.started_at_ms)
                     .then_with(|| left.id.cmp(&right.id))
-            })
+            }),
+        }
     });
     let mut counters = host.counters_for(&root.id);
     if state == ScanExecutionState::Running
