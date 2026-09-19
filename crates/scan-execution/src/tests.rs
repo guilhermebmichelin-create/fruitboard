@@ -1258,6 +1258,234 @@ fn stale_worker_cannot_commit_after_lease_replacement() {
     );
 }
 
+#[test]
+fn progressing_no_flp_scan_renews_before_the_lease_expires() {
+    let config = WorkerConfig {
+        enumeration_limits: EnumerationLimits {
+            progress_interval: std::time::Duration::ZERO,
+            ..EnumerationLimits::default()
+        },
+        ..WorkerConfig::default()
+    };
+    let mut harness = Harness::with_config("heartbeat-no-flp", config, r"C:\synthetic-root");
+    let clock = harness.clock.clone();
+    let hook: Hook = Rc::new(RefCell::new(move |_path: &str| clock.advance(6_000)));
+    let mut port = FakePort::with_hook(
+        tree(
+            (0..6)
+                .map(|index| file_entry(&format!("other-{index}.txt"), 20_000 + index))
+                .collect(),
+        ),
+        hook,
+    );
+
+    let execution = harness.scan_with_port(&mut port);
+
+    assert_eq!(execution.status, ScanExecutionStatus::Published);
+    assert!(execution.authoritative);
+    assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Complete));
+    assert_eq!(
+        execution
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        0
+    );
+    assert!(harness.committed().is_empty());
+}
+
+fn heartbeat_test_config(max_batch_records: usize) -> WorkerConfig {
+    WorkerConfig {
+        enumeration_limits: EnumerationLimits {
+            max_batch_records,
+            progress_interval: std::time::Duration::ZERO,
+            ..EnumerationLimits::default()
+        },
+        ..WorkerConfig::default()
+    }
+}
+
+#[test]
+fn progressing_no_flp_scan_renews_for_shared_worker() {
+    let mut harness = Harness::with_config(
+        "heartbeat-no-flp-shared",
+        heartbeat_test_config(512),
+        r"C:\synthetic-root",
+    );
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let Harness {
+        directory,
+        db,
+        clock,
+        worker,
+        ..
+    } = harness;
+    let clock_for_hook = clock.clone();
+    let hook: Hook = Rc::new(RefCell::new(move |_path: &str| {
+        clock_for_hook.advance(6_000)
+    }));
+    let shared = std::sync::Mutex::new(db);
+    let mut port = FakePort::with_hook(
+        tree(
+            (0..6)
+                .map(|index| file_entry(&format!("other-{index}.txt"), 30_000 + index))
+                .collect(),
+        ),
+        hook,
+    );
+
+    let execution = worker.execute_shared(&shared, scan, &mut port, &NeverCancelled, &clock);
+
+    assert_eq!(execution.status, ScanExecutionStatus::Published);
+    assert!(execution.authoritative);
+    assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Complete));
+    assert_eq!(
+        execution
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        0
+    );
+    let guard = shared.lock().expect("shared database");
+    assert!(committed_rows(&guard, &execution.scan_root_id).is_empty());
+    assert_eq!(
+        guard.scan_job(&execution.job_id).expect("job").state,
+        ScanJobState::Completed
+    );
+    drop(guard);
+    drop(shared);
+    drop(directory);
+}
+
+#[test]
+fn progressing_sparse_batches_renew_between_batches() {
+    let mut harness = Harness::with_config(
+        "heartbeat-sparse-batches",
+        heartbeat_test_config(2),
+        r"C:\synthetic-root",
+    );
+    let clock = harness.clock.clone();
+    let hook: Hook = Rc::new(RefCell::new(move |_path: &str| clock.advance(6_000)));
+    let mut port = FakePort::with_hook(tree(many_files(5)), hook);
+
+    let execution = harness.scan_with_port(&mut port);
+
+    assert_eq!(execution.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        execution
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        5
+    );
+    assert_eq!(
+        harness.db.scan_job(&execution.job_id).expect("job").state,
+        ScanJobState::Completed
+    );
+    assert_eq!(
+        harness.db.scan_job(&execution.job_id).expect("job").attempt,
+        1,
+        "a healthy slow traversal does not enter retry"
+    );
+}
+
+#[test]
+fn progressing_sparse_batches_are_equivalent_for_shared_worker() {
+    let mut harness = Harness::with_config(
+        "heartbeat-sparse-batches-shared",
+        heartbeat_test_config(2),
+        r"C:\synthetic-root",
+    );
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let Harness {
+        directory,
+        db,
+        clock,
+        worker,
+        ..
+    } = harness;
+    let clock_for_hook = clock.clone();
+    let hook: Hook = Rc::new(RefCell::new(move |_path: &str| {
+        clock_for_hook.advance(6_000)
+    }));
+    let shared = std::sync::Mutex::new(db);
+    let mut port = FakePort::with_hook(tree(many_files(5)), hook);
+
+    let execution = worker.execute_shared(&shared, scan, &mut port, &NeverCancelled, &clock);
+
+    assert_eq!(execution.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        execution
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        5
+    );
+    let guard = shared.lock().expect("shared database");
+    assert_eq!(
+        guard.scan_job(&execution.job_id).expect("job").attempt,
+        1,
+        "the shared path has the same retry behavior"
+    );
+    drop(guard);
+    drop(shared);
+    drop(directory);
+}
+
+#[test]
+fn expired_progress_heartbeat_preserves_rows_without_retrying_stale_work() {
+    let mut harness = Harness::with_config(
+        "heartbeat-expired",
+        heartbeat_test_config(2),
+        r"C:\synthetic-root",
+    );
+    let baseline = tree(vec![file_entry("kept.flp", 101)]);
+    assert_eq!(
+        harness.scan(baseline.clone()).status,
+        ScanExecutionStatus::Published
+    );
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+
+    let clock = harness.clock.clone();
+    let fired = Rc::new(Cell::new(false));
+    let hook: Hook = Rc::new(RefCell::new(move |_path: &str| {
+        if !fired.replace(true) {
+            clock.advance(31_000);
+        }
+    }));
+    let mut port = FakePort::with_hook(
+        tree(vec![
+            file_entry("replacement.flp", 202),
+            file_entry("other.flp", 303),
+        ]),
+        hook,
+    );
+
+    let execution = harness.scan_with_port(&mut port);
+
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+    assert_eq!(execution.status, ScanExecutionStatus::Fenced);
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+    assert_eq!(harness.run(&execution.run_id).state, ScanRunState::Running);
+    assert_eq!(
+        harness.db.scan_job(&execution.job_id).expect("job").state,
+        ScanJobState::Running
+    );
+}
+
 // P2-04/P2-06: startup recovery fences prior-session work (interrupted run,
 // discarded staging, requeued chain) without enqueueing a duplicate recovery
 // scan while queued work exists.
