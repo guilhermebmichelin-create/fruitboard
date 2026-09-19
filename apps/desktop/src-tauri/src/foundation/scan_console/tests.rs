@@ -324,8 +324,8 @@ impl Harness {
             .expect("host installed")
     }
 
-    fn claim_due(&self) {
-        self.host().claim_due(&self.database);
+    fn claim_due(&self) -> bool {
+        self.host().claim_due(&self.database)
     }
 
     fn execute_pending(&self, tree: Entry) {
@@ -422,6 +422,16 @@ fn scan_now_runs_to_completion_and_statuses_report_contract_fields() {
     assert_eq!(data["rootId"], harness.root_id);
     let job_id = data["jobId"].as_str().expect("job id").to_owned();
     assert!(data["runId"].is_null());
+
+    let queued_status = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(queued_status[0]["state"], "queued");
+    assert_eq!(queued_status[0]["jobId"], job_id);
+    assert!(queued_status[0]["runId"].is_null());
+    assert_eq!(queued_status[0]["retryAvailable"], false);
 
     harness.tick(tree(vec![
         file_entry("a.flp", 101),
@@ -682,6 +692,16 @@ fn failed_runs_retry_manually_and_through_the_persisted_backoff() {
     assert_eq!(data["jobId"], job_id);
     assert!(data["runId"].is_null());
 
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "queued");
+    assert_eq!(data[0]["jobId"], job_id);
+    assert!(data[0]["runId"].is_null());
+    assert_eq!(data[0]["retryAvailable"], false);
+
     harness.tick(tree(vec![file_entry("a.flp", 101)]));
     let data = ok_data(handle_list_scan_statuses(
         &runtime,
@@ -710,6 +730,184 @@ fn failed_runs_retry_manually_and_through_the_persisted_backoff() {
     ));
     assert_eq!(data[0]["state"], "completed");
     assert_eq!(data[0]["jobId"], job_id);
+}
+
+#[test]
+fn queued_retry_status_stays_valid_while_another_root_is_running() {
+    let harness = Harness::new("queued-retry-status");
+    let (runtime, _) = test_runtime();
+
+    let failed = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let failed_job_id = failed["jobId"].as_str().expect("failed job id").to_owned();
+    harness.tick_port(FakePort::offline(tree(vec![file_entry("a.flp", 101)])));
+    let failed_statuses = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    let failed_status = failed_statuses
+        .as_array()
+        .expect("status list")
+        .iter()
+        .find(|status| status["root"]["id"] == harness.root_id)
+        .expect("failed root status");
+    let failed_run_id = failed_status["runId"]
+        .as_str()
+        .expect("failed run id")
+        .to_owned();
+    assert_eq!(failed_status["state"], "failed");
+    assert_eq!(failed_status["retryAvailable"], true);
+
+    // Claim a different root first and park its real worker in filesystem I/O.
+    // The retry below must remain queued, and the status command must still
+    // serialize a client-readable list for both roots.
+    let other_root = harness.add_root("Other", r"C:\synthetic-other");
+    let other = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&other_root),
+    ));
+    let other_job_id = other["jobId"].as_str().expect("other job id").to_owned();
+    assert!(
+        harness.claim_due(),
+        "other root should claim the worker slot"
+    );
+    let running_statuses = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    let running_status = running_statuses
+        .as_array()
+        .expect("status list")
+        .iter()
+        .find(|status| status["root"]["id"] == other_root)
+        .expect("running root status");
+    let running_run_id = running_status["runId"]
+        .as_str()
+        .expect("running run id")
+        .to_owned();
+    assert_eq!(running_status["state"], "running");
+    assert_eq!(running_status["jobId"], other_job_id);
+
+    let (gate, entered_rx, release_tx) = blocking_gate();
+    let host = harness.host();
+    let database = harness.database.clone();
+    let handle = std::thread::spawn(move || {
+        let mut port = BlockingPort::new(tree(vec![file_entry("p001.flp", 201)]), gate);
+        host.execute_pending(&database, &mut port)
+    });
+    entered_rx.recv().expect("other root worker is held");
+
+    let retried = ok_data(handle_retry_scan(
+        &runtime,
+        &harness.service,
+        retry_request(&failed_job_id),
+    ));
+    assert_eq!(retried["outcome"], "queued");
+    assert_eq!(retried["jobId"], failed_job_id);
+    assert!(retried["runId"].is_null());
+
+    let queued_statuses = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    let statuses = queued_statuses.as_array().expect("multi-root status list");
+    let queued_status = statuses
+        .iter()
+        .find(|status| status["root"]["id"] == harness.root_id)
+        .expect("queued retry status");
+    let held_status = statuses
+        .iter()
+        .find(|status| status["root"]["id"] == other_root)
+        .expect("held root status");
+    assert_eq!(queued_status["state"], "queued");
+    assert_eq!(queued_status["jobId"], failed_job_id);
+    assert!(queued_status["runId"].is_null());
+    assert_eq!(queued_status["retryAvailable"], false);
+    assert_eq!(held_status["state"], "running");
+    assert_eq!(held_status["runId"], running_run_id);
+
+    release_tx.send(()).expect("release other root worker");
+    assert!(handle.join().expect("join other root worker"));
+    let completed_other = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    let completed_other_status = completed_other
+        .as_array()
+        .expect("status list")
+        .iter()
+        .find(|status| status["root"]["id"] == other_root)
+        .expect("completed other root status");
+    assert_eq!(completed_other_status["state"], "completed");
+    assert_eq!(completed_other_status["runId"], running_run_id);
+
+    assert!(harness.claim_due(), "the queued retry should now lease");
+    let leased_retry = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    let leased_retry_status = leased_retry
+        .as_array()
+        .expect("status list")
+        .iter()
+        .find(|status| status["root"]["id"] == harness.root_id)
+        .expect("leased retry status");
+    let new_run_id = leased_retry_status["runId"]
+        .as_str()
+        .expect("new retry run id")
+        .to_owned();
+    assert_eq!(leased_retry_status["state"], "running");
+    assert_eq!(leased_retry_status["jobId"], failed_job_id);
+    assert_ne!(new_run_id, failed_run_id);
+
+    harness.execute_pending(tree(vec![file_entry("a.flp", 101)]));
+    let completed_retry = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    let completed_retry_status = completed_retry
+        .as_array()
+        .expect("status list")
+        .iter()
+        .find(|status| status["root"]["id"] == harness.root_id)
+        .expect("completed retry status");
+    assert_eq!(completed_retry_status["state"], "completed");
+    assert_eq!(completed_retry_status["runId"], new_run_id);
+    assert_eq!(completed_retry_status["retryAvailable"], false);
+
+    let database = harness.database.lock().unwrap();
+    let retried_job = database.scan_job(&failed_job_id).expect("retried job");
+    assert_eq!(retried_job.state, ScanJobState::Completed);
+    assert_eq!(
+        retried_job.attempt, 2,
+        "manual retry keeps the chain budget"
+    );
+    let runs = database
+        .list_scan_runs()
+        .expect("durable runs")
+        .into_iter()
+        .filter(|run| run.scan_job_id == failed_job_id)
+        .collect::<Vec<_>>();
+    assert_eq!(runs.len(), 2);
+    assert!(runs.iter().any(|run| run.id == failed_run_id));
+    assert!(runs.iter().any(|run| run.id == new_run_id));
+    assert_eq!(
+        database
+            .scan_run(&failed_run_id)
+            .expect("historical failed run")
+            .state,
+        fruitboard_storage::ScanRunState::Failed
+    );
 }
 
 #[test]
@@ -830,6 +1028,8 @@ fn restart_marks_interrupted_work_and_resumes_it_through_recovery() {
     ));
     assert_eq!(data[0]["state"], "queued");
     assert_eq!(data[0]["jobId"], job_id);
+    assert!(data[0]["runId"].is_null());
+    assert_eq!(data[0]["retryAvailable"], false);
 
     harness.clock.advance(1_300);
     harness.tick(tree(vec![file_entry("a.flp", 101)]));
