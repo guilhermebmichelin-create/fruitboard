@@ -138,7 +138,7 @@ fn creates_latest_and_reopens_without_reseeding_settings() {
     let directory = TestDirectory::new();
     {
         let mut database = Database::open(directory.path()).unwrap();
-        assert_eq!(database.schema_version().unwrap(), 5);
+        assert_eq!(database.schema_version().unwrap(), MIGRATIONS.len());
         assert_eq!(database.startup_view().unwrap(), StartupView::Home);
         database.set_startup_view(StartupView::Library).unwrap();
     }
@@ -230,7 +230,7 @@ fn future_upgrade_creates_a_restorable_pre_migration_backup() {
     let database = Database::open_with_migrations(directory.path(), &migrations).unwrap();
     assert_eq!(
         migrations::version(&database.connection, &migrations).unwrap(),
-        6
+        migrations.len()
     );
     let backups: Vec<_> = fs::read_dir(directory.path().join("storage/backups"))
         .unwrap()
@@ -239,7 +239,7 @@ fn future_upgrade_creates_a_restorable_pre_migration_backup() {
     assert_eq!(backups.len(), 1);
     let recovered_directory = TestDirectory::new();
     let recovered = Database::recover_to(&backups[0], recovered_directory.path()).unwrap();
-    assert_eq!(recovered.schema_version().unwrap(), 5);
+    assert_eq!(recovered.schema_version().unwrap(), MIGRATIONS.len());
     assert_eq!(recovered.startup_view().unwrap(), StartupView::Preferences);
 }
 
@@ -265,7 +265,7 @@ fn failed_migration_rolls_back_schema_data_and_ledger() {
     ));
     assert_eq!(fs::read(directory.database()).unwrap(), before);
     let database = Database::open(directory.path()).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 5);
+    assert_eq!(database.schema_version().unwrap(), MIGRATIONS.len());
     assert_eq!(database.startup_view().unwrap(), StartupView::Library);
     assert_eq!(database.list_scan_roots().unwrap().len(), 1);
     let count: i64 = database
@@ -868,7 +868,7 @@ fn killed_migration_recovers_the_original_committed_database() {
             .exists()
     );
     let recovered = Database::open(directory.path()).unwrap();
-    assert_eq!(recovered.schema_version().unwrap(), 5);
+    assert_eq!(recovered.schema_version().unwrap(), MIGRATIONS.len());
     assert_eq!(recovered.startup_view().unwrap(), StartupView::Library);
     migrations::validate_integrity(&recovered.connection).unwrap();
     assert!(
@@ -1006,7 +1006,7 @@ fn upgrade_from_v1_preserves_preferences_and_starts_empty_roots() {
         fixture.set_startup_view(StartupView::Board).unwrap();
     }
     let database = Database::open(directory.path()).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 5);
+    assert_eq!(database.schema_version().unwrap(), MIGRATIONS.len());
     assert_eq!(database.startup_view().unwrap(), StartupView::Board);
     assert!(database.list_scan_roots().unwrap().is_empty());
 }
@@ -2898,7 +2898,7 @@ fn migration_to_execution_schema_preserves_roots_preferences_and_defaults() {
             .unwrap();
     }
     let database = Database::open(directory.path()).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 5);
+    assert_eq!(database.schema_version().unwrap(), MIGRATIONS.len());
     assert_eq!(database.startup_view().unwrap(), StartupView::Board);
     let root = &database.list_scan_roots().unwrap()[0];
     let execution = database.scan_root_execution(&root.id).unwrap();
@@ -5133,7 +5133,7 @@ fn migration_quarantines_legacy_keys_and_first_v1_scan_retains_projects() {
     }
 
     let mut database = Database::open(directory.path()).unwrap();
-    assert_eq!(database.schema_version().unwrap(), 5);
+    assert_eq!(database.schema_version().unwrap(), MIGRATIONS.len());
     let migrated = database.list_published_locations(&root_id).unwrap();
     assert_eq!(migrated.len(), 3);
 
@@ -5764,4 +5764,372 @@ fn migration_005_keeps_only_canonical_u128_file_ids_at_the_39_digit_boundary() {
             .unwrap();
         assert_eq!(dropped.identity, None, "{legacy_id} must be quarantined");
     }
+}
+
+#[test]
+fn targeted_retry_and_status_reads_bound_history_without_dropping_rows() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let active_root = database
+        .add_scan_root("Active", "C:\\Synthetic\\Active")
+        .unwrap();
+    let terminal_root = database
+        .add_scan_root("Terminal", "C:\\Synthetic\\Terminal")
+        .unwrap();
+    let retry_roots = (0..3)
+        .map(|index| {
+            database
+                .add_scan_root(
+                    &format!("Retry {index}"),
+                    &format!("C:\\Synthetic\\Retry{index}"),
+                )
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    let insert_job = |database: &Database,
+                      id: &str,
+                      root_id: &str,
+                      state: &str,
+                      created_at_ms: i64,
+                      updated_at_ms: i64| {
+        database
+            .connection
+            .execute(
+                "INSERT INTO scan_job
+                 (id, scan_root_id, kind, state, retry_chain_id, attempt,
+                  max_attempts, not_before_ms, priority, follow_up_requested,
+                  cancellation_requested, created_at_ms, updated_at_ms,
+                  last_error_code)
+                 VALUES (?1, ?2, 'manual', ?3, ?4, ?5, 4, ?6, 0, 0, 0,
+                         ?7, ?8, ?9)",
+                rusqlite::params![
+                    id,
+                    root_id,
+                    state,
+                    format!("chain-{id}"),
+                    if state == "queued" { 0 } else { 1 },
+                    updated_at_ms,
+                    created_at_ms,
+                    updated_at_ms,
+                    if state == "failed" {
+                        Some("worker_failed")
+                    } else {
+                        None
+                    },
+                ],
+            )
+            .unwrap();
+    };
+
+    // A large terminal history is retained, but an older active retry must
+    // still be the selected status job. Queued status deliberately has no run
+    // identity even when older runs exist for the same root.
+    insert_job(&database, "active-retry", &active_root.id, "queued", 10, 10);
+    for index in 0..128 {
+        let job_id = format!("active-terminal-{index:03}");
+        insert_job(
+            &database,
+            &job_id,
+            &active_root.id,
+            "completed",
+            100 + index,
+            100 + index,
+        );
+    }
+    let active_status = database.scan_root_status(&active_root.id).unwrap().unwrap();
+    assert_eq!(active_status.job.id, "active-retry");
+    assert_eq!(active_status.job.state, ScanJobState::Queued);
+    assert_eq!(active_status.run_id, None);
+
+    insert_job(
+        &database,
+        "terminal-status",
+        &terminal_root.id,
+        "completed",
+        10,
+        10,
+    );
+    for (run_id, started_at_ms, attempt) in [
+        ("terminal-run-old", 20_i64, 1_i64),
+        ("terminal-run-new", 30, 2),
+    ] {
+        database
+            .connection
+            .execute(
+                "INSERT INTO scan_run
+                 (id, scan_job_id, scan_root_id, generation,
+                  configuration_revision, retry_chain_id, attempt,
+                  session_id, lease_token, state, cancellation_requested,
+                  started_at_ms, finished_at_ms, lease_expires_at_ms,
+                  outcome, error_code)
+                 VALUES (?1, 'terminal-status', ?2, 0, 0, 'chain-terminal',
+                         ?4, 'status-session', ?3, 'completed', 0, ?5, ?5,
+                         ?5, 'completed', NULL)",
+                rusqlite::params![
+                    run_id,
+                    terminal_root.id,
+                    format!("token-{run_id}"),
+                    attempt,
+                    started_at_ms,
+                ],
+            )
+            .unwrap();
+    }
+    let terminal_status = database
+        .scan_root_status(&terminal_root.id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(terminal_status.job.id, "terminal-status");
+    assert_eq!(terminal_status.run_id.as_deref(), Some("terminal-run-new"));
+    assert_eq!(
+        database
+            .latest_scan_run_for_job("terminal-status")
+            .unwrap()
+            .unwrap()
+            .id,
+        "terminal-run-new"
+    );
+
+    crate::execution::reset_test_read_counts();
+    let _ = database.list_scan_jobs().unwrap();
+    let _ = database.list_scan_runs().unwrap();
+    let legacy_rows = crate::execution::test_read_counts();
+    crate::execution::reset_test_read_counts();
+    let _ = database.scan_root_status(&active_root.id).unwrap();
+    let _ = database.scan_root_status(&terminal_root.id).unwrap();
+    let _ = database.latest_scan_run_for_job("terminal-status").unwrap();
+    let targeted_rows = crate::execution::test_read_counts();
+    println!(
+        "history-independent read evidence: legacy job/run objects = {:?}; targeted job/run objects = {:?}",
+        legacy_rows, targeted_rows
+    );
+    assert_eq!(legacy_rows, (130, 2));
+    assert_eq!(targeted_rows, (2, 1));
+
+    // Retry candidates are returned as one bounded page, while the keyset
+    // reaches a later root on the next page instead of materializing all
+    // terminal history.
+    for (index, root) in retry_roots.iter().enumerate() {
+        insert_job(
+            &database,
+            &format!("retry-candidate-{index}"),
+            &root.id,
+            "failed",
+            1 + index as i64,
+            0,
+        );
+    }
+    let first_page = database.retry_candidate_page(10_000, 2, None).unwrap();
+    assert_eq!(
+        first_page
+            .jobs
+            .iter()
+            .map(|job| job.id.as_str())
+            .collect::<Vec<_>>(),
+        ["retry-candidate-0", "retry-candidate-1"]
+    );
+    let second_page = database
+        .retry_candidate_page(10_000, 2, first_page.next_cursor.as_ref())
+        .unwrap();
+    assert_eq!(
+        second_page
+            .jobs
+            .iter()
+            .map(|job| job.id.as_str())
+            .collect::<Vec<_>>(),
+        ["retry-candidate-2"]
+    );
+
+    let retry_plan = database
+        .connection
+        .prepare(&format!(
+            "EXPLAIN QUERY PLAN {}",
+            crate::execution::RETRY_CANDIDATE_QUERY
+        ))
+        .unwrap()
+        .query_map(
+            rusqlite::params![10_000_i64, Option::<i64>::None, Option::<&str>::None, 2_i64],
+            |row| row.get::<_, String>(3),
+        )
+        .unwrap()
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .unwrap();
+    println!("retry query plan: {retry_plan:?}");
+    assert!(
+        retry_plan.iter().any(|detail| detail.contains("scan_job")),
+        "retry plan should be a bounded scan-job query: {retry_plan:?}"
+    );
+    let status_plan = database
+        .connection
+        .prepare(&format!(
+            "EXPLAIN QUERY PLAN {}",
+            crate::execution::SCAN_ROOT_STATUS_QUERY
+        ))
+        .unwrap()
+        .query_map([active_root.id.as_str()], |row| row.get::<_, String>(3))
+        .unwrap()
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .unwrap();
+    println!("status query plan: {status_plan:?}");
+    assert!(
+        status_plan.iter().any(|detail| detail.contains("scan_job")),
+        "status plan should use the root-scoped job query: {status_plan:?}"
+    );
+    assert!(
+        status_plan.iter().any(|detail| detail.contains("scan_run")),
+        "status plan should use the selected-job run lookup: {status_plan:?}"
+    );
+
+    let retained_jobs: i64 = database
+        .connection
+        .query_row("SELECT count(*) FROM scan_job", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(retained_jobs, 1 + 128 + 1 + 3);
+}
+
+#[test]
+fn retry_candidates_keep_durable_budget_root_and_slot_filters() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let eligible_root = database
+        .add_scan_root("Eligible", "C:\\Synthetic\\Eligible")
+        .unwrap();
+    let exhausted_root = database
+        .add_scan_root("Exhausted", "C:\\Synthetic\\Exhausted")
+        .unwrap();
+    let cancelled_root = database
+        .add_scan_root("Cancelled", "C:\\Synthetic\\Cancelled")
+        .unwrap();
+    let disabled_root = database
+        .add_scan_root("Disabled", "C:\\Synthetic\\Disabled")
+        .unwrap();
+    let occupied_root = database
+        .add_scan_root("Occupied", "C:\\Synthetic\\Occupied")
+        .unwrap();
+    let removed_root = database
+        .add_scan_root("Removed", "C:\\Synthetic\\Removed")
+        .unwrap();
+    let future_root = database
+        .add_scan_root("Future", "C:\\Synthetic\\Future")
+        .unwrap();
+
+    database
+        .set_scan_root_enabled_at(&disabled_root.id, false, 10)
+        .unwrap();
+    database
+        .enqueue_scan(&occupied_root.id, ScanKind::Manual, 10)
+        .unwrap();
+
+    let insert_job = |database: &Database,
+                      id: &str,
+                      root_id: &str,
+                      state: &str,
+                      attempt: i64,
+                      cancellation_requested: i64,
+                      updated_at_ms: i64| {
+        database
+            .connection
+            .execute(
+                "INSERT INTO scan_job
+                 (id, scan_root_id, kind, state, retry_chain_id, attempt,
+                  max_attempts, not_before_ms, priority, follow_up_requested,
+                  cancellation_requested, created_at_ms, updated_at_ms,
+                  last_error_code)
+                 VALUES (?1, ?2, 'manual', ?3, ?4, ?5, 4, ?6, 0, 0,
+                         ?7, ?6, ?6, 'worker_failed')",
+                rusqlite::params![
+                    id,
+                    root_id,
+                    state,
+                    format!("chain-{id}"),
+                    attempt,
+                    updated_at_ms,
+                    cancellation_requested,
+                ],
+            )
+            .unwrap();
+    };
+
+    insert_job(
+        &database,
+        "retry-eligible",
+        &eligible_root.id,
+        "failed",
+        1,
+        0,
+        0,
+    );
+    insert_job(
+        &database,
+        "retry-exhausted",
+        &exhausted_root.id,
+        "failed",
+        4,
+        0,
+        0,
+    );
+    insert_job(
+        &database,
+        "retry-cancelled-state",
+        &cancelled_root.id,
+        "cancelled",
+        1,
+        1,
+        0,
+    );
+    insert_job(
+        &database,
+        "retry-disabled-root",
+        &disabled_root.id,
+        "failed",
+        1,
+        0,
+        0,
+    );
+    insert_job(
+        &database,
+        "retry-occupied-root",
+        &occupied_root.id,
+        "failed",
+        1,
+        0,
+        0,
+    );
+    insert_job(
+        &database,
+        "retry-removed-root",
+        &removed_root.id,
+        "failed",
+        1,
+        0,
+        0,
+    );
+    insert_job(
+        &database,
+        "retry-future",
+        &future_root.id,
+        "failed",
+        1,
+        0,
+        20_000,
+    );
+    database.remove_scan_root_at(&removed_root.id, 11).unwrap();
+
+    let page = database.retry_candidate_page(10_000, 64, None).unwrap();
+    assert_eq!(
+        page.jobs
+            .iter()
+            .map(|job| job.id.as_str())
+            .collect::<Vec<_>>(),
+        ["retry-eligible"]
+    );
+    assert!(
+        database
+            .list_scan_jobs()
+            .unwrap()
+            .iter()
+            .any(|job| job.id == "retry-exhausted"),
+        "history remains durable even when it is not a retry candidate"
+    );
 }

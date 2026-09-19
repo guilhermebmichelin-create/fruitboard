@@ -8,7 +8,7 @@ use fruitboard_filesystem_watcher::{
     Coalescer, CoalescerConfig, HintKind, RootId, WatchHint, WatchOutcome, WatcherPort,
 };
 use fruitboard_storage::{
-    MAX_LIBRARY_PAGE_SIZE, ScanJobState, ScanKind, ScanRunState, ScanStageState,
+    MAX_LIBRARY_PAGE_SIZE, ScanJob, ScanJobState, ScanKind, ScanRunState, ScanStageState,
 };
 use rusqlite::{Connection, params};
 use std::cell::{Cell, RefCell};
@@ -531,6 +531,135 @@ fn no_changes(summary: &ChangeSummary) {
         ),
         (0, 0, 0, 0, 0, 0, 0)
     );
+}
+
+#[test]
+fn retry_sweep_cursor_reaches_due_work_past_future_jitter_page() {
+    let mut harness = Harness::new("retry-sweep-fairness");
+    let now = T0 + 1_100;
+    harness.clock.set(now);
+
+    let mut roots = Vec::with_capacity(65);
+    for index in 0..65 {
+        roots.push(
+            harness
+                .db
+                .add_scan_root(
+                    &format!("Retry root {index}"),
+                    &format!(r"C:\Synthetic\Retry{index}"),
+                )
+                .expect("retry root"),
+        );
+    }
+
+    let fixture_job = |id: &str, root_id: &str, created_at_ms: i64| ScanJob {
+        id: id.to_owned(),
+        scan_root_id: root_id.to_owned(),
+        kind: ScanKind::Manual,
+        state: ScanJobState::Failed,
+        retry_chain_id: format!("chain-{id}"),
+        attempt: 1,
+        max_attempts: 4,
+        not_before_ms: T0,
+        priority: 0,
+        follow_up_requested: false,
+        cancellation_requested: false,
+        created_at_ms,
+        updated_at_ms: T0,
+        last_error_code: Some("worker_failed".to_owned()),
+    };
+    let mut front_ids = Vec::with_capacity(64);
+    let mut next_index = 0;
+    while front_ids.len() < 64 {
+        let id = format!("retry-front-{next_index:03}");
+        let job = fixture_job(&id, &roots[front_ids.len()].id, T0 + next_index);
+        if ScanWorker::retry_eligible_at(&job) > now {
+            front_ids.push(id);
+        }
+        next_index += 1;
+        assert!(next_index < 2_000, "could not construct future-jitter page");
+    }
+    let later_id = loop {
+        let id = format!("retry-later-{next_index:03}");
+        let job = fixture_job(&id, &roots[64].id, T0 + 64);
+        next_index += 1;
+        if ScanWorker::retry_eligible_at(&job) <= now {
+            break id;
+        }
+        assert!(
+            next_index < 2_000,
+            "could not construct due later candidate"
+        );
+    };
+
+    let fixture = Connection::open(harness.db_path()).expect("fixture connection");
+    for (index, id) in front_ids.iter().enumerate() {
+        fixture
+            .execute(
+                "INSERT INTO scan_job
+                 (id, scan_root_id, kind, state, retry_chain_id, attempt,
+                  max_attempts, not_before_ms, priority, follow_up_requested,
+                  cancellation_requested, created_at_ms, updated_at_ms,
+                  last_error_code)
+                 VALUES (?1, ?2, 'manual', 'failed', ?3, 1, 4, ?4, 0, 0,
+                         0, ?5, ?4, 'worker_failed')",
+                params![
+                    id,
+                    roots[index].id,
+                    format!("chain-{id}"),
+                    T0,
+                    T0 + index as i64
+                ],
+            )
+            .expect("insert future-jitter job");
+    }
+    fixture
+        .execute(
+            "INSERT INTO scan_job
+             (id, scan_root_id, kind, state, retry_chain_id, attempt,
+              max_attempts, not_before_ms, priority, follow_up_requested,
+              cancellation_requested, created_at_ms, updated_at_ms,
+              last_error_code)
+             VALUES (?1, ?2, 'manual', 'failed', ?3, 1, 4, ?4, 0, 0,
+                     0, ?5, ?4, 'worker_failed')",
+            params![
+                later_id,
+                roots[64].id,
+                format!("chain-{later_id}"),
+                T0,
+                T0 + 64
+            ],
+        )
+        .expect("insert later due job");
+    drop(fixture);
+
+    // The first bounded page contains only candidates whose deterministic
+    // jitter is still in the future. The second page reaches the later root;
+    // a LIMIT-only sweep would keep rereading the first page and starve it.
+    assert_eq!(
+        harness
+            .worker
+            .service_retries(&mut harness.db, &harness.clock)
+            .expect("first retry sweep"),
+        0
+    );
+    assert!(
+        front_ids
+            .iter()
+            .all(|id| harness.db.scan_job(id).expect("front job").state == ScanJobState::Failed)
+    );
+    assert_eq!(
+        harness
+            .worker
+            .service_retries(&mut harness.db, &harness.clock)
+            .expect("second retry sweep"),
+        1
+    );
+    assert_eq!(
+        harness.db.scan_job(&later_id).expect("later job").state,
+        ScanJobState::Queued
+    );
+    assert_eq!(harness.db.list_scan_jobs().expect("history").len(), 65);
 }
 
 #[test]
