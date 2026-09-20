@@ -2646,7 +2646,110 @@ fn kill_after_follow_up_invalidation_keeps_successor_and_leaves_old_interrupted(
 }
 
 #[test]
-fn trigger_after_cancellation_supersedes_the_stale_cancel_and_schedules_a_successor() {
+fn cancellation_and_trigger_order_respects_manual_vs_background_intent() {
+    fn exercise(kind: ScanKind, cancel_first: bool) {
+        let directory = TestDirectory::new();
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("session-1", 1).unwrap();
+        let job_id = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap()
+            .job_id;
+        let lease = database
+            .lease_next_scan("session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+
+        if cancel_first {
+            database
+                .request_scan_cancellation(&lease.run.id, 4)
+                .unwrap();
+        }
+        let trigger = database.enqueue_scan(&root.id, kind, 5).unwrap();
+        assert!(trigger.coalesced);
+        assert_eq!(trigger.job_id, job_id);
+        assert_eq!(
+            trigger.follow_up_requested,
+            !cancel_first || kind == ScanKind::Manual
+        );
+        if !cancel_first {
+            database
+                .request_scan_cancellation(&lease.run.id, 6)
+                .unwrap();
+        }
+
+        let expected_successor = cancel_first && kind == ScanKind::Manual;
+        let job_before_finish = database.scan_job(&job_id).unwrap();
+        let run_before_finish = database.scan_run(&lease.run.id).unwrap();
+        assert_eq!(job_before_finish.follow_up_requested, expected_successor);
+        assert_eq!(
+            job_before_finish.cancellation_requested,
+            !expected_successor
+        );
+        assert_eq!(
+            run_before_finish.cancellation_requested,
+            !expected_successor
+        );
+
+        let expected_state = if expected_successor {
+            ScanRunState::Interrupted
+        } else {
+            ScanRunState::Cancelled
+        };
+        assert_eq!(
+            database
+                .finish_scan_run(
+                    &lease.run.id,
+                    "session-1",
+                    &lease.run.lease_token,
+                    7,
+                    ScanRunOutcome::Cancelled,
+                )
+                .unwrap(),
+            expected_state
+        );
+        let run = database.scan_run(&lease.run.id).unwrap();
+        assert_eq!(run.state, expected_state);
+        assert_eq!(
+            run.outcome,
+            Some(if expected_successor {
+                ScanRunOutcome::Interrupted
+            } else {
+                ScanRunOutcome::Cancelled
+            })
+        );
+        assert_eq!(run.cancellation_requested, !expected_successor);
+
+        let jobs = database.list_scan_jobs().unwrap();
+        assert_eq!(jobs.len(), if expected_successor { 2 } else { 1 });
+        if expected_successor {
+            let successor = jobs
+                .iter()
+                .find(|candidate| candidate.id != job_id)
+                .expect("manual trigger successor");
+            assert_eq!(successor.state, ScanJobState::Queued);
+            assert_eq!(successor.kind, ScanKind::Manual);
+        }
+    }
+
+    // Both arrival orders are covered for the explicit Manual request and the
+    // Periodic watcher request. Only Manual may supersede cancel-then-trigger;
+    // a trigger-then-cancel pair is cancelled in either case.
+    for (kind, cancel_first) in [
+        (ScanKind::Manual, true),
+        (ScanKind::Periodic, true),
+        (ScanKind::Manual, false),
+        (ScanKind::Periodic, false),
+    ] {
+        exercise(kind, cancel_first);
+    }
+}
+
+#[test]
+fn explicit_trigger_after_cancellation_supersedes_the_stale_cancel_and_schedules_a_successor() {
     let directory = TestDirectory::new();
     let mut database = Database::open(directory.path()).unwrap();
     let root = database
@@ -2665,10 +2768,10 @@ fn trigger_after_cancellation_supersedes_the_stale_cancel_and_schedules_a_succes
     database
         .request_scan_cancellation(&lease.run.id, 4)
         .unwrap();
-    // ...and a newer explicit trigger (Scan now / watcher hint) arrives while
-    // the worker is still finishing the cancelled attempt.
+    // ...and a newer explicit trigger (Scan now / Retry) arrives while the
+    // worker is still finishing the cancelled attempt.
     let trigger = database
-        .enqueue_scan(&root.id, ScanKind::Periodic, 5)
+        .enqueue_scan(&root.id, ScanKind::Manual, 5)
         .unwrap();
     assert!(trigger.coalesced);
     assert_eq!(trigger.job_id, job_id);

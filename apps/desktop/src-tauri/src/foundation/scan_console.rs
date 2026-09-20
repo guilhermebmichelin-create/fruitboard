@@ -300,6 +300,8 @@ pub(crate) struct ScanConsoleService {
     host: Mutex<Option<Arc<super::scan_console_host::ScanConsoleHost>>>,
     #[cfg(feature = "scan-console")]
     initialization_started: AtomicBool,
+    #[cfg(all(test, feature = "scan-console"))]
+    retry_snapshot_hook: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
 }
 
 #[cfg(not(feature = "scan-console"))]
@@ -357,6 +359,8 @@ impl ScanConsoleService {
             clock: Arc::new(fruitboard_scan_execution::SystemClock),
             host: Mutex::new(None),
             initialization_started: AtomicBool::new(false),
+            #[cfg(all(test, feature = "scan-console"))]
+            retry_snapshot_hook: Mutex::new(None),
         }
     }
 
@@ -533,9 +537,41 @@ impl ScanConsoleService {
 
     fn retry_scan(&self, job_id: String) -> Result<ScanStartResult, AppError> {
         let host = self.host()?;
-        let job = {
-            let database = self.database.lock().map_err(|_| storage_failed())?;
-            database.scan_job(&job_id).map_err(map_scan_storage_error)?
+        // The job row, its running attempt, and a failed-chain requeue are
+        // one database snapshot. Holding one guard across those reads closes
+        // the old gap where a worker could finish between the job read and
+        // the run read, producing `already_running` with `runId: null`.
+        let (job, running_run_id, failed_requeued) = {
+            let mut database = self.database.lock().map_err(|_| storage_failed())?;
+            let job = database.scan_job(&job_id).map_err(map_scan_storage_error)?;
+            #[cfg(all(test, feature = "scan-console"))]
+            if let Some(hook) = self
+                .retry_snapshot_hook
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone()
+            {
+                // Test-only synchronization seam: the hook runs while the
+                // database guard is held and is never compiled into a
+                // production binary or renderer command.
+                hook();
+            }
+            let running_run_id = if job.state == ScanJobState::Running {
+                database
+                    .running_scan_run_for_job(&job_id)
+                    .map_err(map_scan_storage_error)?
+                    .map(|run| run.id)
+            } else {
+                None
+            };
+            let failed_requeued = if job.state == ScanJobState::Failed {
+                database
+                    .retry_failed_scan_job(&job_id, self.clock.as_ref().now_ms())
+                    .map_err(map_scan_storage_error)?
+            } else {
+                false
+            };
+            (job, running_run_id, failed_requeued)
         };
         match job.state {
             ScanJobState::Queued => Ok(ScanStartResult {
@@ -544,29 +580,14 @@ impl ScanConsoleService {
                 run_id: None,
                 outcome: ScanStartOutcome::AlreadyQueued,
             }),
-            ScanJobState::Running => {
-                let run_id = {
-                    let database = self.database.lock().map_err(|_| storage_failed())?;
-                    database
-                        .running_scan_run_for_job(&job_id)
-                        .map_err(map_scan_storage_error)?
-                        .map(|run| run.id)
-                };
-                Ok(ScanStartResult {
-                    root_id: job.scan_root_id,
-                    run_id,
-                    job_id,
-                    outcome: ScanStartOutcome::AlreadyRunning,
-                })
-            }
+            ScanJobState::Running => Ok(ScanStartResult {
+                root_id: job.scan_root_id,
+                run_id: running_run_id,
+                job_id,
+                outcome: ScanStartOutcome::AlreadyRunning,
+            }),
             ScanJobState::Failed => {
-                let requeued = {
-                    let mut database = self.database.lock().map_err(|_| storage_failed())?;
-                    database
-                        .retry_failed_scan_job(&job_id, self.clock.as_ref().now_ms())
-                        .map_err(map_scan_storage_error)?
-                };
-                if requeued {
+                if failed_requeued {
                     let root_id = job.scan_root_id;
                     host.emit_transition(&root_id, ScanExecutionState::Queued);
                     host.wake();

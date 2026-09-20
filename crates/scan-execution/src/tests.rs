@@ -2477,6 +2477,68 @@ fn running_work_coalesces_hints_onto_one_follow_up_request() {
     );
 }
 
+// P2-08/P2-09: a watcher hint that arrives after durable cancellation is
+// acknowledged still travels through the real adapter and worker path, but
+// it cannot clear either cancellation mirror or create a successor.
+#[test]
+fn watcher_hint_during_durable_cancellation_keeps_cancelled_attempt_terminal() {
+    let mut harness = Harness::new("followup-cancelled-running");
+    let mut follow_ups = adapter(&harness);
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    assert_eq!(
+        harness
+            .db
+            .request_scan_cancellation(&scan.leased.run.id, harness.clock.now_ms())
+            .expect("durable cancellation"),
+        ScanRunState::Running
+    );
+
+    let hint = WatchHint {
+        root: WATCH_ROOT,
+        generation: 1,
+        kind: HintKind::ReconciliationRequested,
+    };
+    let outcome = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("watcher adapter");
+    assert_eq!(outcome.requests.len(), 1);
+    assert!(outcome.requests[0].coalesced);
+    let job = harness
+        .db
+        .scan_job(&scan.leased.run.scan_job_id)
+        .expect("running job");
+    assert!(job.cancellation_requested);
+    assert!(!job.follow_up_requested);
+    let run = harness
+        .db
+        .scan_run(&scan.leased.run.id)
+        .expect("running attempt");
+    assert!(run.cancellation_requested);
+
+    let execution = harness.worker.execute(
+        &mut harness.db,
+        scan,
+        &mut FakePort::new(tree(vec![file_entry("a.flp", 101)])),
+        &NeverCancelled,
+        &harness.clock,
+    );
+    assert_eq!(execution.status, ScanExecutionStatus::Cancelled);
+    assert!(!execution.authoritative);
+    assert_eq!(harness.root_jobs().len(), 1, "no watcher successor");
+    assert_eq!(
+        harness
+            .db
+            .scan_job(&execution.job_id)
+            .expect("cancelled job")
+            .state,
+        ScanJobState::Cancelled
+    );
+}
+
 // P2-09: a cancelled chain is never revived, but a fresh trigger after the
 // cancellation starts a new chain.
 #[test]

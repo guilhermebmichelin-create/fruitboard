@@ -90,6 +90,24 @@ impl ScanKind {
             _ => Err(StorageError::InvalidSchema),
         }
     }
+
+    fn request_intent(self) -> ScanRequestIntent {
+        match self {
+            // A user explicitly asking for Scan now/Retry is allowed to
+            // supersede a cancellation that is still being observed by the
+            // worker. The stored kind of an active job cannot establish that
+            // intent for a later request, so this is derived from the
+            // incoming request at the boundary.
+            Self::Manual => ScanRequestIntent::ExplicitUser,
+            Self::Initial | Self::Periodic | Self::Recovery => ScanRequestIntent::Background,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ScanRequestIntent {
+    ExplicitUser,
+    Background,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -929,7 +947,13 @@ fn enqueue_recovery_jobs_tx(transaction: &Transaction<'_>, now_ms: i64) -> Resul
                     || (state == ScanJobState::Failed.as_str() && attempt >= max_attempts)
             });
         if !suppress {
-            let _ = enqueue_scan_tx(transaction, &root_id, ScanKind::Recovery, now_ms)?;
+            let _ = enqueue_scan_tx(
+                transaction,
+                &root_id,
+                ScanKind::Recovery,
+                ScanRequestIntent::Background,
+                now_ms,
+            )?;
         }
     }
     Ok(())
@@ -950,6 +974,7 @@ fn enqueue_scan_tx(
     transaction: &Transaction<'_>,
     root_id: &str,
     kind: ScanKind,
+    intent: ScanRequestIntent,
     now_ms: i64,
 ) -> Result<EnqueueResult> {
     let root = select_root_execution(transaction, root_id)?;
@@ -974,40 +999,69 @@ fn enqueue_scan_tx(
         .optional()?;
     if let Some((job_id, state, existing_follow_up)) = active {
         let follow_up_requested = if state == ScanJobState::Running.as_str() {
-            // A trigger that lands on a running attempt is newer than any
-            // durable cancellation already recorded for it (cancellation
-            // requests clear the pending follow-up), so it supersedes that
-            // cancellation: the attempt ends interrupted rather than
-            // cancelled, and `finish_scan_run_with_error` schedules the
-            // successor. A cancellation committed after this trigger clears
-            // the follow-up again and wins. The durable ledger is the ordering
-            // authority.
-            transaction.execute(
-                "UPDATE scan_job
-                 SET follow_up_requested = 1, cancellation_requested = 0, updated_at_ms = ?1
-                 WHERE id = ?2",
-                params![now_ms, &job_id],
-            )?;
-            transaction.execute(
-                "UPDATE scan_run SET cancellation_requested = 0
-                 WHERE scan_job_id = ?1 AND state = 'running'",
+            let accepted = match intent {
+                ScanRequestIntent::ExplicitUser => {
+                    // An explicit Scan now/Retry is newer than a durable
+                    // cancellation that is still pending on the worker. It
+                    // clears both cancellation mirrors and leaves one
+                    // coalesced successor request behind.
+                    transaction.execute(
+                        "UPDATE scan_job
+                         SET follow_up_requested = 1, cancellation_requested = 0,
+                             updated_at_ms = ?1
+                         WHERE id = ?2",
+                        params![now_ms, &job_id],
+                    )?;
+                    transaction.execute(
+                        "UPDATE scan_run SET cancellation_requested = 0
+                         WHERE scan_job_id = ?1 AND state = 'running'",
+                        [&job_id],
+                    )?;
+                    true
+                }
+                ScanRequestIntent::Background => {
+                    // Watcher/recovery work may coalesce a follow-up only
+                    // while the active attempt is not durably cancelled. It
+                    // must never erase either cancellation mirror merely
+                    // because it arrived between the user's cancel and the
+                    // worker's cooperative stop.
+                    transaction.execute(
+                        "UPDATE scan_job
+                         SET follow_up_requested = 1, updated_at_ms = ?1
+                         WHERE id = ?2
+                           AND cancellation_requested = 0
+                           AND NOT EXISTS (
+                               SELECT 1 FROM scan_run
+                               WHERE scan_job_id = ?2
+                                 AND state = 'running'
+                                 AND cancellation_requested = 1
+                           )",
+                        params![now_ms, &job_id],
+                    )? > 0
+                }
+            };
+            if accepted {
+                transaction.execute(
+                    "UPDATE scan_stage SET state = 'discarded', updated_at_ms = ?1
+                     WHERE run_id IN (
+                         SELECT id FROM scan_run WHERE scan_job_id = ?2 AND state = 'running'
+                     ) AND state = 'open'",
+                    params![now_ms, &job_id],
+                )?;
+                transaction.execute(
+                    "DELETE FROM scan_stage_observation
+                     WHERE run_id IN (
+                         SELECT id FROM scan_run WHERE scan_job_id = ?1 AND state = 'running'
+                     )",
+                    [&job_id],
+                )?;
+            }
+            let current_follow_up: i64 = transaction.query_row(
+                "SELECT follow_up_requested FROM scan_job WHERE id = ?1",
                 [&job_id],
+                |row| row.get(0),
             )?;
-            transaction.execute(
-                "UPDATE scan_stage SET state = 'discarded', updated_at_ms = ?1
-                 WHERE run_id IN (
-                     SELECT id FROM scan_run WHERE scan_job_id = ?2 AND state = 'running'
-                 ) AND state = 'open'",
-                params![now_ms, &job_id],
-            )?;
-            transaction.execute(
-                "DELETE FROM scan_stage_observation
-                 WHERE run_id IN (
-                     SELECT id FROM scan_run WHERE scan_job_id = ?1 AND state = 'running'
-                 )",
-                [&job_id],
-            )?;
-            true
+            parse_flag(current_follow_up)?
         } else {
             parse_flag(existing_follow_up)?
         };
@@ -1256,16 +1310,17 @@ impl Database {
     }
 
     /// Queue one scan per root. A queued or running root already owns the
-    /// active slot; running work records one coalesced follow-up request. A
-    /// trigger on a running attempt also supersedes a pending cancellation:
-    /// the attempt ends interrupted (never cancelled) and the successor runs.
+    /// active slot; running work records one coalesced follow-up request. An
+    /// explicit Manual request may supersede a pending cancellation, while a
+    /// Periodic/Recovery request never clears that durable cancellation.
     pub fn enqueue_scan(
         &mut self,
         root_id: &str,
         kind: ScanKind,
         now_ms: i64,
     ) -> Result<EnqueueResult> {
-        self.transaction(|transaction| enqueue_scan_tx(transaction, root_id, kind, now_ms))
+        let intent = kind.request_intent();
+        self.transaction(|transaction| enqueue_scan_tx(transaction, root_id, kind, intent, now_ms))
     }
 
     /// Lease the oldest due job for an active process session.
@@ -1575,18 +1630,22 @@ impl Database {
             {
                 return Err(StorageError::Conflict);
             }
-            // A worker's explicit cancellation is equivalent to a durable
-            // request. Cancellation requests clear a pending follow-up, so a
-            // follow-up that is still set here is strictly newer than the last
-            // cancellation: it supersedes the cancellation for this attempt,
-            // which ends interrupted, and the successor is scheduled below.
-            // The durable ledger is the ordering authority.
-            let cancellation_requested = run.cancellation_requested
-                || parse_flag(job_cancel)?
-                || outcome == ScanRunOutcome::Cancelled;
+            // A durable cancellation is authoritative over a background
+            // follow-up that arrived after the user requested cancellation:
+            // that request must not be erased by the watcher. A cooperative
+            // worker outcome is intentionally weaker because it does not
+            // carry an ordering token. Only a follow-up with no durable
+            // cancellation can therefore invalidate the attempt. This keeps
+            // Manual (explicit user) enqueue and cancellation ordering
+            // decided by the durable flags rather than an undifferentiated
+            // boolean reported by the worker.
+            let durable_cancellation_requested =
+                run.cancellation_requested || parse_flag(job_cancel)?;
+            let cooperative_cancellation = outcome == ScanRunOutcome::Cancelled;
             let follow_up_requested = parse_flag(follow_up)?;
-            let invalidated_by_follow_up = follow_up_requested;
-            let cancellation_flag = cancellation_requested && !invalidated_by_follow_up;
+            let invalidated_by_follow_up = follow_up_requested && !durable_cancellation_requested;
+            let cancellation_requested = durable_cancellation_requested
+                || (cooperative_cancellation && !invalidated_by_follow_up);
             let effective_outcome = if invalidated_by_follow_up {
                 ScanRunOutcome::Interrupted
             } else if cancellation_requested {
@@ -1630,7 +1689,7 @@ impl Database {
                  WHERE id = ?6 AND state = 'running'",
                 params![
                     state.as_str(),
-                    i64::from(cancellation_flag),
+                    i64::from(cancellation_requested),
                     now_ms,
                     effective_outcome.as_str(),
                     error_code,
@@ -1644,7 +1703,7 @@ impl Database {
                  WHERE id = ?5 AND state = 'running'",
                 params![
                     state.as_str(),
-                    i64::from(cancellation_flag),
+                    i64::from(cancellation_requested),
                     now_ms,
                     error_code,
                     &run.scan_job_id,
@@ -1660,6 +1719,7 @@ impl Database {
                     transaction,
                     &run.scan_root_id,
                     ScanKind::parse(&kind)?,
+                    ScanRequestIntent::Background,
                     now_ms,
                 )?;
             }

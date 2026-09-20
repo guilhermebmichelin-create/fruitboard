@@ -18,6 +18,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc as StdArc, mpsc};
+use std::time::Duration;
 
 const VOLUME_SERIAL: u64 = 7;
 const ROOT_FILE_ID: u128 = 999;
@@ -891,6 +892,96 @@ fn active_retry_job_wins_over_newer_terminal_history_and_scan_now_coalesces_to_i
             .expect("follow-up")
             .state,
         ScanJobState::Completed
+    );
+}
+
+#[test]
+fn retry_running_snapshot_keeps_native_run_id_when_worker_finishes_after_snapshot() {
+    let harness = Harness::new("retry-running-snapshot");
+    let (runtime, _) = test_runtime();
+    let queued = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let job_id = queued["jobId"].as_str().expect("job id").to_owned();
+    assert!(harness.claim_due(), "scan should lease before retry");
+
+    // The worker is allowed to attempt its terminal write only after the
+    // retry handler has acquired the database mutex. It then blocks on that
+    // same mutex, so the handler must return the running run id from one
+    // coherent snapshot before the worker can finish.
+    let (ready_tx, ready_rx) = mpsc::channel();
+    let (go_tx, go_rx) = mpsc::channel();
+    let (attempting_tx, attempting_rx) = mpsc::channel();
+    let (allow_lock_tx, allow_lock_rx) = mpsc::channel();
+    let database = harness.database.clone();
+    let worker_job_id = job_id.clone();
+    let worker = std::thread::spawn(move || {
+        ready_tx.send(()).expect("worker ready");
+        go_rx.recv().expect("retry acquired database snapshot");
+        attempting_tx.send(()).expect("worker lock attempt");
+        allow_lock_rx
+            .recv()
+            .expect("retry read completed before worker lock");
+        let mut database = database.lock().unwrap();
+        let run = database
+            .running_scan_run_for_job(&worker_job_id)
+            .expect("running run query")
+            .expect("running run");
+        database
+            .finish_scan_run(
+                &run.id,
+                &run.session_id,
+                &run.lease_token,
+                T0_MS + 1,
+                fruitboard_storage::ScanRunOutcome::Failed,
+            )
+            .expect("worker terminal write");
+    });
+    ready_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("worker ready signal");
+
+    let go_tx = StdArc::new(go_tx);
+    let attempting_rx = StdArc::new(std::sync::Mutex::new(attempting_rx));
+    let allow_lock_tx = StdArc::new(allow_lock_tx);
+    *harness.service.retry_snapshot_hook.lock().unwrap() = Some(StdArc::new({
+        let go_tx = go_tx.clone();
+        let attempting_rx = attempting_rx.clone();
+        let allow_lock_tx = allow_lock_tx.clone();
+        move || {
+            go_tx.send(()).expect("start worker lock attempt");
+            attempting_rx
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(5))
+                .expect("worker attempted lock");
+            allow_lock_tx.send(()).expect("allow worker after snapshot");
+        }
+    }));
+
+    let response = ok_data(handle_retry_scan(
+        &runtime,
+        &harness.service,
+        retry_request(&job_id),
+    ));
+    assert_eq!(response["outcome"], "already_running");
+    let run_id = response["runId"]
+        .as_str()
+        .expect("native already_running run id");
+    assert!(!run_id.is_empty());
+
+    worker.join().expect("join deterministic worker");
+    *harness.service.retry_snapshot_hook.lock().unwrap() = None;
+    let database = harness.database.lock().unwrap();
+    assert_eq!(
+        database.scan_job(&job_id).expect("finished job").state,
+        fruitboard_storage::ScanJobState::Failed
+    );
+    assert_eq!(
+        database.scan_run(run_id).expect("returned run").state,
+        fruitboard_storage::ScanRunState::Failed
     );
 }
 
