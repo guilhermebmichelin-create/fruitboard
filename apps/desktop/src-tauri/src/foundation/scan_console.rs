@@ -302,6 +302,8 @@ pub(crate) struct ScanConsoleService {
     initialization_started: AtomicBool,
     #[cfg(all(test, feature = "scan-console"))]
     retry_snapshot_hook: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
+    #[cfg(all(test, feature = "scan-console"))]
+    cancellation_mirror_hook: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
 }
 
 #[cfg(not(feature = "scan-console"))]
@@ -361,6 +363,8 @@ impl ScanConsoleService {
             initialization_started: AtomicBool::new(false),
             #[cfg(all(test, feature = "scan-console"))]
             retry_snapshot_hook: Mutex::new(None),
+            #[cfg(all(test, feature = "scan-console"))]
+            cancellation_mirror_hook: Mutex::new(None),
         }
     }
 
@@ -437,11 +441,25 @@ impl ScanConsoleService {
     /// the host when new work is queued).
     fn enqueue_scan(&self, root_id: &str, kind: ScanKind) -> Result<ScanStartResult, AppError> {
         let host = self.host()?;
+        let mut intent_order = host.intent_order();
+        self.enqueue_scan_with_order(&host, &mut intent_order, root_id, kind)
+    }
+
+    fn enqueue_scan_with_order(
+        &self,
+        host: &Arc<super::scan_console_host::ScanConsoleHost>,
+        intent_order: &mut super::scan_console_host::IntentOrderGuard<'_>,
+        root_id: &str,
+        kind: ScanKind,
+    ) -> Result<ScanStartResult, AppError> {
         let worker = host.clone_worker();
         let mut database = self.database.lock().map_err(|_| storage_failed())?;
         let result = worker
             .request_scan(&mut database, root_id, kind, self.clock.as_ref())
             .map_err(map_enqueue_storage_error)?;
+        if kind == ScanKind::Manual && result.coalesced {
+            intent_order.mark_explicit_success(&result.job_id);
+        }
         // The enqueue transaction is authoritative about which retry chain
         // accepted this request. Looking up the newest-created job by root can
         // select a newer terminal history row while an older retry is queued
@@ -481,14 +499,34 @@ impl ScanConsoleService {
         let host = self.host()?;
         // The in-memory cancellation mirror is set first (never blocks,
         // never needs the database) so the running traversal stops at its
-        // next cooperative check; the durable write below is the
-        // acknowledged authority.
+        // next cooperative check; the command's durable write or the exact-run
+        // worker acknowledgement is the acknowledged authority.
         host.request_cancellation(&job_id);
+        #[cfg(all(test, feature = "scan-console"))]
+        if let Some(hook) = self
+            .cancellation_mirror_hook
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+        {
+            // Test-only seam: the hook runs after the real host mirror/token
+            // is accepted and before this command acquires the database.
+            hook();
+        }
+        let intent_order = host.intent_order();
         let mut database = self.database.lock().map_err(|_| storage_failed())?;
         let job = database.scan_job(&job_id).map_err(map_scan_storage_error)?;
-        let state = database
-            .cancel_scan_job(&job_id, self.clock.as_ref().now_ms())
-            .map_err(map_scan_storage_error)?;
+        let state = if intent_order.cancellation_was_superseded_for(&job_id) {
+            // A newer explicit Manual request was accepted while this cancel
+            // command was waiting. Do not let the stale command reassert its
+            // flag over that request; the worker's exact-run fence will finish
+            // the old attempt through the normal follow-up transition.
+            job.state
+        } else {
+            database
+                .cancel_scan_job(&job_id, self.clock.as_ref().now_ms())
+                .map_err(map_scan_storage_error)?
+        };
         let run_id = database
             .latest_scan_run_for_job(&job_id)
             .map_err(map_scan_storage_error)?
@@ -537,6 +575,7 @@ impl ScanConsoleService {
 
     fn retry_scan(&self, job_id: String) -> Result<ScanStartResult, AppError> {
         let host = self.host()?;
+        let mut intent_order = host.intent_order();
         // The job row, its running attempt, and a failed-chain requeue are
         // one database snapshot. Holding one guard across those reads closes
         // the old gap where a worker could finish between the job read and
@@ -603,15 +642,23 @@ impl ScanConsoleService {
                 // owns the active slot. Start a fresh chain exactly like an
                 // explicit scan so Retry converges instead of dead-ending on
                 // the safe conflict; the failed row is retained, never reset.
-                self.enqueue_scan(&job.scan_root_id, ScanKind::Manual)
+                self.enqueue_scan_with_order(
+                    &host,
+                    &mut intent_order,
+                    &job.scan_root_id,
+                    ScanKind::Manual,
+                )
             }
             // Cancelled and interrupted chains are never revived. An explicit
             // Retry supersedes them with fresh work instead of returning the
             // state-change conflict, because the user's action is a new scan
             // request, not a request to roll the durable ledger back.
-            ScanJobState::Cancelled | ScanJobState::Interrupted => {
-                self.enqueue_scan(&job.scan_root_id, ScanKind::Manual)
-            }
+            ScanJobState::Cancelled | ScanJobState::Interrupted => self.enqueue_scan_with_order(
+                &host,
+                &mut intent_order,
+                &job.scan_root_id,
+                ScanKind::Manual,
+            ),
             // Completed work has nothing to retry; the renderer offers the
             // explicit `Scan now` action for it.
             ScanJobState::Completed => Err(scan_job_conflict()),

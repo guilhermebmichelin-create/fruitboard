@@ -2749,6 +2749,66 @@ fn cancellation_and_trigger_order_respects_manual_vs_background_intent() {
 }
 
 #[test]
+fn cooperative_cancellation_acknowledgement_wins_over_older_background_follow_up() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    let job_id = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap()
+        .job_id;
+    let lease = database
+        .lease_next_scan("session-1", 3, 100)
+        .unwrap()
+        .unwrap();
+
+    // This Periodic request is older than the cancellation intent, but the
+    // command's separate durable write has not happened yet. The fenced
+    // acknowledgement is the worker's terminal transaction in that window.
+    let follow_up = database
+        .enqueue_scan(&root.id, ScanKind::Periodic, 4)
+        .unwrap();
+    assert!(follow_up.coalesced);
+    assert!(follow_up.follow_up_requested);
+    assert!(database.scan_job(&job_id).unwrap().follow_up_requested);
+    assert!(!database.scan_job(&job_id).unwrap().cancellation_requested);
+
+    assert_eq!(
+        database
+            .finish_scan_run_after_cooperative_cancellation(
+                &lease.run.id,
+                "session-1",
+                &lease.run.lease_token,
+                5,
+                None,
+            )
+            .unwrap(),
+        ScanRunState::Cancelled
+    );
+    let run = database.scan_run(&lease.run.id).unwrap();
+    assert_eq!(run.outcome, Some(ScanRunOutcome::Cancelled));
+    assert!(run.cancellation_requested);
+    let job = database.scan_job(&job_id).unwrap();
+    assert_eq!(job.state, ScanJobState::Cancelled);
+    assert!(job.cancellation_requested);
+    assert!(!job.follow_up_requested);
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+
+    // The command's late durable write is now a terminal no-op and cannot
+    // revive or roll back the cancelled attempt.
+    assert_eq!(
+        database
+            .request_scan_cancellation(&lease.run.id, 6)
+            .unwrap(),
+        ScanRunState::Cancelled
+    );
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+}
+
+#[test]
 fn explicit_trigger_after_cancellation_supersedes_the_stale_cancel_and_schedules_a_successor() {
     let directory = TestDirectory::new();
     let mut database = Database::open(directory.path()).unwrap();

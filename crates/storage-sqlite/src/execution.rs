@@ -188,6 +188,12 @@ pub enum ScanRunOutcome {
     Interrupted,
 }
 
+struct FinishScanRunOptions<'a> {
+    outcome: ScanRunOutcome,
+    terminal_error_code: Option<&'a str>,
+    cancellation_acknowledged: bool,
+}
+
 impl ScanRunOutcome {
     pub fn as_str(self) -> &'static str {
         match self {
@@ -1586,6 +1592,55 @@ impl Database {
         outcome: ScanRunOutcome,
         terminal_error_code: Option<&str>,
     ) -> Result<ScanRunState> {
+        self.finish_scan_run_with_error_internal(
+            run_id,
+            session_id,
+            lease_token,
+            now_ms,
+            FinishScanRunOptions {
+                outcome,
+                terminal_error_code,
+                cancellation_acknowledged: false,
+            },
+        )
+    }
+
+    /// Finish a cooperatively cancelled run after the host accepted a
+    /// cancellation intent for this exact leased attempt. The acknowledgement
+    /// is fenced by the run/session/lease arguments and is committed in the
+    /// same transaction as terminalization, so it may win even when the
+    /// command's separate durable-cancel write has not acquired the database
+    /// mutex yet. A newer explicit Manual enqueue is represented by the
+    /// ordinary follow-up path and therefore bypasses this method.
+    pub fn finish_scan_run_after_cooperative_cancellation(
+        &mut self,
+        run_id: &str,
+        session_id: &str,
+        lease_token: &str,
+        now_ms: i64,
+        terminal_error_code: Option<&str>,
+    ) -> Result<ScanRunState> {
+        self.finish_scan_run_with_error_internal(
+            run_id,
+            session_id,
+            lease_token,
+            now_ms,
+            FinishScanRunOptions {
+                outcome: ScanRunOutcome::Cancelled,
+                terminal_error_code,
+                cancellation_acknowledged: true,
+            },
+        )
+    }
+
+    fn finish_scan_run_with_error_internal(
+        &mut self,
+        run_id: &str,
+        session_id: &str,
+        lease_token: &str,
+        now_ms: i64,
+        options: FinishScanRunOptions<'_>,
+    ) -> Result<ScanRunState> {
         if session_id.is_empty() || lease_token.is_empty() {
             return Err(StorageError::InvalidSchema);
         }
@@ -1593,7 +1648,8 @@ impl Database {
         // API, while canonicalizing it through the closed product vocabulary
         // before any transaction can persist it. Empty strings retain the
         // previous "use the outcome default" behavior.
-        let terminal_error_code = terminal_error_code
+        let terminal_error_code = options
+            .terminal_error_code
             .filter(|code| !code.is_empty())
             .map(ScanFailureDiagnostic::parse)
             .transpose()?;
@@ -1630,28 +1686,29 @@ impl Database {
             {
                 return Err(StorageError::Conflict);
             }
-            // A durable cancellation is authoritative over a background
-            // follow-up that arrived after the user requested cancellation:
-            // that request must not be erased by the watcher. A cooperative
-            // worker outcome is intentionally weaker because it does not
-            // carry an ordering token. Only a follow-up with no durable
-            // cancellation can therefore invalidate the attempt. This keeps
-            // Manual (explicit user) enqueue and cancellation ordering
-            // decided by the durable flags rather than an undifferentiated
-            // boolean reported by the worker.
+            // A durable cancellation or a fenced host acknowledgement is
+            // authoritative over an older background follow-up. The
+            // acknowledgement is accepted before the worker terminalizes and
+            // is associated with this exact run by the lease checks above. A
+            // newer explicit Manual request does not use this path: it clears
+            // the mirrors and leaves the follow-up for the normal successor
+            // transition below.
             let durable_cancellation_requested =
                 run.cancellation_requested || parse_flag(job_cancel)?;
-            let cooperative_cancellation = outcome == ScanRunOutcome::Cancelled;
+            let cooperative_cancellation = options.outcome == ScanRunOutcome::Cancelled;
             let follow_up_requested = parse_flag(follow_up)?;
-            let invalidated_by_follow_up = follow_up_requested && !durable_cancellation_requested;
+            let cancellation_authoritative =
+                durable_cancellation_requested || options.cancellation_acknowledged;
+            let invalidated_by_follow_up = follow_up_requested && !cancellation_authoritative;
             let cancellation_requested = durable_cancellation_requested
+                || options.cancellation_acknowledged
                 || (cooperative_cancellation && !invalidated_by_follow_up);
             let effective_outcome = if invalidated_by_follow_up {
                 ScanRunOutcome::Interrupted
             } else if cancellation_requested {
                 ScanRunOutcome::Cancelled
             } else {
-                outcome
+                options.outcome
             };
             let state = state_for_outcome(effective_outcome);
             let error_code = if invalidated_by_follow_up {
@@ -1699,6 +1756,7 @@ impl Database {
             transaction.execute(
                 "UPDATE scan_job
                  SET state = ?1, cancellation_requested = ?2, updated_at_ms = ?3,
+                     follow_up_requested = CASE WHEN ?6 = 1 THEN 0 ELSE follow_up_requested END,
                      last_error_code = ?4
                  WHERE id = ?5 AND state = 'running'",
                 params![
@@ -1707,6 +1765,7 @@ impl Database {
                     now_ms,
                     error_code,
                     &run.scan_job_id,
+                    i64::from(options.cancellation_acknowledged),
                 ],
             )?;
 

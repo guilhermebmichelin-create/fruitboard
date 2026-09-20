@@ -70,6 +70,50 @@ pub trait ScanClock {
     fn now_ms(&self) -> i64;
 }
 
+/// The host-side ordering boundary for a cooperative cancellation observed
+/// by the worker. The default implementation preserves the portable worker's
+/// existing storage-only ordering; the desktop host supplies a fenced
+/// acknowledgement tied to the active job/run before it terminalizes.
+pub trait CancellationFinalizer: Send + Sync {
+    fn finish_after_cooperative_cancellation(
+        &self,
+        database: &Mutex<Database>,
+        scan: &ActiveScan,
+        now_ms: i64,
+        terminal_error_code: Option<&str>,
+    ) -> Result<ScanRunState, StorageError>;
+}
+
+struct DefaultCancellationFinalizer;
+
+impl CancellationFinalizer for DefaultCancellationFinalizer {
+    fn finish_after_cooperative_cancellation(
+        &self,
+        database: &Mutex<Database>,
+        scan: &ActiveScan,
+        now_ms: i64,
+        terminal_error_code: Option<&str>,
+    ) -> Result<ScanRunState, StorageError> {
+        let mut database = database.lock().map_err(|_| StorageError::Io)?;
+        database.finish_scan_run_with_error(
+            &scan.leased.run.id,
+            &scan.leased.run.session_id,
+            &scan.leased.run.lease_token,
+            now_ms,
+            ScanRunOutcome::Cancelled,
+            terminal_error_code,
+        )
+    }
+}
+
+struct SharedResolution<'a> {
+    forced_cancel: bool,
+    cooperative_cancel_observed: bool,
+    outcome: Option<enumeration::Outcome>,
+    partial_class: Option<PartialClass>,
+    finalizer: &'a dyn CancellationFinalizer,
+}
+
 /// Production clock over the system wall clock. Milliseconds since the Unix
 /// epoch, clamped to the durable `i64` range like storage's own clock.
 #[derive(Clone, Copy, Debug, Default)]
@@ -567,19 +611,64 @@ impl ScanWorker {
         cancellation: &C,
         clock: &dyn ScanClock,
     ) -> ScanExecution {
+        self.execute_shared_with_finalizer(
+            db,
+            scan,
+            port,
+            cancellation,
+            clock,
+            &DefaultCancellationFinalizer,
+        )
+    }
+
+    /// Shared-mutex execution with the host's exact cancellation ordering
+    /// boundary. The finalizer is consulted only after the worker observed a
+    /// cooperative cancellation; normal follow-up, restart, root-fence and
+    /// publication paths retain the existing storage transitions.
+    pub fn execute_shared_with_finalizer<P: FilesystemPort, C: Cancellation>(
+        &self,
+        db: &Mutex<Database>,
+        scan: ActiveScan,
+        port: &mut P,
+        cancellation: &C,
+        clock: &dyn ScanClock,
+        finalizer: &dyn CancellationFinalizer,
+    ) -> ScanExecution {
         let now = clock.now_ms();
         match self.fence_state_shared(db, &scan, now) {
             FenceState::Unreadable => {
                 return self.execution(&scan, ScanExecutionStatus::Fenced, None, None, None);
             }
             FenceState::Invalidated => {
-                return self.resolve_shared(db, &scan, clock, false, None, None);
+                return self.resolve_shared(
+                    db,
+                    &scan,
+                    clock,
+                    SharedResolution {
+                        forced_cancel: false,
+                        cooperative_cancel_observed: cancellation.is_cancelled(),
+                        outcome: None,
+                        partial_class: None,
+                        finalizer,
+                    },
+                );
             }
             FenceState::Held => {}
         }
         let Some(root_path) = root_path_shared(db, &scan.leased.run.scan_root_id) else {
             // Same removal case as `execute`: the run was detached already.
-            return self.resolve_shared(db, &scan, clock, false, None, None);
+            return self.resolve_shared(
+                db,
+                &scan,
+                clock,
+                SharedResolution {
+                    forced_cancel: false,
+                    cooperative_cancel_observed: cancellation.is_cancelled(),
+                    outcome: None,
+                    partial_class: None,
+                    finalizer,
+                },
+            );
         };
 
         let heartbeat =
@@ -646,9 +735,13 @@ impl ScanWorker {
                 db,
                 &scan,
                 clock,
-                forced_cancel,
-                Some(outcome),
-                partial_class(&report),
+                SharedResolution {
+                    forced_cancel,
+                    cooperative_cancel_observed: cancellation.is_cancelled(),
+                    outcome: Some(outcome),
+                    partial_class: partial_class(&report),
+                    finalizer,
+                },
             );
         }
 
@@ -665,7 +758,18 @@ impl ScanWorker {
                 );
             }
             FenceState::Invalidated => {
-                return self.resolve_shared(db, &scan, clock, false, Some(outcome), None);
+                return self.resolve_shared(
+                    db,
+                    &scan,
+                    clock,
+                    SharedResolution {
+                        forced_cancel: false,
+                        cooperative_cancel_observed: cancellation.is_cancelled(),
+                        outcome: Some(outcome),
+                        partial_class: None,
+                        finalizer,
+                    },
+                );
             }
             FenceState::Held => {}
         }
@@ -674,7 +778,18 @@ impl ScanWorker {
             #[cfg(feature = "diagnostics")]
             let _phase = phase_timer(DiagnosticPhase::Publication);
             let Ok(mut guard) = db.lock() else {
-                return self.resolve_shared(db, &scan, clock, false, Some(outcome), None);
+                return self.resolve_shared(
+                    db,
+                    &scan,
+                    clock,
+                    SharedResolution {
+                        forced_cancel: false,
+                        cooperative_cancel_observed: cancellation.is_cancelled(),
+                        outcome: Some(outcome),
+                        partial_class: None,
+                        finalizer,
+                    },
+                );
             };
             guard.publish_scan_run(
                 &scan.leased.run.id,
@@ -691,7 +806,18 @@ impl ScanWorker {
                 Some(publication),
                 changes,
             ),
-            Err(_) => self.resolve_shared(db, &scan, clock, false, Some(outcome), None),
+            Err(_) => self.resolve_shared(
+                db,
+                &scan,
+                clock,
+                SharedResolution {
+                    forced_cancel: false,
+                    cooperative_cancel_observed: cancellation.is_cancelled(),
+                    outcome: Some(outcome),
+                    partial_class: None,
+                    finalizer,
+                },
+            ),
         }
     }
 
@@ -901,10 +1027,15 @@ impl ScanWorker {
         db: &Mutex<Database>,
         scan: &ActiveScan,
         clock: &dyn ScanClock,
-        forced_cancel: bool,
-        outcome: Option<enumeration::Outcome>,
-        partial_class: Option<PartialClass>,
+        resolution: SharedResolution<'_>,
     ) -> ScanExecution {
+        let SharedResolution {
+            forced_cancel,
+            cooperative_cancel_observed,
+            outcome,
+            partial_class,
+            finalizer,
+        } = resolution;
         let now = clock.now_ms();
         let (run, job) = {
             let Ok(guard) = db.lock() else {
@@ -942,7 +1073,10 @@ impl ScanWorker {
                 partial_class,
             );
         }
-        let terminal = if forced_cancel || run.cancellation_requested || job.cancellation_requested
+        let terminal = if forced_cancel
+            || cooperative_cancel_observed
+            || run.cancellation_requested
+            || job.cancellation_requested
         {
             ScanRunOutcome::Cancelled
         } else if job.follow_up_requested {
@@ -950,7 +1084,14 @@ impl ScanWorker {
         } else {
             ScanRunOutcome::Failed
         };
-        let finished = {
+        let finished = if cooperative_cancel_observed {
+            finalizer.finish_after_cooperative_cancellation(
+                db,
+                scan,
+                now,
+                durable_error_code(outcome),
+            )
+        } else {
             let Ok(mut guard) = db.lock() else {
                 return self.execution_with_partial_class(
                     scan,
