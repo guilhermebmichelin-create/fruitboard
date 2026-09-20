@@ -50,10 +50,8 @@ use reconciliation::{
     Identity as PlanIdentity, Location as PlanLocation, Metadata as PlanMetadata,
     Observation as PlanObservation, Outcome as PlanOutcome, reconcile,
 };
-#[cfg(feature = "diagnostics")]
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::Path;
-#[cfg(feature = "diagnostics")]
 use std::rc::Rc;
 use std::sync::Mutex;
 #[cfg(feature = "diagnostics")]
@@ -257,6 +255,59 @@ impl Default for WorkerConfig {
     }
 }
 
+/// Shared, in-process state for the cooperative lease heartbeat. The
+/// enumerator calls the progress sink between bounded filesystem operations;
+/// the sink renews the durable lease when the injected clock says it is due.
+/// There is deliberately no background thread: a native filesystem call that
+/// does not return cannot be renewed by this worker, so the existing
+/// `progress_interval` remains the maximum intended gap between cooperative
+/// checks while traversal is making progress.
+#[derive(Clone)]
+struct LeaseHeartbeat {
+    next_renewal_ms: Rc<Cell<i64>>,
+    failed: Rc<Cell<bool>>,
+}
+
+impl LeaseHeartbeat {
+    fn new(next_renewal_ms: i64) -> Self {
+        Self {
+            next_renewal_ms: Rc::new(Cell::new(next_renewal_ms)),
+            failed: Rc::new(Cell::new(false)),
+        }
+    }
+
+    fn due(&self, now: i64) -> bool {
+        now >= self.next_renewal_ms.get()
+    }
+
+    fn renewed(&self, now: i64, interval_ms: i64) {
+        self.next_renewal_ms.set(now.saturating_add(interval_ms));
+    }
+
+    fn fail(&self) {
+        self.failed.set(true);
+    }
+
+    fn failed(&self) -> bool {
+        self.failed.get()
+    }
+}
+
+/// Makes a heartbeat failure observable to the enumeration loop without
+/// changing the filesystem port contract. The next cooperative cancellation
+/// check stops traversal; the worker then resolves the run as a failed or
+/// durable-cancellation outcome instead of publishing it.
+struct HeartbeatCancellation<'a, C> {
+    cancellation: &'a C,
+    heartbeat: LeaseHeartbeat,
+}
+
+impl<C: Cancellation> Cancellation for HeartbeatCancellation<'_, C> {
+    fn is_cancelled(&self) -> bool {
+        self.heartbeat.failed() || self.cancellation.is_cancelled()
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkerConfigError {
     LeaseDuration,
@@ -363,8 +414,11 @@ impl ScanWorker {
             return self.resolve(db, &scan, clock, false, None, None);
         };
 
+        let mut database = RefCell::new(&mut *db);
+        let heartbeat =
+            LeaseHeartbeat::new(now.saturating_add(self.config.lease_renewal_interval_ms));
         let mut adapter = StagingAdapter {
-            db,
+            db: &database,
             clock,
             run_id: scan.leased.run.id.clone(),
             job_id: scan.leased.run.scan_job_id.clone(),
@@ -372,24 +426,52 @@ impl ScanWorker {
             lease_token: scan.leased.run.lease_token.clone(),
             lease_duration_ms: self.config.lease_duration_ms,
             renewal_interval_ms: self.config.lease_renewal_interval_ms,
-            next_renewal_ms: now.saturating_add(self.config.lease_renewal_interval_ms),
+            heartbeat: heartbeat.clone(),
             plan: PlanBuffer::default(),
         };
-        let mut progress = enumeration::NoProgress;
-        let report = {
+        let heartbeat_cancellation = HeartbeatCancellation {
+            cancellation,
+            heartbeat: heartbeat.clone(),
+        };
+        let mut progress = ExclusiveHeartbeatProgress {
+            db: &database,
+            clock,
+            run_id: scan.leased.run.id.clone(),
+            job_id: scan.leased.run.scan_job_id.clone(),
+            session_id: scan.leased.run.session_id.clone(),
+            lease_token: scan.leased.run.lease_token.clone(),
+            lease_duration_ms: self.config.lease_duration_ms,
+            renewal_interval_ms: self.config.lease_renewal_interval_ms,
+            heartbeat: heartbeat.clone(),
+        };
+        let mut report = {
             #[cfg(feature = "diagnostics")]
             let _phase = phase_timer(DiagnosticPhase::Enumeration);
             enumeration::enumerate_into_run(
                 port,
                 Path::new(&root_path),
                 &self.config.enumeration_limits,
-                cancellation,
+                &heartbeat_cancellation,
                 &mut adapter,
                 scan.leased.run.id.clone(),
                 &mut progress,
             )
         };
-        let StagingAdapter { db, plan, .. } = adapter;
+        if heartbeat.failed()
+            && !cancellation.is_cancelled()
+            && matches!(
+                report.outcome,
+                enumeration::Outcome::Complete | enumeration::Outcome::Cancelled
+            )
+        {
+            report.outcome = enumeration::Outcome::SinkFailed;
+            report.authoritative = false;
+        }
+        let plan = std::mem::take(&mut adapter.plan);
+        drop(adapter);
+        drop(progress);
+        drop(heartbeat_cancellation);
+        let db = &mut **database.get_mut();
         let outcome = report.outcome;
 
         if !report.authoritative {
@@ -480,6 +562,8 @@ impl ScanWorker {
             return self.resolve_shared(db, &scan, clock, false, None, None);
         };
 
+        let heartbeat =
+            LeaseHeartbeat::new(now.saturating_add(self.config.lease_renewal_interval_ms));
         let mut adapter = SharedStagingAdapter {
             db,
             clock,
@@ -489,24 +573,51 @@ impl ScanWorker {
             lease_token: scan.leased.run.lease_token.clone(),
             lease_duration_ms: self.config.lease_duration_ms,
             renewal_interval_ms: self.config.lease_renewal_interval_ms,
-            next_renewal_ms: now.saturating_add(self.config.lease_renewal_interval_ms),
+            heartbeat: heartbeat.clone(),
             plan: PlanBuffer::default(),
         };
-        let mut progress = enumeration::NoProgress;
-        let report = {
+        let heartbeat_cancellation = HeartbeatCancellation {
+            cancellation,
+            heartbeat: heartbeat.clone(),
+        };
+        let mut progress = SharedHeartbeatProgress {
+            db,
+            clock,
+            run_id: scan.leased.run.id.clone(),
+            job_id: scan.leased.run.scan_job_id.clone(),
+            session_id: scan.leased.run.session_id.clone(),
+            lease_token: scan.leased.run.lease_token.clone(),
+            lease_duration_ms: self.config.lease_duration_ms,
+            renewal_interval_ms: self.config.lease_renewal_interval_ms,
+            heartbeat: heartbeat.clone(),
+        };
+        let mut report = {
             #[cfg(feature = "diagnostics")]
             let _phase = phase_timer(DiagnosticPhase::Enumeration);
             enumeration::enumerate_into_run(
                 port,
                 Path::new(&root_path),
                 &self.config.enumeration_limits,
-                cancellation,
+                &heartbeat_cancellation,
                 &mut adapter,
                 scan.leased.run.id.clone(),
                 &mut progress,
             )
         };
-        let plan = adapter.plan;
+        if heartbeat.failed()
+            && !cancellation.is_cancelled()
+            && matches!(
+                report.outcome,
+                enumeration::Outcome::Complete | enumeration::Outcome::Cancelled
+            )
+        {
+            report.outcome = enumeration::Outcome::SinkFailed;
+            report.authoritative = false;
+        }
+        let plan = std::mem::take(&mut adapter.plan);
+        drop(adapter);
+        drop(progress);
+        drop(heartbeat_cancellation);
         let outcome = report.outcome;
 
         if !report.authoritative {
@@ -1282,8 +1393,8 @@ fn staged_observation(observation: &enumeration::ScanObservation) -> StagedObser
 /// invalidation, terminal run) aborts the traversal immediately with
 /// `SinkError::Unavailable`, so no further provisional batch is staged and
 /// the run ends non-authoritative.
-struct StagingAdapter<'a> {
-    db: &'a mut Database,
+struct StagingAdapter<'a, 'db> {
+    db: &'a RefCell<&'db mut Database>,
     clock: &'a dyn ScanClock,
     run_id: String,
     job_id: String,
@@ -1291,17 +1402,22 @@ struct StagingAdapter<'a> {
     lease_token: String,
     lease_duration_ms: i64,
     renewal_interval_ms: i64,
-    next_renewal_ms: i64,
+    heartbeat: LeaseHeartbeat,
     plan: PlanBuffer,
 }
 
-impl RunScopedStorage for StagingAdapter<'_> {
+impl RunScopedStorage for StagingAdapter<'_, '_> {
     fn stage_batch(&mut self, _run_id: &str, batch: ObservationBatch) -> Result<(), SinkError> {
         #[cfg(feature = "diagnostics")]
         let _phase = phase_timer(DiagnosticPhase::StagingBatch);
+        if self.heartbeat.failed() {
+            return Err(SinkError::Unavailable);
+        }
         let now = self.clock.now_ms();
-        if now >= self.next_renewal_ms {
+        if self.heartbeat.due(now) {
             self.db
+                .try_borrow_mut()
+                .map_err(|_| SinkError::Unavailable)?
                 .renew_scan_lease(
                     &self.run_id,
                     &self.session_id,
@@ -1310,7 +1426,7 @@ impl RunScopedStorage for StagingAdapter<'_> {
                     self.lease_duration_ms,
                 )
                 .map_err(|_| SinkError::Unavailable)?;
-            self.next_renewal_ms = now.saturating_add(self.renewal_interval_ms);
+            self.heartbeat.renewed(now, self.renewal_interval_ms);
         }
         if self.fence_violated(now) {
             return Err(SinkError::Unavailable);
@@ -1323,13 +1439,17 @@ impl RunScopedStorage for StagingAdapter<'_> {
             }
         }
         self.plan.absorb(&batch.records);
-        match self.db.stage_scan_observations(
-            &self.run_id,
-            &self.session_id,
-            &self.lease_token,
-            now,
-            &observations,
-        ) {
+        match self
+            .db
+            .try_borrow_mut()
+            .map_err(|_| SinkError::Unavailable)?
+            .stage_scan_observations(
+                &self.run_id,
+                &self.session_id,
+                &self.lease_token,
+                now,
+                &observations,
+            ) {
             Ok(_) => Ok(()),
             Err(StorageError::StagingRejected) => Err(SinkError::Rejected),
             Err(_) => Err(SinkError::Unavailable),
@@ -1346,12 +1466,12 @@ impl RunScopedStorage for StagingAdapter<'_> {
     }
 }
 
-impl StagingAdapter<'_> {
+impl StagingAdapter<'_, '_> {
     fn fence_violated(&self, now: i64) -> bool {
-        let (Ok(run), Ok(job)) = (
-            self.db.scan_run(&self.run_id),
-            self.db.scan_job(&self.job_id),
-        ) else {
+        let Ok(db) = self.db.try_borrow() else {
+            return true;
+        };
+        let (Ok(run), Ok(job)) = (db.scan_run(&self.run_id), db.scan_job(&self.job_id)) else {
             return true;
         };
         run.state != ScanRunState::Running
@@ -1360,6 +1480,76 @@ impl StagingAdapter<'_> {
             || job.cancellation_requested
             || job.follow_up_requested
             || run.lease_expires_at_ms <= now
+    }
+}
+
+/// Exclusive-database progress sink. It is called by the enumerator between
+/// bounded filesystem operations, including metadata-only entries and the
+/// final report, so a scan with no matching FLP files still renews and fences
+/// its ownership. A failed renewal is converted into cooperative cancellation
+/// through [`HeartbeatCancellation`].
+struct ExclusiveHeartbeatProgress<'a, 'db> {
+    db: &'a RefCell<&'db mut Database>,
+    clock: &'a dyn ScanClock,
+    run_id: String,
+    job_id: String,
+    session_id: String,
+    lease_token: String,
+    lease_duration_ms: i64,
+    renewal_interval_ms: i64,
+    heartbeat: LeaseHeartbeat,
+}
+
+impl ExclusiveHeartbeatProgress<'_, '_> {
+    fn renew_if_due(&mut self, now: i64) -> bool {
+        if self.heartbeat.failed() {
+            return false;
+        }
+        if !self.heartbeat.due(now) {
+            return true;
+        }
+        let renewed = match self.db.try_borrow_mut() {
+            Ok(mut db) => db
+                .renew_scan_lease(
+                    &self.run_id,
+                    &self.session_id,
+                    &self.lease_token,
+                    now,
+                    self.lease_duration_ms,
+                )
+                .is_ok(),
+            Err(_) => false,
+        };
+        if !renewed {
+            self.heartbeat.fail();
+            return false;
+        }
+        self.heartbeat.renewed(now, self.renewal_interval_ms);
+        true
+    }
+
+    fn fence_violated(&self, now: i64) -> bool {
+        let Ok(db) = self.db.try_borrow() else {
+            return true;
+        };
+        let (Ok(run), Ok(job)) = (db.scan_run(&self.run_id), db.scan_job(&self.job_id)) else {
+            return true;
+        };
+        run.state != ScanRunState::Running
+            || job.state != ScanJobState::Running
+            || run.cancellation_requested
+            || job.cancellation_requested
+            || job.follow_up_requested
+            || run.lease_expires_at_ms <= now
+    }
+}
+
+impl enumeration::ProgressSink for ExclusiveHeartbeatProgress<'_, '_> {
+    fn report(&mut self, _update: enumeration::ProgressUpdate) {
+        let now = self.clock.now_ms();
+        if self.renew_if_due(now) && self.fence_violated(now) {
+            self.heartbeat.fail();
+        }
     }
 }
 
@@ -1381,7 +1571,7 @@ struct SharedStagingAdapter<'a> {
     lease_token: String,
     lease_duration_ms: i64,
     renewal_interval_ms: i64,
-    next_renewal_ms: i64,
+    heartbeat: LeaseHeartbeat,
     plan: PlanBuffer,
 }
 
@@ -1389,8 +1579,11 @@ impl RunScopedStorage for SharedStagingAdapter<'_> {
     fn stage_batch(&mut self, _run_id: &str, batch: ObservationBatch) -> Result<(), SinkError> {
         #[cfg(feature = "diagnostics")]
         let _phase = phase_timer(DiagnosticPhase::StagingBatch);
+        if self.heartbeat.failed() {
+            return Err(SinkError::Unavailable);
+        }
         let now = self.clock.now_ms();
-        if now >= self.next_renewal_ms {
+        if self.heartbeat.due(now) {
             let renewed = {
                 let Ok(mut guard) = self.db.lock() else {
                     return Err(SinkError::Unavailable);
@@ -1404,7 +1597,7 @@ impl RunScopedStorage for SharedStagingAdapter<'_> {
                 )
             };
             renewed.map_err(|_| SinkError::Unavailable)?;
-            self.next_renewal_ms = now.saturating_add(self.renewal_interval_ms);
+            self.heartbeat.renewed(now, self.renewal_interval_ms);
         }
         if self.fence_violated(now) {
             return Err(SinkError::Unavailable);
@@ -1456,6 +1649,74 @@ impl SharedStagingAdapter<'_> {
             || job.cancellation_requested
             || job.follow_up_requested
             || run.lease_expires_at_ms <= now
+    }
+}
+
+/// Mutex-backed equivalent of [`ExclusiveHeartbeatProgress`]. The lock is
+/// taken only for the renewal and fence read; it is never held while the
+/// filesystem port is running.
+struct SharedHeartbeatProgress<'a> {
+    db: &'a Mutex<Database>,
+    clock: &'a dyn ScanClock,
+    run_id: String,
+    job_id: String,
+    session_id: String,
+    lease_token: String,
+    lease_duration_ms: i64,
+    renewal_interval_ms: i64,
+    heartbeat: LeaseHeartbeat,
+}
+
+impl SharedHeartbeatProgress<'_> {
+    fn renew_if_due(&mut self, now: i64) -> bool {
+        if self.heartbeat.failed() {
+            return false;
+        }
+        if !self.heartbeat.due(now) {
+            return true;
+        }
+        let renewed = match self.db.lock() {
+            Ok(mut db) => db
+                .renew_scan_lease(
+                    &self.run_id,
+                    &self.session_id,
+                    &self.lease_token,
+                    now,
+                    self.lease_duration_ms,
+                )
+                .is_ok(),
+            Err(_) => false,
+        };
+        if !renewed {
+            self.heartbeat.fail();
+            return false;
+        }
+        self.heartbeat.renewed(now, self.renewal_interval_ms);
+        true
+    }
+
+    fn fence_violated(&self, now: i64) -> bool {
+        let Ok(db) = self.db.lock() else {
+            return true;
+        };
+        let (Ok(run), Ok(job)) = (db.scan_run(&self.run_id), db.scan_job(&self.job_id)) else {
+            return true;
+        };
+        run.state != ScanRunState::Running
+            || job.state != ScanJobState::Running
+            || run.cancellation_requested
+            || job.cancellation_requested
+            || job.follow_up_requested
+            || run.lease_expires_at_ms <= now
+    }
+}
+
+impl enumeration::ProgressSink for SharedHeartbeatProgress<'_> {
+    fn report(&mut self, _update: enumeration::ProgressUpdate) {
+        let now = self.clock.now_ms();
+        if self.renew_if_due(now) && self.fence_violated(now) {
+            self.heartbeat.fail();
+        }
     }
 }
 
