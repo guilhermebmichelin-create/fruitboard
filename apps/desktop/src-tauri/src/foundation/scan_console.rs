@@ -428,7 +428,13 @@ impl ScanConsoleService {
         let result = worker
             .request_manual_scan(&mut database, &root_id, self.clock.as_ref())
             .map_err(map_enqueue_storage_error)?;
-        let job = latest_job_for_root(&database, &root_id).map_err(map_enqueue_storage_error)?;
+        // The enqueue transaction is authoritative about which retry chain
+        // accepted this request. Looking up the newest-created job by root can
+        // select a newer terminal history row while an older retry is queued
+        // or running, turning a successful coalesce into a false conflict.
+        let job = database
+            .scan_job(&result.job_id)
+            .map_err(map_enqueue_storage_error)?;
         let run_id = running_run_id_for_job(&database, &job.id);
         let (outcome, state) = if !result.coalesced && job.state == ScanJobState::Queued {
             (ScanStartOutcome::Queued, Some(ScanExecutionState::Queued))
@@ -563,7 +569,7 @@ impl ScanConsoleService {
         let runs = database.list_scan_runs().map_err(map_scan_storage_error)?;
         let mut statuses = Vec::with_capacity(roots.len());
         for root in roots {
-            let job = latest_job_for_root_by(&jobs, &root.id);
+            let job = current_job_for_root_by(&jobs, &root.id);
             statuses.push(build_scan_status(&database, &host, root, job, &runs));
         }
         Ok(statuses)
@@ -645,20 +651,20 @@ impl Drop for ScanConsoleService {
 }
 
 #[cfg(feature = "scan-console")]
-fn latest_job_for_root(database: &Database, root_id: &str) -> Result<ScanJob, StorageError> {
-    database
-        .list_scan_jobs()?
-        .into_iter()
-        .filter(|job| job.scan_root_id == root_id)
-        .max_by(job_order)
-        .ok_or(StorageError::NotFound)
-}
-
-#[cfg(feature = "scan-console")]
-fn latest_job_for_root_by<'a>(jobs: &'a [ScanJob], root_id: &str) -> Option<&'a ScanJob> {
+fn current_job_for_root_by<'a>(jobs: &'a [ScanJob], root_id: &str) -> Option<&'a ScanJob> {
     jobs.iter()
         .filter(|job| job.scan_root_id == root_id)
+        // The partial unique index normally guarantees one active job per
+        // root. Keep the tie-breaker deterministic here as well, so a status
+        // read remains stable even if it observes legacy or repaired data.
+        .filter(|job| matches!(job.state, ScanJobState::Queued | ScanJobState::Running))
         .max_by(|left, right| job_order(left, right))
+        .or_else(|| {
+            jobs.iter()
+                .filter(|job| job.scan_root_id == root_id)
+                .filter(|job| !matches!(job.state, ScanJobState::Queued | ScanJobState::Running))
+                .max_by(|left, right| job_order(left, right))
+        })
 }
 
 #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
