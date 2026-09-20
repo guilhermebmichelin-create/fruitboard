@@ -44,7 +44,7 @@ use fruitboard_storage::{
     Database, EncodedIdentity as StagedIdentity, EnqueueResult, FilePresence, LeasedScan,
     LibraryQuery, MAX_LIBRARY_PAGE_SIZE, MAX_STAGED_PATH_BYTES, MAX_STAGED_RECORDS,
     PublishedLocation, ScanJob, ScanJobState, ScanKind, ScanObservation as StagedObservation,
-    ScanPublication, ScanRunOutcome, ScanRunState, ScanSession, StorageError,
+    ScanPublication, ScanRetryCursor, ScanRunOutcome, ScanRunState, ScanSession, StorageError,
 };
 use reconciliation::{
     Identity as PlanIdentity, Location as PlanLocation, Metadata as PlanMetadata,
@@ -53,7 +53,7 @@ use reconciliation::{
 use std::cell::{Cell, RefCell};
 use std::path::Path;
 use std::rc::Rc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 #[cfg(feature = "diagnostics")]
 use std::time::Instant;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -320,7 +320,10 @@ pub enum WorkerConfigError {
 #[derive(Clone, Debug)]
 pub struct ScanWorker {
     config: WorkerConfig,
+    retry_cursor: Arc<Mutex<Option<ScanRetryCursor>>>,
 }
+
+const RETRY_SWEEP_PAGE_SIZE: usize = 64;
 
 impl ScanWorker {
     pub fn new(config: WorkerConfig) -> Result<Self, WorkerConfigError> {
@@ -332,7 +335,10 @@ impl ScanWorker {
         {
             return Err(WorkerConfigError::RenewalInterval);
         }
-        Ok(Self { config })
+        Ok(Self {
+            config,
+            retry_cursor: Arc::new(Mutex::new(None)),
+        })
     }
 
     /// Begin the process session and fence prior-session work: previous
@@ -716,11 +722,23 @@ impl ScanWorker {
         clock: &dyn ScanClock,
     ) -> Result<usize, StorageError> {
         let now = clock.now_ms();
+        let after = self
+            .retry_cursor
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let page = db.retry_candidate_page(now, RETRY_SWEEP_PAGE_SIZE, after.as_ref())?;
+        let next_cursor = page.next_cursor.clone();
+        let jobs = page.jobs;
+        // One poll tick owns one bounded page. When the end is reached, the
+        // next tick wraps to the beginning so a candidate that became ready
+        // ahead of the cursor cannot be missed forever.
+        *self
+            .retry_cursor
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = next_cursor;
         let mut requeued = 0;
-        for job in db.list_scan_jobs()? {
-            if job.state != ScanJobState::Failed || job.attempt >= job.max_attempts {
-                continue;
-            }
+        for job in jobs {
             if Self::retry_eligible_at(&job) > now {
                 continue;
             }

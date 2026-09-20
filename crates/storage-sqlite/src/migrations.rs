@@ -23,6 +23,10 @@ pub(crate) const MIGRATIONS: &[Migration] = &[
         name: "005_integration_contract",
         sql: include_str!("../migrations/005_integration_contract.sql"),
     },
+    Migration {
+        name: "006_scan_retry_candidates",
+        sql: include_str!("../migrations/006_scan_retry_candidates.sql"),
+    },
 ];
 
 #[derive(Clone, Copy)]
