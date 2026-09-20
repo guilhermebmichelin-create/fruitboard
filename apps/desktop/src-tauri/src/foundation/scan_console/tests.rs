@@ -967,23 +967,28 @@ fn cancelling_older_active_retry_preserves_newer_history_and_library_data() {
     assert_eq!(page["records"][0]["fileName"], "committed.flp");
     assert_eq!(page["records"][0]["presence"], "present");
 
-    assert_eq!(
-        error_code(handle_retry_scan(
-            &runtime,
-            &harness.service,
-            retry_request(&retry_job_id),
-        )),
-        "conflict",
-        "cancelled retry chains are never revived"
-    );
-    let fresh = ok_data(handle_scan_now(
+    // Explicit Retry is a new user-requested scan after cancellation. It
+    // preserves the cancelled history row but starts a distinct chain, just
+    // like Scan now, instead of reviving or rejecting the old job.
+    let fresh_retry = ok_data(handle_retry_scan(
         &runtime,
         &harness.service,
-        scan_now_request(&harness.root_id),
+        retry_request(&retry_job_id),
     ));
-    assert_ne!(fresh["jobId"], retry_job_id);
-    assert_ne!(fresh["jobId"], newer_job_id);
-    assert_eq!(fresh["outcome"], "queued");
+    assert_ne!(fresh_retry["jobId"], retry_job_id);
+    assert_ne!(fresh_retry["jobId"], newer_job_id);
+    assert_eq!(fresh_retry["outcome"], "queued");
+    assert!(fresh_retry["runId"].is_null());
+
+    // The successor can publish normally without changing the newer terminal
+    // history's committed Library result.
+    harness.tick(tree(vec![file_entry("committed.flp", 402)]));
+    let after_retry = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    assert_eq!(after_retry["records"], page["records"]);
 
     let database = harness.database.lock().unwrap();
     assert_eq!(
