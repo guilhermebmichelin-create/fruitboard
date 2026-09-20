@@ -3,6 +3,59 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[cfg(test)]
+#[derive(Clone, Copy, Default)]
+struct TestReadCounts {
+    job_rows: usize,
+    run_rows: usize,
+    retry_window_rows: usize,
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_READ_COUNTS: std::cell::RefCell<TestReadCounts> =
+        const {
+            std::cell::RefCell::new(TestReadCounts {
+                job_rows: 0,
+                run_rows: 0,
+                retry_window_rows: 0,
+            })
+        };
+}
+
+#[cfg(test)]
+fn record_job_row() {
+    TEST_READ_COUNTS.with(|counts| counts.borrow_mut().job_rows += 1);
+}
+
+#[cfg(test)]
+fn record_run_row() {
+    TEST_READ_COUNTS.with(|counts| counts.borrow_mut().run_rows += 1);
+}
+
+#[cfg(test)]
+fn record_retry_window_row() {
+    TEST_READ_COUNTS.with(|counts| counts.borrow_mut().retry_window_rows += 1);
+}
+
+#[cfg(test)]
+pub(crate) fn reset_test_read_counts() {
+    TEST_READ_COUNTS.with(|counts| *counts.borrow_mut() = TestReadCounts::default());
+}
+
+#[cfg(test)]
+pub(crate) fn test_read_counts() -> (usize, usize) {
+    TEST_READ_COUNTS.with(|counts| {
+        let counts = *counts.borrow();
+        (counts.job_rows, counts.run_rows)
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn test_retry_window_rows() -> usize {
+    TEST_READ_COUNTS.with(|counts| counts.borrow().retry_window_rows)
+}
+
 /// The initial retry budget is deliberately small: one initial attempt plus
 /// three automatic retries. It is persisted on each job so reopening the
 /// database cannot reset automatic retries.
@@ -239,6 +292,34 @@ pub struct EnqueueResult {
     pub follow_up_requested: bool,
 }
 
+/// A stable keyset position for one bounded retry sweep page. The cursor is
+/// deliberately based on the existing durable job ordering so a page can
+/// move past candidates that are not yet eligible without materializing the
+/// rest of the historical queue.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScanRetryCursor {
+    pub created_at_ms: i64,
+    pub id: String,
+}
+
+/// One bounded page of failed jobs whose non-jittered retry backoff has
+/// elapsed. The worker applies the existing deterministic per-job jitter
+/// before requeueing and retains the cursor between poll ticks for fairness.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScanRetryCandidatePage {
+    pub jobs: Vec<ScanJob>,
+    pub next_cursor: Option<ScanRetryCursor>,
+}
+
+/// The one job selected for a root's status packet and the run identity that
+/// belongs to that selected job. Historical rows stay in SQLite; callers do
+/// not need to load them to resolve the current/terminal status.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ScanRootStatus {
+    pub job: ScanJob,
+    pub run_id: Option<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LeasedScan {
@@ -292,6 +373,8 @@ fn parse_flag(value: i64) -> Result<bool> {
 }
 
 fn job_from_raw(raw: RawJob) -> Result<ScanJob> {
+    #[cfg(test)]
+    record_job_row();
     let (
         id,
         root_id,
@@ -330,6 +413,8 @@ fn job_from_raw(raw: RawJob) -> Result<ScanJob> {
 }
 
 fn run_from_raw(raw: RawRun) -> Result<ScanRun> {
+    #[cfg(test)]
+    record_run_row();
     let (
         id,
         scan_job_id,
@@ -379,24 +464,7 @@ fn select_job(connection: &Connection, id: &str) -> Result<ScanJob> {
                     cancellation_requested, created_at_ms, updated_at_ms, last_error_code
              FROM scan_job WHERE id = ?1",
             [id],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                    row.get(6)?,
-                    row.get(7)?,
-                    row.get(8)?,
-                    row.get(9)?,
-                    row.get(10)?,
-                    row.get(11)?,
-                    row.get(12)?,
-                    row.get(13)?,
-                ))
-            },
+            raw_job_from_row,
         )
         .map_err(map_not_found)?;
     job_from_raw(raw)
@@ -411,29 +479,50 @@ fn select_run(connection: &Connection, id: &str) -> Result<ScanRun> {
                     lease_expires_at_ms, outcome, error_code
              FROM scan_run WHERE id = ?1",
             [id],
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                    row.get(6)?,
-                    row.get(7)?,
-                    row.get(8)?,
-                    row.get(9)?,
-                    row.get(10)?,
-                    row.get(11)?,
-                    row.get(12)?,
-                    row.get(13)?,
-                    row.get(14)?,
-                    row.get(15)?,
-                ))
-            },
+            raw_run_from_row,
         )
         .map_err(map_not_found)?;
     run_from_raw(raw)
+}
+
+fn raw_job_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawJob> {
+    Ok((
+        row.get(0)?,
+        row.get(1)?,
+        row.get(2)?,
+        row.get(3)?,
+        row.get(4)?,
+        row.get(5)?,
+        row.get(6)?,
+        row.get(7)?,
+        row.get(8)?,
+        row.get(9)?,
+        row.get(10)?,
+        row.get(11)?,
+        row.get(12)?,
+        row.get(13)?,
+    ))
+}
+
+fn raw_run_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawRun> {
+    Ok((
+        row.get(0)?,
+        row.get(1)?,
+        row.get(2)?,
+        row.get(3)?,
+        row.get(4)?,
+        row.get(5)?,
+        row.get(6)?,
+        row.get(7)?,
+        row.get(8)?,
+        row.get(9)?,
+        row.get(10)?,
+        row.get(11)?,
+        row.get(12)?,
+        row.get(13)?,
+        row.get(14)?,
+        row.get(15)?,
+    ))
 }
 
 fn map_not_found(error: rusqlite::Error) -> StorageError {
@@ -442,6 +531,105 @@ fn map_not_found(error: rusqlite::Error) -> StorageError {
         other => other.into(),
     }
 }
+
+/// Build the retry window query for either the first page or a seekable
+/// continuation. The CTE deliberately limits the durable candidate window
+/// before checking backoff, root configuration, and slot ownership. Those
+/// checks can reject every row in a page (for example, a disabled root), so
+/// putting them in the CTE would let a LIMIT-only outer query scan unbounded
+/// historical rows.
+///
+/// The first page binds `(now_ms, limit)`; a continuation binds
+/// `(now_ms, cursor_created_at_ms, cursor_id, limit)`. The tuple comparison is
+/// intentional: the nullable `OR` cursor predicate used by the old query made
+/// SQLite choose an index scan instead of a seek for later pages.
+pub(crate) fn retry_candidate_query(continuation: bool) -> String {
+    let cursor = if continuation {
+        "       AND (j.created_at_ms, j.id) > (?2, ?3)\n"
+    } else {
+        ""
+    };
+    let limit = if continuation { "?4" } else { "?2" };
+    format!(
+        "WITH examined AS (
+         SELECT j.id, j.scan_root_id, j.kind, j.state, j.retry_chain_id,
+                j.attempt, j.max_attempts, j.not_before_ms, j.priority,
+                j.follow_up_requested, j.cancellation_requested,
+                j.created_at_ms, j.updated_at_ms, j.last_error_code
+         FROM scan_job AS j INDEXED BY scan_job_retry_order
+         WHERE j.state = 'failed'
+           AND j.cancellation_requested = 0
+           AND j.attempt < j.max_attempts
+{cursor}         ORDER BY j.created_at_ms, j.id
+         LIMIT {limit}
+     )
+     SELECT examined.id, examined.scan_root_id, examined.kind, examined.state,
+            examined.retry_chain_id, examined.attempt, examined.max_attempts,
+            examined.not_before_ms, examined.priority,
+            examined.follow_up_requested, examined.cancellation_requested,
+            examined.created_at_ms, examined.updated_at_ms,
+            examined.last_error_code,
+            CASE
+                WHEN examined.updated_at_ms + CASE
+                         WHEN examined.attempt <= 1 THEN 1000
+                         WHEN examined.attempt = 2 THEN 2000
+                         ELSE 4000
+                     END <= ?1
+                     AND root.enabled = 1 AND NOT EXISTS (
+                    SELECT 1 FROM scan_job AS active
+                    WHERE active.scan_root_id = examined.scan_root_id
+                      AND active.state IN ('queued', 'running')
+                ) THEN 1
+                ELSE 0
+            END AS retry_slot_available
+     FROM examined
+     LEFT JOIN scan_root AS root ON root.id = examined.scan_root_id
+     ORDER BY examined.created_at_ms, examined.id",
+        cursor = cursor,
+        limit = limit,
+    )
+}
+
+fn raw_retry_candidate_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(RawJob, bool)> {
+    #[cfg(test)]
+    record_retry_window_row();
+    Ok((raw_job_from_row(row)?, row.get::<_, i64>(14)? != 0))
+}
+
+pub(crate) const SCAN_ROOT_STATUS_QUERY: &str =
+    "SELECT selected.id, selected.scan_root_id, selected.kind, selected.state,
+            selected.retry_chain_id, selected.attempt, selected.max_attempts,
+            selected.not_before_ms, selected.priority,
+            selected.follow_up_requested, selected.cancellation_requested,
+            selected.created_at_ms, selected.updated_at_ms,
+            selected.last_error_code,
+            CASE WHEN selected.state = 'queued' THEN NULL ELSE (
+                SELECT run.id
+                FROM scan_run AS run INDEXED BY scan_run_status_order
+                WHERE run.scan_job_id = selected.id
+                  AND (
+                      (selected.state = 'running' AND run.state = 'running')
+                      OR selected.state NOT IN ('queued', 'running')
+                  )
+                ORDER BY run.started_at_ms DESC, run.id DESC
+                LIMIT 1
+            ) END
+     FROM scan_job AS selected
+     WHERE selected.id = COALESCE(
+         (SELECT active.id
+          FROM scan_job AS active INDEXED BY scan_job_status_active_order
+          WHERE active.scan_root_id = ?1
+            AND active.state IN ('queued', 'running')
+          ORDER BY active.created_at_ms DESC, active.id DESC
+          LIMIT 1),
+         (SELECT terminal.id
+          FROM scan_job AS terminal INDEXED BY scan_job_status_terminal_order
+          WHERE terminal.scan_root_id = ?1
+            AND terminal.state NOT IN ('queued', 'running')
+          ORDER BY terminal.created_at_ms DESC, terminal.id DESC
+          LIMIT 1)
+     )
+     LIMIT 1";
 
 fn select_root_execution(connection: &Connection, id: &str) -> Result<ScanRootExecution> {
     let raw = connection
@@ -1524,12 +1712,127 @@ impl Database {
         })
     }
 
+    /// Return one bounded, keyset-ordered page of retryable failed jobs.
+    ///
+    /// Storage first materializes at most `limit` durable failed candidates in
+    /// creation order. Root configuration and active-slot checks are applied
+    /// only to that bounded window, and the cursor advances past every row in
+    /// the window even if those checks reject every row. The worker applies the
+    /// existing deterministic jitter after this method returns.
+    pub fn retry_candidate_page(
+        &self,
+        now_ms: i64,
+        limit: usize,
+        after: Option<&ScanRetryCursor>,
+    ) -> Result<ScanRetryCandidatePage> {
+        let limit = i64::try_from(limit).map_err(|_| StorageError::InvalidSchema)?;
+        if limit <= 0 {
+            return Err(StorageError::InvalidSchema);
+        }
+        let query = retry_candidate_query(after.is_some());
+        let mut statement = self.connection.prepare(&query)?;
+        let raw_candidates = if let Some(after) = after {
+            statement
+                .query_map(
+                    params![now_ms, after.created_at_ms, after.id.as_str(), limit],
+                    raw_retry_candidate_from_row,
+                )?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        } else {
+            statement
+                .query_map(params![now_ms, limit], raw_retry_candidate_from_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        let next_cursor = (raw_candidates.len() == usize::try_from(limit).unwrap_or(usize::MAX))
+            .then(|| {
+                raw_candidates.last().map(|(raw_job, _)| ScanRetryCursor {
+                    created_at_ms: raw_job.11,
+                    id: raw_job.0.clone(),
+                })
+            })
+            .flatten();
+        let mut jobs = Vec::with_capacity(raw_candidates.len());
+        for (raw_job, retry_slot_available) in raw_candidates {
+            if retry_slot_available {
+                jobs.push(job_from_raw(raw_job)?);
+            }
+        }
+        Ok(ScanRetryCandidatePage { jobs, next_cursor })
+    }
+
     pub fn scan_job(&self, job_id: &str) -> Result<ScanJob> {
         select_job(&self.connection, job_id)
     }
 
     pub fn scan_run(&self, run_id: &str) -> Result<ScanRun> {
         select_run(&self.connection, run_id)
+    }
+
+    /// Select the current/terminal job for one root without loading its
+    /// historical siblings. Active work wins over terminal history; ties use
+    /// the same `(created_at_ms, id)` order as the status contract. Queued
+    /// jobs deliberately return no run ID because they have no current
+    /// attempt.
+    pub fn scan_root_status(&self, root_id: &str) -> Result<Option<ScanRootStatus>> {
+        let selected = self
+            .connection
+            .query_row(SCAN_ROOT_STATUS_QUERY, [root_id], |row| {
+                Ok((raw_job_from_row(row)?, row.get::<_, Option<String>>(14)?))
+            })
+            .optional()?;
+        selected
+            .map(|(raw_job, run_id)| {
+                Ok(ScanRootStatus {
+                    job: job_from_raw(raw_job)?,
+                    run_id,
+                })
+            })
+            .transpose()
+    }
+
+    /// Select the currently running attempt for one already-selected job.
+    /// This never traverses runs belonging to another job.
+    pub fn running_scan_run_for_job(&self, job_id: &str) -> Result<Option<ScanRun>> {
+        let raw = self
+            .connection
+            .query_row(
+                "SELECT id, scan_job_id, scan_root_id, generation,
+                        configuration_revision, retry_chain_id, attempt,
+                        session_id, lease_token, state, cancellation_requested,
+                        started_at_ms, finished_at_ms, lease_expires_at_ms,
+                        outcome, error_code
+                 FROM scan_run
+                 WHERE scan_job_id = ?1 AND state = 'running'
+                 ORDER BY started_at_ms DESC, id DESC
+                 LIMIT 1",
+                [job_id],
+                raw_run_from_row,
+            )
+            .optional()?;
+        raw.map(run_from_raw).transpose()
+    }
+
+    /// Select the newest durable run for one already-selected job. This is
+    /// used for terminal status and cancellation acknowledgements without
+    /// loading unrelated run history.
+    pub fn latest_scan_run_for_job(&self, job_id: &str) -> Result<Option<ScanRun>> {
+        let raw = self
+            .connection
+            .query_row(
+                "SELECT id, scan_job_id, scan_root_id, generation,
+                        configuration_revision, retry_chain_id, attempt,
+                        session_id, lease_token, state, cancellation_requested,
+                        started_at_ms, finished_at_ms, lease_expires_at_ms,
+                        outcome, error_code
+                 FROM scan_run
+                 WHERE scan_job_id = ?1
+                 ORDER BY started_at_ms DESC, id DESC
+                 LIMIT 1",
+                [job_id],
+                raw_run_from_row,
+            )
+            .optional()?;
+        raw.map(run_from_raw).transpose()
     }
 
     pub fn list_scan_jobs(&self) -> Result<Vec<ScanJob>> {

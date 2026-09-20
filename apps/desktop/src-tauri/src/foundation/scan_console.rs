@@ -36,12 +36,12 @@
 use super::command::CommandRuntime;
 use super::errors::{AppError, DiagnosticCode, ErrorCode};
 use fruitboard_storage::{
-    Database, FilePresence, LibraryCursor, LibrarySnapshot, PublishedLocation, ScanJob, ScanRoot,
+    Database, FilePresence, LibraryCursor, LibrarySnapshot, PublishedLocation, ScanRoot,
     StorageError,
 };
 #[cfg(feature = "scan-console")]
 use fruitboard_storage::{
-    LibraryQuery, MAX_LIBRARY_PAGE_SIZE, ScanJobState, ScanKind, ScanRootPublication,
+    LibraryQuery, MAX_LIBRARY_PAGE_SIZE, ScanJob, ScanJobState, ScanKind, ScanRootPublication,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -438,8 +438,17 @@ impl ScanConsoleService {
         let result = worker
             .request_scan(&mut database, root_id, kind, self.clock.as_ref())
             .map_err(map_enqueue_storage_error)?;
-        let job = latest_job_for_root(&database, root_id).map_err(map_enqueue_storage_error)?;
-        let run_id = running_run_id_for_job(&database, &job.id);
+        // The enqueue transaction is authoritative about which retry chain
+        // accepted this request. Looking up the newest-created job by root can
+        // select a newer terminal history row while an older retry is queued
+        // or running, turning a successful coalesce into a false conflict.
+        let job = database
+            .scan_job(&result.job_id)
+            .map_err(map_enqueue_storage_error)?;
+        let run_id = database
+            .running_scan_run_for_job(&job.id)
+            .map_err(map_scan_storage_error)?
+            .map(|run| run.id);
         let (outcome, state) = if !result.coalesced && job.state == ScanJobState::Queued {
             (ScanStartOutcome::Queued, Some(ScanExecutionState::Queued))
         } else {
@@ -476,7 +485,10 @@ impl ScanConsoleService {
         let state = database
             .cancel_scan_job(&job_id, self.clock.as_ref().now_ms())
             .map_err(map_scan_storage_error)?;
-        let run_id = latest_run_id_for_job(&database, &job_id);
+        let run_id = database
+            .latest_scan_run_for_job(&job_id)
+            .map_err(map_scan_storage_error)?
+            .map(|run| run.id);
         // The pre-cancel job state decides the outcome; the write result
         // reconciles the worker commit race (a running attempt that the
         // worker finished or cancelled first).
@@ -535,7 +547,10 @@ impl ScanConsoleService {
             ScanJobState::Running => {
                 let run_id = {
                     let database = self.database.lock().map_err(|_| storage_failed())?;
-                    running_run_id_for_job(&database, &job_id)
+                    database
+                        .running_scan_run_for_job(&job_id)
+                        .map_err(map_scan_storage_error)?
+                        .map(|run| run.id)
                 };
                 Ok(ScanStartResult {
                     root_id: job.scan_root_id,
@@ -586,12 +601,16 @@ impl ScanConsoleService {
         let host = self.host()?;
         let database = self.database.lock().map_err(|_| storage_failed())?;
         let roots = database.list_scan_roots().map_err(map_scan_storage_error)?;
-        let jobs = database.list_scan_jobs().map_err(map_scan_storage_error)?;
-        let runs = database.list_scan_runs().map_err(map_scan_storage_error)?;
         let mut statuses = Vec::with_capacity(roots.len());
         for root in roots {
-            let job = latest_job_for_root_by(&jobs, &root.id);
-            statuses.push(build_scan_status(&database, &host, root, job, &runs));
+            let selected = database
+                .scan_root_status(&root.id)
+                .map_err(map_scan_storage_error)?;
+            let job = selected.as_ref().map(|status| &status.job);
+            let run_id = selected
+                .as_ref()
+                .and_then(|status| status.run_id.as_deref());
+            statuses.push(build_scan_status(&database, &host, root, job, run_id));
         }
         Ok(statuses)
     }
@@ -672,63 +691,12 @@ impl Drop for ScanConsoleService {
 }
 
 #[cfg(feature = "scan-console")]
-fn latest_job_for_root(database: &Database, root_id: &str) -> Result<ScanJob, StorageError> {
-    database
-        .list_scan_jobs()?
-        .into_iter()
-        .filter(|job| job.scan_root_id == root_id)
-        .max_by(job_order)
-        .ok_or(StorageError::NotFound)
-}
-
-#[cfg(feature = "scan-console")]
-fn latest_job_for_root_by<'a>(jobs: &'a [ScanJob], root_id: &str) -> Option<&'a ScanJob> {
-    jobs.iter()
-        .filter(|job| job.scan_root_id == root_id)
-        .max_by(|left, right| job_order(left, right))
-}
-
-#[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
-fn job_order(left: &ScanJob, right: &ScanJob) -> std::cmp::Ordering {
-    left.created_at_ms
-        .cmp(&right.created_at_ms)
-        .then_with(|| left.id.cmp(&right.id))
-}
-
-#[cfg(feature = "scan-console")]
-fn running_run_id_for_job(database: &Database, job_id: &str) -> Option<String> {
-    database
-        .list_scan_runs()
-        .ok()?
-        .into_iter()
-        .find(|run| {
-            run.scan_job_id == job_id && run.state == fruitboard_storage::ScanRunState::Running
-        })
-        .map(|run| run.id)
-}
-
-#[cfg(feature = "scan-console")]
-fn latest_run_id_for_job(database: &Database, job_id: &str) -> Option<String> {
-    database
-        .list_scan_runs()
-        .ok()?
-        .into_iter()
-        .filter(|run| run.scan_job_id == job_id)
-        .max_by(|left, right| {
-            left.started_at_ms
-                .cmp(&right.started_at_ms)
-                .then_with(|| left.id.cmp(&right.id))
-        })
-        .map(|run| run.id)
-}
-
-#[cfg(feature = "scan-console")]
 fn build_scan_status(
     database: &Database,
     host: &super::scan_console_host::ScanConsoleHost,
     root: ScanRoot,
     job: Option<&ScanJob>,
-    runs: &[fruitboard_storage::ScanRun],
+    run_id: Option<&str>,
 ) -> ScanStatus {
     let retry_available = job.is_some_and(|job| {
         job.state == ScanJobState::Failed && job.attempt < job.max_attempts && root.enabled
@@ -744,21 +712,12 @@ fn build_scan_status(
             ScanJobState::Interrupted => ScanExecutionState::Interrupted,
         },
     };
-    let run = job.and_then(|job| {
-        runs.iter()
-            .filter(|run| run.scan_job_id == job.id)
-            .max_by(|left, right| {
-                left.started_at_ms
-                    .cmp(&right.started_at_ms)
-                    .then_with(|| left.id.cmp(&right.id))
-            })
-    });
     let mut counters = host.counters_for(&root.id);
     if state == ScanExecutionState::Running
-        && let Some(run) = run
+        && let Some(run_id) = run_id
     {
         counters = database
-            .scan_staging(&run.id)
+            .scan_staging(run_id)
             .ok()
             .map(|staging| ScanProgressCounters::with_files_observed(staging.record_count as u64))
             .unwrap_or(counters);
@@ -780,7 +739,7 @@ fn build_scan_status(
         root,
         state,
         job_id: job.map(|job| job.id.clone()),
-        run_id: run.map(|run| run.id.clone()),
+        run_id: run_id.map(str::to_owned),
         cancellation_requested: job.is_some_and(|job| job.cancellation_requested),
         retry_available,
         counters,
