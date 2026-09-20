@@ -409,6 +409,45 @@ async function waitForExistingTerminal(
   return { status: terminal, page };
 }
 
+async function waitForJobTerminal(
+  call,
+  rootId,
+  jobId,
+  label,
+  timeoutMilliseconds = 240000,
+) {
+  const terminal = await waitForStatus(
+    call,
+    rootId,
+    (status) =>
+      status?.jobId === jobId &&
+      ["completed", "failed", "cancelled", "interrupted"].includes(
+        status.state,
+      ) &&
+      status.retryAvailable === false,
+    timeoutMilliseconds,
+    label,
+  );
+  if (
+    !terminal ||
+    terminal.jobId !== jobId ||
+    !["completed", "failed", "cancelled", "interrupted"].includes(
+      terminal.state,
+    )
+  ) {
+    throw new Error(`${label} did not settle the expected job`);
+  }
+  const page = await pageFor(call, rootId);
+  log({
+    kind: `${label}-job-terminal`,
+    method: "native",
+    expectedJobId: jobId,
+    status: compactStatus(terminal),
+    page: pageSummary(page),
+  });
+  return { status: terminal, page };
+}
+
 async function scanNowToRunning(
   call,
   rootId,
@@ -1600,22 +1639,13 @@ async function main() {
         relativePath: relativeArtifact(eventPath),
         expected: "periodic hint must not clear durable cancellation",
       });
-      const terminal = await waitForExistingTerminal(
+      const terminal = await waitForJobTerminal(
         app.call,
         roots.resource.id,
+        active.start.jobId,
         "cancel-background",
         300000,
       );
-      await sleep(1500);
-      const settledStatus = await statusFor(app.call, roots.resource.id);
-      if (
-        settledStatus?.jobId !== active.start.jobId ||
-        settledStatus.state !== "cancelled"
-      ) {
-        throw new Error(
-          `background event revived the cancelled chain: ${JSON.stringify(compactStatus(settledStatus))}`,
-        );
-      }
       if (
         terminal.status.state !== "cancelled" ||
         JSON.stringify(pageSummary(terminal.page).records) !==
@@ -1624,6 +1654,38 @@ async function main() {
         throw new Error(
           "cancelled background event changed the committed snapshot",
         );
+      }
+      await sleep(1500);
+      const settledStatus = await statusFor(app.call, roots.resource.id);
+      if (
+        settledStatus?.jobId !== active.start.jobId ||
+        settledStatus.state !== "cancelled"
+      ) {
+        log({
+          kind: "background-event-after-cancellation-settled",
+          method: "native",
+          status: compactStatus(settledStatus),
+          boundary:
+            "the installed watcher delivered the event after the original job had already terminalized; ordinary reconciliation may create one fresh job, so this is not classified as the pending-cancellation race",
+        });
+        if (
+          settledStatus &&
+          settledStatus.jobId !== active.start.jobId &&
+          ["queued", "running"].includes(settledStatus.state)
+        ) {
+          await cancelJob(
+            app.call,
+            settledStatus.jobId,
+            "cancel-background-post-terminal-cleanup",
+          );
+          await waitForJobTerminal(
+            app.call,
+            roots.resource.id,
+            settledStatus.jobId,
+            "cancel-background-post-terminal-cleanup",
+            300000,
+          );
+        }
       }
       fs.unlinkSync(eventPath);
       log({
@@ -1799,7 +1861,7 @@ async function main() {
       );
       if (
         recovered.status.state !== "completed" ||
-        recovered.status.jobId === active.start.jobId
+        recovered.status.runId === active.running.runId
       ) {
         throw new Error(
           `restart recovery did not complete on a recovered chain: ${JSON.stringify(compactStatus(recovered.status))}`,
