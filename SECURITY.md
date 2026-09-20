@@ -120,6 +120,22 @@ mutation, and picked paths are canonicalized, validated, and redacted from
 diagnostics natively. Scan-root removal deletes configuration rows only and
 never touches source files.
 
+The Phase 2 hidden scan console extends that same typed-command boundary:
+six commands (`scan_now`, `cancel_scan`, `retry_scan`, `list_scan_statuses`,
+`get_library_page`, `get_scan_console_state`) with scoped permissions. With the
+`scan-console` cargo feature off, every command returns the fixed
+`unavailable`/`scan_console_disabled` envelope and no scanner crate is
+compiled. Library pages are root-scoped and fenced by an opaque cursor plus an
+opaque committed-snapshot ID, with the native boundary clamping page size; a
+replaced snapshot returns `stale_cursor` and a malformed or wrong-root token
+`invalid_cursor`. Errors carry fixed codes and fixed safe copy only. The
+renderer may listen for the `scan-status-changed` event: its payload carries
+only root IDs, states, and counters, and no path, lease/correlation token, SQL,
+or diagnostic detail is emitted or serialized; the subscription unsubscribes
+safely on route changes. The worker reads no file contents, hashes, or parser
+data — only bounded metadata traversal through the typed enumeration crate —
+and raw storage or traversal diagnostics never cross the boundary.
+
 Malformed command input is rejected before use-case work and is never copied to
 logs. Native operations run inside the command panic boundary, while unknown
 failures become the fixed `internal` response. The renderer accepts only the six

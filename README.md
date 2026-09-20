@@ -14,13 +14,14 @@ accepted**: the reproducible Tauri/React shell now includes Rust-owned local
 SQLite, one persisted startup-view preference, automated quality/security
 gates, and a Windows packaging smoke. It still has no parser, project workflow,
 sync, or PWA. Phase 2 proceeds under epic #33. The verified source baseline for
-this documentation refresh is `71848732216d4ab4e13e73c820b2b8e4d17bddbe`,
-which includes the squash merges of #110 (`e2948f1`), #111 (`914d7bd`),
-the merged #112 (`00884ba`) and #114 (`7184873`).
-The [dated live review status table](docs/review/phase-2-integration/README.md#live-review-status-2026-09-13)
-records the exact current heads and whether #112 and #114 have actually merged.
-Historical merge, tested-source, and CI references remain in the integration
-index and dated reports.
+the 2026-09-13/14 documentation refresh was
+`71848732216d4ab4e13e73c820b2b8e4d17bddbe`, which includes the squash merges
+of #110 (`e2948f1`), #111 (`914d7bd`), the merged #112 (`00884ba`), and #114
+(`7184873`); that pin is historical, not the current head. The
+[Phase 2 integration index](docs/review/phase-2-integration/README.md) carries
+the dated post-acceptance and publication addenda that record later heads and
+merge state. Historical merge, tested-source, and CI references remain in the
+integration index and dated reports.
 
 Implemented behavior, automated evidence, installed evidence, and owner
 acceptance stay separate. The owner accepted Phase 2 with known gaps on

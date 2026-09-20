@@ -8,7 +8,7 @@ use fruitboard_filesystem_watcher::{
     Coalescer, CoalescerConfig, HintKind, RootId, WatchHint, WatchOutcome, WatcherPort,
 };
 use fruitboard_storage::{
-    MAX_LIBRARY_PAGE_SIZE, ScanJobState, ScanKind, ScanRunState, ScanStageState,
+    MAX_LIBRARY_PAGE_SIZE, ScanJob, ScanJobState, ScanKind, ScanRunState, ScanStageState,
 };
 use rusqlite::{Connection, params};
 use std::cell::{Cell, RefCell};
@@ -531,6 +531,135 @@ fn no_changes(summary: &ChangeSummary) {
         ),
         (0, 0, 0, 0, 0, 0, 0)
     );
+}
+
+#[test]
+fn retry_sweep_cursor_reaches_due_work_past_future_jitter_page() {
+    let mut harness = Harness::new("retry-sweep-fairness");
+    let now = T0 + 1_100;
+    harness.clock.set(now);
+
+    let mut roots = Vec::with_capacity(65);
+    for index in 0..65 {
+        roots.push(
+            harness
+                .db
+                .add_scan_root(
+                    &format!("Retry root {index}"),
+                    &format!(r"C:\Synthetic\Retry{index}"),
+                )
+                .expect("retry root"),
+        );
+    }
+
+    let fixture_job = |id: &str, root_id: &str, created_at_ms: i64| ScanJob {
+        id: id.to_owned(),
+        scan_root_id: root_id.to_owned(),
+        kind: ScanKind::Manual,
+        state: ScanJobState::Failed,
+        retry_chain_id: format!("chain-{id}"),
+        attempt: 1,
+        max_attempts: 4,
+        not_before_ms: T0,
+        priority: 0,
+        follow_up_requested: false,
+        cancellation_requested: false,
+        created_at_ms,
+        updated_at_ms: T0,
+        last_error_code: Some("worker_failed".to_owned()),
+    };
+    let mut front_ids = Vec::with_capacity(64);
+    let mut next_index = 0;
+    while front_ids.len() < 64 {
+        let id = format!("retry-front-{next_index:03}");
+        let job = fixture_job(&id, &roots[front_ids.len()].id, T0 + next_index);
+        if ScanWorker::retry_eligible_at(&job) > now {
+            front_ids.push(id);
+        }
+        next_index += 1;
+        assert!(next_index < 2_000, "could not construct future-jitter page");
+    }
+    let later_id = loop {
+        let id = format!("retry-later-{next_index:03}");
+        let job = fixture_job(&id, &roots[64].id, T0 + 64);
+        next_index += 1;
+        if ScanWorker::retry_eligible_at(&job) <= now {
+            break id;
+        }
+        assert!(
+            next_index < 2_000,
+            "could not construct due later candidate"
+        );
+    };
+
+    let fixture = Connection::open(harness.db_path()).expect("fixture connection");
+    for (index, id) in front_ids.iter().enumerate() {
+        fixture
+            .execute(
+                "INSERT INTO scan_job
+                 (id, scan_root_id, kind, state, retry_chain_id, attempt,
+                  max_attempts, not_before_ms, priority, follow_up_requested,
+                  cancellation_requested, created_at_ms, updated_at_ms,
+                  last_error_code)
+                 VALUES (?1, ?2, 'manual', 'failed', ?3, 1, 4, ?4, 0, 0,
+                         0, ?5, ?4, 'worker_failed')",
+                params![
+                    id,
+                    roots[index].id,
+                    format!("chain-{id}"),
+                    T0,
+                    T0 + index as i64
+                ],
+            )
+            .expect("insert future-jitter job");
+    }
+    fixture
+        .execute(
+            "INSERT INTO scan_job
+             (id, scan_root_id, kind, state, retry_chain_id, attempt,
+              max_attempts, not_before_ms, priority, follow_up_requested,
+              cancellation_requested, created_at_ms, updated_at_ms,
+              last_error_code)
+             VALUES (?1, ?2, 'manual', 'failed', ?3, 1, 4, ?4, 0, 0,
+                     0, ?5, ?4, 'worker_failed')",
+            params![
+                later_id,
+                roots[64].id,
+                format!("chain-{later_id}"),
+                T0,
+                T0 + 64
+            ],
+        )
+        .expect("insert later due job");
+    drop(fixture);
+
+    // The first bounded page contains only candidates whose deterministic
+    // jitter is still in the future. The second page reaches the later root;
+    // a LIMIT-only sweep would keep rereading the first page and starve it.
+    assert_eq!(
+        harness
+            .worker
+            .service_retries(&mut harness.db, &harness.clock)
+            .expect("first retry sweep"),
+        0
+    );
+    assert!(
+        front_ids
+            .iter()
+            .all(|id| harness.db.scan_job(id).expect("front job").state == ScanJobState::Failed)
+    );
+    assert_eq!(
+        harness
+            .worker
+            .service_retries(&mut harness.db, &harness.clock)
+            .expect("second retry sweep"),
+        1
+    );
+    assert_eq!(
+        harness.db.scan_job(&later_id).expect("later job").state,
+        ScanJobState::Queued
+    );
+    assert_eq!(harness.db.list_scan_jobs().expect("history").len(), 65);
 }
 
 #[test]
@@ -1255,6 +1384,234 @@ fn stale_worker_cannot_commit_after_lease_replacement() {
     assert_ne!(
         stale_lease_token,
         harness.run(&replacement.run_id).lease_token
+    );
+}
+
+#[test]
+fn progressing_no_flp_scan_renews_before_the_lease_expires() {
+    let config = WorkerConfig {
+        enumeration_limits: EnumerationLimits {
+            progress_interval: std::time::Duration::ZERO,
+            ..EnumerationLimits::default()
+        },
+        ..WorkerConfig::default()
+    };
+    let mut harness = Harness::with_config("heartbeat-no-flp", config, r"C:\synthetic-root");
+    let clock = harness.clock.clone();
+    let hook: Hook = Rc::new(RefCell::new(move |_path: &str| clock.advance(6_000)));
+    let mut port = FakePort::with_hook(
+        tree(
+            (0..6)
+                .map(|index| file_entry(&format!("other-{index}.txt"), 20_000 + index))
+                .collect(),
+        ),
+        hook,
+    );
+
+    let execution = harness.scan_with_port(&mut port);
+
+    assert_eq!(execution.status, ScanExecutionStatus::Published);
+    assert!(execution.authoritative);
+    assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Complete));
+    assert_eq!(
+        execution
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        0
+    );
+    assert!(harness.committed().is_empty());
+}
+
+fn heartbeat_test_config(max_batch_records: usize) -> WorkerConfig {
+    WorkerConfig {
+        enumeration_limits: EnumerationLimits {
+            max_batch_records,
+            progress_interval: std::time::Duration::ZERO,
+            ..EnumerationLimits::default()
+        },
+        ..WorkerConfig::default()
+    }
+}
+
+#[test]
+fn progressing_no_flp_scan_renews_for_shared_worker() {
+    let mut harness = Harness::with_config(
+        "heartbeat-no-flp-shared",
+        heartbeat_test_config(512),
+        r"C:\synthetic-root",
+    );
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let Harness {
+        directory,
+        db,
+        clock,
+        worker,
+        ..
+    } = harness;
+    let clock_for_hook = clock.clone();
+    let hook: Hook = Rc::new(RefCell::new(move |_path: &str| {
+        clock_for_hook.advance(6_000)
+    }));
+    let shared = std::sync::Mutex::new(db);
+    let mut port = FakePort::with_hook(
+        tree(
+            (0..6)
+                .map(|index| file_entry(&format!("other-{index}.txt"), 30_000 + index))
+                .collect(),
+        ),
+        hook,
+    );
+
+    let execution = worker.execute_shared(&shared, scan, &mut port, &NeverCancelled, &clock);
+
+    assert_eq!(execution.status, ScanExecutionStatus::Published);
+    assert!(execution.authoritative);
+    assert_eq!(execution.enumeration_outcome, Some(EnumOutcome::Complete));
+    assert_eq!(
+        execution
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        0
+    );
+    let guard = shared.lock().expect("shared database");
+    assert!(committed_rows(&guard, &execution.scan_root_id).is_empty());
+    assert_eq!(
+        guard.scan_job(&execution.job_id).expect("job").state,
+        ScanJobState::Completed
+    );
+    drop(guard);
+    drop(shared);
+    drop(directory);
+}
+
+#[test]
+fn progressing_sparse_batches_renew_between_batches() {
+    let mut harness = Harness::with_config(
+        "heartbeat-sparse-batches",
+        heartbeat_test_config(2),
+        r"C:\synthetic-root",
+    );
+    let clock = harness.clock.clone();
+    let hook: Hook = Rc::new(RefCell::new(move |_path: &str| clock.advance(6_000)));
+    let mut port = FakePort::with_hook(tree(many_files(5)), hook);
+
+    let execution = harness.scan_with_port(&mut port);
+
+    assert_eq!(execution.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        execution
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        5
+    );
+    assert_eq!(
+        harness.db.scan_job(&execution.job_id).expect("job").state,
+        ScanJobState::Completed
+    );
+    assert_eq!(
+        harness.db.scan_job(&execution.job_id).expect("job").attempt,
+        1,
+        "a healthy slow traversal does not enter retry"
+    );
+}
+
+#[test]
+fn progressing_sparse_batches_are_equivalent_for_shared_worker() {
+    let mut harness = Harness::with_config(
+        "heartbeat-sparse-batches-shared",
+        heartbeat_test_config(2),
+        r"C:\synthetic-root",
+    );
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    let Harness {
+        directory,
+        db,
+        clock,
+        worker,
+        ..
+    } = harness;
+    let clock_for_hook = clock.clone();
+    let hook: Hook = Rc::new(RefCell::new(move |_path: &str| {
+        clock_for_hook.advance(6_000)
+    }));
+    let shared = std::sync::Mutex::new(db);
+    let mut port = FakePort::with_hook(tree(many_files(5)), hook);
+
+    let execution = worker.execute_shared(&shared, scan, &mut port, &NeverCancelled, &clock);
+
+    assert_eq!(execution.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        execution
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        5
+    );
+    let guard = shared.lock().expect("shared database");
+    assert_eq!(
+        guard.scan_job(&execution.job_id).expect("job").attempt,
+        1,
+        "the shared path has the same retry behavior"
+    );
+    drop(guard);
+    drop(shared);
+    drop(directory);
+}
+
+#[test]
+fn expired_progress_heartbeat_preserves_rows_without_retrying_stale_work() {
+    let mut harness = Harness::with_config(
+        "heartbeat-expired",
+        heartbeat_test_config(2),
+        r"C:\synthetic-root",
+    );
+    let baseline = tree(vec![file_entry("kept.flp", 101)]);
+    assert_eq!(
+        harness.scan(baseline.clone()).status,
+        ScanExecutionStatus::Published
+    );
+    let (before_rows, before_marker, before_bytes) = committed_state(&harness);
+
+    let clock = harness.clock.clone();
+    let fired = Rc::new(Cell::new(false));
+    let hook: Hook = Rc::new(RefCell::new(move |_path: &str| {
+        if !fired.replace(true) {
+            clock.advance(31_000);
+        }
+    }));
+    let mut port = FakePort::with_hook(
+        tree(vec![
+            file_entry("replacement.flp", 202),
+            file_entry("other.flp", 303),
+        ]),
+        hook,
+    );
+
+    let execution = harness.scan_with_port(&mut port);
+
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+    assert_eq!(execution.status, ScanExecutionStatus::Fenced);
+    assert_committed_unchanged(&before_rows, &before_marker, &before_bytes, &harness);
+    assert_eq!(harness.run(&execution.run_id).state, ScanRunState::Running);
+    assert_eq!(
+        harness.db.scan_job(&execution.job_id).expect("job").state,
+        ScanJobState::Running
     );
 }
 

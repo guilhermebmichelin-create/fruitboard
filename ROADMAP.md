@@ -143,8 +143,9 @@ for review, not claims of implemented or measured behavior.
 7. **#40:** Atomic project-file/snapshot persistence and missing/restored behavior.
 8. **#41:** Scanner integration/E2E test corpus and Phase 2 checkpoint.
 
-Review baseline: main `a865962` (PR #44), following interactive evidence PR #32.
-All six PR #44 checks and its
+Historical review baseline for this Phase 2 issue set: main `a865962` (PR #44),
+following interactive evidence PR #32. All six checks of the then-current
+Foundation workflow on PR #44 and its
 [push-to-main CI](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/33998232108)
 passed. Spike partial results landed as PRs #45 (P0-D) and #46 (P0-E) with
 reproducible probes in `scripts/research-fs-probe.ps1`; remaining DriveFS,

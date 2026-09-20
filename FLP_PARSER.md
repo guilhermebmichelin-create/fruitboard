@@ -9,7 +9,12 @@ read-only Rust parser for a small metadata subset before choosing a production
 parser. Start with saved FL version and base tempo, followed by channel names
 and sample references. Arrangements, plugin-state decoding, and duration are
 outside that first spike. Follow the agreed corpus, limits, and acceptance
-criteria in [ROADMAP.md](ROADMAP.md#parser-selection-before-phase-3).
+criteria in [ROADMAP.md](ROADMAP.md#parser-selection-before-phase-3); the
+bounded spike shape is proposed in the
+[Rust parser research spike proposal](docs/research/rust-parser-spike-proposal.md),
+and the corpus is gated by the
+[fixture-manifest proposal](docs/research/parser-fixture-manifest-proposal-20260914.md)
+and its scaffolded [corpus manifest](fixtures/parser-corpus/manifest.md).
 
 PyFLP remains a candidate, not a requirement. If the Rust spike falls short,
 evaluate PyFLP against the same known-value fixtures. Compare correctness,

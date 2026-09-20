@@ -5,10 +5,11 @@ mod files;
 mod migrations;
 mod publication;
 
-pub use error::{Result, StorageError};
+pub use error::{DatabaseDetail, Result, StorageError};
 pub use execution::{
     DEFAULT_SCAN_MAX_ATTEMPTS, EnqueueResult, LeasedScan, ScanJob, ScanJobState, ScanKind,
-    ScanRootExecution, ScanRun, ScanRunOutcome, ScanRunState, ScanSession,
+    ScanRetryCandidatePage, ScanRetryCursor, ScanRootExecution, ScanRootStatus, ScanRun,
+    ScanRunOutcome, ScanRunState, ScanSession,
 };
 use files::{Location, check_path, private_directory, private_file};
 use migrations::{MIGRATIONS, Migration};
@@ -50,13 +51,15 @@ fn parse_version(value: &str) -> Option<[u64; 3]> {
     parts.try_into().ok()
 }
 
-/// Reads the same committed policy as the JavaScript verification gate.
-pub fn verify_embedded_version() -> Result<()> {
-    let policy: Policy = serde_json::from_str(include_str!("../../../tools/toolchain-policy.json"))
-        .map_err(|_| StorageError::UnsupportedSqlite)?;
+/// Validates one committed policy document. A malformed or incomplete policy
+/// is a broken repository/build input, distinct from an embedded SQLite
+/// runtime that is below the policy floor.
+fn verify_policy(policy_json: &str) -> Result<()> {
+    let policy: Policy =
+        serde_json::from_str(policy_json).map_err(|_| StorageError::InvalidSchema)?;
     let current = parse_version(sqlite_version()).ok_or(StorageError::UnsupportedSqlite)?;
     let minimum = parse_version(&policy.sqlite.minimum_wal_safe_version)
-        .ok_or(StorageError::UnsupportedSqlite)?;
+        .ok_or(StorageError::InvalidSchema)?;
     if current >= minimum
         || policy
             .sqlite
@@ -68,6 +71,11 @@ pub fn verify_embedded_version() -> Result<()> {
     } else {
         Err(StorageError::UnsupportedSqlite)
     }
+}
+
+/// Reads the same committed policy as the JavaScript verification gate.
+pub fn verify_embedded_version() -> Result<()> {
+    verify_policy(include_str!("../../../tools/toolchain-policy.json"))
 }
 
 fn connect(path: &Path, read_only: bool) -> Result<Connection> {
@@ -97,10 +105,12 @@ fn connect(path: &Path, read_only: bool) -> Result<Connection> {
 fn copy_database(source: &Connection, destination: &mut Connection) -> Result<()> {
     let backup = Backup::new(source, destination)?;
     // This slice owns one connection and tiny data. A bounded single step avoids
-    // an unbounded retry loop if another process holds SQLite locks.
+    // an unbounded retry loop if another process holds SQLite locks. Only lock
+    // contention is retryable; any other outcome means the copy did not finish.
     match backup.step(-1)? {
         StepResult::Done => Ok(()),
-        _ => Err(StorageError::Busy),
+        StepResult::Busy | StepResult::Locked => Err(StorageError::Busy),
+        _ => Err(StorageError::Io),
     }
 }
 
@@ -129,6 +139,18 @@ fn backup_into(connection: &Connection, directory: &Path) -> Result<PathBuf> {
     // never candidates for recovery and are retained for explicit maintenance.
     std::fs::rename(&pending, &finished)?;
     Ok(finished)
+}
+
+/// The schema's UNIQUE constraint on `scan_root.canonical_path` is the
+/// authoritative duplicate guard. A uniqueness failure is reported as a
+/// conflict instead of letting an opaque database error escape.
+fn scan_root_write_error(error: rusqlite::Error) -> StorageError {
+    match error.sqlite_extended_error_code() {
+        Some(
+            rusqlite::ffi::SQLITE_CONSTRAINT_UNIQUE | rusqlite::ffi::SQLITE_CONSTRAINT_PRIMARYKEY,
+        ) => StorageError::Conflict,
+        _ => error.into(),
+    }
 }
 
 /// One native owner per application-data directory. Put this behind a Mutex
@@ -271,14 +293,6 @@ impl Database {
             return Err(StorageError::InvalidSchema);
         }
         self.transaction(|transaction| {
-            let duplicates: i64 = transaction.query_row(
-                "SELECT count(*) FROM scan_root WHERE canonical_path = ?1",
-                [canonical_path],
-                |row| row.get(0),
-            )?;
-            if duplicates != 0 {
-                return Err(StorageError::Conflict);
-            }
             let root = ScanRoot {
                 id: uuid::Uuid::now_v7().to_string(),
                 display_name: display_name.to_owned(),
@@ -287,17 +301,19 @@ impl Database {
                 availability: ScanRootAvailability::Available,
                 last_error_code: None,
             };
-            transaction.execute(
-                "INSERT INTO scan_root
-                 (id, display_name, canonical_path, enabled, availability, last_error_code)
-                 VALUES (?1, ?2, ?3, 1, ?4, NULL)",
-                rusqlite::params![
-                    &root.id,
-                    &root.display_name,
-                    &root.canonical_path,
-                    root.availability.as_str()
-                ],
-            )?;
+            transaction
+                .execute(
+                    "INSERT INTO scan_root
+                     (id, display_name, canonical_path, enabled, availability, last_error_code)
+                     VALUES (?1, ?2, ?3, 1, ?4, NULL)",
+                    rusqlite::params![
+                        &root.id,
+                        &root.display_name,
+                        &root.canonical_path,
+                        root.availability.as_str()
+                    ],
+                )
+                .map_err(scan_root_write_error)?;
             Ok(root)
         })
     }
