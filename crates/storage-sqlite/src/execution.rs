@@ -8,12 +8,19 @@ use std::time::{SystemTime, UNIX_EPOCH};
 struct TestReadCounts {
     job_rows: usize,
     run_rows: usize,
+    retry_window_rows: usize,
 }
 
 #[cfg(test)]
 thread_local! {
     static TEST_READ_COUNTS: std::cell::RefCell<TestReadCounts> =
-        const { std::cell::RefCell::new(TestReadCounts { job_rows: 0, run_rows: 0 }) };
+        const {
+            std::cell::RefCell::new(TestReadCounts {
+                job_rows: 0,
+                run_rows: 0,
+                retry_window_rows: 0,
+            })
+        };
 }
 
 #[cfg(test)]
@@ -27,6 +34,11 @@ fn record_run_row() {
 }
 
 #[cfg(test)]
+fn record_retry_window_row() {
+    TEST_READ_COUNTS.with(|counts| counts.borrow_mut().retry_window_rows += 1);
+}
+
+#[cfg(test)]
 pub(crate) fn reset_test_read_counts() {
     TEST_READ_COUNTS.with(|counts| *counts.borrow_mut() = TestReadCounts::default());
 }
@@ -37,6 +49,11 @@ pub(crate) fn test_read_counts() -> (usize, usize) {
         let counts = *counts.borrow();
         (counts.job_rows, counts.run_rows)
     })
+}
+
+#[cfg(test)]
+pub(crate) fn test_retry_window_rows() -> usize {
+    TEST_READ_COUNTS.with(|counts| counts.borrow().retry_window_rows)
 }
 
 /// The initial retry budget is deliberately small: one initial attempt plus
@@ -515,34 +532,69 @@ fn map_not_found(error: rusqlite::Error) -> StorageError {
     }
 }
 
-pub(crate) const RETRY_CANDIDATE_QUERY: &str =
-    "SELECT j.id, j.scan_root_id, j.kind, j.state, j.retry_chain_id,
-            j.attempt, j.max_attempts, j.not_before_ms, j.priority,
-            j.follow_up_requested, j.cancellation_requested,
-            j.created_at_ms, j.updated_at_ms, j.last_error_code
-     FROM scan_job AS j INDEXED BY scan_job_retry_order
-     JOIN scan_root AS root ON root.id = j.scan_root_id
-     WHERE j.state = 'failed'
-       AND j.cancellation_requested = 0
-       AND j.attempt < j.max_attempts
-       AND root.enabled = 1
-       AND j.updated_at_ms + CASE
-           WHEN j.attempt <= 1 THEN 1000
-           WHEN j.attempt = 2 THEN 2000
-           ELSE 4000
-       END <= ?1
-       AND NOT EXISTS (
-           SELECT 1 FROM scan_job AS active
-           WHERE active.scan_root_id = j.scan_root_id
-             AND active.state IN ('queued', 'running')
-       )
-       AND (
-           ?2 IS NULL
-           OR j.created_at_ms > ?2
-           OR (j.created_at_ms = ?2 AND j.id > ?3)
-       )
-     ORDER BY j.created_at_ms, j.id
-     LIMIT ?4";
+/// Build the retry window query for either the first page or a seekable
+/// continuation. The CTE deliberately limits the durable candidate window
+/// before checking backoff, root configuration, and slot ownership. Those
+/// checks can reject every row in a page (for example, a disabled root), so
+/// putting them in the CTE would let a LIMIT-only outer query scan unbounded
+/// historical rows.
+///
+/// The first page binds `(now_ms, limit)`; a continuation binds
+/// `(now_ms, cursor_created_at_ms, cursor_id, limit)`. The tuple comparison is
+/// intentional: the nullable `OR` cursor predicate used by the old query made
+/// SQLite choose an index scan instead of a seek for later pages.
+pub(crate) fn retry_candidate_query(continuation: bool) -> String {
+    let cursor = if continuation {
+        "       AND (j.created_at_ms, j.id) > (?2, ?3)\n"
+    } else {
+        ""
+    };
+    let limit = if continuation { "?4" } else { "?2" };
+    format!(
+        "WITH examined AS (
+         SELECT j.id, j.scan_root_id, j.kind, j.state, j.retry_chain_id,
+                j.attempt, j.max_attempts, j.not_before_ms, j.priority,
+                j.follow_up_requested, j.cancellation_requested,
+                j.created_at_ms, j.updated_at_ms, j.last_error_code
+         FROM scan_job AS j INDEXED BY scan_job_retry_order
+         WHERE j.state = 'failed'
+           AND j.cancellation_requested = 0
+           AND j.attempt < j.max_attempts
+{cursor}         ORDER BY j.created_at_ms, j.id
+         LIMIT {limit}
+     )
+     SELECT examined.id, examined.scan_root_id, examined.kind, examined.state,
+            examined.retry_chain_id, examined.attempt, examined.max_attempts,
+            examined.not_before_ms, examined.priority,
+            examined.follow_up_requested, examined.cancellation_requested,
+            examined.created_at_ms, examined.updated_at_ms,
+            examined.last_error_code,
+            CASE
+                WHEN examined.updated_at_ms + CASE
+                         WHEN examined.attempt <= 1 THEN 1000
+                         WHEN examined.attempt = 2 THEN 2000
+                         ELSE 4000
+                     END <= ?1
+                     AND root.enabled = 1 AND NOT EXISTS (
+                    SELECT 1 FROM scan_job AS active
+                    WHERE active.scan_root_id = examined.scan_root_id
+                      AND active.state IN ('queued', 'running')
+                ) THEN 1
+                ELSE 0
+            END AS retry_slot_available
+     FROM examined
+     LEFT JOIN scan_root AS root ON root.id = examined.scan_root_id
+     ORDER BY examined.created_at_ms, examined.id",
+        cursor = cursor,
+        limit = limit,
+    )
+}
+
+fn raw_retry_candidate_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(RawJob, bool)> {
+    #[cfg(test)]
+    record_retry_window_row();
+    Ok((raw_job_from_row(row)?, row.get::<_, i64>(14)? != 0))
+}
 
 pub(crate) const SCAN_ROOT_STATUS_QUERY: &str =
     "SELECT selected.id, selected.scan_root_id, selected.kind, selected.state,
@@ -1632,13 +1684,11 @@ impl Database {
 
     /// Return one bounded, keyset-ordered page of retryable failed jobs.
     ///
-    /// The SQL filters durable state, attempt budget, enabled roots, active
-    /// root slots, and the non-jittered backoff. The worker applies the same
-    /// deterministic jitter it has always used. A caller may retain the
-    /// returned cursor across passes; this is important because an eligible
-    /// candidate can still be waiting on jitter while a later root is ready.
-    /// Advancing the cursor makes that later root reachable without scanning
-    /// or allocating every historical failed job in one poll tick.
+    /// Storage first materializes at most `limit` durable failed candidates in
+    /// creation order. Root configuration and active-slot checks are applied
+    /// only to that bounded window, and the cursor advances past every row in
+    /// the window even if those checks reject every row. The worker applies the
+    /// existing deterministic jitter after this method returns.
     pub fn retry_candidate_page(
         &self,
         now_ms: i64,
@@ -1649,29 +1699,34 @@ impl Database {
         if limit <= 0 {
             return Err(StorageError::InvalidSchema);
         }
-        let mut statement = self.connection.prepare(RETRY_CANDIDATE_QUERY)?;
-        let jobs = statement
-            .query_map(
-                params![
-                    now_ms,
-                    after.map(|cursor| cursor.created_at_ms),
-                    after.map(|cursor| cursor.id.as_str()),
-                    limit,
-                ],
-                raw_job_from_row,
-            )?
-            .collect::<rusqlite::Result<Vec<_>>>()?
-            .into_iter()
-            .map(job_from_raw)
-            .collect::<Result<Vec<_>>>()?;
-        let next_cursor = (jobs.len() == usize::try_from(limit).unwrap_or(usize::MAX))
+        let query = retry_candidate_query(after.is_some());
+        let mut statement = self.connection.prepare(&query)?;
+        let raw_candidates = if let Some(after) = after {
+            statement
+                .query_map(
+                    params![now_ms, after.created_at_ms, after.id.as_str(), limit],
+                    raw_retry_candidate_from_row,
+                )?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        } else {
+            statement
+                .query_map(params![now_ms, limit], raw_retry_candidate_from_row)?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        let next_cursor = (raw_candidates.len() == usize::try_from(limit).unwrap_or(usize::MAX))
             .then(|| {
-                jobs.last().map(|job| ScanRetryCursor {
-                    created_at_ms: job.created_at_ms,
-                    id: job.id.clone(),
+                raw_candidates.last().map(|(raw_job, _)| ScanRetryCursor {
+                    created_at_ms: raw_job.11,
+                    id: raw_job.0.clone(),
                 })
             })
             .flatten();
+        let mut jobs = Vec::with_capacity(raw_candidates.len());
+        for (raw_job, retry_slot_available) in raw_candidates {
+            if retry_slot_available {
+                jobs.push(job_from_raw(raw_job)?);
+            }
+        }
         Ok(ScanRetryCandidatePage { jobs, next_cursor })
     }
 

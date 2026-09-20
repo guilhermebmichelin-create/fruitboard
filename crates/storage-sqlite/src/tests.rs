@@ -5941,24 +5941,46 @@ fn targeted_retry_and_status_reads_bound_history_without_dropping_rows() {
         ["retry-candidate-2"]
     );
 
-    let retry_plan = database
+    let retry_first_query = crate::execution::retry_candidate_query(false);
+    let retry_first_plan = database
         .connection
-        .prepare(&format!(
-            "EXPLAIN QUERY PLAN {}",
-            crate::execution::RETRY_CANDIDATE_QUERY
-        ))
+        .prepare(&format!("EXPLAIN QUERY PLAN {}", retry_first_query))
+        .unwrap()
+        .query_map(rusqlite::params![10_000_i64, 2_i64], |row| {
+            row.get::<_, String>(3)
+        })
+        .unwrap()
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .unwrap();
+    let retry_continuation_query = crate::execution::retry_candidate_query(true);
+    let retry_continuation_plan = database
+        .connection
+        .prepare(&format!("EXPLAIN QUERY PLAN {}", retry_continuation_query))
         .unwrap()
         .query_map(
-            rusqlite::params![10_000_i64, Option::<i64>::None, Option::<&str>::None, 2_i64],
+            rusqlite::params![10_000_i64, 1_i64, "retry-candidate-0", 2_i64],
             |row| row.get::<_, String>(3),
         )
         .unwrap()
         .collect::<rusqlite::Result<Vec<_>>>()
         .unwrap();
-    println!("retry query plan: {retry_plan:?}");
+    println!(
+        "retry first query plan: {retry_first_plan:?}; continuation plan: {retry_continuation_plan:?}"
+    );
     assert!(
-        retry_plan.iter().any(|detail| detail.contains("scan_job")),
-        "retry plan should be a bounded scan-job query: {retry_plan:?}"
+        retry_first_plan
+            .iter()
+            .any(|detail| detail.contains("scan_job_retry_order"))
+            && retry_first_plan
+                .iter()
+                .any(|detail| detail.contains("examined")),
+        "first retry plan should bound the examined window: {retry_first_plan:?}"
+    );
+    assert!(
+        retry_continuation_plan
+            .iter()
+            .any(|detail| detail.contains("SEARCH j USING INDEX scan_job_retry_order")),
+        "continuation retry plan should seek from the cursor: {retry_continuation_plan:?}"
     );
     let status_plan = database
         .connection
@@ -6132,4 +6154,127 @@ fn retry_candidates_keep_durable_budget_root_and_slot_filters() {
             .any(|job| job.id == "retry-exhausted"),
         "history remains durable even when it is not a retry candidate"
     );
+}
+
+fn insert_failed_retry_history(
+    database: &mut Database,
+    root_id: &str,
+    prefix: &str,
+    count: usize,
+    created_offset: i64,
+) {
+    database.connection.execute_batch("BEGIN").unwrap();
+    for index in 0..count {
+        let id = format!("{prefix}-{index:06}");
+        database
+            .connection
+            .execute(
+                "INSERT INTO scan_job
+                 (id, scan_root_id, kind, state, retry_chain_id, attempt,
+                  max_attempts, not_before_ms, priority, follow_up_requested,
+                  cancellation_requested, created_at_ms, updated_at_ms,
+                  last_error_code)
+                 VALUES (?1, ?2, 'manual', 'failed', ?3, 1, 4, 0, 0, 0, 0,
+                         ?4, 0, 'worker_failed')",
+                rusqlite::params![
+                    id,
+                    root_id,
+                    format!("chain-{id}"),
+                    created_offset + index as i64
+                ],
+            )
+            .unwrap();
+    }
+    database.connection.execute_batch("COMMIT").unwrap();
+}
+
+fn assert_filtered_retry_window_is_bounded(configure: impl FnOnce(&mut Database, &str)) {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Filtered history", "C:\\Synthetic\\Filtered")
+        .unwrap();
+    insert_failed_retry_history(&mut database, &root.id, "filtered", 10_000, 0);
+    configure(&mut database, &root.id);
+
+    crate::execution::reset_test_read_counts();
+    let page = database.retry_candidate_page(10_000, 64, None).unwrap();
+    assert!(page.jobs.is_empty());
+    assert!(page.next_cursor.is_some());
+    assert_eq!(
+        crate::execution::test_retry_window_rows(),
+        64,
+        "the raw retry window must stop at the per-pass bound"
+    );
+}
+
+#[test]
+fn retry_candidate_window_bounds_filtered_history_and_seeks_continuations() {
+    assert_filtered_retry_window_is_bounded(|database, root_id| {
+        database
+            .set_scan_root_enabled_at(root_id, false, 10_000)
+            .unwrap();
+    });
+    assert_filtered_retry_window_is_bounded(|database, root_id| {
+        database
+            .enqueue_scan(root_id, ScanKind::Manual, 10_000)
+            .unwrap();
+    });
+    assert_filtered_retry_window_is_bounded(|database, root_id| {
+        database.remove_scan_root_at(root_id, 10_000).unwrap();
+    });
+
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Seekable history", "C:\\Synthetic\\Seekable")
+        .unwrap();
+    insert_failed_retry_history(&mut database, &root.id, "seekable", 10_000, 0);
+    let after = ScanRetryCursor {
+        created_at_ms: 9_990,
+        id: "seekable-009990".to_owned(),
+    };
+    crate::execution::reset_test_read_counts();
+    let tail = database
+        .retry_candidate_page(10_000, 64, Some(&after))
+        .unwrap();
+    assert_eq!(tail.jobs.len(), 9);
+    assert!(tail.next_cursor.is_none());
+    assert_eq!(crate::execution::test_retry_window_rows(), 9);
+
+    // A full page of rejected roots must advance the cursor. The later
+    // eligible root is reached on the next call instead of being starved by
+    // the disabled front page.
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let front_root = database
+        .add_scan_root("Disabled front", "C:\\Synthetic\\Front")
+        .unwrap();
+    let later_root = database
+        .add_scan_root("Eligible later", "C:\\Synthetic\\Later")
+        .unwrap();
+    insert_failed_retry_history(&mut database, &front_root.id, "front", 64, 0);
+    insert_failed_retry_history(&mut database, &later_root.id, "later", 1, 64);
+    database
+        .set_scan_root_enabled_at(&front_root.id, false, 10_000)
+        .unwrap();
+
+    crate::execution::reset_test_read_counts();
+    let first = database.retry_candidate_page(10_000, 64, None).unwrap();
+    assert!(first.jobs.is_empty());
+    assert!(first.next_cursor.is_some());
+    assert_eq!(crate::execution::test_retry_window_rows(), 64);
+    crate::execution::reset_test_read_counts();
+    let second = database
+        .retry_candidate_page(10_000, 64, first.next_cursor.as_ref())
+        .unwrap();
+    assert_eq!(
+        second
+            .jobs
+            .iter()
+            .map(|job| job.id.as_str())
+            .collect::<Vec<_>>(),
+        ["later-000000"]
+    );
+    assert_eq!(crate::execution::test_retry_window_rows(), 1);
 }
