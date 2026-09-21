@@ -18,6 +18,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc as StdArc, mpsc};
+use std::time::Duration;
 
 const VOLUME_SERIAL: u64 = 7;
 const ROOT_FILE_ID: u128 = 999;
@@ -641,6 +642,454 @@ fn cancelling_a_running_job_requests_cancellation_and_never_publishes() {
 }
 
 #[test]
+fn cancellation_acknowledges_before_command_write_when_older_periodic_follow_up_exists() {
+    let harness = Harness::new("cancel-ack-before-write");
+    let (runtime, _) = test_runtime();
+
+    // Preserve committed Library data so the cancellation result also proves
+    // that the interrupted attempt never publishes its staged observations.
+    ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    harness.tick(tree(vec![file_entry("committed.flp", 101)]));
+    let committed_before = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+
+    let job_id = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ))["jobId"]
+        .as_str()
+        .expect("job id")
+        .to_owned();
+    assert!(harness.claim_due(), "the running attempt should be claimed");
+
+    // The real storage background request predates Cancel. It remains only as
+    // a follow-up marker until the host mirror/token is accepted below.
+    let periodic = harness
+        .database
+        .lock()
+        .unwrap()
+        .enqueue_scan(&harness.root_id, ScanKind::Periodic, harness.clock.now_ms())
+        .expect("periodic follow-up");
+    assert!(periodic.coalesced);
+    assert!(periodic.follow_up_requested);
+
+    // This test-only hook is reached after the actual host cancellation mirror
+    // is set and before cancel_scan performs its separate durable write. The
+    // real worker/native path terminalizes the pending run in that window.
+    let host = harness.host();
+    let database = harness.database.clone();
+    let worker_observed = StdArc::new(AtomicBool::new(false));
+    let worker_observed_for_hook = worker_observed.clone();
+    *harness.service.cancellation_mirror_hook.lock().unwrap() = Some(StdArc::new(move || {
+        let mut port = FakePort::new(tree(vec![file_entry("not-published.flp", 202)]));
+        assert!(host.execute_pending(&database, &mut port));
+        worker_observed_for_hook.store(true, Ordering::SeqCst);
+    }));
+
+    let data = ok_data(handle_cancel_scan(
+        &runtime,
+        &harness.service,
+        cancel_request(&job_id),
+    ));
+    assert!(
+        worker_observed.load(Ordering::SeqCst),
+        "the mirror/token must be observed before the command reaches its durable write"
+    );
+    assert_eq!(data["outcome"], "already_cancelled");
+
+    let statuses = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(statuses[0]["state"], "cancelled");
+    assert_eq!(statuses[0]["jobId"], job_id);
+    assert_eq!(statuses[0]["cancellationRequested"], true);
+    assert_eq!(
+        harness
+            .database
+            .lock()
+            .unwrap()
+            .list_scan_jobs()
+            .unwrap()
+            .len(),
+        2,
+        "the older Periodic follow-up must not create a successor"
+    );
+    let committed_after = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    assert_eq!(committed_after, committed_before);
+}
+
+#[test]
+fn cancellation_acknowledges_before_command_write_when_older_manual_follow_up_exists() {
+    let harness = Harness::new("cancel-ack-before-manual-write");
+    let (runtime, _) = test_runtime();
+
+    ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    harness.tick(tree(vec![file_entry("committed.flp", 111)]));
+    let committed_before = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+
+    let job_id = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ))["jobId"]
+        .as_str()
+        .expect("job id")
+        .to_owned();
+    assert!(harness.claim_due(), "the running attempt should be claimed");
+
+    // An explicit Manual request is older than the Cancel intent in this
+    // ordering. It is a follow-up marker, not permission to defeat Cancel.
+    let manual = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    assert_eq!(manual["outcome"], "already_running");
+    assert_eq!(manual["jobId"], job_id);
+    assert!(
+        harness
+            .database
+            .lock()
+            .unwrap()
+            .scan_job(&job_id)
+            .unwrap()
+            .follow_up_requested
+    );
+
+    let host = harness.host();
+    let database = harness.database.clone();
+    let worker_observed = StdArc::new(AtomicBool::new(false));
+    let worker_observed_for_hook = worker_observed.clone();
+    *harness.service.cancellation_mirror_hook.lock().unwrap() = Some(StdArc::new(move || {
+        let mut port = FakePort::new(tree(vec![file_entry("not-published.flp", 212)]));
+        assert!(host.execute_pending(&database, &mut port));
+        worker_observed_for_hook.store(true, Ordering::SeqCst);
+    }));
+
+    let data = ok_data(handle_cancel_scan(
+        &runtime,
+        &harness.service,
+        cancel_request(&job_id),
+    ));
+    assert!(worker_observed.load(Ordering::SeqCst));
+    assert_eq!(data["outcome"], "already_cancelled");
+    assert_eq!(
+        harness
+            .database
+            .lock()
+            .unwrap()
+            .list_scan_jobs()
+            .unwrap()
+            .len(),
+        2,
+        "the older Manual follow-up must not create a successor"
+    );
+    let status = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(status[0]["state"], "cancelled");
+    assert_eq!(status[0]["jobId"], job_id);
+    assert_eq!(
+        ok_data(handle_get_library_page(
+            &runtime,
+            &harness.service,
+            page_request(&harness.root_id, 10, None, None),
+        )),
+        committed_before
+    );
+}
+
+#[test]
+fn newer_manual_scan_supersedes_cancellation_before_worker_finishes() {
+    let harness = Harness::new("manual-after-cancel-mirror");
+    let (runtime, _) = test_runtime();
+    let job_id = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ))["jobId"]
+        .as_str()
+        .expect("job id")
+        .to_owned();
+    assert!(harness.claim_due(), "the running attempt should be claimed");
+
+    // Accept the real host mirror/token first, but leave the command's
+    // durable write pending. A newer explicit Manual request is then allowed
+    // to supersede this exact cancellation intent.
+    harness.host().request_cancellation(&job_id);
+    let manual = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    assert_eq!(manual["outcome"], "already_running");
+    assert_eq!(manual["jobId"], job_id);
+    assert!(manual["runId"].is_string());
+
+    let database = harness.database.clone();
+    let host = harness.host();
+    let mut port = FakePort::new(tree(vec![file_entry("old-attempt.flp", 313)]));
+    assert!(host.execute_pending(&database, &mut port));
+
+    let jobs = harness.database.lock().unwrap().list_scan_jobs().unwrap();
+    assert_eq!(jobs.len(), 2, "the explicit request creates one successor");
+    let old = jobs
+        .iter()
+        .find(|job| job.id == job_id)
+        .expect("old job retained");
+    assert_eq!(old.state, ScanJobState::Interrupted);
+    assert!(!old.cancellation_requested);
+    let successor = jobs
+        .iter()
+        .find(|job| job.id != job_id)
+        .expect("manual successor");
+    assert_eq!(successor.state, ScanJobState::Queued);
+    let successor_id = successor.id.clone();
+    drop(jobs);
+
+    // The original Cancel command is delayed until after the worker has
+    // terminalized the superseded attempt. It must not cancel the successor.
+    let delayed_cancel = ok_data(handle_cancel_scan(
+        &runtime,
+        &harness.service,
+        cancel_request(&job_id),
+    ));
+    assert_eq!(delayed_cancel["outcome"], "already_failed");
+
+    // The newer user intent converges exactly once and publishes its own
+    // result; the stale cancellation cannot kill that successor.
+    harness.tick(tree(vec![file_entry("successor.flp", 314)]));
+    let database = harness.database.lock().unwrap();
+    assert_eq!(
+        database.scan_job(&successor_id).unwrap().state,
+        ScanJobState::Completed
+    );
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 2);
+}
+
+#[test]
+fn cancellation_after_worker_snapshot_before_finalization_must_not_create_successor() {
+    struct ReviewClock {
+        calls: AtomicU64,
+        hook: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
+    }
+
+    impl ScanClock for ReviewClock {
+        fn now_ms(&self) -> i64 {
+            // The second call is resolve_shared, after it sampled the
+            // cancellation token and before it reads/finishes the job.
+            if self.calls.fetch_add(1, Ordering::SeqCst) == 1
+                && let Some(hook) = self.hook.lock().unwrap().take()
+            {
+                hook();
+            }
+            T0_MS
+        }
+    }
+
+    let directory = TestDirectory::new("late-cancel-permanent-regression");
+    let clock = Arc::new(ReviewClock {
+        calls: AtomicU64::new(100),
+        hook: Mutex::new(None),
+    });
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Synthetic", r"C:\synthetic-root")
+        .unwrap();
+    let worker = ScanWorker::new(WorkerConfig::default()).unwrap();
+    let session = worker
+        .start_session(&mut database, clock.as_ref())
+        .unwrap()
+        .id;
+    let host = Arc::new(ScanConsoleHost::new(
+        worker,
+        session,
+        clock.clone(),
+        Arc::new(RecordingEventSink::default()),
+    ));
+    let mut service = ScanConsoleService::new_enabled(Arc::new(Mutex::new(database)));
+    service.clock = clock.clone();
+    *service.host.lock().unwrap() = Some(host.clone());
+    let (runtime, _) = test_runtime();
+
+    let job_id = ok_data(handle_scan_now(
+        &runtime,
+        &service,
+        scan_now_request(&root.id),
+    ))["jobId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(host.claim_due(&service.database));
+    service
+        .database
+        .lock()
+        .unwrap()
+        .enqueue_scan(&root.id, ScanKind::Periodic, T0_MS)
+        .unwrap();
+
+    let cancel_host = Arc::downgrade(&host);
+    let cancel_job = job_id.clone();
+    *clock.hook.lock().unwrap() = Some(Box::new(move || {
+        // Accept the actual host intent after the worker's cancellation
+        // sample, while the command's durable write is still pending.
+        cancel_host
+            .upgrade()
+            .unwrap()
+            .request_cancellation(&cancel_job);
+    }));
+    clock.calls.store(0, Ordering::SeqCst);
+
+    assert!(host.execute_pending(&service.database, &mut FakePort::new(tree(vec![]))));
+    assert!(
+        clock.hook.lock().unwrap().is_none(),
+        "controlled late cancellation must run"
+    );
+    let reply = ok_data(handle_cancel_scan(
+        &runtime,
+        &service,
+        cancel_request(&job_id),
+    ));
+    let database = service.database.lock().unwrap();
+    let jobs = database.list_scan_jobs().unwrap();
+    eprintln!(
+        "late cancellation: old={:?}, jobs={}, response={}",
+        database.scan_job(&job_id).unwrap().state,
+        jobs.len(),
+        reply
+    );
+    assert_eq!(
+        jobs.len(),
+        1,
+        "accepted Cancel before terminalization must not create a successor"
+    );
+    assert_eq!(
+        database.scan_job(&job_id).unwrap().state,
+        ScanJobState::Cancelled
+    );
+}
+
+#[test]
+fn cancellation_after_worker_snapshot_with_older_manual_follow_up_stays_cancelled() {
+    struct ReviewClock {
+        calls: AtomicU64,
+        hook: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
+    }
+
+    impl ScanClock for ReviewClock {
+        fn now_ms(&self) -> i64 {
+            if self.calls.fetch_add(1, Ordering::SeqCst) == 1
+                && let Some(hook) = self.hook.lock().unwrap().take()
+            {
+                hook();
+            }
+            T0_MS
+        }
+    }
+
+    let directory = TestDirectory::new("late-cancel-manual-follow-up");
+    let clock = Arc::new(ReviewClock {
+        calls: AtomicU64::new(100),
+        hook: Mutex::new(None),
+    });
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Synthetic", r"C:\synthetic-root")
+        .unwrap();
+    let worker = ScanWorker::new(WorkerConfig::default()).unwrap();
+    let session = worker
+        .start_session(&mut database, clock.as_ref())
+        .unwrap()
+        .id;
+    let host = Arc::new(ScanConsoleHost::new(
+        worker,
+        session,
+        clock.clone(),
+        Arc::new(RecordingEventSink::default()),
+    ));
+    let mut service = ScanConsoleService::new_enabled(Arc::new(Mutex::new(database)));
+    service.clock = clock.clone();
+    *service.host.lock().unwrap() = Some(host.clone());
+    let (runtime, _) = test_runtime();
+
+    let job_id = ok_data(handle_scan_now(
+        &runtime,
+        &service,
+        scan_now_request(&root.id),
+    ))["jobId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(host.claim_due(&service.database));
+    let follow_up = ok_data(handle_scan_now(
+        &runtime,
+        &service,
+        scan_now_request(&root.id),
+    ));
+    assert_eq!(follow_up["outcome"], "already_running");
+    assert_eq!(follow_up["jobId"], job_id);
+    assert!(
+        service
+            .database
+            .lock()
+            .unwrap()
+            .scan_job(&job_id)
+            .unwrap()
+            .follow_up_requested
+    );
+
+    let cancel_host = Arc::downgrade(&host);
+    let cancel_job = job_id.clone();
+    *clock.hook.lock().unwrap() = Some(Box::new(move || {
+        cancel_host
+            .upgrade()
+            .unwrap()
+            .request_cancellation(&cancel_job);
+    }));
+    clock.calls.store(0, Ordering::SeqCst);
+
+    assert!(host.execute_pending(&service.database, &mut FakePort::new(tree(vec![]))));
+    assert!(clock.hook.lock().unwrap().is_none());
+    let delayed_cancel = ok_data(handle_cancel_scan(
+        &runtime,
+        &service,
+        cancel_request(&job_id),
+    ));
+    assert_eq!(delayed_cancel["outcome"], "already_cancelled");
+
+    let database = service.database.lock().unwrap();
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+    assert_eq!(
+        database.scan_job(&job_id).unwrap().state,
+        ScanJobState::Cancelled
+    );
+}
+
+#[test]
 fn failed_runs_retry_manually_and_through_the_persisted_backoff() {
     let harness = Harness::new("retry-failure");
     let (runtime, _) = test_runtime();
@@ -895,6 +1344,96 @@ fn active_retry_job_wins_over_newer_terminal_history_and_scan_now_coalesces_to_i
 }
 
 #[test]
+fn retry_running_snapshot_keeps_native_run_id_when_worker_finishes_after_snapshot() {
+    let harness = Harness::new("retry-running-snapshot");
+    let (runtime, _) = test_runtime();
+    let queued = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let job_id = queued["jobId"].as_str().expect("job id").to_owned();
+    assert!(harness.claim_due(), "scan should lease before retry");
+
+    // The worker is allowed to attempt its terminal write only after the
+    // retry handler has acquired the database mutex. It then blocks on that
+    // same mutex, so the handler must return the running run id from one
+    // coherent snapshot before the worker can finish.
+    let (ready_tx, ready_rx) = mpsc::channel();
+    let (go_tx, go_rx) = mpsc::channel();
+    let (attempting_tx, attempting_rx) = mpsc::channel();
+    let (allow_lock_tx, allow_lock_rx) = mpsc::channel();
+    let database = harness.database.clone();
+    let worker_job_id = job_id.clone();
+    let worker = std::thread::spawn(move || {
+        ready_tx.send(()).expect("worker ready");
+        go_rx.recv().expect("retry acquired database snapshot");
+        attempting_tx.send(()).expect("worker lock attempt");
+        allow_lock_rx
+            .recv()
+            .expect("retry read completed before worker lock");
+        let mut database = database.lock().unwrap();
+        let run = database
+            .running_scan_run_for_job(&worker_job_id)
+            .expect("running run query")
+            .expect("running run");
+        database
+            .finish_scan_run(
+                &run.id,
+                &run.session_id,
+                &run.lease_token,
+                T0_MS + 1,
+                fruitboard_storage::ScanRunOutcome::Failed,
+            )
+            .expect("worker terminal write");
+    });
+    ready_rx
+        .recv_timeout(Duration::from_secs(5))
+        .expect("worker ready signal");
+
+    let go_tx = StdArc::new(go_tx);
+    let attempting_rx = StdArc::new(std::sync::Mutex::new(attempting_rx));
+    let allow_lock_tx = StdArc::new(allow_lock_tx);
+    *harness.service.retry_snapshot_hook.lock().unwrap() = Some(StdArc::new({
+        let go_tx = go_tx.clone();
+        let attempting_rx = attempting_rx.clone();
+        let allow_lock_tx = allow_lock_tx.clone();
+        move || {
+            go_tx.send(()).expect("start worker lock attempt");
+            attempting_rx
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(5))
+                .expect("worker attempted lock");
+            allow_lock_tx.send(()).expect("allow worker after snapshot");
+        }
+    }));
+
+    let response = ok_data(handle_retry_scan(
+        &runtime,
+        &harness.service,
+        retry_request(&job_id),
+    ));
+    assert_eq!(response["outcome"], "already_running");
+    let run_id = response["runId"]
+        .as_str()
+        .expect("native already_running run id");
+    assert!(!run_id.is_empty());
+
+    worker.join().expect("join deterministic worker");
+    *harness.service.retry_snapshot_hook.lock().unwrap() = None;
+    let database = harness.database.lock().unwrap();
+    assert_eq!(
+        database.scan_job(&job_id).expect("finished job").state,
+        fruitboard_storage::ScanJobState::Failed
+    );
+    assert_eq!(
+        database.scan_run(run_id).expect("returned run").state,
+        fruitboard_storage::ScanRunState::Failed
+    );
+}
+
+#[test]
 fn cancelling_older_active_retry_preserves_newer_history_and_library_data() {
     let harness = Harness::new("cancel-active-older-retry");
     let (runtime, _) = test_runtime();
@@ -967,23 +1506,28 @@ fn cancelling_older_active_retry_preserves_newer_history_and_library_data() {
     assert_eq!(page["records"][0]["fileName"], "committed.flp");
     assert_eq!(page["records"][0]["presence"], "present");
 
-    assert_eq!(
-        error_code(handle_retry_scan(
-            &runtime,
-            &harness.service,
-            retry_request(&retry_job_id),
-        )),
-        "conflict",
-        "cancelled retry chains are never revived"
-    );
-    let fresh = ok_data(handle_scan_now(
+    // Explicit Retry is a new user-requested scan after cancellation. It
+    // preserves the cancelled history row but starts a distinct chain, just
+    // like Scan now, instead of reviving or rejecting the old job.
+    let fresh_retry = ok_data(handle_retry_scan(
         &runtime,
         &harness.service,
-        scan_now_request(&harness.root_id),
+        retry_request(&retry_job_id),
     ));
-    assert_ne!(fresh["jobId"], retry_job_id);
-    assert_ne!(fresh["jobId"], newer_job_id);
-    assert_eq!(fresh["outcome"], "queued");
+    assert_ne!(fresh_retry["jobId"], retry_job_id);
+    assert_ne!(fresh_retry["jobId"], newer_job_id);
+    assert_eq!(fresh_retry["outcome"], "queued");
+    assert!(fresh_retry["runId"].is_null());
+
+    // The successor can publish normally without changing the newer terminal
+    // history's committed Library result.
+    harness.tick(tree(vec![file_entry("committed.flp", 402)]));
+    let after_retry = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    assert_eq!(after_retry["records"], page["records"]);
 
     let database = harness.database.lock().unwrap();
     assert_eq!(
@@ -1797,7 +2341,7 @@ fn disabled_failed_roots_do_not_offer_or_start_recovery() {
 }
 
 #[test]
-fn terminal_jobs_reject_retry_and_report_already_outcomes() {
+fn completed_chains_reject_retry_and_missing_jobs_are_not_found() {
     let harness = Harness::new("terminal-jobs");
     let (runtime, _) = test_runtime();
 
@@ -2408,7 +2952,7 @@ fn restart_drops_in_memory_counters_but_durable_statuses_survive() {
 }
 
 #[test]
-fn retry_exhausted_reports_conflict_not_requeue() {
+fn retry_after_exhausted_unavailable_starts_a_fresh_chain() {
     let harness = Harness::new("retry-exhausted");
     let (runtime, _) = test_runtime();
 
@@ -2462,37 +3006,90 @@ fn retry_exhausted_reports_conflict_not_requeue() {
     assert_eq!(data[0]["state"], "failed");
     assert_eq!(data[0]["jobId"], job_id);
     assert_eq!(data[0]["retryAvailable"], false);
-    // The closed ScanStartOutcome union has no "already_failed": the native
-    // boundary reports the safe conflict; an explicit Scan now below creates
-    // a new job instead of reviving this exhausted chain.
-    assert_eq!(
-        error_code(handle_retry_scan(
-            &runtime,
-            &harness.service,
-            retry_request(&job_id)
-        )),
-        "conflict"
-    );
 
-    // Exhausted work is not revived by Retry. An explicit Scan now creates a
-    // separate job and retry chain while preserving the exhausted record.
+    // D3 convergence: restoring the root and issuing an explicit Retry
+    // supersedes the exhausted chain with a fresh one instead of returning the
+    // state-change conflict. The exhausted ledger row is retained, never
+    // reset, and the fresh chain converges.
     harness.clock.advance(1);
-    let fresh = ok_data(handle_scan_now(
+    let fresh = ok_data(handle_retry_scan(
         &runtime,
         &harness.service,
-        scan_now_request(&harness.root_id),
+        retry_request(&job_id),
     ));
     let fresh_job_id = fresh["jobId"].as_str().expect("fresh job id");
     assert_ne!(fresh_job_id, job_id);
     assert_eq!(fresh["outcome"], "queued");
-    let database = harness.database.lock().unwrap();
-    let exhausted = database.scan_job(&job_id).expect("exhausted job");
-    let fresh = database.scan_job(fresh_job_id).expect("fresh job");
-    assert_eq!(exhausted.state, ScanJobState::Failed);
-    assert_eq!(exhausted.attempt, exhausted.max_attempts);
-    assert_eq!(fresh.state, ScanJobState::Queued);
-    assert_eq!(fresh.attempt, 0);
-    assert_ne!(exhausted.retry_chain_id, fresh.retry_chain_id);
+    assert!(fresh["runId"].is_null());
+    {
+        let database = harness.database.lock().unwrap();
+        let exhausted = database.scan_job(&job_id).expect("exhausted job");
+        let successor = database.scan_job(fresh_job_id).expect("fresh job");
+        assert_eq!(exhausted.state, ScanJobState::Failed);
+        assert_eq!(exhausted.attempt, exhausted.max_attempts);
+        assert_eq!(successor.state, ScanJobState::Queued);
+        assert_eq!(successor.attempt, 0);
+        assert_ne!(exhausted.retry_chain_id, successor.retry_chain_id);
+    }
+    harness.tick(tree(vec![file_entry("a.flp", 101)]));
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "completed");
+    assert_eq!(data[0]["jobId"], fresh_job_id);
+    assert_eq!(data[0]["counters"]["filesObserved"], 1);
+}
+
+#[test]
+fn retry_after_cancelled_work_starts_a_fresh_chain() {
+    let harness = Harness::new("retry-after-cancel");
+    let (runtime, _) = test_runtime();
+
+    let first = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let cancelled_job_id = first["jobId"].as_str().expect("job id").to_owned();
+    ok_data(handle_cancel_scan(
+        &runtime,
+        &harness.service,
+        cancel_request(&cancelled_job_id),
+    ));
+
+    // D2 convergence: the renderer prefers `Scan now` after a cancellation,
+    // but an explicit Retry that arrives anyway (stale snapshot or direct
+    // API) starts a fresh chain instead of the old state-change conflict.
+    harness.clock.advance(1);
+    let retried = ok_data(handle_retry_scan(
+        &runtime,
+        &harness.service,
+        retry_request(&cancelled_job_id),
+    ));
+    let fresh_job_id = retried["jobId"].as_str().expect("fresh job id");
+    assert_ne!(fresh_job_id, cancelled_job_id);
+    assert_eq!(retried["outcome"], "queued");
+    assert!(retried["runId"].is_null());
+    {
+        let database = harness.database.lock().unwrap();
+        let cancelled = database.scan_job(&cancelled_job_id).expect("cancelled job");
+        let fresh = database.scan_job(fresh_job_id).expect("fresh job");
+        assert_eq!(cancelled.state, ScanJobState::Cancelled);
+        assert_eq!(fresh.state, ScanJobState::Queued);
+        assert_eq!(fresh.attempt, 0);
+        assert_ne!(cancelled.retry_chain_id, fresh.retry_chain_id);
+    }
+
+    harness.tick(tree(vec![file_entry("a.flp", 101)]));
+    let data = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(data[0]["state"], "completed");
+    assert_eq!(data[0]["jobId"], fresh_job_id);
 }
 
 #[test]

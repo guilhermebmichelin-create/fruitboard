@@ -9,7 +9,7 @@ pub use error::{DatabaseDetail, Result, StorageError};
 pub use execution::{
     DEFAULT_SCAN_MAX_ATTEMPTS, EnqueueResult, LeasedScan, ScanJob, ScanJobState, ScanKind,
     ScanRetryCandidatePage, ScanRetryCursor, ScanRootExecution, ScanRootStatus, ScanRun,
-    ScanRunOutcome, ScanRunState, ScanSession,
+    ScanRunFinalization, ScanRunOutcome, ScanRunState, ScanSession,
 };
 use files::{Location, check_path, private_directory, private_file};
 use migrations::{MIGRATIONS, Migration};

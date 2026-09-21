@@ -1613,13 +1613,19 @@ fn execution_finish_transition_matrix_covers_outcomes_followups_and_cancellation
                     .unwrap();
             }
 
-            let cancellation_wins =
-                case.durable_cancellation || case.outcome == ScanRunOutcome::Cancelled;
-            let follow_up_invalidates = case.follow_up && !cancellation_wins;
-            let expected_outcome = if cancellation_wins {
-                ScanRunOutcome::Cancelled
-            } else if follow_up_invalidates {
+            // A cancellation request clears the pending follow-up, so a
+            // follow-up still set at finish is newer than the last durable
+            // cancellation and supersedes it: the attempt ends interrupted
+            // and a fresh successor is queued. The setup requests the durable
+            // cancellation after the trigger, so those cases have their
+            // follow-up cleared and the cancellation wins.
+            let follow_up_invalidates = case.follow_up && !case.durable_cancellation;
+            let cancellation_wins = !follow_up_invalidates
+                && (case.durable_cancellation || case.outcome == ScanRunOutcome::Cancelled);
+            let expected_outcome = if follow_up_invalidates {
                 ScanRunOutcome::Interrupted
+            } else if cancellation_wins {
+                ScanRunOutcome::Cancelled
             } else {
                 case.outcome
             };
@@ -1710,17 +1716,18 @@ fn execution_finish_transition_matrix_covers_outcomes_followups_and_cancellation
 }
 
 #[test]
-fn worker_cancelled_outcome_suppresses_followup_on_restart_and_backup_recovery() {
+fn pending_follow_up_supersedes_a_worker_cancellation_across_restart_and_backup_recovery() {
     let source_directory = TestDirectory::new();
-    let (backup, root_id, run_id, job_id, chain) = {
+    let (backup, root_id, run_id, job_id, chain, successor_id, successor_chain) = {
         let mut database = Database::open(source_directory.path()).unwrap();
         let root = database
             .add_scan_root("Projects", "C:\\Music\\Projects")
             .unwrap();
         database.begin_scan_session("session-1", 1).unwrap();
-        database
+        let job = database
             .enqueue_scan(&root.id, ScanKind::Manual, 2)
             .unwrap();
+        let job_id = job.job_id.clone();
         let lease = database
             .lease_next_scan("session-1", 3, 100)
             .unwrap()
@@ -1728,6 +1735,10 @@ fn worker_cancelled_outcome_suppresses_followup_on_restart_and_backup_recovery()
         database
             .enqueue_scan(&root.id, ScanKind::Periodic, 4)
             .unwrap();
+        // The worker reports its local cancellation, but the durable trigger
+        // was never cleared by a cancellation request and is therefore the
+        // newer instruction: the attempt ends interrupted and the successor
+        // is scheduled instead of being dropped.
         assert_eq!(
             database
                 .finish_scan_run(
@@ -1738,68 +1749,81 @@ fn worker_cancelled_outcome_suppresses_followup_on_restart_and_backup_recovery()
                     ScanRunOutcome::Cancelled,
                 )
                 .unwrap(),
-            ScanRunState::Cancelled
+            ScanRunState::Interrupted
         );
         let run = database.scan_run(&lease.run.id).unwrap();
-        assert!(run.cancellation_requested);
-        let job = database.scan_job(&lease.job.id).unwrap();
-        assert_eq!(job.state, ScanJobState::Cancelled);
-        assert!(job.cancellation_requested);
-        assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+        assert_eq!(run.outcome, Some(ScanRunOutcome::Interrupted));
+        assert_eq!(run.error_code.as_deref(), Some("follow_up_requested"));
+        assert!(!run.cancellation_requested);
+        let job = database.scan_job(&job_id).unwrap();
+        assert_eq!(job.state, ScanJobState::Interrupted);
+        assert!(!job.cancellation_requested);
+        let jobs = database.list_scan_jobs().unwrap();
+        assert_eq!(jobs.len(), 2, "the trigger starts exactly one successor");
+        let successor = jobs
+            .iter()
+            .find(|candidate| candidate.id != job_id)
+            .expect("successor job");
+        assert_eq!(successor.state, ScanJobState::Queued);
+        assert_eq!(successor.attempt, 0, "the successor starts a fresh chain");
+        assert_ne!(successor.retry_chain_id, job.retry_chain_id);
         (
             database.create_backup().unwrap(),
             root.id,
             run.id,
-            job.id,
+            job_id,
             job.retry_chain_id,
+            successor.id.clone(),
+            successor.retry_chain_id.clone(),
         )
     };
 
+    // Restart: the superseded attempt stays terminally interrupted; the
+    // successor is the only continuation and recovery does not duplicate it.
     let mut restarted = Database::open(source_directory.path()).unwrap();
     restarted.begin_scan_session("session-2", 6).unwrap();
-    assert_eq!(restarted.list_scan_jobs().unwrap().len(), 1);
-    assert_eq!(
-        restarted.scan_job(&job_id).unwrap().state,
-        ScanJobState::Cancelled
-    );
-    assert!(
-        restarted
-            .lease_next_scan("session-2", 6, 100)
-            .unwrap()
-            .is_none()
-    );
+    let jobs = restarted.list_scan_jobs().unwrap();
+    assert_eq!(jobs.len(), 2, "restart never revives the interrupted chain");
+    let superseded = restarted.scan_job(&job_id).unwrap();
+    assert_eq!(superseded.state, ScanJobState::Interrupted);
+    assert_eq!(superseded.retry_chain_id, chain);
     assert_eq!(
         restarted.scan_run(&run_id).unwrap().state,
-        ScanRunState::Cancelled
+        ScanRunState::Interrupted
     );
-    let explicit = restarted
-        .enqueue_scan(&root_id, ScanKind::Manual, 7)
-        .unwrap();
-    assert!(!explicit.coalesced);
-    assert_ne!(explicit.job_id, job_id);
-    let explicit_lease = restarted
-        .lease_next_scan("session-2", 7, 100)
+    assert_eq!(
+        restarted.scan_job(&successor_id).unwrap().state,
+        ScanJobState::Queued
+    );
+    assert_eq!(
+        restarted.scan_job(&successor_id).unwrap().retry_chain_id,
+        successor_chain
+    );
+    let resumed = restarted
+        .lease_next_scan("session-2", 6, 100)
         .unwrap()
         .unwrap();
-    assert_eq!(explicit_lease.job.id, explicit.job_id);
-    assert_eq!(explicit_lease.job.attempt, 1);
-    assert_ne!(explicit_lease.job.retry_chain_id, chain);
+    assert_eq!(resumed.job.id, successor_id);
+    assert_eq!(resumed.root.id, root_id);
 
+    // Backup recovery preserves exactly the same split.
     let destination = TestDirectory::new();
     let mut recovered = Database::recover_to(&backup, destination.path()).unwrap();
     recovered
         .begin_scan_session("recovered-session", wall_clock_ms())
         .unwrap();
-    assert_eq!(recovered.list_scan_jobs().unwrap().len(), 1);
-    assert!(
-        recovered
-            .lease_next_scan("recovered-session", wall_clock_ms(), 100)
-            .unwrap()
-            .is_none()
+    assert_eq!(recovered.list_scan_jobs().unwrap().len(), 2);
+    assert_eq!(
+        recovered.scan_job(&job_id).unwrap().state,
+        ScanJobState::Interrupted
+    );
+    assert_eq!(
+        recovered.scan_job(&successor_id).unwrap().state,
+        ScanJobState::Queued
     );
     assert_eq!(
         recovered.scan_run(&run_id).unwrap().state,
-        ScanRunState::Cancelled
+        ScanRunState::Interrupted
     );
 }
 
@@ -2619,6 +2643,237 @@ fn kill_after_follow_up_invalidation_keeps_successor_and_leaves_old_interrupted(
     assert_eq!(leased.job.id, successor_job_id);
     assert_eq!(leased.root.id, root_id);
     assert_ne!(leased.job.retry_chain_id, old_job.retry_chain_id);
+}
+
+#[test]
+fn cancellation_and_trigger_order_respects_manual_vs_background_intent() {
+    fn exercise(kind: ScanKind, cancel_first: bool) {
+        let directory = TestDirectory::new();
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .unwrap();
+        database.begin_scan_session("session-1", 1).unwrap();
+        let job_id = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap()
+            .job_id;
+        let lease = database
+            .lease_next_scan("session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+
+        if cancel_first {
+            database
+                .request_scan_cancellation(&lease.run.id, 4)
+                .unwrap();
+        }
+        let trigger = database.enqueue_scan(&root.id, kind, 5).unwrap();
+        assert!(trigger.coalesced);
+        assert_eq!(trigger.job_id, job_id);
+        assert_eq!(
+            trigger.follow_up_requested,
+            !cancel_first || kind == ScanKind::Manual
+        );
+        if !cancel_first {
+            database
+                .request_scan_cancellation(&lease.run.id, 6)
+                .unwrap();
+        }
+
+        let expected_successor = cancel_first && kind == ScanKind::Manual;
+        let job_before_finish = database.scan_job(&job_id).unwrap();
+        let run_before_finish = database.scan_run(&lease.run.id).unwrap();
+        assert_eq!(job_before_finish.follow_up_requested, expected_successor);
+        assert_eq!(
+            job_before_finish.cancellation_requested,
+            !expected_successor
+        );
+        assert_eq!(
+            run_before_finish.cancellation_requested,
+            !expected_successor
+        );
+
+        let expected_state = if expected_successor {
+            ScanRunState::Interrupted
+        } else {
+            ScanRunState::Cancelled
+        };
+        assert_eq!(
+            database
+                .finish_scan_run(
+                    &lease.run.id,
+                    "session-1",
+                    &lease.run.lease_token,
+                    7,
+                    ScanRunOutcome::Cancelled,
+                )
+                .unwrap(),
+            expected_state
+        );
+        let run = database.scan_run(&lease.run.id).unwrap();
+        assert_eq!(run.state, expected_state);
+        assert_eq!(
+            run.outcome,
+            Some(if expected_successor {
+                ScanRunOutcome::Interrupted
+            } else {
+                ScanRunOutcome::Cancelled
+            })
+        );
+        assert_eq!(run.cancellation_requested, !expected_successor);
+
+        let jobs = database.list_scan_jobs().unwrap();
+        assert_eq!(jobs.len(), if expected_successor { 2 } else { 1 });
+        if expected_successor {
+            let successor = jobs
+                .iter()
+                .find(|candidate| candidate.id != job_id)
+                .expect("manual trigger successor");
+            assert_eq!(successor.state, ScanJobState::Queued);
+            assert_eq!(successor.kind, ScanKind::Manual);
+        }
+    }
+
+    // Both arrival orders are covered for the explicit Manual request and the
+    // Periodic watcher request. Only Manual may supersede cancel-then-trigger;
+    // a trigger-then-cancel pair is cancelled in either case.
+    for (kind, cancel_first) in [
+        (ScanKind::Manual, true),
+        (ScanKind::Periodic, true),
+        (ScanKind::Manual, false),
+        (ScanKind::Periodic, false),
+    ] {
+        exercise(kind, cancel_first);
+    }
+}
+
+#[test]
+fn cooperative_cancellation_acknowledgement_wins_over_older_background_follow_up() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    let job_id = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap()
+        .job_id;
+    let lease = database
+        .lease_next_scan("session-1", 3, 100)
+        .unwrap()
+        .unwrap();
+
+    // This Periodic request is older than the cancellation intent, but the
+    // command's separate durable write has not happened yet. The fenced
+    // acknowledgement is the worker's terminal transaction in that window.
+    let follow_up = database
+        .enqueue_scan(&root.id, ScanKind::Periodic, 4)
+        .unwrap();
+    assert!(follow_up.coalesced);
+    assert!(follow_up.follow_up_requested);
+    assert!(database.scan_job(&job_id).unwrap().follow_up_requested);
+    assert!(!database.scan_job(&job_id).unwrap().cancellation_requested);
+
+    assert_eq!(
+        database
+            .finish_scan_run_after_cooperative_cancellation(
+                &lease.run.id,
+                "session-1",
+                &lease.run.lease_token,
+                5,
+                None,
+            )
+            .unwrap(),
+        ScanRunState::Cancelled
+    );
+    let run = database.scan_run(&lease.run.id).unwrap();
+    assert_eq!(run.outcome, Some(ScanRunOutcome::Cancelled));
+    assert!(run.cancellation_requested);
+    let job = database.scan_job(&job_id).unwrap();
+    assert_eq!(job.state, ScanJobState::Cancelled);
+    assert!(job.cancellation_requested);
+    assert!(!job.follow_up_requested);
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+
+    // The command's late durable write is now a terminal no-op and cannot
+    // revive or roll back the cancelled attempt.
+    assert_eq!(
+        database
+            .request_scan_cancellation(&lease.run.id, 6)
+            .unwrap(),
+        ScanRunState::Cancelled
+    );
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+}
+
+#[test]
+fn explicit_trigger_after_cancellation_supersedes_the_stale_cancel_and_schedules_a_successor() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Music\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    let job_id = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap()
+        .job_id;
+    let lease = database
+        .lease_next_scan("session-1", 3, 100)
+        .unwrap()
+        .unwrap();
+    // The user cancels the running attempt...
+    database
+        .request_scan_cancellation(&lease.run.id, 4)
+        .unwrap();
+    // ...and a newer explicit trigger (Scan now / Retry) arrives while the
+    // worker is still finishing the cancelled attempt.
+    let trigger = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 5)
+        .unwrap();
+    assert!(trigger.coalesced);
+    assert_eq!(trigger.job_id, job_id);
+    assert!(trigger.follow_up_requested);
+
+    // The worker observes its cancellation mirror and reports the local
+    // cancellation; the newer durable trigger wins the ordering and the
+    // attempt ends interrupted instead of cancelled.
+    assert_eq!(
+        database
+            .finish_scan_run(
+                &lease.run.id,
+                "session-1",
+                &lease.run.lease_token,
+                6,
+                ScanRunOutcome::Cancelled,
+            )
+            .unwrap(),
+        ScanRunState::Interrupted
+    );
+    let run = database.scan_run(&lease.run.id).unwrap();
+    assert_eq!(run.outcome, Some(ScanRunOutcome::Interrupted));
+    assert_eq!(run.error_code.as_deref(), Some("follow_up_requested"));
+    assert!(!run.cancellation_requested);
+    let superseded = database.scan_job(&job_id).unwrap();
+    assert_eq!(superseded.state, ScanJobState::Interrupted);
+    assert!(!superseded.cancellation_requested);
+
+    let jobs = database.list_scan_jobs().unwrap();
+    assert_eq!(jobs.len(), 2, "exactly one fresh successor");
+    let successor = jobs
+        .iter()
+        .find(|candidate| candidate.id != job_id)
+        .expect("successor job");
+    assert_eq!(successor.state, ScanJobState::Queued);
+    assert_eq!(successor.attempt, 0);
+    assert_ne!(successor.retry_chain_id, superseded.retry_chain_id);
+    let leased = database
+        .lease_next_scan("session-1", successor.not_before_ms, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(leased.job.id, successor.id);
 }
 
 #[test]
