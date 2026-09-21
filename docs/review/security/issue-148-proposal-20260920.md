@@ -8,7 +8,8 @@ copied into `.github/workflows` or added to required checks.
 ## Current read-only snapshot
 
 Snapshot source: public repository `guilhermebmichelin-create/fruitboard`,
-`main` at `66fcd2a92d4e5a75f016528ff64f46dcf01f45b5`.
+`main` at `73775453e9e4021c7b6b4ade381fd87300f47c32` (the merged #152
+baseline).
 
 - CodeQL default setup: `not-configured`; the API advertises Actions,
   JavaScript/TypeScript, Python, and Rust language support.
