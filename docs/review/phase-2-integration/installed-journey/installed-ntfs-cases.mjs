@@ -31,6 +31,7 @@ const expectedLockPid = Number.parseInt(
 const transcriptPath = path.join(journeyRoot, "ntfs-cases.jsonl");
 const marker =
   "FRUITBOARD SYNTHETIC FIXTURE. NOT AN FL STUDIO PROJECT. NO PRIVATE DATA.\n";
+let axeSourceCache;
 
 function relativeArtifact(candidate) {
   const relative = path.relative(journeyRoot, candidate);
@@ -333,6 +334,167 @@ async function pageFor(call, rootId, limit = 20) {
   return result.response.data;
 }
 
+async function waitForRunning(
+  call,
+  rootId,
+  label,
+  timeoutMilliseconds = 120000,
+) {
+  const status = await waitForStatus(
+    call,
+    rootId,
+    (candidate) =>
+      candidate?.state === "running" &&
+      typeof candidate.runId === "string" &&
+      candidate.runId.length > 0,
+    timeoutMilliseconds,
+    label,
+  );
+  if (
+    !status ||
+    status.state !== "running" ||
+    typeof status.runId !== "string" ||
+    status.runId.length === 0
+  ) {
+    throw new Error(
+      `${label} did not expose a running state with a non-empty run id`,
+    );
+  }
+  log({ kind: "running-observed", method: "native", label, status: compactStatus(status) });
+  return status;
+}
+
+async function waitForExistingTerminal(
+  call,
+  rootId,
+  label,
+  timeoutMilliseconds = 240000,
+) {
+  let terminal = await waitForStatus(
+    call,
+    rootId,
+    (status) =>
+      ["completed", "failed", "cancelled", "interrupted"].includes(
+        status?.state,
+      ) && status.retryAvailable === false,
+    timeoutMilliseconds,
+    label,
+  );
+  await sleep(250);
+  const refreshed = await statusFor(call, rootId);
+  if (
+    refreshed &&
+    ["completed", "failed", "cancelled", "interrupted"].includes(
+      refreshed.state,
+    ) &&
+    refreshed.retryAvailable === false
+  ) {
+    terminal = refreshed;
+  }
+  if (
+    !terminal ||
+    !["completed", "failed", "cancelled", "interrupted"].includes(
+      terminal.state,
+    )
+  ) {
+    throw new Error(`${label} did not reach a settled terminal status`);
+  }
+  const page = await pageFor(call, rootId);
+  log({
+    kind: `${label}-terminal-existing`,
+    method: "native",
+    status: compactStatus(terminal),
+    page: pageSummary(page),
+  });
+  return { status: terminal, page };
+}
+
+async function waitForJobTerminal(
+  call,
+  rootId,
+  jobId,
+  label,
+  timeoutMilliseconds = 240000,
+) {
+  const terminal = await waitForStatus(
+    call,
+    rootId,
+    (status) =>
+      status?.jobId === jobId &&
+      ["completed", "failed", "cancelled", "interrupted"].includes(
+        status.state,
+      ) &&
+      status.retryAvailable === false,
+    timeoutMilliseconds,
+    label,
+  );
+  if (
+    !terminal ||
+    terminal.jobId !== jobId ||
+    !["completed", "failed", "cancelled", "interrupted"].includes(
+      terminal.state,
+    )
+  ) {
+    throw new Error(`${label} did not settle the expected job`);
+  }
+  const page = await pageFor(call, rootId);
+  log({
+    kind: `${label}-job-terminal`,
+    method: "native",
+    expectedJobId: jobId,
+    status: compactStatus(terminal),
+    page: pageSummary(page),
+  });
+  return { status: terminal, page };
+}
+
+async function scanNowToRunning(
+  call,
+  rootId,
+  label,
+  timeoutMilliseconds = 120000,
+) {
+  const start = await invoke(call, "scan_now", {
+    schemaVersion: 1,
+    rootId,
+  });
+  log({ kind: `${label}-scan-now`, method: "native", result: start });
+  if (!start.ok || start.response.status !== "ok") {
+    throw new Error(`${label} scan_now did not return a typed success`);
+  }
+  const running = await waitForRunning(
+    call,
+    rootId,
+    label,
+    timeoutMilliseconds,
+  );
+  return { start: start.response.data, running };
+}
+
+async function cancelJob(call, jobId, label) {
+  const result = await invoke(call, "cancel_scan", {
+    schemaVersion: 1,
+    jobId,
+  });
+  log({ kind: "cancel-scan", method: "native", label, jobId, result });
+  if (!result.ok || result.response.status !== "ok") {
+    throw new Error(`${label} cancel_scan did not return a typed success`);
+  }
+  return result.response.data;
+}
+
+async function retryJob(call, jobId, label) {
+  const result = await invoke(call, "retry_scan", {
+    schemaVersion: 1,
+    jobId,
+  });
+  log({ kind: "retry-scan", method: "native", label, jobId, result });
+  if (!result.ok || result.response.status !== "ok") {
+    throw new Error(`${label} retry_scan did not return a typed success`);
+  }
+  return result.response.data;
+}
+
 function pageSummary(page) {
   return {
     rootId: page?.rootId,
@@ -382,11 +544,115 @@ async function uiSnapshot(call, label) {
         progress: element.querySelector("[data-scan-progress]")?.getAttribute("data-scan-progress") ?? null,
         text: element.textContent?.trim().slice(0, 240),
       })),
+      accessibilityProbe: (() => {
+        const focusable = [...document.querySelectorAll(
+          'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        )].filter((element) => !element.hasAttribute("disabled"));
+        const first = focusable[0];
+        first?.focus();
+        return {
+          focusableCount: focusable.length,
+          activeElement: document.activeElement
+            ? {
+                tag: document.activeElement.tagName,
+                role: document.activeElement.getAttribute("role"),
+                ariaLabel: document.activeElement.getAttribute("aria-label"),
+                text: document.activeElement.textContent?.trim().slice(0, 120),
+              }
+            : null,
+          unnamedInteractiveCount: focusable.filter(
+            (element) =>
+              !element.getAttribute("aria-label") &&
+              !element.textContent?.trim() &&
+              !element.getAttribute("title"),
+          ).length,
+        };
+      })(),
       body: document.body.textContent?.slice(0, 1800),
     }))()`,
   );
+  snapshot.accessibilityProbe.axe = await runAxe(call, label);
   log({ kind: "ui-snapshot", label, method: "UI", snapshot });
   return snapshot;
+}
+
+function loadAxeSource() {
+  if (axeSourceCache !== undefined) return axeSourceCache;
+  const sourcePath = path.join(
+    repositoryRoot,
+    "apps",
+    "client",
+    "node_modules",
+    "axe-core",
+    "axe.min.js",
+  );
+  if (!fs.existsSync(sourcePath)) {
+    axeSourceCache = null;
+    return axeSourceCache;
+  }
+  axeSourceCache = fs.readFileSync(sourcePath, "utf8");
+  const packagePath = path.join(path.dirname(sourcePath), "package.json");
+  let version = null;
+  try {
+    version = JSON.parse(fs.readFileSync(packagePath, "utf8")).version ?? null;
+  } catch {
+    // The source hash remains the provenance if package metadata is absent.
+  }
+  log({
+    kind: "instrumented-ui-helper",
+    method: "UI",
+    helper: "axe-core",
+    version,
+    source: relativeArtifact(sourcePath),
+    sourceSha256: hashFile(sourcePath),
+    boundary:
+      "review-driver injection only; not bundled into or enabled by the product",
+  });
+  return axeSourceCache;
+}
+
+async function runAxe(call, label) {
+  const source = loadAxeSource();
+  if (!source) {
+    return {
+      status: "unavailable",
+      reason: "axe-core source was not present in the evidence checkout",
+    };
+  }
+  try {
+    const result = await evaluate(
+      call,
+      `(() => {
+        if (!window.axe) {
+          new Function(${JSON.stringify(source)})();
+        }
+        return window.axe.run(document, {
+          runOnly: { type: "tag", values: ["wcag2a", "wcag2aa"] },
+        }).then((report) => ({
+          version: window.axe.version,
+          passes: report.passes.length,
+          incomplete: report.incomplete.length,
+          violations: report.violations.map((violation) => ({
+            id: violation.id,
+            impact: violation.impact,
+            help: violation.help,
+            nodes: violation.nodes.slice(0, 20).map((node) => ({
+              target: node.target,
+              html: node.html,
+            })),
+          })),
+        }));
+      })()`,
+      60000,
+    );
+    const normalized = { status: "completed", ...result };
+    log({ kind: "axe-result", method: "UI", label, result: normalized });
+    return normalized;
+  } catch (error) {
+    const unavailable = { status: "unavailable", reason: safeError(error) };
+    log({ kind: "axe-result", method: "UI", label, result: unavailable });
+    return unavailable;
+  }
 }
 
 function nativeCall(
@@ -713,6 +979,34 @@ function prepareFixtures() {
     ),
   });
 
+  const retryBase = path.join(fixturesRoot, "retry-exhausted");
+  const retryRoot = path.join(retryBase, "scan-root");
+  const retryFile = path.join(retryRoot, "restore-me.flp");
+  writeSyntheticFile(retryFile);
+  const retryManifest = writeManifest(retryBase, "retry-exhausted-20260920", [
+    {
+      path: "scan-root/restore-me.flp",
+      bytes: fs.statSync(retryFile).size,
+      kind: "flp",
+    },
+  ]);
+
+  const lifecycleBase = path.join(fixturesRoot, "lifecycle");
+  const lifecycleRoot = path.join(lifecycleBase, "scan-root");
+  const lifecycleFile = path.join(lifecycleRoot, "lifecycle.flp");
+  writeSyntheticFile(lifecycleFile);
+  const lifecycleManifest = writeManifest(
+    lifecycleBase,
+    "lifecycle-20260920",
+    [
+      {
+        path: "scan-root/lifecycle.flp",
+        bytes: fs.statSync(lifecycleFile).size,
+        kind: "flp",
+      },
+    ],
+  );
+
   return {
     denied: {
       root: deniedDirectory,
@@ -732,6 +1026,16 @@ function prepareFixtures() {
       source: hardlinkSource,
       aliasA: hardlinkA,
       aliasB: hardlinkB,
+    },
+    retry: {
+      root: retryRoot,
+      file: retryFile,
+      manifest: retryManifest,
+    },
+    lifecycle: {
+      root: lifecycleRoot,
+      file: lifecycleFile,
+      manifest: lifecycleManifest,
     },
   };
 }
@@ -882,6 +1186,46 @@ async function addRoot(call, displayName, rootPath) {
   });
   if (!result.ok || result.response.status !== "ok") {
     throw new Error(`failed to add ${displayName}`);
+  }
+  return result.response.data;
+}
+
+async function renameRoot(call, rootId, displayName, label) {
+  const result = await invoke(call, "set_scan_root_display_name", {
+    schemaVersion: 1,
+    id: rootId,
+    displayName,
+  });
+  log({
+    kind: "root-renamed",
+    method: "native",
+    label,
+    rootId,
+    displayName,
+    result,
+  });
+  if (
+    !result.ok ||
+    result.response.status !== "ok" ||
+    result.response.data.displayName !== displayName
+  ) {
+    throw new Error(`${label} did not persist the display name`);
+  }
+  return result.response.data;
+}
+
+async function removeRoot(call, rootId, label) {
+  const result = await invoke(call, "remove_scan_root", {
+    schemaVersion: 1,
+    id: rootId,
+  });
+  log({ kind: "root-removed", method: "native", label, rootId, result });
+  if (
+    !result.ok ||
+    result.response.status !== "ok" ||
+    result.response.data.id !== rootId
+  ) {
+    throw new Error(`${label} did not remove the requested root`);
   }
   return result.response.data;
 }
@@ -1089,6 +1433,23 @@ async function stopApp(app, label) {
   });
 }
 
+async function forceStopApp(app, label) {
+  if (!app?.child?.pid) return;
+  try {
+    app.websocket?.close();
+  } catch {
+    // The CDP target can disappear during an intentional crash simulation.
+  }
+  const pid = app.child.pid;
+  nativeCall("app-stop-crash", "taskkill.exe", ["/F", "/PID", String(pid)]);
+  const started = Date.now();
+  while (isProcessAlive(pid) && Date.now() - started < 5000)
+    await sleep(100);
+  if (isProcessAlive(pid))
+    throw new Error(`${label} app process survived exact-PID crash cleanup`);
+  log({ kind: "app-crash-stopped", method: "native", label, pid });
+}
+
 async function runCase(label, cases, body) {
   try {
     await body();
@@ -1160,6 +1521,16 @@ async function main() {
         "Hardlink Aliases",
         fixtures.hardlinks.root,
       ),
+      retry: await addRoot(
+        app.call,
+        "Retry Exhausted",
+        fixtures.retry.root,
+      ),
+      lifecycle: await addRoot(
+        app.call,
+        "Lifecycle",
+        fixtures.lifecycle.root,
+      ),
     };
 
     const baselines = {};
@@ -1229,6 +1600,275 @@ async function main() {
     app = undefined;
     copyDatabaseSnapshot("baseline");
     app = await startApp("after-baseline");
+
+    await runCase("cancel-background-periodic", failures, async () => {
+      const baseline = await captureCommittedBaseline(
+        app.call,
+        roots.resource.id,
+        "before-cancel-background",
+      );
+      const active = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "cancel-background",
+        300000,
+      );
+      const cancelled = await cancelJob(
+        app.call,
+        active.start.jobId,
+        "cancel-background",
+      );
+      if (
+        !["cancellation_requested", "already_cancelled"].includes(
+          cancelled.outcome,
+        )
+      ) {
+        throw new Error(
+          `unexpected cancel outcome: ${JSON.stringify(cancelled)}`,
+        );
+      }
+      const eventPath = path.join(
+        fixtures.resource.root,
+        "cancel-background-event.flp",
+      );
+      writeSyntheticFile(eventPath);
+      log({
+        kind: "background-event-during-cancellation",
+        method: "native",
+        rootId: roots.resource.id,
+        relativePath: relativeArtifact(eventPath),
+        expected: "periodic hint must not clear durable cancellation",
+      });
+      const terminal = await waitForJobTerminal(
+        app.call,
+        roots.resource.id,
+        active.start.jobId,
+        "cancel-background",
+        300000,
+      );
+      if (
+        terminal.status.state !== "cancelled" ||
+        JSON.stringify(pageSummary(terminal.page).records) !==
+          JSON.stringify(baseline.page.records)
+      ) {
+        throw new Error(
+          "cancelled background event changed the committed snapshot",
+        );
+      }
+      await sleep(1500);
+      const settledStatus = await statusFor(app.call, roots.resource.id);
+      if (
+        settledStatus?.jobId !== active.start.jobId ||
+        settledStatus.state !== "cancelled"
+      ) {
+        log({
+          kind: "background-event-after-cancellation-settled",
+          method: "native",
+          status: compactStatus(settledStatus),
+          boundary:
+            "the installed watcher delivered the event after the original job had already terminalized; ordinary reconciliation may create one fresh job, so this is not classified as the pending-cancellation race",
+        });
+        if (
+          settledStatus &&
+          settledStatus.jobId !== active.start.jobId &&
+          ["queued", "running"].includes(settledStatus.state)
+        ) {
+          await cancelJob(
+            app.call,
+            settledStatus.jobId,
+            "cancel-background-post-terminal-cleanup",
+          );
+          await waitForJobTerminal(
+            app.call,
+            roots.resource.id,
+            settledStatus.jobId,
+            "cancel-background-post-terminal-cleanup",
+            300000,
+          );
+        }
+      }
+      fs.unlinkSync(eventPath);
+      log({
+        kind: "background-event-cleanup",
+        method: "native",
+        relativePath: relativeArtifact(eventPath),
+      });
+    });
+
+    await runCase("explicit-ordering-and-retry", failures, async () => {
+      const cancelThenManual = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "cancel-then-manual",
+        300000,
+      );
+      await cancelJob(
+        app.call,
+        cancelThenManual.start.jobId,
+        "cancel-then-manual",
+      );
+      const manual = await invoke(app.call, "scan_now", {
+        schemaVersion: 1,
+        rootId: roots.resource.id,
+      });
+      log({ kind: "manual-after-cancel", method: "native", result: manual });
+      if (!manual.ok || manual.response.status !== "ok") {
+        throw new Error("Manual trigger after cancellation was not accepted");
+      }
+      if (
+        manual.response.data.outcome === "already_running" &&
+        (!manual.response.data.runId || manual.response.data.runId.length === 0)
+      ) {
+        throw new Error("already_running Manual response lost its run id");
+      }
+      const manualTerminal = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "cancel-then-manual",
+        300000,
+      );
+      if (
+        manualTerminal.status.state !== "completed" ||
+        manualTerminal.status.jobId === cancelThenManual.start.jobId
+      ) {
+        throw new Error(
+          `Manual cancel ordering did not produce one completed successor: ${JSON.stringify(compactStatus(manualTerminal.status))}`,
+        );
+      }
+
+      const manualThenCancel = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "manual-then-cancel",
+        300000,
+      );
+      const coalesced = await invoke(app.call, "scan_now", {
+        schemaVersion: 1,
+        rootId: roots.resource.id,
+      });
+      log({
+        kind: "manual-follow-up-before-cancel",
+        method: "native",
+        result: coalesced,
+      });
+      if (!coalesced.ok || coalesced.response.status !== "ok") {
+        throw new Error("Manual follow-up before cancellation was rejected");
+      }
+      await cancelJob(
+        app.call,
+        manualThenCancel.start.jobId,
+        "manual-then-cancel",
+      );
+      const cancelledTerminal = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "manual-then-cancel",
+        300000,
+      );
+      if (
+        cancelledTerminal.status.state !== "cancelled" ||
+        cancelledTerminal.status.jobId !== manualThenCancel.start.jobId
+      ) {
+        throw new Error(
+          "cancellation after a Manual follow-up did not win the ordering",
+        );
+      }
+
+      const retried = await retryJob(
+        app.call,
+        manualThenCancel.start.jobId,
+        "retry-after-cancel",
+      );
+      if (
+        retried.outcome !== "queued" ||
+        retried.jobId === manualThenCancel.start.jobId
+      ) {
+        throw new Error(
+          `Retry after cancellation did not start a fresh chain: ${JSON.stringify(retried)}`,
+        );
+      }
+      const retriedTerminal = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "retry-after-cancel",
+        300000,
+      );
+      if (
+        retriedTerminal.status.state !== "completed" ||
+        retriedTerminal.status.jobId !== retried.jobId
+      ) {
+        throw new Error("the fresh Retry chain did not complete");
+      }
+      await uiSnapshot(app.call, "after-explicit-ordering-and-retry");
+    });
+
+    await runCase("retry-running-race-observation", failures, async () => {
+      const active = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "retry-running-race",
+        300000,
+      );
+      const retried = await retryJob(
+        app.call,
+        active.start.jobId,
+        "retry-running-race",
+      );
+      if (
+        retried.outcome !== "already_running" ||
+        typeof retried.runId !== "string" ||
+        retried.runId.length === 0
+      ) {
+        throw new Error(
+          `installed retry running response was not parser-safe: ${JSON.stringify(retried)}`,
+        );
+      }
+      log({
+        kind: "uncontrolled-installed-race-observation",
+        method: "native",
+        label: "retry-running-race",
+        result: retried,
+        boundary:
+          "normal installed timing observation; deterministic interleaving is covered by the native test seam",
+      });
+      await cancelJob(app.call, active.start.jobId, "retry-running-race");
+      const terminal = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "retry-running-race",
+        300000,
+      );
+      if (terminal.status.state !== "cancelled") {
+        throw new Error("retry-running race cleanup did not cancel the run");
+      }
+    });
+
+    await runCase("restart-recovery", failures, async () => {
+      const active = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "restart-recovery",
+        300000,
+      );
+      await forceStopApp(app, "restart-recovery");
+      app = undefined;
+      app = await startApp("after-forced-restart");
+      const recovered = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "restart-recovery",
+        300000,
+      );
+      if (
+        recovered.status.state !== "completed" ||
+        recovered.status.runId === active.running.runId
+      ) {
+        throw new Error(
+          `restart recovery did not complete on a recovered chain: ${JSON.stringify(compactStatus(recovered.status))}`,
+        );
+      }
+      await uiSnapshot(app.call, "after-restart-recovery");
+    });
 
     await runCase("denied-traversal", failures, async () => {
       if (!baselines.denied) {
@@ -1489,6 +2129,147 @@ async function main() {
         "hardlinks-disable-after-restore",
       );
     });
+
+    await runCase("retry-exhaustion", failures, async () => {
+      await toggleRoot(
+        app.call,
+        roots.retry.id,
+        false,
+        "retry-exhausted-disable-before-remove",
+      );
+      fs.rmSync(fixtures.retry.root, { recursive: true, force: false });
+      log({
+        kind: "retry-exhausted-root-removed",
+        method: "native",
+        relativePath: relativeArtifact(fixtures.retry.root),
+      });
+      await toggleRoot(
+        app.call,
+        roots.retry.id,
+        true,
+        "retry-exhausted-enable-missing-root",
+      );
+      const exhausted = await scanToTerminal(
+        app.call,
+        roots.retry.id,
+        "retry-exhausted-missing-root",
+        300000,
+      );
+      if (
+        exhausted.status.state !== "failed" ||
+        exhausted.status.retryAvailable !== false
+      ) {
+        throw new Error(
+          `missing-root retry chain did not exhaust: ${JSON.stringify(compactStatus(exhausted.status))}`,
+        );
+      }
+      fs.mkdirSync(fixtures.retry.root, { recursive: true });
+      writeSyntheticFile(fixtures.retry.file);
+      const retried = await retryJob(
+        app.call,
+        exhausted.status.jobId,
+        "retry-after-exhaustion",
+      );
+      if (
+        retried.outcome !== "queued" ||
+        retried.jobId === exhausted.status.jobId
+      ) {
+        throw new Error(
+          `exhausted Retry did not start a fresh chain: ${JSON.stringify(retried)}`,
+        );
+      }
+      const recovered = await waitForExistingTerminal(
+        app.call,
+        roots.retry.id,
+        "retry-after-exhaustion",
+        300000,
+      );
+      if (
+        recovered.status.state !== "completed" ||
+        recovered.status.jobId !== retried.jobId
+      ) {
+        throw new Error("fresh Retry after exhaustion did not complete");
+      }
+      await uiSnapshot(app.call, "after-retry-exhaustion");
+    });
+
+    await runCase("root-lifecycle", failures, async () => {
+      const initial = await scanToTerminal(
+        app.call,
+        roots.lifecycle.id,
+        "lifecycle-initial",
+      );
+      if (initial.status.state !== "completed")
+        throw new Error("lifecycle baseline did not complete");
+      const renamed = await renameRoot(
+        app.call,
+        roots.lifecycle.id,
+        "Lifecycle Renamed",
+        "lifecycle-rename",
+      );
+      const listedAfterRename = await listRoots(app.call);
+      if (
+        !listedAfterRename.some(
+          (root) =>
+            root.id === roots.lifecycle.id &&
+            root.displayName === renamed.displayName,
+        )
+      ) {
+        throw new Error("renamed root was not visible in list_scan_roots");
+      }
+      await toggleRoot(
+        app.call,
+        roots.lifecycle.id,
+        false,
+        "lifecycle-disable",
+      );
+      const disabledScan = await invoke(app.call, "scan_now", {
+        schemaVersion: 1,
+        rootId: roots.lifecycle.id,
+      });
+      log({
+        kind: "disabled-root-scan",
+        method: "native",
+        result: disabledScan,
+      });
+      if (
+        !disabledScan.ok ||
+        disabledScan.response.status !== "error"
+      ) {
+        throw new Error("disabled root accepted a Scan now request");
+      }
+      await toggleRoot(
+        app.call,
+        roots.lifecycle.id,
+        true,
+        "lifecycle-reenable-before-remove",
+      );
+      await removeRoot(app.call, roots.lifecycle.id, "lifecycle-remove");
+      if ((await listRoots(app.call)).some((root) => root.id === roots.lifecycle.id)) {
+        throw new Error("removed root remained in list_scan_roots");
+      }
+      const restored = await addRoot(
+        app.call,
+        "Lifecycle Restored",
+        fixtures.lifecycle.root,
+      );
+      roots.lifecycle = restored;
+      const restoredScan = await scanToTerminal(
+        app.call,
+        roots.lifecycle.id,
+        "lifecycle-restored",
+      );
+      if (restoredScan.status.state !== "completed") {
+        throw new Error("re-added root did not scan successfully");
+      }
+      await toggleRoot(
+        app.call,
+        roots.lifecycle.id,
+        false,
+        "lifecycle-disable-after-restore",
+      );
+      await uiSnapshot(app.call, "after-root-lifecycle");
+    });
   } finally {
     if (app) {
       try {
@@ -1515,6 +2296,25 @@ async function main() {
       } catch (error) {
         failures.push({
           scenario: "hardlink-cleanup",
+          error: safeError(error),
+        });
+      }
+    }
+    const cancellationEvent = path.join(
+      fixtures.resource.root,
+      "cancel-background-event.flp",
+    );
+    if (fs.existsSync(cancellationEvent)) {
+      try {
+        fs.unlinkSync(cancellationEvent);
+        log({
+          kind: "background-event-cleanup-finally",
+          method: "native",
+          relativePath: relativeArtifact(cancellationEvent),
+        });
+      } catch (error) {
+        failures.push({
+          scenario: "background-event-cleanup",
           error: safeError(error),
         });
       }

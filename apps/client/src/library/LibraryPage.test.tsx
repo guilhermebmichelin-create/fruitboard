@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { ScanRoot } from "../platform/contracts";
+import { LibraryAdapterError } from "./contracts";
 import { createFakeLibraryScanAdapter } from "./fake";
 import { LibraryPage } from "./LibraryPage";
 import type {
@@ -490,6 +491,36 @@ describe("LibraryPage", () => {
     expect(adapter.calls.retryScan).toEqual([]);
     expect(adapter.calls.scanNow).toEqual([rootA.id]);
     expect(screen.getByRole("heading", { name: "Exhausted.flp" })).toBeTruthy();
+  });
+
+  it("converges a retry that races a terminal transition with a fresh scan", async () => {
+    const user = userEvent.setup();
+    const base = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      files: [makeRecord(rootA, "location-a", "Raced.flp", "Raced.flp")],
+      initialStatuses: [
+        makeStatus(rootA, "failed", "raced-job", "raced-run", true),
+      ],
+    });
+    const adapter: LibraryScanAdapter = {
+      ...base,
+      // The durable chain moved on between the status snapshot and the click:
+      // the native retry cannot revive it and reports the typed conflict.
+      retryScan: () => Promise.reject(new LibraryAdapterError("conflict")),
+    };
+    renderLibrary(adapter);
+
+    await screen.findByRole("heading", { name: "Raced.flp" });
+    await user.click(
+      screen.getByRole("button", { name: "Retry scan Projects" }),
+    );
+
+    // The Retry action still converges: the client falls back to a fresh
+    // explicit scan instead of surfacing "The scan state changed".
+    expect(await screen.findByText("Queued")).toBeTruthy();
+    expect(base.calls.scanNow).toEqual([rootA.id]);
+    expect(screen.queryByText(/state changed/i)).toBeNull();
+    expect(screen.getByRole("heading", { name: "Raced.flp" })).toBeTruthy();
   });
 
   it("shows an unavailable-root state without manufacturing missing files", async () => {
