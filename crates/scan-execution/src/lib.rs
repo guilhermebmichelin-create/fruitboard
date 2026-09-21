@@ -70,28 +70,30 @@ pub trait ScanClock {
     fn now_ms(&self) -> i64;
 }
 
-/// The host-side ordering boundary for a cooperative cancellation observed
-/// by the worker. The default implementation preserves the portable worker's
-/// existing storage-only ordering; the desktop host supplies a fenced
-/// acknowledgement tied to the active job/run before it terminalizes.
-pub trait CancellationFinalizer: Send + Sync {
-    fn finish_after_cooperative_cancellation(
+/// The host-side ordering boundary for a worker finalization. The worker
+/// supplies the outcome it proposed after its durable snapshot; the desktop
+/// host may promote that proposal to a fenced cancellation when a matching
+/// cancel intent was accepted after the snapshot but before this boundary.
+pub trait FinalizationBoundary: Send + Sync {
+    fn finish_at_control_boundary(
         &self,
         database: &Mutex<Database>,
         scan: &ActiveScan,
         now_ms: i64,
+        proposed_outcome: ScanRunOutcome,
         terminal_error_code: Option<&str>,
     ) -> Result<ScanRunState, StorageError>;
 }
 
-struct DefaultCancellationFinalizer;
+struct DefaultFinalizationBoundary;
 
-impl CancellationFinalizer for DefaultCancellationFinalizer {
-    fn finish_after_cooperative_cancellation(
+impl FinalizationBoundary for DefaultFinalizationBoundary {
+    fn finish_at_control_boundary(
         &self,
         database: &Mutex<Database>,
         scan: &ActiveScan,
         now_ms: i64,
+        proposed_outcome: ScanRunOutcome,
         terminal_error_code: Option<&str>,
     ) -> Result<ScanRunState, StorageError> {
         let mut database = database.lock().map_err(|_| StorageError::Io)?;
@@ -100,7 +102,7 @@ impl CancellationFinalizer for DefaultCancellationFinalizer {
             &scan.leased.run.session_id,
             &scan.leased.run.lease_token,
             now_ms,
-            ScanRunOutcome::Cancelled,
+            proposed_outcome,
             terminal_error_code,
         )
     }
@@ -111,7 +113,7 @@ struct SharedResolution<'a> {
     cooperative_cancel_observed: bool,
     outcome: Option<enumeration::Outcome>,
     partial_class: Option<PartialClass>,
-    finalizer: &'a dyn CancellationFinalizer,
+    finalizer: &'a dyn FinalizationBoundary,
 }
 
 /// Production clock over the system wall clock. Milliseconds since the Unix
@@ -617,14 +619,15 @@ impl ScanWorker {
             port,
             cancellation,
             clock,
-            &DefaultCancellationFinalizer,
+            &DefaultFinalizationBoundary,
         )
     }
 
-    /// Shared-mutex execution with the host's exact cancellation ordering
-    /// boundary. The finalizer is consulted only after the worker observed a
-    /// cooperative cancellation; normal follow-up, restart, root-fence and
-    /// publication paths retain the existing storage transitions.
+    /// Shared-mutex execution with the host's exact finalization ordering
+    /// boundary. Every non-publication terminal proposal is consulted there;
+    /// normal failure, follow-up, restart and root-fence outcomes retain their
+    /// proposed storage semantics unless the host has a matching accepted
+    /// cancellation intent for this exact run.
     pub fn execute_shared_with_finalizer<P: FilesystemPort, C: Cancellation>(
         &self,
         db: &Mutex<Database>,
@@ -632,7 +635,7 @@ impl ScanWorker {
         port: &mut P,
         cancellation: &C,
         clock: &dyn ScanClock,
-        finalizer: &dyn CancellationFinalizer,
+        finalizer: &dyn FinalizationBoundary,
     ) -> ScanExecution {
         let now = clock.now_ms();
         match self.fence_state_shared(db, &scan, now) {
@@ -1018,10 +1021,10 @@ impl ScanWorker {
     }
 
     /// Shared-mutex variant of [`Self::resolve`]: each durable step is its own
-    /// short transaction so filesystem I/O never holds the lock. The final
-    /// `finish_scan_run` still validates lease, revision and cancellation
-    /// atomically, so the cancel/commit race keeps SQLite serialization as the
-    /// winner.
+    /// short transaction so filesystem I/O never holds the lock. Every
+    /// terminal proposal crosses the host finalization boundary before the
+    /// storage transition, so a cancellation accepted after the worker's
+    /// earlier token snapshot cannot bypass the exact-run ordering fence.
     fn resolve_shared(
         &self,
         db: &Mutex<Database>,
@@ -1084,33 +1087,13 @@ impl ScanWorker {
         } else {
             ScanRunOutcome::Failed
         };
-        let finished = if cooperative_cancel_observed {
-            finalizer.finish_after_cooperative_cancellation(
-                db,
-                scan,
-                now,
-                durable_error_code(outcome),
-            )
-        } else {
-            let Ok(mut guard) = db.lock() else {
-                return self.execution_with_partial_class(
-                    scan,
-                    ScanExecutionStatus::Fenced,
-                    outcome,
-                    None,
-                    None,
-                    partial_class,
-                );
-            };
-            guard.finish_scan_run_with_error(
-                &scan.leased.run.id,
-                &scan.leased.run.session_id,
-                &scan.leased.run.lease_token,
-                now,
-                terminal,
-                durable_error_code(outcome),
-            )
-        };
+        let finished = finalizer.finish_at_control_boundary(
+            db,
+            scan,
+            now,
+            terminal,
+            durable_error_code(outcome),
+        );
         match finished {
             Ok(state) => self.execution_with_partial_class(
                 scan,

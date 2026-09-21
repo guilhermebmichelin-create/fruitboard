@@ -17,10 +17,11 @@
 //! The enumerator polls a [`Cancellation`] between entries and batches; the
 //! trait contract forbids blocking. The single SQLite connection cannot be
 //! re-entered while the worker holds it, so the host uses a scoped in-memory
-//! mirror: the `cancel_scan` command flips the mirror for the exact running
-//! job first — it never blocks and never needs the database, so the traversal
-//! stops at its next cooperative check — and then commits the durable
-//! cancellation flag through storage. Either that command write or the
+//! mirror: the `cancel_scan` command accepts the exact running job; its mirror
+//! update may briefly wait for the short intent mutex; it never
+//! waits for the database or filesystem traversal, so the scan stops
+//! cooperatively. It then commits the durable cancellation flag through
+//! storage. Either that command write or the
 //! exact-run worker acknowledgement is an acknowledged authority. Between
 //! batches the scan-execution staging adapter
 //! independently re-reads the durable cancellation flags from storage, so the
@@ -43,9 +44,11 @@ use fruitboard_filesystem_enumeration::{
     Cancellation, FilesystemPort, Outcome, WindowsFilesystemPort,
 };
 use fruitboard_scan_execution::{
-    ActiveScan, CancellationFinalizer, ScanClock, ScanExecution, ScanExecutionStatus, ScanWorker,
+    ActiveScan, FinalizationBoundary, ScanClock, ScanExecution, ScanExecutionStatus, ScanWorker,
 };
-use fruitboard_storage::{Database, ScanJobState, ScanRunOutcome, StorageError};
+use fruitboard_storage::{
+    Database, ScanJobState, ScanRunFinalization, ScanRunOutcome, StorageError,
+};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, mpsc};
@@ -73,6 +76,13 @@ struct IntentOrderState {
     pending_cancellation: Option<PendingCancellation>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CancellationDecision {
+    None,
+    Current,
+    Superseded,
+}
+
 /// A short-lived process-local ordering fence. It is deliberately not a
 /// durable generation: the exact run/session/lease on `PendingCancellation`
 /// fences stale callbacks, while durable cancellation remains the restart
@@ -91,15 +101,6 @@ impl IntentOrderGuard<'_> {
         }
     }
 
-    pub(crate) fn cancellation_current_for(&self, job_id: &str) -> bool {
-        self.state
-            .pending_cancellation
-            .as_ref()
-            .is_some_and(|pending| {
-                pending.job_id == job_id && !pending.superseded_by_explicit_request
-            })
-    }
-
     pub(crate) fn cancellation_was_superseded_for(&self, job_id: &str) -> bool {
         self.state
             .pending_cancellation
@@ -107,6 +108,23 @@ impl IntentOrderGuard<'_> {
             .is_some_and(|pending| {
                 pending.job_id == job_id && pending.superseded_by_explicit_request
             })
+    }
+
+    pub(crate) fn cancellation_decision_for(
+        &self,
+        job_id: &str,
+        run_id: &str,
+    ) -> CancellationDecision {
+        match self.state.pending_cancellation.as_ref() {
+            Some(pending) if pending.job_id == job_id && pending.run_id == run_id => {
+                if pending.superseded_by_explicit_request {
+                    CancellationDecision::Superseded
+                } else {
+                    CancellationDecision::Current
+                }
+            }
+            _ => CancellationDecision::None,
+        }
     }
 }
 
@@ -120,8 +138,9 @@ struct PendingScan {
     root_id: String,
 }
 
-/// Cooperative cancellation mirror described in the module docs. Never
-/// blocks; only the cancel command flips it, before the durable commit.
+/// Cooperative cancellation mirror described in the module docs. The mirror
+/// itself is an atomic flag; the host accepts its exact intent under the short
+/// ordering mutex before the durable commit.
 struct CancellationMirror {
     flag: Arc<AtomicBool>,
     stopping: Arc<AtomicBool>,
@@ -229,9 +248,11 @@ impl ScanConsoleHost {
     }
 
     /// Accept a cancellation intent for the exact currently claimed run and
-    /// flip its in-memory mirror. The intent is process-local until either the
-    /// command writes the durable flag or the worker uses the fenced
-    /// acknowledgement while terminalizing the same lease.
+    /// flip its in-memory mirror. This may briefly wait for the short
+    /// process-local ordering mutex, but never waits for filesystem traversal;
+    /// the intent remains process-local until either the command writes the
+    /// durable flag or the worker uses the fenced acknowledgement while
+    /// terminalizing the same lease.
     pub(crate) fn request_cancellation(&self, job_id: &str) {
         let mut intent_order = self.intent_order();
         if let Some(active) = self
@@ -646,9 +667,6 @@ impl ScanConsoleHost {
     }
 
     fn fence_active_run(&self, database: &Mutex<Database>) -> bool {
-        let Ok(mut database) = database.lock() else {
-            return false;
-        };
         let Some(active) = self
             .cancellation
             .lock()
@@ -657,17 +675,29 @@ impl ScanConsoleHost {
         else {
             return true;
         };
+        let intent_order = self.intent_order();
+        let cancellation_acknowledged = matches!(
+            intent_order.cancellation_decision_for(&active.job_id, &active.run_id),
+            CancellationDecision::Current
+        );
         let outcome = if active.flag.load(Ordering::Relaxed) {
             ScanRunOutcome::Cancelled
         } else {
             ScanRunOutcome::Interrupted
         };
-        match database.finish_scan_run(
+        let Ok(mut database) = database.lock() else {
+            return false;
+        };
+        match database.finish_scan_run_at_control_boundary(
             &active.run_id,
             &active.session_id,
             &active.lease_token,
             self.clock.now_ms(),
-            outcome,
+            ScanRunFinalization {
+                outcome,
+                terminal_error_code: None,
+                cancellation_acknowledged,
+            },
         ) {
             Ok(_) | Err(StorageError::Conflict | StorageError::NotFound) => true,
             Err(_) => false,
@@ -675,54 +705,36 @@ impl ScanConsoleHost {
     }
 }
 
-impl CancellationFinalizer for ScanConsoleHost {
-    fn finish_after_cooperative_cancellation(
+impl FinalizationBoundary for ScanConsoleHost {
+    fn finish_at_control_boundary(
         &self,
         database: &Mutex<Database>,
         scan: &ActiveScan,
         now_ms: i64,
+        proposed_outcome: ScanRunOutcome,
         terminal_error_code: Option<&str>,
     ) -> Result<fruitboard_storage::ScanRunState, StorageError> {
-        // The worker's acknowledgement and an explicit Manual enqueue are
-        // linearized here. If the Manual request won first, it marked this
-        // exact cancellation intent superseded and storage's normal finish
-        // transition preserves the follow-up successor. Otherwise the
-        // acknowledgement commits cancellation and terminalization together,
-        // before the command's separate durable-cancel write if necessary.
+        // The intent mutex is the linearization point shared by cancellation,
+        // explicit Manual enqueue and this terminal transition. It is held
+        // only across the short storage transaction, never across traversal.
         let intent_order = self.intent_order();
-        let cancellation_current = intent_order
-            .cancellation_current_for(&scan.leased.run.scan_job_id)
-            && intent_order
-                .state
-                .pending_cancellation
-                .as_ref()
-                .is_some_and(|pending| pending.run_id == scan.leased.run.id);
-        let cancellation_superseded = intent_order
-            .cancellation_was_superseded_for(&scan.leased.run.scan_job_id)
-            && intent_order
-                .state
-                .pending_cancellation
-                .as_ref()
-                .is_some_and(|pending| pending.run_id == scan.leased.run.id);
+        let cancellation_acknowledged = matches!(
+            intent_order
+                .cancellation_decision_for(&scan.leased.run.scan_job_id, &scan.leased.run.id,),
+            CancellationDecision::Current
+        );
         let mut database = database.lock().map_err(|_| StorageError::Io)?;
-        if cancellation_current && !cancellation_superseded {
-            database.finish_scan_run_after_cooperative_cancellation(
-                &scan.leased.run.id,
-                &scan.leased.run.session_id,
-                &scan.leased.run.lease_token,
-                now_ms,
+        database.finish_scan_run_at_control_boundary(
+            &scan.leased.run.id,
+            &scan.leased.run.session_id,
+            &scan.leased.run.lease_token,
+            now_ms,
+            ScanRunFinalization {
+                outcome: proposed_outcome,
                 terminal_error_code,
-            )
-        } else {
-            database.finish_scan_run_with_error(
-                &scan.leased.run.id,
-                &scan.leased.run.session_id,
-                &scan.leased.run.lease_token,
-                now_ms,
-                ScanRunOutcome::Cancelled,
-                terminal_error_code,
-            )
-        }
+                cancellation_acknowledged,
+            },
+        )
     }
 }
 

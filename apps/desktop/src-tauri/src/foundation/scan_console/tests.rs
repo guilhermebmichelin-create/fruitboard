@@ -871,6 +871,15 @@ fn newer_manual_scan_supersedes_cancellation_before_worker_finishes() {
     let successor_id = successor.id.clone();
     drop(jobs);
 
+    // The original Cancel command is delayed until after the worker has
+    // terminalized the superseded attempt. It must not cancel the successor.
+    let delayed_cancel = ok_data(handle_cancel_scan(
+        &runtime,
+        &harness.service,
+        cancel_request(&job_id),
+    ));
+    assert_eq!(delayed_cancel["outcome"], "already_failed");
+
     // The newer user intent converges exactly once and publishes its own
     // result; the stale cancellation cannot kill that successor.
     harness.tick(tree(vec![file_entry("successor.flp", 314)]));
@@ -880,6 +889,204 @@ fn newer_manual_scan_supersedes_cancellation_before_worker_finishes() {
         ScanJobState::Completed
     );
     assert_eq!(database.list_scan_jobs().unwrap().len(), 2);
+}
+
+#[test]
+fn cancellation_after_worker_snapshot_before_finalization_must_not_create_successor() {
+    struct ReviewClock {
+        calls: AtomicU64,
+        hook: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
+    }
+
+    impl ScanClock for ReviewClock {
+        fn now_ms(&self) -> i64 {
+            // The second call is resolve_shared, after it sampled the
+            // cancellation token and before it reads/finishes the job.
+            if self.calls.fetch_add(1, Ordering::SeqCst) == 1
+                && let Some(hook) = self.hook.lock().unwrap().take()
+            {
+                hook();
+            }
+            T0_MS
+        }
+    }
+
+    let directory = TestDirectory::new("late-cancel-permanent-regression");
+    let clock = Arc::new(ReviewClock {
+        calls: AtomicU64::new(100),
+        hook: Mutex::new(None),
+    });
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Synthetic", r"C:\synthetic-root")
+        .unwrap();
+    let worker = ScanWorker::new(WorkerConfig::default()).unwrap();
+    let session = worker
+        .start_session(&mut database, clock.as_ref())
+        .unwrap()
+        .id;
+    let host = Arc::new(ScanConsoleHost::new(
+        worker,
+        session,
+        clock.clone(),
+        Arc::new(RecordingEventSink::default()),
+    ));
+    let mut service = ScanConsoleService::new_enabled(Arc::new(Mutex::new(database)));
+    service.clock = clock.clone();
+    *service.host.lock().unwrap() = Some(host.clone());
+    let (runtime, _) = test_runtime();
+
+    let job_id = ok_data(handle_scan_now(
+        &runtime,
+        &service,
+        scan_now_request(&root.id),
+    ))["jobId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(host.claim_due(&service.database));
+    service
+        .database
+        .lock()
+        .unwrap()
+        .enqueue_scan(&root.id, ScanKind::Periodic, T0_MS)
+        .unwrap();
+
+    let cancel_host = Arc::downgrade(&host);
+    let cancel_job = job_id.clone();
+    *clock.hook.lock().unwrap() = Some(Box::new(move || {
+        // Accept the actual host intent after the worker's cancellation
+        // sample, while the command's durable write is still pending.
+        cancel_host
+            .upgrade()
+            .unwrap()
+            .request_cancellation(&cancel_job);
+    }));
+    clock.calls.store(0, Ordering::SeqCst);
+
+    assert!(host.execute_pending(&service.database, &mut FakePort::new(tree(vec![]))));
+    assert!(
+        clock.hook.lock().unwrap().is_none(),
+        "controlled late cancellation must run"
+    );
+    let reply = ok_data(handle_cancel_scan(
+        &runtime,
+        &service,
+        cancel_request(&job_id),
+    ));
+    let database = service.database.lock().unwrap();
+    let jobs = database.list_scan_jobs().unwrap();
+    eprintln!(
+        "late cancellation: old={:?}, jobs={}, response={}",
+        database.scan_job(&job_id).unwrap().state,
+        jobs.len(),
+        reply
+    );
+    assert_eq!(
+        jobs.len(),
+        1,
+        "accepted Cancel before terminalization must not create a successor"
+    );
+    assert_eq!(
+        database.scan_job(&job_id).unwrap().state,
+        ScanJobState::Cancelled
+    );
+}
+
+#[test]
+fn cancellation_after_worker_snapshot_with_older_manual_follow_up_stays_cancelled() {
+    struct ReviewClock {
+        calls: AtomicU64,
+        hook: Mutex<Option<Box<dyn Fn() + Send + Sync>>>,
+    }
+
+    impl ScanClock for ReviewClock {
+        fn now_ms(&self) -> i64 {
+            if self.calls.fetch_add(1, Ordering::SeqCst) == 1
+                && let Some(hook) = self.hook.lock().unwrap().take()
+            {
+                hook();
+            }
+            T0_MS
+        }
+    }
+
+    let directory = TestDirectory::new("late-cancel-manual-follow-up");
+    let clock = Arc::new(ReviewClock {
+        calls: AtomicU64::new(100),
+        hook: Mutex::new(None),
+    });
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Synthetic", r"C:\synthetic-root")
+        .unwrap();
+    let worker = ScanWorker::new(WorkerConfig::default()).unwrap();
+    let session = worker
+        .start_session(&mut database, clock.as_ref())
+        .unwrap()
+        .id;
+    let host = Arc::new(ScanConsoleHost::new(
+        worker,
+        session,
+        clock.clone(),
+        Arc::new(RecordingEventSink::default()),
+    ));
+    let mut service = ScanConsoleService::new_enabled(Arc::new(Mutex::new(database)));
+    service.clock = clock.clone();
+    *service.host.lock().unwrap() = Some(host.clone());
+    let (runtime, _) = test_runtime();
+
+    let job_id = ok_data(handle_scan_now(
+        &runtime,
+        &service,
+        scan_now_request(&root.id),
+    ))["jobId"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(host.claim_due(&service.database));
+    let follow_up = ok_data(handle_scan_now(
+        &runtime,
+        &service,
+        scan_now_request(&root.id),
+    ));
+    assert_eq!(follow_up["outcome"], "already_running");
+    assert_eq!(follow_up["jobId"], job_id);
+    assert!(
+        service
+            .database
+            .lock()
+            .unwrap()
+            .scan_job(&job_id)
+            .unwrap()
+            .follow_up_requested
+    );
+
+    let cancel_host = Arc::downgrade(&host);
+    let cancel_job = job_id.clone();
+    *clock.hook.lock().unwrap() = Some(Box::new(move || {
+        cancel_host
+            .upgrade()
+            .unwrap()
+            .request_cancellation(&cancel_job);
+    }));
+    clock.calls.store(0, Ordering::SeqCst);
+
+    assert!(host.execute_pending(&service.database, &mut FakePort::new(tree(vec![]))));
+    assert!(clock.hook.lock().unwrap().is_none());
+    let delayed_cancel = ok_data(handle_cancel_scan(
+        &runtime,
+        &service,
+        cancel_request(&job_id),
+    ));
+    assert_eq!(delayed_cancel["outcome"], "already_cancelled");
+
+    let database = service.database.lock().unwrap();
+    assert_eq!(database.list_scan_jobs().unwrap().len(), 1);
+    assert_eq!(
+        database.scan_job(&job_id).unwrap().state,
+        ScanJobState::Cancelled
+    );
 }
 
 #[test]

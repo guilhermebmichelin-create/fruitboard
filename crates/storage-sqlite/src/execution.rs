@@ -188,10 +188,10 @@ pub enum ScanRunOutcome {
     Interrupted,
 }
 
-struct FinishScanRunOptions<'a> {
-    outcome: ScanRunOutcome,
-    terminal_error_code: Option<&'a str>,
-    cancellation_acknowledged: bool,
+pub struct ScanRunFinalization<'a> {
+    pub outcome: ScanRunOutcome,
+    pub terminal_error_code: Option<&'a str>,
+    pub cancellation_acknowledged: bool,
 }
 
 impl ScanRunOutcome {
@@ -1597,7 +1597,7 @@ impl Database {
             session_id,
             lease_token,
             now_ms,
-            FinishScanRunOptions {
+            ScanRunFinalization {
                 outcome,
                 terminal_error_code,
                 cancellation_acknowledged: false,
@@ -1605,13 +1605,34 @@ impl Database {
         )
     }
 
+    /// Finish a run at the host's control-intent ordering boundary. The
+    /// proposed outcome and diagnostic are preserved for ordinary failures and
+    /// follow-ups; when `cancellation_acknowledged` is true, the exact
+    /// run/session/lease acknowledgement is authoritative in the same
+    /// transaction as terminalization. This lets a cancellation accepted after
+    /// the worker's earlier snapshot win before the command's separate durable
+    /// write, without routing every failure through a cancellation API.
+    pub fn finish_scan_run_at_control_boundary(
+        &mut self,
+        run_id: &str,
+        session_id: &str,
+        lease_token: &str,
+        now_ms: i64,
+        finalization: ScanRunFinalization<'_>,
+    ) -> Result<ScanRunState> {
+        self.finish_scan_run_with_error_internal(
+            run_id,
+            session_id,
+            lease_token,
+            now_ms,
+            finalization,
+        )
+    }
+
     /// Finish a cooperatively cancelled run after the host accepted a
-    /// cancellation intent for this exact leased attempt. The acknowledgement
-    /// is fenced by the run/session/lease arguments and is committed in the
-    /// same transaction as terminalization, so it may win even when the
-    /// command's separate durable-cancel write has not acquired the database
-    /// mutex yet. A newer explicit Manual enqueue is represented by the
-    /// ordinary follow-up path and therefore bypasses this method.
+    /// cancellation intent for this exact leased attempt. This compatibility
+    /// wrapper preserves the cancellation-specific storage API while the
+    /// shared worker uses the general control boundary above.
     pub fn finish_scan_run_after_cooperative_cancellation(
         &mut self,
         run_id: &str,
@@ -1620,12 +1641,12 @@ impl Database {
         now_ms: i64,
         terminal_error_code: Option<&str>,
     ) -> Result<ScanRunState> {
-        self.finish_scan_run_with_error_internal(
+        self.finish_scan_run_at_control_boundary(
             run_id,
             session_id,
             lease_token,
             now_ms,
-            FinishScanRunOptions {
+            ScanRunFinalization {
                 outcome: ScanRunOutcome::Cancelled,
                 terminal_error_code,
                 cancellation_acknowledged: true,
@@ -1639,7 +1660,7 @@ impl Database {
         session_id: &str,
         lease_token: &str,
         now_ms: i64,
-        options: FinishScanRunOptions<'_>,
+        options: ScanRunFinalization<'_>,
     ) -> Result<ScanRunState> {
         if session_id.is_empty() || lease_token.is_empty() {
             return Err(StorageError::InvalidSchema);
@@ -1690,9 +1711,9 @@ impl Database {
             // authoritative over an older background follow-up. The
             // acknowledgement is accepted before the worker terminalizes and
             // is associated with this exact run by the lease checks above. A
-            // newer explicit Manual request does not use this path: it clears
-            // the mirrors and leaves the follow-up for the normal successor
-            // transition below.
+            // newer explicit Manual request reaches this same boundary with
+            // acknowledgement false, leaving the follow-up for the normal
+            // successor transition below.
             let durable_cancellation_requested =
                 run.cancellation_requested || parse_flag(job_cancel)?;
             let cooperative_cancellation = options.outcome == ScanRunOutcome::Cancelled;

@@ -497,10 +497,11 @@ impl ScanConsoleService {
 
     fn cancel_scan(&self, job_id: String) -> Result<CancelScanResult, AppError> {
         let host = self.host()?;
-        // The in-memory cancellation mirror is set first (never blocks,
-        // never needs the database) so the running traversal stops at its
-        // next cooperative check; the command's durable write or the exact-run
-        // worker acknowledgement is the acknowledged authority.
+        // The in-memory cancellation mirror is accepted under the short
+        // process-local intent mutex and never needs the database, so the
+        // running traversal stops at its next cooperative check. The command's
+        // durable write or the exact-run worker acknowledgement is the
+        // acknowledged authority.
         host.request_cancellation(&job_id);
         #[cfg(all(test, feature = "scan-console"))]
         if let Some(hook) = self
