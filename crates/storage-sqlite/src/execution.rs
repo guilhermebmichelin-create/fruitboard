@@ -1264,8 +1264,6 @@ fn reap_expired_tx(transaction: &Transaction<'_>, now_ms: i64) -> Result<usize> 
                     "cancellation_requested"
                 } else if next_job_state == ScanJobState::Failed && job.0 >= job.1 {
                     "retry_exhausted"
-                } else if next_job_state == ScanJobState::Failed {
-                    "lease_expired"
                 } else {
                     "lease_expired"
                 },
