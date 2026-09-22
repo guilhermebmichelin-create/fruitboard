@@ -14,7 +14,7 @@ use fruitboard_filesystem_watcher::{
 use fruitboard_scan_execution::{
     FollowUpOutcome, RootIdMapping, ScanClock, WatcherFollowUpAdapter,
 };
-use fruitboard_storage::{Database, ScanJobState, ScanRoot, StorageError};
+use fruitboard_storage::{Database, ScanJobState, ScanRoot, ScanRootMode, StorageError};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError, mpsc};
@@ -100,6 +100,7 @@ impl RootIdMapping for RootMapping {
 struct ManagedRoot {
     storage_root_id: String,
     path: PathBuf,
+    mode: ScanRootMode,
     watcher_root: RootId,
     configuration_revision: i64,
     /// The last attempted/current generation. A failed start still consumes
@@ -181,6 +182,7 @@ impl<F: WatchFactory> WatcherSupervisor<F> {
                     ManagedRoot {
                         storage_root_id: root.id.clone(),
                         path: PathBuf::from(&root.canonical_path),
+                        mode: root.mode,
                         watcher_root,
                         configuration_revision: config.configuration_revision,
                         generation,
@@ -190,7 +192,7 @@ impl<F: WatchFactory> WatcherSupervisor<F> {
                         pending_is_gap: false,
                         retry_at_ns: 0,
                         retry_attempt: 0,
-                        gap_reconciliation: root.enabled,
+                        gap_reconciliation: root.enabled && root.mode == ScanRootMode::LocalNtfs,
                     },
                 );
             }
@@ -200,7 +202,8 @@ impl<F: WatchFactory> WatcherSupervisor<F> {
                 state.path = PathBuf::from(&root.canonical_path);
                 let revision_changed =
                     state.configuration_revision != config.configuration_revision;
-                if revision_changed {
+                let mode_changed = state.mode != root.mode;
+                if revision_changed || mode_changed {
                     // A disable/re-enable pair may leave `enabled` true by
                     // the time this poll observes it. Fence the old handle
                     // before attempting the new configuration so delayed
@@ -215,22 +218,33 @@ impl<F: WatchFactory> WatcherSupervisor<F> {
                     state.pending = None;
                     state.pending_is_gap = false;
                 }
-                if revision_changed || state.enabled != root.enabled {
+                if revision_changed || mode_changed || state.enabled != root.enabled {
                     state.configuration_revision = config.configuration_revision;
+                    state.mode = root.mode;
                     if !root.enabled {
                         Self::stop_state(state);
                         state.pending = None;
                         state.pending_is_gap = false;
                         state.gap_reconciliation = false;
                         self.adapter.watch_ended(state.watcher_root);
-                    } else {
+                    } else if root.mode == ScanRootMode::LocalNtfs {
                         state.gap_reconciliation = true;
                         state.retry_at_ns = now_ns;
                         state.retry_attempt = 0;
                         should_start = true;
+                    } else {
+                        // DriveFS virtual roots are intentionally manual-scan
+                        // only. Never turn a mount's watcher gap into a scan.
+                        state.pending = None;
+                        state.pending_is_gap = false;
+                        state.gap_reconciliation = false;
+                        self.adapter.watch_ended(state.watcher_root);
                     }
                     state.enabled = root.enabled;
-                } else if root.enabled && state.watcher.is_none() {
+                } else if root.enabled
+                    && root.mode == ScanRootMode::LocalNtfs
+                    && state.watcher.is_none()
+                {
                     should_start = now_ns >= state.retry_at_ns;
                 }
             }
@@ -368,7 +382,11 @@ impl<F: WatchFactory> WatcherSupervisor<F> {
         let Some(state) = self.roots.get_mut(storage_root_id) else {
             return;
         };
-        if !state.enabled || state.watcher.is_some() || now_ns < state.retry_at_ns {
+        if !state.enabled
+            || state.mode != ScanRootMode::LocalNtfs
+            || state.watcher.is_some()
+            || now_ns < state.retry_at_ns
+        {
             return;
         }
         let Some(generation) = state.generation.checked_add(1) else {
@@ -415,6 +433,22 @@ impl<F: WatchFactory> WatcherSupervisor<F> {
         clock: &dyn ScanClock,
         now_ns: u64,
     ) {
+        if self
+            .roots
+            .get(storage_root_id)
+            .is_some_and(|state| state.mode == ScanRootMode::DriveVirtual)
+        {
+            // Defense in depth: virtual roots never consume watcher hints or
+            // translate watcher gaps into follow-up scans.
+            if let Some(state) = self.roots.get_mut(storage_root_id) {
+                Self::stop_state(state);
+                state.pending = None;
+                state.pending_is_gap = false;
+                state.gap_reconciliation = false;
+                self.adapter.watch_ended(state.watcher_root);
+            }
+            return;
+        }
         self.prepare_gap(storage_root_id, database);
         let (hints, ended) = {
             let Some(state) = self.roots.get_mut(storage_root_id) else {
@@ -530,7 +564,11 @@ impl<F: WatchFactory> WatcherSupervisor<F> {
         let Some(state) = self.roots.get(storage_root_id) else {
             return;
         };
-        if !state.enabled || state.watcher.is_none() || !state.gap_reconciliation {
+        if !state.enabled
+            || state.mode != ScanRootMode::LocalNtfs
+            || state.watcher.is_none()
+            || !state.gap_reconciliation
+        {
             return;
         }
         let allowed = match database.try_lock() {
@@ -698,7 +736,7 @@ pub(crate) enum SupervisorSignal {
 mod tests {
     use super::*;
     use fruitboard_filesystem_watcher::{Coalescer, CoalescerConfig, WatchOutcome};
-    use fruitboard_storage::{Database, ScanRootAvailability};
+    use fruitboard_storage::{Database, ScanRootAvailability, ScanRootMode};
     use std::sync::Arc;
 
     struct FakeWatchState {
@@ -764,6 +802,7 @@ mod tests {
             display_name: id.to_owned(),
             canonical_path: format!(r"C:\synthetic-{id}"),
             enabled,
+            mode: ScanRootMode::LocalNtfs,
             availability: ScanRootAvailability::Available,
             last_error_code: None,
         }
@@ -797,6 +836,35 @@ mod tests {
     fn retry_delay_is_bounded() {
         assert_eq!(retry_delay(1), RETRY_BASE_NS);
         assert_eq!(retry_delay(100), RETRY_MAX_NS);
+    }
+
+    #[test]
+    fn virtual_roots_skip_watchers_and_remain_manual_only_across_enable_restart() {
+        let factory = FakeFactory::default();
+        let mut supervisor = WatcherSupervisor::new(factory.clone());
+        let mut root = configured_root("drive-root", true);
+        root.mode = ScanRootMode::DriveVirtual;
+
+        supervisor.sync_roots(&[watch_config(&root, 1)], 0);
+        let watcher_root = supervisor.watcher_root_for(&root.id).unwrap();
+        assert!(!supervisor.is_watching(&root.id));
+        assert!(factory.states.lock().unwrap().is_empty());
+
+        root.enabled = false;
+        supervisor.sync_roots(&[watch_config(&root, 2)], 1);
+        root.enabled = true;
+        supervisor.sync_roots(&[watch_config(&root, 3)], 2);
+        assert!(!supervisor.is_watching(&root.id));
+        assert!(factory.states.lock().unwrap().is_empty());
+
+        // A later explicit mode change to a local root is the only transition
+        // that permits native watching again, with a fresh generation.
+        root.mode = ScanRootMode::LocalNtfs;
+        supervisor.sync_roots(&[watch_config(&root, 4)], 3);
+        assert!(supervisor.is_watching(&root.id));
+        assert_eq!(factory.states.lock().unwrap().len(), 1);
+        assert_eq!(supervisor.watcher_root_for(&root.id), Some(watcher_root));
+        assert_eq!(supervisor.generation_for(&root.id), Some(1));
     }
 
     #[test]

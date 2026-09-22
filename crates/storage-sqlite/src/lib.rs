@@ -270,7 +270,7 @@ impl Database {
 
     pub fn list_scan_roots(&self) -> Result<Vec<ScanRoot>> {
         let mut statement = self.connection.prepare(
-            "SELECT id, display_name, canonical_path, enabled, availability, last_error_code
+            "SELECT id, display_name, canonical_path, enabled, availability, last_error_code, mode
              FROM scan_root ORDER BY rowid",
         )?;
         let rows = statement
@@ -282,6 +282,7 @@ impl Database {
                     row.get::<_, i64>(3)?,
                     row.get::<_, String>(4)?,
                     row.get::<_, Option<String>>(5)?,
+                    row.get::<_, String>(6)?,
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -289,6 +290,15 @@ impl Database {
     }
 
     pub fn add_scan_root(&mut self, display_name: &str, canonical_path: &str) -> Result<ScanRoot> {
+        self.add_scan_root_with_mode(display_name, canonical_path, ScanRootMode::LocalNtfs)
+    }
+
+    pub fn add_scan_root_with_mode(
+        &mut self,
+        display_name: &str,
+        canonical_path: &str,
+        mode: ScanRootMode,
+    ) -> Result<ScanRoot> {
         if display_name.is_empty() || canonical_path.is_empty() {
             return Err(StorageError::InvalidSchema);
         }
@@ -297,6 +307,7 @@ impl Database {
                 id: uuid::Uuid::now_v7().to_string(),
                 display_name: display_name.to_owned(),
                 canonical_path: canonical_path.to_owned(),
+                mode,
                 enabled: true,
                 availability: ScanRootAvailability::Available,
                 last_error_code: None,
@@ -304,13 +315,14 @@ impl Database {
             transaction
                 .execute(
                     "INSERT INTO scan_root
-                     (id, display_name, canonical_path, enabled, availability, last_error_code)
-                     VALUES (?1, ?2, ?3, 1, ?4, NULL)",
+                     (id, display_name, canonical_path, enabled, availability, last_error_code, mode)
+                     VALUES (?1, ?2, ?3, 1, ?4, NULL, ?5)",
                     rusqlite::params![
                         &root.id,
                         &root.display_name,
                         &root.canonical_path,
-                        root.availability.as_str()
+                        root.availability.as_str(),
+                        root.mode.as_str()
                     ],
                 )
                 .map_err(scan_root_write_error)?;
@@ -318,13 +330,14 @@ impl Database {
         })
     }
     fn scan_root_from_tuple(
-        row: (String, String, String, i64, String, Option<String>),
+        row: (String, String, String, i64, String, Option<String>, String),
     ) -> Result<ScanRoot> {
-        let (id, display_name, canonical_path, enabled, availability, last_error_code) = row;
+        let (id, display_name, canonical_path, enabled, availability, last_error_code, mode) = row;
         Ok(ScanRoot {
             id,
             display_name,
             canonical_path,
+            mode: ScanRootMode::parse(&mode)?,
             enabled: enabled == 1,
             availability: ScanRootAvailability::parse(&availability)?,
             last_error_code,
@@ -334,7 +347,7 @@ impl Database {
     fn select_scan_root(transaction: &rusqlite::Transaction<'_>, id: &str) -> Result<ScanRoot> {
         let row = transaction
             .query_row(
-                "SELECT id, display_name, canonical_path, enabled, availability, last_error_code
+                "SELECT id, display_name, canonical_path, enabled, availability, last_error_code, mode
                  FROM scan_root WHERE id = ?1",
                 [id],
                 |row| {
@@ -345,6 +358,7 @@ impl Database {
                         row.get::<_, i64>(3)?,
                         row.get::<_, String>(4)?,
                         row.get::<_, Option<String>>(5)?,
+                        row.get::<_, String>(6)?,
                     ))
                 },
             )
@@ -427,12 +441,40 @@ impl ScanRootAvailability {
     }
 }
 
+/// How the configured root is enumerated and reconciled. `DriveVirtual`
+/// deliberately has weaker absence semantics: successful scans may update
+/// observed files but never infer that unobserved files disappeared.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ScanRootMode {
+    LocalNtfs,
+    DriveVirtual,
+}
+
+impl ScanRootMode {
+    fn parse(value: &str) -> Result<Self> {
+        match value {
+            "local_ntfs" => Ok(Self::LocalNtfs),
+            "drive_virtual" => Ok(Self::DriveVirtual),
+            _ => Err(StorageError::InvalidSchema),
+        }
+    }
+
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::LocalNtfs => "local_ntfs",
+            Self::DriveVirtual => "drive_virtual",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanRoot {
     pub id: String,
     pub display_name: String,
     pub canonical_path: String,
+    pub mode: ScanRootMode,
     pub enabled: bool,
     pub availability: ScanRootAvailability,
     pub last_error_code: Option<String>,

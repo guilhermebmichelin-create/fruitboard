@@ -148,6 +148,91 @@ fn creates_latest_and_reopens_without_reseeding_settings() {
 }
 
 #[test]
+fn scan_root_mode_defaults_existing_roots_and_survives_restart() {
+    let directory = TestDirectory::new();
+    {
+        // Build a schema at the previous release boundary, then add a legacy
+        // root before applying migration 007.
+        let database = Database::open_with_migrations(directory.path(), &MIGRATIONS[..6]).unwrap();
+        database
+            .connection
+            .execute(
+                "INSERT INTO scan_root (id, display_name, canonical_path)
+                 VALUES ('legacy-root', 'Legacy', 'C:\\Music\\Legacy')",
+                [],
+            )
+            .unwrap();
+    }
+    let mut database = Database::open(directory.path()).unwrap();
+    let roots = database.list_scan_roots().unwrap();
+    assert_eq!(roots[0].mode, ScanRootMode::LocalNtfs);
+    let drive = database
+        .add_scan_root_with_mode(
+            "Drive",
+            "G:\\My Drive\\Projects",
+            ScanRootMode::DriveVirtual,
+        )
+        .unwrap();
+    assert_eq!(drive.mode, ScanRootMode::DriveVirtual);
+    drop(database);
+    let database = Database::open(directory.path()).unwrap();
+    let roots = database.list_scan_roots().unwrap();
+    assert_eq!(roots[0].mode, ScanRootMode::LocalNtfs);
+    assert_eq!(roots[1].mode, ScanRootMode::DriveVirtual);
+    assert_eq!(
+        serde_json::to_value(&roots[1]).unwrap()["mode"],
+        "driveVirtual"
+    );
+}
+
+#[test]
+fn virtual_drive_publication_updates_observed_files_without_marking_unseen_missing() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root_with_mode(
+            "Drive",
+            "G:\\My Drive\\Projects",
+            ScanRootMode::DriveVirtual,
+        )
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let initial = database
+        .lease_next_scan("session-1", 3, 100)
+        .unwrap()
+        .unwrap();
+    assert_eq!(initial.root.mode, ScanRootMode::DriveVirtual);
+    publish_observations(
+        &mut database,
+        &initial,
+        4,
+        &[staged_observation("old.flp", 10, 10, None)],
+    );
+
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 10)
+        .unwrap();
+    let follow_up = database
+        .lease_next_scan("session-1", 11, 100)
+        .unwrap()
+        .unwrap();
+    publish_observations(
+        &mut database,
+        &follow_up,
+        12,
+        &[staged_observation("new.flp", 20, 20, None)],
+    );
+    let rows = database.list_published_locations(&root.id).unwrap();
+    let old = rows.iter().find(|row| row.relative_path == "old.flp").unwrap();
+    let new = rows.iter().find(|row| row.relative_path == "new.flp").unwrap();
+    assert_eq!(old.presence, FilePresence::Present);
+    assert_eq!(new.presence, FilePresence::Present);
+}
+
+#[test]
 fn upgrades_every_supported_fixture_and_preserves_existing_rows() {
     // v0 (empty), v1 (settings), and v2 (scan roots) are the supported set.
     // Fixtures are generated from committed SQL, never private binary databases.
@@ -2375,6 +2460,74 @@ fn restart_adds_recovery_only_for_roots_without_eligible_work() {
     assert_eq!(recovery.kind, ScanKind::Recovery);
     assert_eq!(recovery.state, ScanJobState::Queued);
     assert_eq!(active.scan_root_id, active_root.id);
+}
+
+#[test]
+fn restart_leaves_interrupted_drive_virtual_job_failed_until_explicit_retry() {
+    let directory = TestDirectory::new();
+    let (root_id, job_id, run_id) = {
+        let mut database = Database::open(directory.path()).unwrap();
+        let root = database
+            .add_scan_root_with_mode(
+                "Drive",
+                "G:\\My Drive\\Projects",
+                ScanRootMode::DriveVirtual,
+            )
+            .unwrap();
+        database.begin_scan_session("drive-session-1", 1).unwrap();
+        let job = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 2)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("drive-session-1", 3, 100)
+            .unwrap()
+            .unwrap();
+        (root.id, job.job_id, lease.run.id)
+    };
+
+    let mut database = Database::open(directory.path()).unwrap();
+    database.begin_scan_session("drive-session-2", 20).unwrap();
+    assert_eq!(database.scan_run(&run_id).unwrap().state, ScanRunState::Interrupted);
+    assert_eq!(database.scan_job(&job_id).unwrap().state, ScanJobState::Failed);
+    assert_eq!(
+        database
+            .list_scan_jobs()
+            .unwrap()
+            .iter()
+            .filter(|job| job.scan_root_id == root_id)
+            .count(),
+        1,
+        "restart must not create an implicit recovery job for DriveVirtual"
+    );
+    assert!(database.retry_failed_scan_job(&job_id, 21).unwrap());
+    assert_eq!(database.scan_job(&job_id).unwrap().state, ScanJobState::Queued);
+}
+
+#[test]
+fn expired_drive_virtual_lease_fails_without_automatic_requeue() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root_with_mode(
+            "Drive",
+            "G:\\My Drive\\Projects",
+            ScanRootMode::DriveVirtual,
+        )
+        .unwrap();
+    database.begin_scan_session("drive-lease-session", 1).unwrap();
+    let job = database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("drive-lease-session", 3, 100)
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(database.reap_expired_scan_leases(103).unwrap(), 1);
+    assert_eq!(database.scan_job(&job.job_id).unwrap().state, ScanJobState::Failed);
+    assert!(database.retry_failed_scan_job(&job.job_id, 104).unwrap());
+    assert_eq!(database.scan_job(&job.job_id).unwrap().state, ScanJobState::Queued);
+    assert_eq!(database.scan_run(&lease.run.id).unwrap().state, ScanRunState::Interrupted);
 }
 
 #[test]
@@ -6290,6 +6443,20 @@ fn retry_candidates_keep_durable_budget_root_and_slot_filters() {
     let future_root = database
         .add_scan_root("Future", "C:\\Synthetic\\Future")
         .unwrap();
+    let drive_retryable_root = database
+        .add_scan_root_with_mode(
+            "Drive retryable",
+            "G:\\My Drive\\Retryable",
+            ScanRootMode::DriveVirtual,
+        )
+        .unwrap();
+    let drive_exhausted_root = database
+        .add_scan_root_with_mode(
+            "Drive exhausted",
+            "G:\\My Drive\\Exhausted",
+            ScanRootMode::DriveVirtual,
+        )
+        .unwrap();
 
     database
         .set_scan_root_enabled_at(&disabled_root.id, false, 10)
@@ -6391,6 +6558,24 @@ fn retry_candidates_keep_durable_budget_root_and_slot_filters() {
         0,
         20_000,
     );
+    insert_job(
+        &database,
+        "retry-drive-manual-only",
+        &drive_retryable_root.id,
+        "failed",
+        1,
+        0,
+        0,
+    );
+    insert_job(
+        &database,
+        "retry-drive-exhausted",
+        &drive_exhausted_root.id,
+        "failed",
+        4,
+        0,
+        0,
+    );
     database.remove_scan_root_at(&removed_root.id, 11).unwrap();
 
     let page = database.retry_candidate_page(10_000, 64, None).unwrap();
@@ -6408,6 +6593,17 @@ fn retry_candidates_keep_durable_budget_root_and_slot_filters() {
             .iter()
             .any(|job| job.id == "retry-exhausted"),
         "history remains durable even when it is not a retry candidate"
+    );
+    assert!(database.retry_failed_scan_job("retry-drive-manual-only", 10_001).unwrap());
+    assert_eq!(
+        database.scan_job("retry-drive-manual-only").unwrap().state,
+        ScanJobState::Queued,
+        "an explicit user retry remains available for a DriveVirtual root"
+    );
+    assert_eq!(
+        database.scan_job("retry-drive-exhausted").unwrap().state,
+        ScanJobState::Failed,
+        "an exhausted virtual job remains durable and terminal"
     );
 }
 

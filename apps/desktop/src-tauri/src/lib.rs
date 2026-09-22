@@ -16,7 +16,7 @@ use foundation::{
     AppError, COMMAND_SCHEMA_VERSION, Clock, CommandEnvelope, CommandRuntime, DiagnosticCode,
     ErrorCode, IdGenerator, SystemClock, SystemIdGenerator, default_log_sink,
 };
-use fruitboard_storage::{Database, ScanRoot, StartupView, StorageError};
+use fruitboard_storage::{Database, ScanRoot, ScanRootMode, StartupView, StorageError};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -106,12 +106,21 @@ impl ScanRootsService {
         database.list_scan_roots().map_err(map_storage_error)
     }
 
-    fn add_scan_root(&self, display_name: String, path: String) -> Result<ScanRoot, AppError> {
+    fn add_scan_root(
+        &self,
+        display_name: String,
+        path: String,
+        mode: Option<ScanRootMode>,
+    ) -> Result<ScanRoot, AppError> {
         let display_name = display_name.trim().to_owned();
         if display_name.is_empty() {
             return Err(invalid_request());
         }
         let canonical = canonical_scan_root(&path).ok_or_else(invalid_request)?;
+        let mode = mode.unwrap_or(ScanRootMode::LocalNtfs);
+        if mode == ScanRootMode::DriveVirtual && !is_drive_letter_path(&canonical) {
+            return Err(invalid_request());
+        }
         let mut database = self.database.lock().map_err(|_| storage_failed())?;
         for existing in database.list_scan_roots().map_err(map_storage_error)? {
             if roots_overlap(&existing.canonical_path, &canonical) {
@@ -122,7 +131,7 @@ impl ScanRootsService {
             }
         }
         database
-            .add_scan_root(&display_name, &canonical)
+            .add_scan_root_with_mode(&display_name, &canonical, mode)
             .map_err(map_storage_error)
     }
 
@@ -162,6 +171,15 @@ impl ScanRootsService {
             .set_scan_root_enabled(&id, enabled)
             .map_err(map_storage_error)
     }
+}
+
+fn is_drive_letter_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'\\' | b'/')
+        && !path.starts_with("\\\\")
 }
 
 /// Resolve a renderer-supplied path to the canonical directory form stored for
@@ -372,6 +390,8 @@ struct AddScanRootRequest {
     schema_version: u64,
     display_name: String,
     path: String,
+    #[serde(default)]
+    mode: Option<ScanRootMode>,
 }
 
 #[derive(Deserialize)]
@@ -427,7 +447,7 @@ fn handle_add_scan_root(
         if request.schema_version != COMMAND_SCHEMA_VERSION {
             return Err(invalid_request());
         }
-        scan_roots.add_scan_root(request.display_name, request.path)
+        scan_roots.add_scan_root(request.display_name, request.path, request.mode)
     })
 }
 

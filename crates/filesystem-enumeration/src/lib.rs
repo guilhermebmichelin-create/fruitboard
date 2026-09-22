@@ -537,7 +537,32 @@ pub struct FileMetadata {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FilesystemQualification {
     LocalNtfs,
+    /// Explicitly selected experimental virtual-drive mode. This is not a
+    /// filesystem identity claim; Windows only applies a narrow fixed/FAT32
+    /// candidate gate when this mode was requested by the native caller.
+    DriveVirtual,
     Unqualified,
+}
+
+fn classify_filesystem(
+    fixed_drive: bool,
+    filesystem_name: &str,
+    volume_label: &str,
+    allow_drive_virtual: bool,
+) -> FilesystemQualification {
+    if !fixed_drive {
+        return FilesystemQualification::Unqualified;
+    }
+    if !allow_drive_virtual && filesystem_name.eq_ignore_ascii_case("NTFS") {
+        FilesystemQualification::LocalNtfs
+    } else if allow_drive_virtual
+        && filesystem_name.eq_ignore_ascii_case("FAT32")
+        && volume_label.eq_ignore_ascii_case("Google Drive")
+    {
+        FilesystemQualification::DriveVirtual
+    } else {
+        FilesystemQualification::Unqualified
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1201,6 +1226,28 @@ struct Engine<'a, P, S, C, R> {
     status: Option<Outcome>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IdentityComparison {
+    Same,
+    Different,
+    Unavailable,
+}
+
+fn identity_comparison(
+    qualification: FilesystemQualification,
+    before: &Option<QualifiedIdentity>,
+    after: &Option<QualifiedIdentity>,
+) -> IdentityComparison {
+    match (before, after) {
+        (Some(before), Some(after)) if before == after => IdentityComparison::Same,
+        (Some(_), Some(_)) => IdentityComparison::Different,
+        (None, None) if qualification == FilesystemQualification::DriveVirtual => {
+            IdentityComparison::Same
+        }
+        _ => IdentityComparison::Unavailable,
+    }
+}
+
 impl<'a, P, S, C, R> Engine<'a, P, S, C, R>
 where
     P: FilesystemPort,
@@ -1361,6 +1408,17 @@ where
                         continue;
                     }
                 };
+                if self.report.root_qualification == Some(FilesystemQualification::DriveVirtual)
+                    && metadata.recall_or_offline
+                {
+                    self.add_failure(
+                        Some(display_path.clone()),
+                        CoverageFailureKind::MetadataRead,
+                        Outcome::Partial,
+                    );
+                    self.emit_progress(false, None);
+                    continue;
+                }
                 if metadata.reparse_point {
                     // A leaf entry whose own metadata says reparse point is a
                     // policy exclusion. A directory that turns out to be a
@@ -1458,7 +1516,14 @@ where
                             self.emit_progress(false, None);
                             continue;
                         }
-                        if metadata.identity.is_none() {
+                        let identity = if self.report.root_qualification
+                            == Some(FilesystemQualification::DriveVirtual)
+                        {
+                            None
+                        } else {
+                            metadata.identity
+                        };
+                        if identity.is_none() {
                             self.report.identity_unavailable =
                                 self.report.identity_unavailable.saturating_add(1);
                         }
@@ -1468,7 +1533,7 @@ where
                             display_path,
                             byte_size: metadata.byte_size,
                             modified_unix_ns: metadata.modified_unix_ns,
-                            identity: metadata.identity,
+                            identity,
                         };
                         if !self.append_observation(observation) {
                             return self.append_failure_outcome();
@@ -1526,7 +1591,10 @@ where
     }
 
     fn validate_root_metadata(&mut self, root: &RootMetadata) -> Option<Outcome> {
-        if root.qualification != FilesystemQualification::LocalNtfs {
+        if !matches!(
+            root.qualification,
+            FilesystemQualification::LocalNtfs | FilesystemQualification::DriveVirtual
+        ) {
             self.add_failure(
                 None,
                 CoverageFailureKind::UnsupportedFilesystem,
@@ -1542,7 +1610,19 @@ where
             );
             return Some(Outcome::RootUnavailable);
         }
-        if root.metadata.identity.is_none() {
+        if root.qualification == FilesystemQualification::DriveVirtual
+            && root.metadata.recall_or_offline
+        {
+            self.add_failure(
+                None,
+                CoverageFailureKind::RootChanged,
+                Outcome::RootUnavailable,
+            );
+            return Some(Outcome::RootUnavailable);
+        }
+        if root.metadata.identity.is_none()
+            && root.qualification != FilesystemQualification::DriveVirtual
+        {
             self.add_failure(
                 None,
                 CoverageFailureKind::RootIdentityUnavailable,
@@ -1566,9 +1646,23 @@ where
             );
             return Some(Outcome::RootUnavailable);
         }
-        match (&inspected.metadata.identity, &opened.metadata.identity) {
-            (Some(before), Some(after)) if before == after => None,
-            (Some(_), Some(_)) => {
+        if inspected.qualification == FilesystemQualification::DriveVirtual
+            && opened.metadata.recall_or_offline
+        {
+            self.add_failure(
+                None,
+                CoverageFailureKind::RootChanged,
+                Outcome::RootUnavailable,
+            );
+            return Some(Outcome::RootUnavailable);
+        }
+        match identity_comparison(
+            inspected.qualification,
+            &inspected.metadata.identity,
+            &opened.metadata.identity,
+        ) {
+            IdentityComparison::Same => None,
+            IdentityComparison::Different => {
                 self.add_failure(
                     None,
                     CoverageFailureKind::RootChanged,
@@ -1576,7 +1670,7 @@ where
                 );
                 Some(Outcome::RootUnavailable)
             }
-            _ => {
+            IdentityComparison::Unavailable => {
                 self.add_failure(
                     None,
                     CoverageFailureKind::RootIdentityUnavailable,
@@ -1601,9 +1695,15 @@ where
             );
             return false;
         }
-        match (&inspected.identity, &opened.metadata.identity) {
-            (Some(before), Some(after)) if before == after => true,
-            (Some(_), Some(_)) => {
+        match identity_comparison(
+            self.report
+                .root_qualification
+                .unwrap_or(FilesystemQualification::Unqualified),
+            &inspected.identity,
+            &opened.metadata.identity,
+        ) {
+            IdentityComparison::Same => true,
+            IdentityComparison::Different => {
                 self.add_failure(
                     Some(display_path.clone()),
                     CoverageFailureKind::DirectoryChanged,
@@ -1611,7 +1711,7 @@ where
                 );
                 false
             }
-            _ => {
+            IdentityComparison::Unavailable => {
                 self.add_failure(
                     Some(display_path.clone()),
                     CoverageFailureKind::DirectoryIdentityUnavailable,
@@ -1623,7 +1723,10 @@ where
     }
 
     fn validate_final_root(&mut self, root: &RootMetadata) -> Option<Outcome> {
-        if root.qualification != FilesystemQualification::LocalNtfs {
+        if !matches!(
+            root.qualification,
+            FilesystemQualification::LocalNtfs | FilesystemQualification::DriveVirtual
+        ) {
             self.add_failure(
                 None,
                 CoverageFailureKind::RootChanged,
@@ -1639,9 +1742,27 @@ where
             );
             return Some(Outcome::RootUnavailable);
         }
-        match (&self.root_identity, &root.metadata.identity) {
-            (Some(before), Some(after)) if before == after => None,
-            (Some(_), Some(_)) => {
+        if root.qualification == FilesystemQualification::DriveVirtual
+            && root.metadata.recall_or_offline
+        {
+            self.add_failure(
+                None,
+                CoverageFailureKind::RootChanged,
+                Outcome::RootUnavailable,
+            );
+            return Some(Outcome::RootUnavailable);
+        }
+        if Some(root.qualification) != self.report.root_qualification {
+            self.add_failure(
+                None,
+                CoverageFailureKind::RootChanged,
+                Outcome::RootUnavailable,
+            );
+            return Some(Outcome::RootUnavailable);
+        }
+        match identity_comparison(root.qualification, &self.root_identity, &root.metadata.identity) {
+            IdentityComparison::Same => None,
+            IdentityComparison::Different => {
                 self.add_failure(
                     None,
                     CoverageFailureKind::RootChanged,
@@ -1649,7 +1770,7 @@ where
                 );
                 Some(Outcome::RootUnavailable)
             }
-            _ => {
+            IdentityComparison::Unavailable => {
                 self.add_failure(
                     None,
                     CoverageFailureKind::RootIdentityUnavailable,
@@ -2079,6 +2200,7 @@ impl NativeOperationProfile {
 /// `Unsupported`; fake ports keep deterministic tests portable.
 pub struct WindowsFilesystemPort {
     qualification: Option<FilesystemQualification>,
+    allow_drive_virtual: bool,
     #[cfg(feature = "diagnostics")]
     diagnostics: Option<Rc<RefCell<NativeOperationProfile>>>,
 }
@@ -2087,6 +2209,22 @@ impl WindowsFilesystemPort {
     pub fn new() -> Self {
         Self {
             qualification: None,
+            allow_drive_virtual: false,
+            #[cfg(feature = "diagnostics")]
+            diagnostics: None,
+        }
+    }
+
+    /// Construct the explicitly opted-in virtual-drive candidate port.
+    ///
+    /// Windows still applies a narrow fixed/FAT32/volume-label check. This is
+    /// a candidate gate for experimental DriveFS support, not proof that a
+    /// volume belongs to Google Drive. The default constructor never enables
+    /// this path.
+    pub fn new_drive_virtual() -> Self {
+        Self {
+            qualification: None,
+            allow_drive_virtual: true,
             #[cfg(feature = "diagnostics")]
             diagnostics: None,
         }
@@ -2101,6 +2239,7 @@ impl WindowsFilesystemPort {
     pub fn new_with_diagnostics(profile: Rc<RefCell<NativeOperationProfile>>) -> Self {
         Self {
             qualification: None,
+            allow_drive_virtual: false,
             diagnostics: Some(profile),
         }
     }
@@ -2323,7 +2462,7 @@ mod windows_port {
         parent: Option<Rc<ValidationChain>>,
         parent_handle: Rc<WindowsHandle>,
         name: Vec<u16>,
-        identity: QualifiedIdentity,
+        identity: Option<QualifiedIdentity>,
     }
 
     pub(super) struct WindowsDirectoryCursor {
@@ -2471,7 +2610,10 @@ mod windows_port {
             if metadata.kind != EntryKind::Directory {
                 return Err(PortError::Other);
             }
-            let identity = metadata.identity.clone().ok_or(PortError::Changed)?;
+            let identity = metadata.identity.clone();
+            if identity.is_none() && self.qualification != FilesystemQualification::DriveVirtual {
+                return Err(PortError::Changed);
+            }
             let handle = Rc::new(handle);
             let validation_chain = Some(Rc::new(ValidationChain {
                 parent: self.validation_chain.clone(),
@@ -2559,7 +2701,7 @@ mod windows_port {
                     if metadata.reparse_point || metadata.kind != EntryKind::Directory {
                         return Err(PortError::Changed);
                     }
-                    if metadata.identity.as_ref() != Some(&link.identity) {
+                    if metadata.identity != link.identity {
                         return Err(PortError::Changed);
                     }
                     chain = link.parent.as_deref();
@@ -2584,7 +2726,7 @@ mod windows_port {
 
     impl FilesystemPort for WindowsFilesystemPort {
         fn inspect_root(&mut self, root: &Path) -> Result<RootMetadata, PortError> {
-            let qualification = filesystem_qualification(root)?;
+            let qualification = filesystem_qualification(root, self.allow_drive_virtual)?;
             #[cfg(feature = "diagnostics")]
             let started = Instant::now();
             let handle = open_path(root)?;
@@ -2614,6 +2756,12 @@ mod windows_port {
 
         fn open_root(&mut self, root: &Path) -> Result<OpenedDirectory, PortError> {
             let qualification = self.qualification.ok_or(PortError::Unsupported)?;
+            // Recheck the path-mounted volume immediately before opening it.
+            // This narrows (but cannot eliminate) replacement races for the
+            // identity-less virtual mode.
+            if filesystem_qualification(root, self.allow_drive_virtual)? != qualification {
+                return Err(PortError::Changed);
+            }
             #[cfg(feature = "diagnostics")]
             let started = Instant::now();
             let handle = Rc::new(open_path(root)?);
@@ -2840,12 +2988,17 @@ mod windows_port {
         Ok(unsafe { info.assume_init() })
     }
 
-    fn filesystem_qualification(path: &Path) -> Result<FilesystemQualification, PortError> {
+    fn filesystem_qualification(
+        path: &Path,
+        allow_drive_virtual: bool,
+    ) -> Result<FilesystemQualification, PortError> {
         let volume_path = volume_path(path)?;
         let wide = wide_null(&volume_path);
-        if unsafe { GetDriveTypeW(wide.as_ptr()) } != DRIVE_FIXED {
+        let fixed_drive = unsafe { GetDriveTypeW(wide.as_ptr()) } == DRIVE_FIXED;
+        if !fixed_drive {
             return Ok(FilesystemQualification::Unqualified);
         }
+        let mut volume_name = [0u16; 256];
         let mut file_system_name = [0u16; 256];
         let mut serial = 0u32;
         let mut maximum_component_length = 0u32;
@@ -2853,8 +3006,8 @@ mod windows_port {
         let succeeded = unsafe {
             GetVolumeInformationW(
                 wide.as_ptr(),
-                null_mut(),
-                0,
+                volume_name.as_mut_ptr(),
+                volume_name.len() as u32,
                 &mut serial,
                 &mut maximum_component_length,
                 &mut flags,
@@ -2866,11 +3019,16 @@ mod windows_port {
             return Err(map_win_error(last_error()));
         }
         let name = String::from_utf16_lossy(&file_system_name);
-        if name.trim_end_matches('\0').eq_ignore_ascii_case("NTFS") {
-            Ok(FilesystemQualification::LocalNtfs)
-        } else {
-            Ok(FilesystemQualification::Unqualified)
-        }
+        let label = String::from_utf16_lossy(&volume_name);
+        // DriveFS has been observed to report a FAT32-like virtual volume.
+        // The label is only a conservative candidate signal; it is not an
+        // authenticated provider identity and remains opt-in only.
+        Ok(classify_filesystem(
+            fixed_drive,
+            name.trim_end_matches('\0'),
+            label.trim_end_matches('\0'),
+            allow_drive_virtual,
+        ))
     }
 
     fn volume_path(path: &Path) -> Result<PathBuf, PortError> {

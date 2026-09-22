@@ -1,4 +1,4 @@
-use super::{Database, Result, ScanRoot, StorageError};
+use super::{Database, Result, ScanRoot, ScanRootMode, StorageError};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -255,6 +255,7 @@ impl ScanFailureDiagnostic {
 #[serde(rename_all = "camelCase")]
 pub struct ScanRootExecution {
     pub id: String,
+    pub mode: ScanRootMode,
     pub configuration_revision: i64,
     pub generation: i64,
     pub enabled: bool,
@@ -561,7 +562,8 @@ fn map_not_found(error: rusqlite::Error) -> StorageError {
 /// before checking backoff, root configuration, and slot ownership. Those
 /// checks can reject every row in a page (for example, a disabled root), so
 /// putting them in the CTE would let a LIMIT-only outer query scan unbounded
-/// historical rows.
+/// historical rows. Only LocalNtfs jobs enter automatic retry; DriveVirtual
+/// jobs remain failed until an explicit user retry.
 ///
 /// The first page binds `(now_ms, limit)`; a continuation binds
 /// `(now_ms, cursor_created_at_ms, cursor_id, limit)`. The tuple comparison is
@@ -599,7 +601,7 @@ pub(crate) fn retry_candidate_query(continuation: bool) -> String {
                          WHEN examined.attempt = 2 THEN 2000
                          ELSE 4000
                      END <= ?1
-                     AND root.enabled = 1 AND NOT EXISTS (
+                     AND root.enabled = 1 AND root.mode = 'local_ntfs' AND NOT EXISTS (
                     SELECT 1 FROM scan_job AS active
                     WHERE active.scan_root_id = examined.scan_root_id
                       AND active.state IN ('queued', 'running')
@@ -658,27 +660,33 @@ pub(crate) const SCAN_ROOT_STATUS_QUERY: &str =
 fn select_root_execution(connection: &Connection, id: &str) -> Result<ScanRootExecution> {
     let raw = connection
         .query_row(
-            "SELECT id, configuration_revision, generation, enabled
+            "SELECT id, mode, configuration_revision, generation, enabled
              FROM scan_root WHERE id = ?1",
             [id],
             |row| {
                 Ok((
                     row.get::<_, String>(0)?,
-                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(1)?,
                     row.get::<_, i64>(2)?,
                     row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
                 ))
             },
         )
         .map_err(map_not_found)?;
-    if raw.1 < 0 || raw.2 < 0 {
+    if raw.2 < 0 || raw.3 < 0 {
         return Err(StorageError::InvalidSchema);
     }
     Ok(ScanRootExecution {
         id: raw.0,
-        configuration_revision: raw.1,
-        generation: raw.2,
-        enabled: parse_flag(raw.3)?,
+        mode: match raw.1.as_str() {
+            "local_ntfs" => ScanRootMode::LocalNtfs,
+            "drive_virtual" => ScanRootMode::DriveVirtual,
+            _ => return Err(StorageError::InvalidSchema),
+        },
+        configuration_revision: raw.2,
+        generation: raw.3,
+        enabled: parse_flag(raw.4)?,
     })
 }
 
@@ -727,8 +735,9 @@ pub(crate) fn invalidate_inflight_after_recovery(
 }
 
 /// Fence runs left by a process that stopped before it could reap its leases.
-/// The job remains the same retry chain: only its current attempt is terminal,
-/// while the job is requeued with the persisted budget and the normal backoff.
+/// LocalNtfs jobs remain the same retry chain and are requeued with the
+/// persisted budget and normal backoff. DriveVirtual jobs become failed so
+/// restart cannot retry a mount without an explicit user request.
 fn recover_interrupted_tx(
     transaction: &Transaction<'_>,
     now_ms: i64,
@@ -736,9 +745,10 @@ fn recover_interrupted_tx(
 ) -> Result<usize> {
     let mut statement = transaction.prepare(
         "SELECT r.id, r.scan_job_id, r.cancellation_requested,
-                j.cancellation_requested, j.attempt, j.max_attempts
+                j.cancellation_requested, j.attempt, j.max_attempts, root.mode
          FROM scan_run AS r
          JOIN scan_job AS j ON j.id = r.scan_job_id
+         JOIN scan_root AS root ON root.id = r.scan_root_id
          WHERE r.state = 'running'
          ORDER BY r.id",
     )?;
@@ -751,13 +761,22 @@ fn recover_interrupted_tx(
                 row.get::<_, i64>(3)?,
                 row.get::<_, i64>(4)?,
                 row.get::<_, i64>(5)?,
+                row.get::<_, String>(6)?,
             ))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     drop(statement);
 
     let mut changed = 0;
-    for (run_id, job_id, run_cancel_requested, job_cancel_requested, attempt, max_attempts) in
+    for (
+        run_id,
+        job_id,
+        run_cancel_requested,
+        job_cancel_requested,
+        attempt,
+        max_attempts,
+        root_mode,
+    ) in
         running
     {
         let cancelled = parse_flag(run_cancel_requested)? || parse_flag(job_cancel_requested)?;
@@ -798,6 +817,12 @@ fn recover_interrupted_tx(
 
         let next_job_state = if cancelled {
             ScanJobState::Cancelled
+        } else if root_mode == "drive_virtual" {
+            // Virtual roots are manual-only: a process interruption is not
+            // permission to retry a potentially unavailable remote mount.
+            // Keep the same failed job so the explicit retry command can
+            // resume its persisted retry chain.
+            ScanJobState::Failed
         } else if attempt < max_attempts {
             ScanJobState::Queued
         } else {
@@ -812,8 +837,10 @@ fn recover_interrupted_tx(
         };
         let job_error = if cancelled {
             "cancellation_requested"
-        } else if next_job_state == ScanJobState::Failed {
+        } else if next_job_state == ScanJobState::Failed && attempt >= max_attempts {
             "retry_exhausted"
+        } else if next_job_state == ScanJobState::Failed {
+            "worker_interrupted"
         } else {
             reason
         };
@@ -839,15 +866,16 @@ fn recover_interrupted_tx(
 }
 
 /// Older execution-ledger versions left restart-fenced jobs in `interrupted`.
-/// Resume at most the newest such job per enabled root, while respecting the
-/// active-slot index and the persisted retry budget.
+/// Resume at most the newest LocalNtfs job per enabled root, while respecting
+/// the active-slot index and persisted retry budget. DriveVirtual jobs become
+/// failed and await an explicit retry.
 fn resume_interrupted_jobs_tx(
     transaction: &Transaction<'_>,
     now_ms: i64,
     reason: &'static str,
 ) -> Result<usize> {
     let mut statement = transaction.prepare(
-        "SELECT j.id, j.attempt, j.max_attempts
+        "SELECT j.id, j.attempt, j.max_attempts, r.mode
          FROM scan_job AS j
          JOIN scan_root AS r ON r.id = j.scan_root_id
          WHERE j.state = 'interrupted' AND j.cancellation_requested = 0
@@ -871,14 +899,15 @@ fn resume_interrupted_jobs_tx(
                 row.get::<_, String>(0)?,
                 row.get::<_, i64>(1)?,
                 row.get::<_, i64>(2)?,
+                row.get::<_, String>(3)?,
             ))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     drop(statement);
 
     let mut changed = 0;
-    for (job_id, attempt, max_attempts) in interrupted {
-        let next_state = if attempt < max_attempts {
+    for (job_id, attempt, max_attempts, root_mode) in interrupted {
+        let next_state = if attempt < max_attempts && root_mode == "local_ntfs" {
             ScanJobState::Queued
         } else {
             ScanJobState::Failed
@@ -890,8 +919,10 @@ fn resume_interrupted_jobs_tx(
         } else {
             now_ms
         };
-        let error = if next_state == ScanJobState::Failed {
+        let error = if next_state == ScanJobState::Failed && attempt >= max_attempts {
             "retry_exhausted"
+        } else if next_state == ScanJobState::Failed {
+            "worker_interrupted"
         } else {
             reason
         };
@@ -911,14 +942,18 @@ fn resume_interrupted_jobs_tx(
 /// the root. Cancelled and exhausted work is never replaced by an implicit
 /// recovery chain.
 fn enqueue_recovery_jobs_tx(transaction: &Transaction<'_>, now_ms: i64) -> Result<()> {
-    let mut statement =
-        transaction.prepare("SELECT id FROM scan_root WHERE enabled = 1 ORDER BY rowid")?;
+    let mut statement = transaction.prepare(
+        "SELECT id, mode FROM scan_root WHERE enabled = 1 ORDER BY rowid",
+    )?;
     let roots = statement
-        .query_map([], |row| row.get::<_, String>(0))?
+        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     drop(statement);
 
-    for root_id in roots {
+    for (root_id, mode) in roots {
+        if mode == "drive_virtual" {
+            continue;
+        }
         let latest = transaction
             .query_row(
                 "SELECT state, cancellation_requested, attempt, max_attempts
@@ -1154,14 +1189,16 @@ fn reap_expired_tx(transaction: &Transaction<'_>, now_ms: i64) -> Result<usize> 
     for (run_id, job_id, run_cancel_requested) in expired {
         let job = transaction
             .query_row(
-                "SELECT attempt, max_attempts, cancellation_requested
-                 FROM scan_job WHERE id = ?1",
+                "SELECT j.attempt, j.max_attempts, j.cancellation_requested, r.mode
+                 FROM scan_job AS j JOIN scan_root AS r ON r.id = j.scan_root_id
+                 WHERE j.id = ?1",
                 [&job_id],
                 |row| {
                     Ok((
                         row.get::<_, i64>(0)?,
                         row.get::<_, i64>(1)?,
                         row.get::<_, i64>(2)?,
+                        row.get::<_, String>(3)?,
                     ))
                 },
             )
@@ -1200,6 +1237,8 @@ fn reap_expired_tx(transaction: &Transaction<'_>, now_ms: i64) -> Result<usize> 
         super::publication::discard_staging_for_run_tx(transaction, &run_id, now_ms)?;
         let next_job_state = if cancelled {
             ScanJobState::Cancelled
+        } else if job.3 == "drive_virtual" {
+            ScanJobState::Failed
         } else if job.0 < job.1 {
             ScanJobState::Queued
         } else {
@@ -1223,8 +1262,10 @@ fn reap_expired_tx(transaction: &Transaction<'_>, now_ms: i64) -> Result<usize> 
                 not_before_ms,
                 if cancelled {
                     "cancellation_requested"
-                } else if next_job_state == ScanJobState::Failed {
+                } else if next_job_state == ScanJobState::Failed && job.0 >= job.1 {
                     "retry_exhausted"
+                } else if next_job_state == ScanJobState::Failed {
+                    "lease_expired"
                 } else {
                     "lease_expired"
                 },

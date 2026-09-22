@@ -77,6 +77,11 @@ workflow has separate [Issue #16 interaction evidence](docs/review/issue-16/READ
 The [Issue #18 Windows evidence](docs/review/issue-18/README.md) feeds the
 [Phase 1 checkpoint](docs/PHASE_1_REVIEW.md).
 
+The opt-in virtual Google Drive scan-root experiment is described in
+[its safety and validation note](docs/research/drive-virtual-experimental.md).
+It is manual-scan-only, does not infer missing files, and has not passed a
+DriveFS host run. Production scanning remains inactive by default.
+
 Start with [the Phase 1 review brief](docs/PHASE_1_REVIEW.md); Phase 0 remains
 available in its [accepted review brief](docs/PHASE_0_REVIEW.md).
 

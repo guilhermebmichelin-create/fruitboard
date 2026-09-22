@@ -3,6 +3,7 @@ import {
   type AppHealth,
   type NativeErrorCode,
   type PlatformPort,
+  type ScanRootMode,
   type ScanRoot,
   type StartupView,
 } from "./contracts";
@@ -38,12 +39,13 @@ export function createFakePlatform(
     listScanRoots() {
       return Promise.resolve([...scanRoots]);
     },
-    addScanRoot(displayName, path) {
+    addScanRoot(displayName, path, mode: ScanRootMode = "localNtfs") {
       sequence += 1;
       const root: ScanRoot = {
         id: `root-${sequence}`,
         displayName,
         canonicalPath: path,
+        mode,
         enabled: true,
         availability: "available",
         lastErrorCode: null,

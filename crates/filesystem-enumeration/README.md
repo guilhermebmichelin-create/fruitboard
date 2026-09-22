@@ -121,12 +121,22 @@ QualifiedIdentity {
 The identity tuple is a lookup signal, not a location key. Hardlink aliases
 produce one observation per normalized path and may carry the same tuple. The
 enumerator only labels an identity `LocalNtfs` after the Windows volume reports
-NTFS and a fixed local drive type; DriveFS, FAT32, network, and other non-NTFS
-modes are not qualified by this slice. This check is not DriveFS
-qualification: DriveFS behavior remains unverified under #47. Metadata may
-remain usable with `identity = None`, but the absence of identity never
-establishes a move or logical-project relationship. Placeholder/recall-marked
-entries do not receive an identity handle, avoiding intentional hydration.
+NTFS and a fixed local drive type. The default port still rejects FAT32,
+network, removable, and other non-NTFS modes. An explicitly selected
+`WindowsFilesystemPort::new_drive_virtual()` applies a separate candidate
+gate: fixed drive type, FAT32 filesystem name, and the exact `Google Drive`
+volume label. Those signals are not authenticated provider identity, so this
+is an experimental opt-in candidate mode, not proof that the volume is
+Google Drive. Mirrored folders on local NTFS remain on the normal path.
+
+In `DriveVirtual` mode the enumerator never emits physical NTFS identities.
+Missing directory IDs are accepted only when both the inspected and opened
+metadata lack IDs; reparse points, changed identities, read errors, and
+offline/recall-marked entries keep the run non-authoritative. Traversal remains
+bound to open directory handles, with path, entry, depth, and batch bounds
+unchanged. A missing ID still cannot prove that a mount was not replaced at
+the same path, so disconnect/reconnect behavior requires real Windows
+qualification before this mode should be treated as supported DriveFS.
 
 The authority policy is intentionally asymmetric between entries and
 directories, and the reason is structural:
@@ -141,7 +151,10 @@ directories, and the reason is structural:
   handle-bound validation chain uses it to detect ancestor and child swaps.
   Without it the enumerator cannot prove it is enumerating the same directory
   it inspected, so the child is recorded as `DirectoryIdentityUnavailable` with
-  a non-authoritative outcome.
+  a non-authoritative outcome. `DriveVirtual` is the explicit exception: the
+  chain still reopens each ancestor relative to its held parent handle and
+  checks kind/reparse state, but absent physical IDs cannot detect a same-path
+  replacement and remain an experimental limitation.
 
 Both sides follow one rule: identity is never a requirement where its absence
 only weakens evidence, and it is required where traversal continuation depends

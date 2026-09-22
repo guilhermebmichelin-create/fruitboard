@@ -9,6 +9,7 @@ import {
   PlatformError,
   unwrapCommandEnvelope,
   type PlatformPort,
+  type ScanRootMode,
   type StartupView,
 } from "./contracts";
 import {
@@ -41,12 +42,17 @@ export const LIST_SCAN_ROOTS_ARGUMENTS = Object.freeze({
   request: Object.freeze({ schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION }),
 });
 
-export const createAddScanRootArguments = (displayName: string, path: string) =>
+export const createAddScanRootArguments = (
+  displayName: string,
+  path: string,
+  mode?: ScanRootMode,
+) =>
   Object.freeze({
     request: Object.freeze({
       schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION,
       displayName,
       path,
+      ...(mode === undefined ? {} : { mode }),
     }),
   });
 
@@ -246,13 +252,16 @@ export function createTauriPlatform(
         parseScanRootList,
       );
     },
-    async addScanRoot(displayName, path) {
+    async addScanRoot(displayName, path, mode) {
       if (displayName.trim() === "" || path === "") {
+        throw new PlatformError("invalid_request");
+      }
+      if (mode !== undefined && mode !== "localNtfs" && mode !== "driveVirtual") {
         throw new PlatformError("invalid_request");
       }
       return execute(
         ADD_SCAN_ROOT_COMMAND,
-        createAddScanRootArguments(displayName, path),
+        createAddScanRootArguments(displayName, path, mode),
         parseScanRoot,
       );
     },

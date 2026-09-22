@@ -35,6 +35,7 @@ const scanRoot = {
   id: "root-1",
   displayName: "Projects",
   canonicalPath: "C:\\Music\\Projects",
+  mode: "localNtfs",
   enabled: true,
   availability: "available",
   lastErrorCode: null,

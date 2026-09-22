@@ -14,6 +14,25 @@
   personal paths, account identifiers, or raw diagnostic dumps; an ignored
   fixture or an unavailable environment is **not a pass**.
 
+## Current application behavior (experimental)
+
+The `driveVirtual` scan-root mode is an experimental, manual-scan-only path.
+The application does not register its native watcher for that mode and does
+not use watcher gaps or watcher hints to request follow-up scans. A user must
+request scans explicitly. Virtual scans may record projects they observe, but
+must not infer that unobserved projects were deleted, even when a scan reports
+success. This code policy is a safety boundary, **not evidence that DriveFS
+enumeration, placeholder metadata, or manual scanning has been validated on a
+real DriveFS mount**.
+
+Steps 3–5 below characterize DriveFS's native watcher behavior through the
+host probe; they do not imply that the application relies on those events for
+`driveVirtual` roots. Keep observations and conclusions separated: app-level
+support requires the manual enumeration/scan matrix in
+`drive-virtual-experimental.md` as well as any watcher research needed for
+future event-driven support. Preserve the dated host observations below as
+historical preconditions, not new results.
+
 ## Question (#47 DriveFS)
 
 Can the scanner rely on watcher events and placeholder metadata on

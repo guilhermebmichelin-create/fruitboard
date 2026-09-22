@@ -8,7 +8,8 @@ use fruitboard_filesystem_watcher::{
     Coalescer, CoalescerConfig, HintKind, RootId, WatchHint, WatchOutcome, WatcherPort,
 };
 use fruitboard_storage::{
-    MAX_LIBRARY_PAGE_SIZE, ScanJob, ScanJobState, ScanKind, ScanRunState, ScanStageState,
+    MAX_LIBRARY_PAGE_SIZE, ScanJob, ScanJobState, ScanKind, ScanRootMode, ScanRunState,
+    ScanStageState,
 };
 use rusqlite::{Connection, params};
 use std::cell::{Cell, RefCell};
@@ -413,6 +414,15 @@ impl Harness {
     }
 
     fn with_config(label: &str, config: WorkerConfig, root_path: &str) -> Self {
+        Self::with_config_and_mode(label, config, root_path, ScanRootMode::LocalNtfs)
+    }
+
+    fn with_config_and_mode(
+        label: &str,
+        config: WorkerConfig,
+        root_path: &str,
+        mode: ScanRootMode,
+    ) -> Self {
         let directory = TestDir::new(label);
         let mut db = Database::open(&directory.0).expect("open durable database");
         let worker = ScanWorker::new(config).expect("valid worker configuration");
@@ -422,7 +432,7 @@ impl Harness {
             .expect("start session")
             .id;
         let root = db
-            .add_scan_root("Synthetic", root_path)
+            .add_scan_root_with_mode("Synthetic", root_path, mode)
             .expect("add synthetic root");
         Self {
             directory,
@@ -1883,6 +1893,26 @@ fn empty_root_marks_previous_rows_missing_and_restores_them() {
     let changes = third.changes.expect("change summary");
     assert_eq!(changes.restored, 1);
     assert!(harness.committed()[0].present);
+}
+
+#[test]
+fn drive_virtual_complete_scan_retains_unseen_paths() {
+    let mut harness = Harness::with_config_and_mode(
+        "drive-virtual-retain-unseen",
+        WorkerConfig::default(),
+        r"G:\My Drive\Projects",
+        ScanRootMode::DriveVirtual,
+    );
+    let first = harness.scan(tree(vec![file_entry("old.flp", 101)]));
+    assert_eq!(first.status, ScanExecutionStatus::Published);
+
+    // A complete virtual enumeration that no longer reports the old path can
+    // add new observations but must not claim the old cloud item is absent.
+    let second = harness.scan(tree(vec![file_entry("new.flp", 102)]));
+    assert_eq!(second.status, ScanExecutionStatus::Published);
+    let rows = harness.committed();
+    assert!(rows.iter().any(|row| row.relative_path == "old.flp" && row.present));
+    assert!(rows.iter().any(|row| row.relative_path == "new.flp" && row.present));
 }
 
 // P2-04: completion commits first and wins; a late cancellation reports the

@@ -20,6 +20,7 @@ const scanRoot = {
   id: "root-1",
   displayName: "Projects",
   canonicalPath: "C:\\Music\\Projects",
+  mode: "localNtfs",
   enabled: true,
   availability: "available",
   lastErrorCode: null,
@@ -117,6 +118,34 @@ describe("scan-root platform commands", () => {
     );
   });
 
+  it("adds a virtual Drive root with an explicit mode", async () => {
+    const virtualRoot = { ...scanRoot, mode: "driveVirtual" };
+    const invokeCommand = vi.fn().mockResolvedValue({
+      status: "ok",
+      schemaVersion: 1,
+      correlationId,
+      data: virtualRoot,
+    });
+    const platform = createTauriPlatform(invokeCommand);
+
+    await expect(
+      platform.addScanRoot("My Drive", "G:\\My Drive", "driveVirtual"),
+    ).resolves.toEqual(virtualRoot);
+    expect(invokeCommand).toHaveBeenCalledExactlyOnceWith(
+      ADD_SCAN_ROOT_COMMAND,
+      createAddScanRootArguments("My Drive", "G:\\My Drive", "driveVirtual"),
+    );
+    expect(
+      createAddScanRootArguments("Projects", "C:\\Music\\Projects"),
+    ).toEqual({
+      request: {
+        schemaVersion: 1,
+        displayName: "Projects",
+        path: "C:\\Music\\Projects",
+      },
+    });
+  });
+
   it("validates root input before invoking native code", async () => {
     const invokeCommand = vi.fn();
     const platform = createTauriPlatform(invokeCommand);
@@ -136,17 +165,23 @@ describe("scan-root platform commands", () => {
   });
 
   it("rejects malformed scan-root payloads without trusting them", async () => {
-    const invokeCommand = vi.fn().mockResolvedValue({
-      status: "ok",
-      schemaVersion: 1,
-      correlationId,
-      data: [{ ...scanRoot, availability: "scanning" }],
-    });
-    const platform = createTauriPlatform(invokeCommand);
+    for (const malformed of [
+      { ...scanRoot, availability: "scanning" },
+      { ...scanRoot, mode: "unsupported" },
+      { ...scanRoot, mode: undefined },
+    ]) {
+      const invokeCommand = vi.fn().mockResolvedValue({
+        status: "ok",
+        schemaVersion: 1,
+        correlationId,
+        data: [malformed],
+      });
+      const platform = createTauriPlatform(invokeCommand);
 
-    await expect(platform.listScanRoots()).rejects.toMatchObject({
-      code: "internal",
-    });
+      await expect(platform.listScanRoots()).rejects.toMatchObject({
+        code: "internal",
+      });
+    }
   });
 
   it("renames and toggles roots with exact typed arguments", async () => {
