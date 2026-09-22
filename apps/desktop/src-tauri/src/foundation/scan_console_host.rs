@@ -659,7 +659,8 @@ impl ScanConsoleHost {
         true
     }
 
-    /// One poll tick: service retries, claim, execute (production loop body).
+    /// One test poll tick with an injected filesystem port.
+    #[cfg(test)]
     pub(crate) fn tick<P: FilesystemPort>(&self, database: &Mutex<Database>, port: &mut P) {
         self.claim_due(database);
         self.execute_pending(database, port);
