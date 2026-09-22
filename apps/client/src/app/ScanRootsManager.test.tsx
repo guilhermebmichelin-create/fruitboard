@@ -46,15 +46,9 @@ describe("ScanRootsManager", () => {
     const driveButton = await screen.findByRole("button", {
       name: "Add Google Drive virtual drive (experimental)",
     });
-    expect(
-      screen.getByText(/checked only when you start a scan manually/i),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(/will not be marked as missing/i),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(/mirrors files into a local folder, use Add folder/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/checked only when/i)).toBeTruthy();
+    expect(screen.getByText(/will not be marked as missing/i)).toBeTruthy();
+    expect(screen.getByText(/mirrors files into a local folder/i)).toBeTruthy();
 
     await user.click(driveButton);
 

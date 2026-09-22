@@ -948,9 +948,17 @@ fn drive_virtual_is_explicit_and_accepts_missing_ids_without_persisting_them() {
 
     assert_eq!(report.outcome, Outcome::Complete);
     assert!(report.authoritative);
-    let observations: Vec<_> = sink.batches.iter().flat_map(|batch| &batch.records).collect();
+    let observations: Vec<_> = sink
+        .batches
+        .iter()
+        .flat_map(|batch| &batch.records)
+        .collect();
     assert_eq!(observations.len(), 2);
-    assert!(observations.iter().all(|observation| observation.identity.is_none()));
+    assert!(
+        observations
+            .iter()
+            .all(|observation| observation.identity.is_none())
+    );
 }
 
 #[test]

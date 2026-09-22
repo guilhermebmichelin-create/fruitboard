@@ -1760,7 +1760,11 @@ where
             );
             return Some(Outcome::RootUnavailable);
         }
-        match identity_comparison(root.qualification, &self.root_identity, &root.metadata.identity) {
+        match identity_comparison(
+            root.qualification,
+            &self.root_identity,
+            &root.metadata.identity,
+        ) {
             IdentityComparison::Same => None,
             IdentityComparison::Different => {
                 self.add_failure(

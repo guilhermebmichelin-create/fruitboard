@@ -776,8 +776,7 @@ fn recover_interrupted_tx(
         attempt,
         max_attempts,
         root_mode,
-    ) in
-        running
+    ) in running
     {
         let cancelled = parse_flag(run_cancel_requested)? || parse_flag(job_cancel_requested)?;
         let run_state = if cancelled {
@@ -942,11 +941,12 @@ fn resume_interrupted_jobs_tx(
 /// the root. Cancelled and exhausted work is never replaced by an implicit
 /// recovery chain.
 fn enqueue_recovery_jobs_tx(transaction: &Transaction<'_>, now_ms: i64) -> Result<()> {
-    let mut statement = transaction.prepare(
-        "SELECT id, mode FROM scan_root WHERE enabled = 1 ORDER BY rowid",
-    )?;
+    let mut statement =
+        transaction.prepare("SELECT id, mode FROM scan_root WHERE enabled = 1 ORDER BY rowid")?;
     let roots = statement
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     drop(statement);
 

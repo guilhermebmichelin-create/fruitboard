@@ -226,8 +226,14 @@ fn virtual_drive_publication_updates_observed_files_without_marking_unseen_missi
         &[staged_observation("new.flp", 20, 20, None)],
     );
     let rows = database.list_published_locations(&root.id).unwrap();
-    let old = rows.iter().find(|row| row.relative_path == "old.flp").unwrap();
-    let new = rows.iter().find(|row| row.relative_path == "new.flp").unwrap();
+    let old = rows
+        .iter()
+        .find(|row| row.relative_path == "old.flp")
+        .unwrap();
+    let new = rows
+        .iter()
+        .find(|row| row.relative_path == "new.flp")
+        .unwrap();
     assert_eq!(old.presence, FilePresence::Present);
     assert_eq!(new.presence, FilePresence::Present);
 }
@@ -2487,8 +2493,14 @@ fn restart_leaves_interrupted_drive_virtual_job_failed_until_explicit_retry() {
 
     let mut database = Database::open(directory.path()).unwrap();
     database.begin_scan_session("drive-session-2", 20).unwrap();
-    assert_eq!(database.scan_run(&run_id).unwrap().state, ScanRunState::Interrupted);
-    assert_eq!(database.scan_job(&job_id).unwrap().state, ScanJobState::Failed);
+    assert_eq!(
+        database.scan_run(&run_id).unwrap().state,
+        ScanRunState::Interrupted
+    );
+    assert_eq!(
+        database.scan_job(&job_id).unwrap().state,
+        ScanJobState::Failed
+    );
     assert_eq!(
         database
             .list_scan_jobs()
@@ -2500,7 +2512,10 @@ fn restart_leaves_interrupted_drive_virtual_job_failed_until_explicit_retry() {
         "restart must not create an implicit recovery job for DriveVirtual"
     );
     assert!(database.retry_failed_scan_job(&job_id, 21).unwrap());
-    assert_eq!(database.scan_job(&job_id).unwrap().state, ScanJobState::Queued);
+    assert_eq!(
+        database.scan_job(&job_id).unwrap().state,
+        ScanJobState::Queued
+    );
 }
 
 #[test]
@@ -2514,7 +2529,9 @@ fn expired_drive_virtual_lease_fails_without_automatic_requeue() {
             ScanRootMode::DriveVirtual,
         )
         .unwrap();
-    database.begin_scan_session("drive-lease-session", 1).unwrap();
+    database
+        .begin_scan_session("drive-lease-session", 1)
+        .unwrap();
     let job = database
         .enqueue_scan(&root.id, ScanKind::Manual, 2)
         .unwrap();
@@ -2524,10 +2541,19 @@ fn expired_drive_virtual_lease_fails_without_automatic_requeue() {
         .unwrap();
 
     assert_eq!(database.reap_expired_scan_leases(103).unwrap(), 1);
-    assert_eq!(database.scan_job(&job.job_id).unwrap().state, ScanJobState::Failed);
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Failed
+    );
     assert!(database.retry_failed_scan_job(&job.job_id, 104).unwrap());
-    assert_eq!(database.scan_job(&job.job_id).unwrap().state, ScanJobState::Queued);
-    assert_eq!(database.scan_run(&lease.run.id).unwrap().state, ScanRunState::Interrupted);
+    assert_eq!(
+        database.scan_job(&job.job_id).unwrap().state,
+        ScanJobState::Queued
+    );
+    assert_eq!(
+        database.scan_run(&lease.run.id).unwrap().state,
+        ScanRunState::Interrupted
+    );
 }
 
 #[test]
@@ -3302,7 +3328,12 @@ fn migration_to_execution_schema_preserves_roots_preferences_and_defaults() {
             Database::open_with_migrations(directory.path(), &MIGRATIONS[..2]).unwrap();
         fixture.set_startup_view(StartupView::Board).unwrap();
         fixture
-            .add_scan_root("Projects", "C:\\Music\\Projects")
+            .connection
+            .execute(
+                "INSERT INTO scan_root (id, display_name, canonical_path)
+                 VALUES ('legacy-projects-root', 'Projects', 'C:\\Music\\Projects')",
+                [],
+            )
             .unwrap();
     }
     let database = Database::open(directory.path()).unwrap();
@@ -5493,14 +5524,18 @@ fn integration_staging_is_never_visible_to_library_reads() {
 #[test]
 fn migration_quarantines_legacy_keys_and_first_v1_scan_retains_projects() {
     let directory = TestDirectory::new();
-    let root_id;
+    let root_id = "legacy-projects-root".to_owned();
     {
-        let mut fixture =
+        let fixture =
             Database::open_with_migrations(directory.path(), &MIGRATIONS[..4]).unwrap();
-        let root = fixture
-            .add_scan_root("Projects", "C:\\Music\\Projects")
+        fixture
+            .connection
+            .execute(
+                "INSERT INTO scan_root (id, display_name, canonical_path)
+                 VALUES ('legacy-projects-root', 'Projects', 'C:\\Music\\Projects')",
+                [],
+            )
             .unwrap();
-        root_id = root.id.clone();
         // Populated v4 database: legacy display-ish paths, millisecond
         // timestamps, and unbounded legacy identities, including one Unicode
         // path and one non-canonical identity.
@@ -6594,7 +6629,11 @@ fn retry_candidates_keep_durable_budget_root_and_slot_filters() {
             .any(|job| job.id == "retry-exhausted"),
         "history remains durable even when it is not a retry candidate"
     );
-    assert!(database.retry_failed_scan_job("retry-drive-manual-only", 10_001).unwrap());
+    assert!(
+        database
+            .retry_failed_scan_job("retry-drive-manual-only", 10_001)
+            .unwrap()
+    );
     assert_eq!(
         database.scan_job("retry-drive-manual-only").unwrap().state,
         ScanJobState::Queued,

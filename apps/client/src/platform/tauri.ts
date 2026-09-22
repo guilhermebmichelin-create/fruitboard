@@ -42,12 +42,12 @@ export const LIST_SCAN_ROOTS_ARGUMENTS = Object.freeze({
   request: Object.freeze({ schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION }),
 });
 
-export const createAddScanRootArguments = (
+export function createAddScanRootArguments(
   displayName: string,
   path: string,
   mode?: ScanRootMode,
-) =>
-  Object.freeze({
+) {
+  return Object.freeze({
     request: Object.freeze({
       schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION,
       displayName,
@@ -55,6 +55,7 @@ export const createAddScanRootArguments = (
       ...(mode === undefined ? {} : { mode }),
     }),
   });
+}
 
 export const createRemoveScanRootArguments = (id: string) =>
   Object.freeze({

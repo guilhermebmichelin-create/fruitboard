@@ -1911,8 +1911,14 @@ fn drive_virtual_complete_scan_retains_unseen_paths() {
     let second = harness.scan(tree(vec![file_entry("new.flp", 102)]));
     assert_eq!(second.status, ScanExecutionStatus::Published);
     let rows = harness.committed();
-    assert!(rows.iter().any(|row| row.relative_path == "old.flp" && row.present));
-    assert!(rows.iter().any(|row| row.relative_path == "new.flp" && row.present));
+    assert!(
+        rows.iter()
+            .any(|row| row.relative_path == "old.flp" && row.present)
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row.relative_path == "new.flp" && row.present)
+    );
 }
 
 // P2-04: completion commits first and wins; a late cancellation reports the
