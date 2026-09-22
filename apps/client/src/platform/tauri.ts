@@ -257,7 +257,11 @@ export function createTauriPlatform(
       if (displayName.trim() === "" || path === "") {
         throw new PlatformError("invalid_request");
       }
-      if (mode !== undefined && mode !== "localNtfs" && mode !== "driveVirtual") {
+      if (
+        mode !== undefined &&
+        mode !== "localNtfs" &&
+        mode !== "driveVirtual"
+      ) {
         throw new PlatformError("invalid_request");
       }
       return execute(

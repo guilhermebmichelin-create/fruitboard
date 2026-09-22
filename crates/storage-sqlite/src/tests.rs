@@ -5526,8 +5526,7 @@ fn migration_quarantines_legacy_keys_and_first_v1_scan_retains_projects() {
     let directory = TestDirectory::new();
     let root_id = "legacy-projects-root".to_owned();
     {
-        let fixture =
-            Database::open_with_migrations(directory.path(), &MIGRATIONS[..4]).unwrap();
+        let fixture = Database::open_with_migrations(directory.path(), &MIGRATIONS[..4]).unwrap();
         fixture
             .connection
             .execute(
