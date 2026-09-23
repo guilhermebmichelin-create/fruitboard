@@ -52,8 +52,10 @@ does not substitute for the app-level cases above.
 
 The [2026-09-23 Stream files run](drive-virtual-stream-host-20260923.md)
 validated manual scans of freshly created, hydrated files on one installed
-Windows host after a DriveFS case-sensitivity fix. Offline placeholders,
-mirrored comparison, disconnect, and local NTFS regression remain untested.
+Windows host after a DriveFS case-sensitivity fix. The
+[local NTFS regression](drive-virtual-local-ntfs-regression-20260923.md)
+also passed on the installed app after integration with `main`. Offline
+placeholders, mirrored comparison, and disconnect remain untested.
 Unit tests establish that the supervisor skips virtual roots and resumes native
 watching when the configured mode changes back to local NTFS. Do not describe
 DriveFS manual scanning as generally validated until the matrix above is
