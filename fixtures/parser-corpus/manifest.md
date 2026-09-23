@@ -8,6 +8,7 @@
   [ROADMAP.md parser selection before Phase 3](../../ROADMAP.md#parser-selection-before-phase-3),
   [parser fixture rules](../../DEVELOPMENT.md#parser-fixture-rules),
   [repository proposal](../../ARCHITECTURE.md#repository-proposal).
+- Latest owner handoff: [parser fixture handoff — 2026-09-20](../../docs/research/parser-fixture-handoff-20260920.md).
 - Scope of this file: the manifest required by
   [DEVELOPMENT.md parser fixture rules](../../DEVELOPMENT.md#parser-fixture-rules).
   It is the dedicated manifest PR for spike #138. It creates no fixture byte, no

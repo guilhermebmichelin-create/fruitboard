@@ -232,9 +232,23 @@ function ConnectedLibraryPage({
   const retryButtonReferences = useRef(new Map<string, HTMLButtonElement>());
 
   const focusLater = useCallback((target: () => HTMLElement | null) => {
-    window.setTimeout(() => {
-      if (mounted.current) target()?.focus();
-    }, 0);
+    let attempts = 0;
+    const attemptFocus = () => {
+      if (!mounted.current) return;
+      const element = target();
+      const unavailable =
+        element === null ||
+        !element.isConnected ||
+        (element instanceof HTMLButtonElement && element.disabled);
+      if (!unavailable) {
+        element.focus();
+        return;
+      }
+      if (attempts >= 10) return;
+      attempts += 1;
+      window.setTimeout(attemptFocus, 0);
+    };
+    window.setTimeout(attemptFocus, 0);
   }, []);
 
   useEffect(() => {
