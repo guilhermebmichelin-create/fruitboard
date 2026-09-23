@@ -1,12 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { readToolchainPolicy } from "./lib/toolchain-policy.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const cargoTargetDirectory = process.env.CARGO_TARGET_DIR
+  ? resolve(root, process.env.CARGO_TARGET_DIR)
+  : join(root, "target");
 const policy = readToolchainPolicy(
   join(root, "tools", "toolchain-policy.json"),
 );
@@ -33,8 +36,7 @@ if (process.platform !== "win32") {
     process.exitCode = cargo.status ?? 1;
   } else {
     const source = join(
-      root,
-      "target",
+      cargoTargetDirectory,
       policy.windowsRustTarget,
       "release",
       "fruitboard-sidecar-smoke.exe",

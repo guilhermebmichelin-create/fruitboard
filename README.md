@@ -115,3 +115,26 @@ applies, and merge authority is exercised only for reviewed, checked pull
 requests; agents prepare and review changes, while owner acceptance and
 decision authority remain separate. A documentation merge does not accept
 Phase 2 or authorize production scanning.
+
+## Post-#152 follow-up status — 2026-09-21
+
+The current publication boundary is `main` at
+`73775453e9e4021c7b6b4ade381fd87300f47c32`, the squash merge of #152. Its
+product tree matches the reviewed #152 head
+`79da7e97f7b8481eab1f01661fe54ab0b33d98aa`. The merged fix covers the explicit
+Retry and cancellation-finalization races; this follow-up records additional
+UI evidence and narrowly scoped accessibility/focus corrections without
+reopening that native implementation.
+
+The feature-enabled installed candidate exercised ten native local-NTFS
+scenarios, visible root/settings/library controls, real Windows keyboard input,
+Scan now, Cancel, focus retention, and committed-row preservation. The retained
+raw evidence is outside Git under the `post152-autonomous-followup-20260921`
+evidence root; its final driver result is `pass: true`, qualified for local NTFS
+only. FAT32, DriveFS, network, cross-volume, and performance support remain
+unclaimed.
+
+Phase 2 remains accepted with known gaps. Issues #38 and #40 stay open for the
+narrowed P2-08 evidence residual, and production scanning remains a separate
+owner decision. This follow-up does not activate repository security products,
+add parser code or fixtures, or record a new acceptance decision.
