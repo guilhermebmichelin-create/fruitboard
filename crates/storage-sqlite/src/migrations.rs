@@ -27,6 +27,10 @@ pub(crate) const MIGRATIONS: &[Migration] = &[
         name: "006_scan_retry_candidates",
         sql: include_str!("../migrations/006_scan_retry_candidates.sql"),
     },
+    Migration {
+        name: "007_drive_virtual_root",
+        sql: include_str!("../migrations/007_drive_virtual_root.sql"),
+    },
 ];
 
 #[derive(Clone, Copy)]

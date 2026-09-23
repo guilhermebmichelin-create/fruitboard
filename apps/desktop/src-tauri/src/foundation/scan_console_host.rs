@@ -47,7 +47,7 @@ use fruitboard_scan_execution::{
     ActiveScan, FinalizationBoundary, ScanClock, ScanExecution, ScanExecutionStatus, ScanWorker,
 };
 use fruitboard_storage::{
-    Database, ScanJobState, ScanRunFinalization, ScanRunOutcome, StorageError,
+    Database, ScanJobState, ScanRootMode, ScanRunFinalization, ScanRunOutcome, StorageError,
 };
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -535,9 +535,8 @@ impl ScanConsoleHost {
         let worker_join = std::thread::Builder::new()
             .name("fruitboard-scan-console".to_owned())
             .spawn(move || {
-                let mut port = WindowsFilesystemPort::new();
                 while !host.shutdown_requested.load(Ordering::Acquire) {
-                    host.tick(&worker_database, &mut port);
+                    host.tick_native(&worker_database);
                     match worker_receiver
                         .recv_timeout(Duration::from_millis(SCAN_CONSOLE_POLL_INTERVAL_MS))
                     {
@@ -660,10 +659,32 @@ impl ScanConsoleHost {
         true
     }
 
-    /// One poll tick: service retries, claim, execute (production loop body).
+    /// One test poll tick with an injected filesystem port.
+    #[cfg(test)]
     pub(crate) fn tick<P: FilesystemPort>(&self, database: &Mutex<Database>, port: &mut P) {
         self.claim_due(database);
         self.execute_pending(database, port);
+    }
+
+    fn tick_native(&self, database: &Mutex<Database>) {
+        self.claim_due(database);
+        let mode = self
+            .pending
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_ref()
+            .map(|pending| pending.scan.leased.root.mode);
+        match mode {
+            Some(ScanRootMode::DriveVirtual) => {
+                let mut port = WindowsFilesystemPort::new_drive_virtual();
+                self.execute_pending(database, &mut port);
+            }
+            Some(ScanRootMode::LocalNtfs) => {
+                let mut port = WindowsFilesystemPort::new();
+                self.execute_pending(database, &mut port);
+            }
+            None => {}
+        }
     }
 
     fn fence_active_run(&self, database: &Mutex<Database>) -> bool {

@@ -37,6 +37,31 @@ describe("ScanRootsManager", () => {
     expect(screen.getByText("Folder added.")).toBeTruthy();
   });
 
+  it("adds a virtual Drive root only from its explicit experimental choice", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatformWithPickedDirectory("G:\\My Drive");
+    const addScanRoot = vi.spyOn(platform, "addScanRoot");
+    render(<ScanRootsManager platform={platform} />);
+
+    const driveButton = await screen.findByRole("button", {
+      name: "Add Google Drive virtual drive (experimental)",
+    });
+    expect(screen.getByText(/checked only when/i)).toBeTruthy();
+    expect(screen.getByText(/will not be marked as missing/i)).toBeTruthy();
+    expect(screen.getByText(/mirrors files into a local folder/i)).toBeTruthy();
+
+    await user.click(driveButton);
+
+    expect(addScanRoot).toHaveBeenCalledExactlyOnceWith(
+      "My Drive",
+      "G:\\My Drive",
+      "driveVirtual",
+    );
+    expect(
+      await screen.findByText("Google Drive virtual drive · Experimental"),
+    ).toBeTruthy();
+  });
+
   it("treats picker cancellation as an ordinary no-change outcome", async () => {
     const user = userEvent.setup();
     const platform = createFakePlatformWithPickedDirectory(null);

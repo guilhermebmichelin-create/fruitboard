@@ -169,6 +169,7 @@ impl FakeCursor {
 
 struct FakePort {
     state: Rc<RefCell<FakeState>>,
+    qualification: FilesystemQualification,
 }
 
 struct FakeState {
@@ -209,13 +210,24 @@ impl FakePort {
                 cancel_on_open: None,
                 cancel_on_metadata: None,
             })),
+            qualification: FilesystemQualification::LocalNtfs,
         }
+    }
+
+    fn set_qualification(&mut self, qualification: FilesystemQualification) {
+        self.qualification = qualification;
+        let root = self.root_metadata();
+        self.state.borrow_mut().root_results = VecDeque::from([Ok(root)]);
     }
 
     fn root_metadata(&self) -> RootMetadata {
         RootMetadata {
-            metadata: directory_metadata(900),
-            qualification: FilesystemQualification::LocalNtfs,
+            metadata: if self.qualification == FilesystemQualification::DriveVirtual {
+                directory_metadata_without_identity()
+            } else {
+                directory_metadata(900)
+            },
+            qualification: self.qualification,
         }
     }
 
@@ -367,6 +379,12 @@ fn directory_metadata(file_id: u128) -> FileMetadata {
         reparse_point: false,
         recall_or_offline: false,
     }
+}
+
+fn directory_metadata_without_identity() -> FileMetadata {
+    let mut metadata = directory_metadata(0);
+    metadata.identity = None;
+    metadata
 }
 
 fn file_metadata(file_id: u128, byte_size: u64) -> FileMetadata {
@@ -867,6 +885,132 @@ fn unsupported_filesystem_is_explicitly_non_authoritative() {
 
     assert_eq!(report.outcome, Outcome::UnsupportedFilesystem);
     assert!(!report.authoritative);
+}
+
+#[test]
+fn drive_virtual_filesystem_candidate_gate_is_opt_in_and_narrow() {
+    assert_eq!(
+        classify_filesystem(true, "NTFS", "Windows", false),
+        FilesystemQualification::LocalNtfs
+    );
+    assert_eq!(
+        classify_filesystem(true, "NTFS", "Windows", true),
+        FilesystemQualification::Unqualified
+    );
+    assert_eq!(
+        classify_filesystem(true, "FAT32", "Google Drive", false),
+        FilesystemQualification::Unqualified
+    );
+    assert_eq!(
+        classify_filesystem(true, "FAT32", "Google Drive", true),
+        FilesystemQualification::DriveVirtual
+    );
+    assert_eq!(
+        classify_filesystem(true, "FAT32", "Other", true),
+        FilesystemQualification::Unqualified
+    );
+    assert_eq!(
+        classify_filesystem(false, "FAT32", "Google Drive", true),
+        FilesystemQualification::Unqualified
+    );
+}
+
+#[test]
+fn drive_virtual_is_explicit_and_accepts_missing_ids_without_persisting_them() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.set_qualification(FilesystemQualification::DriveVirtual);
+    port.add_directory(
+        ".",
+        vec![
+            Ok(DirectoryEntry::new("root.flp")),
+            Ok(DirectoryEntry::new("Nested")),
+        ],
+    );
+    let mut root_file = file_metadata(1, 12);
+    root_file.identity = None;
+    port.add_file("root.flp", Ok(root_file));
+    port.add_file("Nested", Ok(directory_metadata_without_identity()));
+    port.add_directory("Nested", vec![Ok(DirectoryEntry::new("nested.flp"))]);
+    let mut nested_file = file_metadata(2, 24);
+    nested_file.identity = None;
+    port.add_file("Nested/nested.flp", Ok(nested_file));
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::Complete);
+    assert!(report.authoritative);
+    let observations: Vec<_> = sink
+        .batches
+        .iter()
+        .flat_map(|batch| &batch.records)
+        .collect();
+    assert_eq!(observations.len(), 2);
+    assert!(
+        observations
+            .iter()
+            .all(|observation| observation.identity.is_none())
+    );
+}
+
+#[test]
+fn drive_virtual_disconnect_after_traversal_discards_staged_observations() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.set_qualification(FilesystemQualification::DriveVirtual);
+    port.add_directory(".", vec![Ok(DirectoryEntry::new("song.flp"))]);
+    let mut song = file_metadata(1, 12);
+    song.identity = None;
+    port.add_file("song.flp", Ok(song));
+    port.add_root_result(Err(PortError::NotFound));
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::RootUnavailable);
+    assert!(!report.authoritative);
+    assert!(sink.discarded);
+}
+
+#[test]
+fn drive_virtual_placeholder_metadata_makes_run_non_authoritative() {
+    let root = root_path();
+    let mut port = FakePort::new(&root);
+    port.set_qualification(FilesystemQualification::DriveVirtual);
+    port.add_directory(".", vec![Ok(DirectoryEntry::new("cloud.flp"))]);
+    let mut placeholder = file_metadata(1, 12);
+    placeholder.identity = None;
+    placeholder.recall_or_offline = true;
+    port.add_file("cloud.flp", Ok(placeholder));
+    let mut sink = RecordingSink::default();
+
+    let report = enumerate(
+        &mut port,
+        &root,
+        &limits(),
+        &NeverCancelled,
+        &mut sink,
+        &mut NoProgress,
+    );
+
+    assert_eq!(report.outcome, Outcome::Partial);
+    assert!(!report.authoritative);
+    assert!(sink.discarded);
 }
 
 #[test]

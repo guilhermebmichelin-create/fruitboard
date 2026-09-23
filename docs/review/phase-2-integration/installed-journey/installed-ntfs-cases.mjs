@@ -498,6 +498,43 @@ async function statusFor(call, rootId) {
   );
 }
 
+async function waitForWatchedFile(
+  call,
+  rootId,
+  priorJobId,
+  relativePath,
+  label,
+) {
+  const started = Date.now();
+  while (Date.now() - started < 30000) {
+    const status = await statusFor(call, rootId);
+    const page = await pageFor(call, rootId);
+    const observed = page.records.some(
+      (record) =>
+        record.relativePath === relativePath && record.presence === "present",
+    );
+    if (
+      status?.jobId !== priorJobId &&
+      status?.state === "completed" &&
+      observed
+    ) {
+      log({
+        kind: "watcher-lifecycle-result",
+        method: "native",
+        label,
+        trigger: "synthetic-file-created-without-scan-now",
+        relativePath,
+        priorJobId,
+        status: compactStatus(status),
+        page: pageSummary(page),
+      });
+      return;
+    }
+    await sleep(250);
+  }
+  throw new Error(`${label} did not publish ${relativePath} without Scan now`);
+}
+
 async function waitForStatus(
   call,
   rootId,
@@ -2785,11 +2822,53 @@ async function main() {
       if (!disabledScan.ok || disabledScan.response.status !== "error") {
         throw new Error("disabled root accepted a Scan now request");
       }
+      const disabledJobId = (await statusFor(app.call, roots.lifecycle.id))
+        ?.jobId;
+      writeSyntheticFile(
+        path.join(fixtures.lifecycle.root, "created-while-disabled.flp"),
+      );
+      await sleep(1500);
+      const disabledStatus = await statusFor(app.call, roots.lifecycle.id);
+      const disabledPage = await pageFor(app.call, roots.lifecycle.id);
+      if (
+        disabledStatus?.jobId !== disabledJobId ||
+        disabledPage.records.some(
+          (record) => record.relativePath === "created-while-disabled.flp",
+        )
+      ) {
+        throw new Error("disabled local NTFS root scanned a new file");
+      }
       await toggleRoot(
         app.call,
         roots.lifecycle.id,
         true,
         "lifecycle-reenable-before-remove",
+      );
+      const beforeReenableEvent = await statusFor(app.call, roots.lifecycle.id);
+      writeSyntheticFile(
+        path.join(fixtures.lifecycle.root, "watched-after-reenable.flp"),
+      );
+      await waitForWatchedFile(
+        app.call,
+        roots.lifecycle.id,
+        beforeReenableEvent?.jobId,
+        "watched-after-reenable.flp",
+        "watcher-after-reenable",
+      );
+      await stopApp(app, "before-lifecycle-watcher-restart");
+      app = undefined;
+      app = await startApp("after-lifecycle-watcher-restart");
+      await sleep(1000);
+      const beforeRestartEvent = await statusFor(app.call, roots.lifecycle.id);
+      writeSyntheticFile(
+        path.join(fixtures.lifecycle.root, "watched-after-restart.flp"),
+      );
+      await waitForWatchedFile(
+        app.call,
+        roots.lifecycle.id,
+        beforeRestartEvent?.jobId,
+        "watched-after-restart.flp",
+        "watcher-after-restart",
       );
       await removeRoot(app.call, roots.lifecycle.id, "lifecycle-remove");
       if (

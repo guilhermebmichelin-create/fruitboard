@@ -3,6 +3,7 @@ import {
   PlatformError,
   type PlatformPort,
   type ScanRoot,
+  type ScanRootMode,
 } from "../platform/contracts";
 
 type LoadState =
@@ -133,7 +134,7 @@ export function ScanRootsManager({
     }
   };
 
-  const addFolder = async () => {
+  const addFolder = async (mode?: ScanRootMode) => {
     setActionState({ kind: "working", action: "Opening the folder picker…" });
     let picked: string | null;
     try {
@@ -157,7 +158,7 @@ export function ScanRootsManager({
       setActionState({ kind: "working", action: "Adding the folder…" });
     }
     try {
-      await platform.addScanRoot(defaultDisplayName(picked), picked);
+      await platform.addScanRoot(defaultDisplayName(picked), picked, mode);
     } catch (error) {
       if (mounted.current) {
         setActionState({ kind: "error", message: addFailureMessage(error) });
@@ -278,12 +279,13 @@ export function ScanRootsManager({
     <section aria-labelledby="scan-roots-title" className="preferences-card">
       <div className="section-heading section-heading--compact">
         <div>
-          <p className="eyebrow">Local folders</p>
+          <p className="eyebrow">Storage locations</p>
           <h2 id="scan-roots-title">Scan roots</h2>
         </div>
         <p>
-          Choose the folders Fruitboard may look inside. Nothing is scanned yet;
-          removing a folder only forgets it here and never deletes files.
+          Choose folders or virtual drives Fruitboard may look inside. Nothing
+          is scanned yet; removing a location only forgets it here and never
+          deletes files.
         </p>
       </div>
 
@@ -370,6 +372,11 @@ export function ScanRootsManager({
                     <span className="scan-roots-item__path">
                       {root.canonicalPath}
                     </span>
+                    {root.mode === "driveVirtual" && (
+                      <span className="scan-roots-item__status">
+                        Google Drive virtual drive · Experimental
+                      </span>
+                    )}
                     <span className="scan-roots-item__status">
                       Availability not rechecked · Not scanned yet
                     </span>
@@ -486,18 +493,36 @@ export function ScanRootsManager({
         </ul>
       )}
 
-      <button
-        aria-busy={busy}
-        className="preference-button"
-        disabled={busy}
-        onClick={() => void addFolder()}
-        ref={addButtonReference}
-        type="button"
-      >
-        {busy && actionState.kind === "working"
-          ? actionState.action
-          : "Add folder"}
-      </button>
+      <p className="preference-hint" id="drive-virtual-help">
+        Virtual drives are experimental and are checked only when you start a
+        scan manually. If a drive is unavailable, files will not be marked as
+        missing. If Google Drive mirrors files into a local folder, use Add
+        folder instead.
+      </p>
+      <div className="scan-roots-item__actions">
+        <button
+          aria-busy={busy}
+          className="preference-button"
+          disabled={busy}
+          onClick={() => void addFolder()}
+          ref={addButtonReference}
+          type="button"
+        >
+          {busy && actionState.kind === "working"
+            ? actionState.action
+            : "Add folder"}
+        </button>
+        <button
+          aria-busy={busy}
+          aria-describedby="drive-virtual-help"
+          className="preference-button preference-button--secondary"
+          disabled={busy}
+          onClick={() => void addFolder("driveVirtual")}
+          type="button"
+        >
+          Add Google Drive virtual drive (experimental)
+        </button>
+      </div>
 
       {actionState.kind === "notice" && (
         <p aria-live="polite" className="preference-message" role="status">

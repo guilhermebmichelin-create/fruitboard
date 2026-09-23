@@ -1102,7 +1102,9 @@ fn apply_planned_observation(
 
 /// Atomic publication: one immediate transaction validates ownership, plans
 /// every association, applies all rows, advances the success marker, and
-/// completes the run/job/ledger together.
+/// completes the run/job/ledger together. Local NTFS roots also mark unseen
+/// locations missing; DriveVirtual roots deliberately retain them because a
+/// virtual mount scan cannot prove absence.
 ///
 /// P2-03 close-out: only an authoritative enumeration reaches this path (the
 /// worker discards staging for every non-authoritative outcome —
@@ -1170,13 +1172,22 @@ pub(crate) fn publish_scan_run_tx(
         }
         apply_planned_observation(transaction, &context, item, now_ms)?;
     }
-    transaction.execute(
-        "UPDATE file_location
-         SET presence = 'missing', updated_at_ms = ?1
-         WHERE scan_root_id = ?2 AND presence = 'present'
-           AND (last_seen_scan_run_id IS NULL OR last_seen_scan_run_id <> ?3)",
-        params![now_ms, &context.root_id, &context.run_id],
+    let root_mode: String = transaction.query_row(
+        "SELECT mode FROM scan_root WHERE id = ?1",
+        [&context.root_id],
+        |row| row.get(0),
     )?;
+    if root_mode == "local_ntfs" {
+        transaction.execute(
+            "UPDATE file_location
+             SET presence = 'missing', updated_at_ms = ?1
+             WHERE scan_root_id = ?2 AND presence = 'present'
+               AND (last_seen_scan_run_id IS NULL OR last_seen_scan_run_id <> ?3)",
+            params![now_ms, &context.root_id, &context.run_id],
+        )?;
+    } else if root_mode != "drive_virtual" {
+        return Err(StorageError::InvalidSchema);
+    }
     let marker_changed = transaction.execute(
         "UPDATE scan_root
          SET last_successful_run_id = ?1,

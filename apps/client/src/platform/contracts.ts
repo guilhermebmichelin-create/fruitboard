@@ -29,11 +29,13 @@ export interface StartupViewPreference {
 }
 
 export type ScanRootAvailability = "available" | "unavailable" | "unknown";
+export type ScanRootMode = "localNtfs" | "driveVirtual";
 
 export interface ScanRoot {
   readonly id: string;
   readonly displayName: string;
   readonly canonicalPath: string;
+  readonly mode: ScanRootMode;
   readonly enabled: boolean;
   readonly availability: ScanRootAvailability;
   readonly lastErrorCode: string | null;
@@ -45,7 +47,11 @@ export interface PlatformPort {
   setStartupView(startupView: StartupView): Promise<StartupViewPreference>;
   pickScanRootDirectory(): Promise<string | null>;
   listScanRoots(): Promise<readonly ScanRoot[]>;
-  addScanRoot(displayName: string, path: string): Promise<ScanRoot>;
+  addScanRoot(
+    displayName: string,
+    path: string,
+    mode?: ScanRootMode,
+  ): Promise<ScanRoot>;
   removeScanRoot(id: string): Promise<string>;
   updateScanRootDisplayName(id: string, displayName: string): Promise<ScanRoot>;
   setScanRootEnabled(id: string, enabled: boolean): Promise<ScanRoot>;
@@ -178,6 +184,7 @@ const scanRootAvailabilities = new Set<ScanRootAvailability>([
   "unavailable",
   "unknown",
 ]);
+const scanRootModes = new Set<ScanRootMode>(["localNtfs", "driveVirtual"]);
 
 export function parseScanRoot(value: unknown): ScanRoot {
   if (
@@ -188,6 +195,8 @@ export function parseScanRoot(value: unknown): ScanRoot {
     value["displayName"].length === 0 ||
     typeof value["canonicalPath"] !== "string" ||
     value["canonicalPath"].length === 0 ||
+    typeof value["mode"] !== "string" ||
+    !scanRootModes.has(value["mode"] as ScanRootMode) ||
     typeof value["enabled"] !== "boolean" ||
     typeof value["availability"] !== "string" ||
     !scanRootAvailabilities.has(
@@ -203,6 +212,7 @@ export function parseScanRoot(value: unknown): ScanRoot {
     id: value["id"],
     displayName: value["displayName"],
     canonicalPath: value["canonicalPath"],
+    mode: value["mode"] as ScanRootMode,
     enabled: value["enabled"],
     availability: value["availability"] as ScanRootAvailability,
     lastErrorCode: value["lastErrorCode"],
