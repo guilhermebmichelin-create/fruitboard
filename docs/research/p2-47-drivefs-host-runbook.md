@@ -1,6 +1,8 @@
 # P2 manual host runbook — #47 DriveFS watcher and placeholder behavior
 
-- Status: **READY — NOT EXECUTED.** No DriveFS claim is made by this file.
+- Status: **PARTIALLY EXECUTED.** See the
+  [2026-09-23 Stream files run](drive-virtual-stream-host-20260923.md).
+  The full per-mode matrix below remains incomplete.
 - Parent: #33. Follows #42 (partial result in
   `docs/research/p0-d-drivefs-watcher.md`). Until this runbook is executed
   or the owner posts an explicit scope-exclusion sentence, DriveFS behavior

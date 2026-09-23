@@ -2299,6 +2299,7 @@ mod windows_port {
     const FILE_ID_INFO_CLASS: i32 = 18;
     const FILE_CASE_SENSITIVE_INFORMATION_CLASS: i32 = 23;
     const FILE_CS_FLAG_CASE_SENSITIVE_DIR: u32 = 0x0000_0001;
+    const FILE_CASE_SENSITIVE_SEARCH: u32 = 0x0000_0001;
     const DIRECTORY_BUFFER_BYTES: usize = 64 * 1024;
     const INVALID_HANDLE_VALUE: *mut c_void = -1isize as *mut c_void;
     const ERROR_FILE_NOT_FOUND: u32 = 2;
@@ -2627,7 +2628,7 @@ mod windows_port {
             }));
             #[cfg(feature = "diagnostics")]
             let started = Instant::now();
-            let case_sensitivity_result = query_case_sensitivity(&handle);
+            let case_sensitivity_result = query_case_sensitivity(&handle, self.qualification);
             #[cfg(feature = "diagnostics")]
             record_diagnostic(
                 &self.diagnostics,
@@ -2794,7 +2795,7 @@ mod windows_port {
             }
             #[cfg(feature = "diagnostics")]
             let started = Instant::now();
-            let case_sensitivity_result = query_case_sensitivity(&handle);
+            let case_sensitivity_result = query_case_sensitivity(&handle, qualification);
             #[cfg(feature = "diagnostics")]
             record_diagnostic(
                 &self.diagnostics,
@@ -2961,11 +2962,23 @@ mod windows_port {
 
     fn query_case_sensitivity(
         handle: &WindowsHandle,
+        qualification: FilesystemQualification,
     ) -> Result<DirectoryCaseSensitivity, PortError> {
-        let info = query_handle_info::<FileCaseSensitiveInfo>(
+        let info = match query_handle_info::<FileCaseSensitiveInfo>(
             handle,
             FILE_CASE_SENSITIVE_INFORMATION_CLASS,
-        )?;
+        ) {
+            Ok(info) => info,
+            // DriveFS can report FAT32 with case-insensitive volume search but
+            // reject the per-directory information class (ERROR_INVALID_PARAMETER).
+            // The virtual candidate gate below rejects case-sensitive volumes.
+            Err(PortError::Unsupported)
+                if qualification == FilesystemQualification::DriveVirtual =>
+            {
+                return Ok(DirectoryCaseSensitivity::Insensitive);
+            }
+            Err(error) => return Err(error),
+        };
         if info.flags & FILE_CS_FLAG_CASE_SENSITIVE_DIR != 0 {
             Ok(DirectoryCaseSensitivity::Sensitive)
         } else {
@@ -3027,12 +3040,18 @@ mod windows_port {
         // DriveFS has been observed to report a FAT32-like virtual volume.
         // The label is only a conservative candidate signal; it is not an
         // authenticated provider identity and remains opt-in only.
-        Ok(classify_filesystem(
+        let qualification = classify_filesystem(
             fixed_drive,
             name.trim_end_matches('\0'),
             label.trim_end_matches('\0'),
             allow_drive_virtual,
-        ))
+        );
+        if qualification == FilesystemQualification::DriveVirtual
+            && flags & FILE_CASE_SENSITIVE_SEARCH != 0
+        {
+            return Ok(FilesystemQualification::Unqualified);
+        }
+        Ok(qualification)
     }
 
     fn volume_path(path: &Path) -> Result<PathBuf, PortError> {
