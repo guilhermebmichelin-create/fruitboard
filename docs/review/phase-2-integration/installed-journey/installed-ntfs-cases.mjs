@@ -31,6 +31,7 @@ const expectedLockPid = Number.parseInt(
 const transcriptPath = path.join(journeyRoot, "ntfs-cases.jsonl");
 const marker =
   "FRUITBOARD SYNTHETIC FIXTURE. NOT AN FL STUDIO PROJECT. NO PRIVATE DATA.\n";
+let axeSourceCache;
 
 function relativeArtifact(candidate) {
   const relative = path.relative(journeyRoot, candidate);
@@ -184,7 +185,7 @@ function connect(target) {
 
     websocket.addEventListener("open", () => {
       clearTimeout(connectTimer);
-      resolve({ websocket, call });
+      resolve({ websocket, call, send });
     });
     websocket.addEventListener("error", () => {
       clearTimeout(connectTimer);
@@ -200,26 +201,30 @@ function connect(target) {
       }
     });
 
-    function call(expression, timeoutMilliseconds = 30000) {
+    function send(method, params = {}, timeoutMilliseconds = 30000) {
       return new Promise((resolveCall, rejectCall) => {
         const id = ++nextId;
         const timer = setTimeout(() => {
           pending.delete(id);
-          rejectCall(new Error("CDP evaluation timed out"));
+          rejectCall(new Error(`CDP ${method} timed out`));
         }, timeoutMilliseconds);
         pending.set(id, { resolve: resolveCall, reject: rejectCall, timer });
         websocket.send(
           JSON.stringify({
             id,
-            method: "Runtime.evaluate",
-            params: {
-              expression,
-              returnByValue: true,
-              awaitPromise: true,
-            },
+            method,
+            params,
           }),
         );
       });
+    }
+
+    function call(expression, timeoutMilliseconds = 30000) {
+      return send(
+        "Runtime.evaluate",
+        { expression, returnByValue: true, awaitPromise: true },
+        timeoutMilliseconds,
+      );
     }
   });
 }
@@ -248,6 +253,209 @@ async function evaluate(call, expression, timeoutMilliseconds = 30000) {
     throw new Error(`DOM evaluation failed for installed UI observation`);
   }
   return message.result?.result?.value;
+}
+
+async function waitForUiText(call, text, timeoutMilliseconds = 30000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMilliseconds) {
+    const present = await evaluate(
+      call,
+      `document.body?.innerText?.includes(${JSON.stringify(text)}) === true`,
+    );
+    if (present) return;
+    await sleep(100);
+  }
+  throw new Error(`installed UI did not render expected text: ${text}`);
+}
+
+async function waitForUiSelector(call, selector, timeoutMilliseconds = 30000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMilliseconds) {
+    const present = await evaluate(
+      call,
+      `document.querySelector(${JSON.stringify(selector)}) !== null`,
+    );
+    if (present) return;
+    await sleep(100);
+  }
+  throw new Error(`installed UI did not render selector: ${selector}`);
+}
+
+async function clickVisibleSelector(app, selector, label) {
+  const target = await evaluate(
+    app.call,
+    `(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!(element instanceof HTMLElement)) return null;
+      element.scrollIntoView({ block: "center", inline: "nearest" });
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        tag: element.tagName.toLowerCase(),
+        ariaLabel: element.getAttribute("aria-label"),
+        text: (element.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 120),
+        disabled: element instanceof HTMLButtonElement || element instanceof HTMLInputElement
+          ? element.disabled
+          : false,
+        visible: rect.width > 0 && rect.height > 0 &&
+          rect.top >= 0 && rect.left >= 0 &&
+          rect.bottom <= window.innerHeight && rect.right <= window.innerWidth &&
+          style.visibility !== "hidden" && style.display !== "none",
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+    })()`,
+  );
+  if (!target?.visible || target.disabled) {
+    throw new Error(
+      `visible UI target was not actionable for ${label}: ${JSON.stringify(target)}`,
+    );
+  }
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: target.x,
+    y: target.y,
+  });
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: target.x,
+    y: target.y,
+    button: "left",
+    clickCount: 1,
+  });
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: target.x,
+    y: target.y,
+    button: "left",
+    clickCount: 1,
+  });
+  log({
+    kind: "ui-visible-click",
+    method: "UI",
+    label,
+    selector,
+    target,
+    activeElement: await activeUiElement(app.call),
+  });
+  return target;
+}
+
+async function dispatchUiKey(app, key) {
+  const sendKey = {
+    " ": " ",
+    Tab: "{TAB}",
+    ArrowDown: "{DOWN}",
+    Enter: "{ENTER}",
+    Escape: "{ESC}",
+  }[key];
+  if (!sendKey || !Number.isInteger(app.child?.pid)) {
+    throw new Error(`unsupported installed UI key dispatch: ${key}`);
+  }
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    "Add-Type -AssemblyName Microsoft.VisualBasic",
+    "Add-Type -AssemblyName System.Windows.Forms",
+    `$appPid = ${app.child.pid}`,
+    "[Microsoft.VisualBasic.Interaction]::AppActivate($appPid)",
+    "Start-Sleep -Milliseconds 75",
+    `[System.Windows.Forms.SendKeys]::SendWait(${JSON.stringify(sendKey)})`,
+  ].join("; ");
+  execFileSync(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", script],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
+  );
+  log({
+    kind: "ui-key-input",
+    method: "UI",
+    key,
+    transport: "Windows.SendKeys",
+    pid: app.child.pid,
+  });
+}
+
+async function activeUiElement(call) {
+  return evaluate(
+    call,
+    `(() => {
+      const element = document.activeElement;
+      if (!(element instanceof HTMLElement)) return null;
+      return {
+        tag: element.tagName.toLowerCase(),
+        id: element.id || null,
+        role: element.getAttribute("role"),
+        ariaLabel: element.getAttribute("aria-label"),
+        text: (element.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 120),
+        href: element.getAttribute("href"),
+      };
+    })()`,
+  );
+}
+
+async function waitForUiActiveLabel(
+  call,
+  ariaLabel,
+  timeoutMilliseconds = 30000,
+) {
+  const started = Date.now();
+  let lastActive = null;
+  while (Date.now() - started < timeoutMilliseconds) {
+    lastActive = await activeUiElement(call);
+    if (lastActive?.ariaLabel === ariaLabel) return lastActive;
+    await sleep(100);
+  }
+  throw new Error(
+    `installed UI did not move focus to ${ariaLabel}: ${JSON.stringify(lastActive)}`,
+  );
+}
+
+async function installedKeyboardTrace(app, label, steps = 12) {
+  await evaluate(app.call, "document.body?.focus(); true");
+  const trace = [];
+  for (let index = 0; index < steps; index += 1) {
+    await dispatchUiKey(app, "Tab", "Tab", 9);
+    await sleep(120);
+    trace.push(await activeUiElement(app.call));
+  }
+  log({ kind: "ui-keyboard-trace", method: "UI", label, trace });
+  return trace;
+}
+
+async function focusVisibleSelectorByKeyboard(app, selector, label) {
+  const target = await evaluate(
+    app.call,
+    `(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      return element instanceof HTMLElement
+        ? { ariaLabel: element.getAttribute("aria-label"), tag: element.tagName }
+        : null;
+    })()`,
+  );
+  if (!target?.ariaLabel) {
+    throw new Error(`keyboard focus target was not labelled for ${label}`);
+  }
+  const trace = [];
+  for (let index = 0; index < 40; index += 1) {
+    const active = await activeUiElement(app.call);
+    trace.push(active);
+    if (active?.ariaLabel === target.ariaLabel) {
+      log({
+        kind: "ui-keyboard-focus",
+        method: "UI",
+        label,
+        selector,
+        target,
+        trace,
+      });
+      return active;
+    }
+    await dispatchUiKey(app, "Tab");
+    await sleep(75);
+  }
+  throw new Error(
+    `keyboard focus did not reach ${label}: ${JSON.stringify({ target, trace })}`,
+  );
 }
 
 function compactStatus(status) {
@@ -333,6 +541,172 @@ async function pageFor(call, rootId, limit = 20) {
   return result.response.data;
 }
 
+async function waitForRunning(
+  call,
+  rootId,
+  label,
+  timeoutMilliseconds = 120000,
+) {
+  const status = await waitForStatus(
+    call,
+    rootId,
+    (candidate) =>
+      candidate?.state === "running" &&
+      typeof candidate.runId === "string" &&
+      candidate.runId.length > 0,
+    timeoutMilliseconds,
+    label,
+  );
+  if (
+    !status ||
+    status.state !== "running" ||
+    typeof status.runId !== "string" ||
+    status.runId.length === 0
+  ) {
+    throw new Error(
+      `${label} did not expose a running state with a non-empty run id`,
+    );
+  }
+  log({
+    kind: "running-observed",
+    method: "native",
+    label,
+    status: compactStatus(status),
+  });
+  return status;
+}
+
+async function waitForExistingTerminal(
+  call,
+  rootId,
+  label,
+  timeoutMilliseconds = 240000,
+) {
+  let terminal = await waitForStatus(
+    call,
+    rootId,
+    (status) =>
+      ["completed", "failed", "cancelled", "interrupted"].includes(
+        status?.state,
+      ) && status.retryAvailable === false,
+    timeoutMilliseconds,
+    label,
+  );
+  await sleep(250);
+  const refreshed = await statusFor(call, rootId);
+  if (
+    refreshed &&
+    ["completed", "failed", "cancelled", "interrupted"].includes(
+      refreshed.state,
+    ) &&
+    refreshed.retryAvailable === false
+  ) {
+    terminal = refreshed;
+  }
+  if (
+    !terminal ||
+    !["completed", "failed", "cancelled", "interrupted"].includes(
+      terminal.state,
+    )
+  ) {
+    throw new Error(`${label} did not reach a settled terminal status`);
+  }
+  const page = await pageFor(call, rootId);
+  log({
+    kind: `${label}-terminal-existing`,
+    method: "native",
+    status: compactStatus(terminal),
+    page: pageSummary(page),
+  });
+  return { status: terminal, page };
+}
+
+async function waitForJobTerminal(
+  call,
+  rootId,
+  jobId,
+  label,
+  timeoutMilliseconds = 240000,
+) {
+  const terminal = await waitForStatus(
+    call,
+    rootId,
+    (status) =>
+      status?.jobId === jobId &&
+      ["completed", "failed", "cancelled", "interrupted"].includes(
+        status.state,
+      ) &&
+      status.retryAvailable === false,
+    timeoutMilliseconds,
+    label,
+  );
+  if (
+    !terminal ||
+    terminal.jobId !== jobId ||
+    !["completed", "failed", "cancelled", "interrupted"].includes(
+      terminal.state,
+    )
+  ) {
+    throw new Error(`${label} did not settle the expected job`);
+  }
+  const page = await pageFor(call, rootId);
+  log({
+    kind: `${label}-job-terminal`,
+    method: "native",
+    expectedJobId: jobId,
+    status: compactStatus(terminal),
+    page: pageSummary(page),
+  });
+  return { status: terminal, page };
+}
+
+async function scanNowToRunning(
+  call,
+  rootId,
+  label,
+  timeoutMilliseconds = 120000,
+) {
+  const start = await invoke(call, "scan_now", {
+    schemaVersion: 1,
+    rootId,
+  });
+  log({ kind: `${label}-scan-now`, method: "native", result: start });
+  if (!start.ok || start.response.status !== "ok") {
+    throw new Error(`${label} scan_now did not return a typed success`);
+  }
+  const running = await waitForRunning(
+    call,
+    rootId,
+    label,
+    timeoutMilliseconds,
+  );
+  return { start: start.response.data, running };
+}
+
+async function cancelJob(call, jobId, label) {
+  const result = await invoke(call, "cancel_scan", {
+    schemaVersion: 1,
+    jobId,
+  });
+  log({ kind: "cancel-scan", method: "native", label, jobId, result });
+  if (!result.ok || result.response.status !== "ok") {
+    throw new Error(`${label} cancel_scan did not return a typed success`);
+  }
+  return result.response.data;
+}
+
+async function retryJob(call, jobId, label) {
+  const result = await invoke(call, "retry_scan", {
+    schemaVersion: 1,
+    jobId,
+  });
+  log({ kind: "retry-scan", method: "native", label, jobId, result });
+  if (!result.ok || result.response.status !== "ok") {
+    throw new Error(`${label} retry_scan did not return a typed success`);
+  }
+  return result.response.data;
+}
+
 function pageSummary(page) {
   return {
     rootId: page?.rootId,
@@ -382,11 +756,460 @@ async function uiSnapshot(call, label) {
         progress: element.querySelector("[data-scan-progress]")?.getAttribute("data-scan-progress") ?? null,
         text: element.textContent?.trim().slice(0, 240),
       })),
+      accessibilityProbe: (() => {
+        const focusable = [...document.querySelectorAll(
+          'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        )].filter((element) => !element.hasAttribute("disabled"));
+        const first = focusable[0];
+        first?.focus();
+        return {
+          focusableCount: focusable.length,
+          activeElement: document.activeElement
+            ? {
+                tag: document.activeElement.tagName,
+                role: document.activeElement.getAttribute("role"),
+                ariaLabel: document.activeElement.getAttribute("aria-label"),
+                text: document.activeElement.textContent?.trim().slice(0, 120),
+              }
+            : null,
+          unnamedInteractiveCount: focusable.filter(
+            (element) =>
+              !element.getAttribute("aria-label") &&
+              !element.textContent?.trim() &&
+              !element.getAttribute("title"),
+          ).length,
+        };
+      })(),
       body: document.body.textContent?.slice(0, 1800),
     }))()`,
   );
+  snapshot.accessibilityProbe.axe = await runAxe(call, label);
   log({ kind: "ui-snapshot", label, method: "UI", snapshot });
   return snapshot;
+}
+
+function loadAxeSource() {
+  if (axeSourceCache !== undefined) return axeSourceCache;
+  const sourcePath = path.join(
+    repositoryRoot,
+    "apps",
+    "client",
+    "node_modules",
+    "axe-core",
+    "axe.min.js",
+  );
+  if (!fs.existsSync(sourcePath)) {
+    axeSourceCache = null;
+    return axeSourceCache;
+  }
+  axeSourceCache = fs.readFileSync(sourcePath, "utf8");
+  const packagePath = path.join(path.dirname(sourcePath), "package.json");
+  let version = null;
+  try {
+    version = JSON.parse(fs.readFileSync(packagePath, "utf8")).version ?? null;
+  } catch {
+    // The source hash remains the provenance if package metadata is absent.
+  }
+  log({
+    kind: "instrumented-ui-helper",
+    method: "UI",
+    helper: "axe-core",
+    version,
+    source: relativeArtifact(sourcePath),
+    sourceSha256: hashFile(sourcePath),
+    boundary:
+      "review-driver injection only; not bundled into or enabled by the product",
+  });
+  return axeSourceCache;
+}
+
+async function runAxe(call, label) {
+  const source = loadAxeSource();
+  if (!source) {
+    return {
+      status: "unavailable",
+      reason: "axe-core source was not present in the evidence checkout",
+    };
+  }
+  try {
+    const result = await evaluate(
+      call,
+      `(() => {
+        if (!window.axe) {
+          new Function(${JSON.stringify(source)})();
+        }
+        return window.axe.run(document, {
+          runOnly: { type: "tag", values: ["wcag2a", "wcag2aa"] },
+        }).then((report) => ({
+          version: window.axe.version,
+          passes: report.passes.length,
+          incomplete: report.incomplete.length,
+          violations: report.violations.map((violation) => ({
+            id: violation.id,
+            impact: violation.impact,
+            help: violation.help,
+            nodes: violation.nodes.slice(0, 20).map((node) => ({
+              target: node.target,
+              html: node.html,
+            })),
+          })),
+        }));
+      })()`,
+      60000,
+    );
+    const normalized = { status: "completed", ...result };
+    log({ kind: "axe-result", method: "UI", label, result: normalized });
+    return normalized;
+  } catch (error) {
+    const unavailable = { status: "unavailable", reason: safeError(error) };
+    log({ kind: "axe-result", method: "UI", label, result: unavailable });
+    return unavailable;
+  }
+}
+
+async function runAxeRules(call, label, rules) {
+  const source = loadAxeSource();
+  if (!source) {
+    const unavailable = {
+      status: "unavailable",
+      reason: "axe-core source was not present in the evidence checkout",
+      rules,
+    };
+    log({
+      kind: "axe-targeted-result",
+      method: "UI",
+      label,
+      result: unavailable,
+    });
+    return unavailable;
+  }
+  try {
+    const result = await evaluate(
+      call,
+      `(() => {
+        if (!window.axe) new Function(${JSON.stringify(source)})();
+        return window.axe.run(document, {
+          runOnly: { type: "rule", values: ${JSON.stringify(rules)} },
+        }).then((report) => ({
+          version: window.axe.version,
+          passes: report.passes.map((entry) => entry.id),
+          incomplete: report.incomplete.map((entry) => ({
+            id: entry.id,
+            impact: entry.impact,
+            nodes: entry.nodes.slice(0, 20).map((node) => ({
+              target: node.target,
+              html: node.html,
+            })),
+          })),
+          violations: report.violations.map((entry) => ({
+            id: entry.id,
+            impact: entry.impact,
+            nodes: entry.nodes.slice(0, 20).map((node) => ({
+              target: node.target,
+              html: node.html,
+            })),
+          })),
+        }));
+      })()`,
+      60000,
+    );
+    const normalized = { status: "completed", rules, ...result };
+    log({
+      kind: "axe-targeted-result",
+      method: "UI",
+      label,
+      result: normalized,
+    });
+    return normalized;
+  } catch (error) {
+    const unavailable = {
+      status: "unavailable",
+      rules,
+      reason: safeError(error),
+    };
+    log({
+      kind: "axe-targeted-result",
+      method: "UI",
+      label,
+      result: unavailable,
+    });
+    return unavailable;
+  }
+}
+
+async function visibleUiSnapshot(call, label) {
+  const snapshot = await evaluate(
+    call,
+    `(() => ({
+      url: location.href,
+      title: document.title,
+      libraryState: document.querySelector("[data-library-state]")?.getAttribute("data-library-state") ?? null,
+      progress: [...document.querySelectorAll("[data-scan-progress]")].map((element) => element.getAttribute("data-scan-progress")),
+      activeElement: document.activeElement instanceof HTMLElement
+        ? {
+            tag: document.activeElement.tagName.toLowerCase(),
+            id: document.activeElement.id || null,
+            role: document.activeElement.getAttribute("role"),
+            ariaLabel: document.activeElement.getAttribute("aria-label"),
+            text: (document.activeElement.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 120),
+          }
+        : null,
+      controls: [...document.querySelectorAll("a[href], button, input, select")].map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        ariaLabel: element.getAttribute("aria-label"),
+        text: (element.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 80),
+        href: element.getAttribute("href"),
+        disabled: element instanceof HTMLButtonElement || element instanceof HTMLInputElement
+          ? element.disabled
+          : false,
+      })),
+      liveMessages: [...document.querySelectorAll("[aria-live], [role=alert], [role=status]")].map((element) => ({
+        role: element.getAttribute("role"),
+        live: element.getAttribute("aria-live"),
+        text: (element.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 180),
+      })).filter((entry) => entry.text.length > 0),
+      body: (document.body.innerText ?? "").replace(/\\s+/g, " ").trim().slice(0, 2200),
+    }))()`,
+  );
+  const axe = await runAxeRules(call, label, [
+    "region",
+    "landmark-one-main",
+    "landmark-unique",
+    "button-name",
+    "link-name",
+    "aria-allowed-attr",
+    "aria-valid-attr",
+  ]);
+  log({ kind: "ui-visible-snapshot", label, method: "UI", snapshot, axe });
+  return { snapshot, axe };
+}
+
+async function visibleUiJourney(app, roots, baselinePage) {
+  const { call, send } = app;
+  const resourceButton = 'button[aria-label^="Scan now Resource Limit"]';
+  const lifecycleToggle = 'input[aria-label="Lifecycle enabled"]';
+
+  await clickVisibleSelector(
+    app,
+    'a[href="#/preferences"]',
+    "navigate-preferences-by-visible-link",
+  );
+  await waitForUiText(call, "Scan roots");
+  await waitForUiSelector(call, lifecycleToggle);
+  await visibleUiSnapshot(call, "preferences-before-settings");
+
+  await clickVisibleSelector(
+    app,
+    lifecycleToggle,
+    "disable-lifecycle-root-by-visible-checkbox",
+  );
+  await sleep(400);
+  const disabledRoot = (await listRoots(call)).find(
+    (root) => root.id === roots.lifecycle.id,
+  );
+  if (!disabledRoot || disabledRoot.enabled !== false) {
+    throw new Error("the visible lifecycle checkbox did not disable its root");
+  }
+  await clickVisibleSelector(
+    app,
+    'a[href="#/preferences"]',
+    "focus-preferences-before-keyboard-toggle",
+  );
+  await focusVisibleSelectorByKeyboard(
+    app,
+    lifecycleToggle,
+    "focus-lifecycle-by-keyboard",
+  );
+  await dispatchUiKey(app, " ");
+  await sleep(400);
+  const reenabledRoot = (await listRoots(call)).find(
+    (root) => root.id === roots.lifecycle.id,
+  );
+  if (!reenabledRoot || reenabledRoot.enabled !== true) {
+    throw new Error(
+      "the focused lifecycle checkbox did not re-enable its root",
+    );
+  }
+  log({
+    kind: "ui-settings-toggle",
+    method: "UI",
+    rootId: roots.lifecycle.id,
+    afterMouse: disabledRoot.enabled,
+    afterKeyboard: reenabledRoot.enabled,
+  });
+
+  await clickVisibleSelector(
+    app,
+    'button[aria-label^="Rename Lifecycle"]',
+    "open-rename-editor-by-visible-button",
+  );
+  await waitForUiSelector(call, 'input[id^="rename-"]');
+  await dispatchUiKey(app, "Escape", "Escape", 27);
+  await sleep(150);
+  const focusAfterRenameEscape = await activeUiElement(call);
+  if (!focusAfterRenameEscape?.ariaLabel?.startsWith("Rename Lifecycle")) {
+    throw new Error(
+      `rename Escape did not restore focus to the visible Rename control: ${JSON.stringify(focusAfterRenameEscape)}`,
+    );
+  }
+  log({
+    kind: "ui-focus-retention",
+    method: "UI",
+    label: "rename-escape",
+    activeElement: focusAfterRenameEscape,
+  });
+  await installedKeyboardTrace(app, "preferences", 14);
+
+  await clickVisibleSelector(
+    app,
+    'a[href="#/library"]',
+    "navigate-library-by-visible-link",
+  );
+  await waitForUiText(call, "Scan status");
+  await waitForUiSelector(call, "#library-root-select");
+
+  const selectionBefore = await evaluate(
+    call,
+    `(() => {
+      const select = document.querySelector("#library-root-select");
+      return select instanceof HTMLSelectElement
+        ? { value: select.value, options: select.options.length }
+        : null;
+    })()`,
+  );
+  await clickVisibleSelector(
+    app,
+    "#library-root-select",
+    "focus-root-selector",
+  );
+  if (selectionBefore?.options > 1) {
+    await dispatchUiKey(app, "ArrowDown", "ArrowDown", 40);
+    await dispatchUiKey(app, "Enter", "Enter", 13);
+    await sleep(500);
+  }
+  const selectionAfter = await evaluate(
+    call,
+    `(() => {
+      const select = document.querySelector("#library-root-select");
+      return select instanceof HTMLSelectElement
+        ? { value: select.value, options: select.options.length }
+        : null;
+    })()`,
+  );
+  if (
+    selectionBefore?.options > 1 &&
+    selectionBefore.value === selectionAfter?.value
+  ) {
+    throw new Error(
+      `keyboard root selection did not change the selected value: ${JSON.stringify({ selectionBefore, selectionAfter })}`,
+    );
+  }
+  log({
+    kind: "ui-root-selection",
+    method: "UI",
+    selectionBefore,
+    selectionAfter,
+  });
+  await visibleUiSnapshot(call, "library-before-ui-scan");
+
+  await clickVisibleSelector(app, resourceButton, "scan-now-by-visible-button");
+  const running = await waitForRunning(
+    call,
+    roots.resource.id,
+    "ui-visible-scan-now",
+    120000,
+  );
+  await waitForUiText(call, "Running");
+  await visibleUiSnapshot(call, "library-running-after-visible-scan-now");
+
+  await clickVisibleSelector(
+    app,
+    'button[aria-label^="Cancel scan Resource Limit"]',
+    "cancel-by-visible-button",
+  );
+  const cancelled = await waitForStatus(
+    call,
+    roots.resource.id,
+    (status) => status?.state === "cancelled",
+    120000,
+    "ui-visible-cancel",
+  );
+  await waitForUiText(call, "Cancelled");
+  await sleep(350);
+  const pageAfterCancel = await pageFor(call, roots.resource.id);
+  const baselineRecords = baselinePage?.records ?? [];
+  const afterCancelSummary = pageSummary(pageAfterCancel);
+  const afterCancelRecords = afterCancelSummary.records ?? [];
+  if (JSON.stringify(afterCancelRecords) !== JSON.stringify(baselineRecords)) {
+    log({
+      kind: "ui-cancelled-page-comparison",
+      method: "UI",
+      baseline: baselinePage,
+      afterCancel: afterCancelSummary,
+    });
+    throw new Error("visible cancellation changed the committed Library page");
+  }
+  const afterCancelActions = await evaluate(
+    call,
+    `(() => [...document.querySelectorAll("button")]
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((label) => label?.includes("Resource Limit")))()`,
+  );
+  const focusAfterCancel = await waitForUiActiveLabel(
+    call,
+    "Scan now Resource Limit",
+  );
+  if (afterCancelActions?.some((label) => label?.startsWith("Retry scan "))) {
+    throw new Error("visible cancellation exposed a non-actionable Retry");
+  }
+  if (
+    !afterCancelActions?.some((label) => label === "Scan now Resource Limit")
+  ) {
+    throw new Error("visible cancellation did not expose Scan now");
+  }
+  log({
+    kind: "ui-cancelled-preservation",
+    method: "UI",
+    running: compactStatus(running),
+    cancelled: compactStatus(cancelled),
+    focusAfterCancel,
+    actions: afterCancelActions,
+    committedRecordCount: afterCancelRecords.length,
+    committedRecordsPreserved: true,
+  });
+  await visibleUiSnapshot(call, "library-cancelled-preserved");
+
+  await dispatchUiKey(app, "Enter", "Enter", 13);
+  const keyboardStarted = await waitForStatus(
+    call,
+    roots.resource.id,
+    (status) => status?.state === "queued" || status?.state === "running",
+    30000,
+    "ui-keyboard-scan-now",
+  );
+  await waitForRunning(call, roots.resource.id, "ui-keyboard-scan-now", 120000);
+  await visibleUiSnapshot(call, "library-running-after-keyboard-scan-now");
+  await clickVisibleSelector(
+    app,
+    'button[aria-label^="Cancel scan Resource Limit"]',
+    "cancel-keyboard-started-scan-by-visible-button",
+  );
+  const keyboardCancelled = await waitForStatus(
+    call,
+    roots.resource.id,
+    (status) => status?.state === "cancelled",
+    120000,
+    "ui-keyboard-cancel-cleanup",
+  );
+  await waitForUiText(call, "Cancelled");
+  log({
+    kind: "ui-keyboard-activation",
+    method: "UI",
+    started: compactStatus(keyboardStarted),
+    cancelled: compactStatus(keyboardCancelled),
+    activeElement: await activeUiElement(call),
+  });
+  await visibleUiSnapshot(call, "library-cancelled-after-keyboard-start");
 }
 
 function nativeCall(
@@ -713,6 +1536,30 @@ function prepareFixtures() {
     ),
   });
 
+  const retryBase = path.join(fixturesRoot, "retry-exhausted");
+  const retryRoot = path.join(retryBase, "scan-root");
+  const retryFile = path.join(retryRoot, "restore-me.flp");
+  writeSyntheticFile(retryFile);
+  const retryManifest = writeManifest(retryBase, "retry-exhausted-20260920", [
+    {
+      path: "scan-root/restore-me.flp",
+      bytes: fs.statSync(retryFile).size,
+      kind: "flp",
+    },
+  ]);
+
+  const lifecycleBase = path.join(fixturesRoot, "lifecycle");
+  const lifecycleRoot = path.join(lifecycleBase, "scan-root");
+  const lifecycleFile = path.join(lifecycleRoot, "lifecycle.flp");
+  writeSyntheticFile(lifecycleFile);
+  const lifecycleManifest = writeManifest(lifecycleBase, "lifecycle-20260920", [
+    {
+      path: "scan-root/lifecycle.flp",
+      bytes: fs.statSync(lifecycleFile).size,
+      kind: "flp",
+    },
+  ]);
+
   return {
     denied: {
       root: deniedDirectory,
@@ -732,6 +1579,16 @@ function prepareFixtures() {
       source: hardlinkSource,
       aliasA: hardlinkA,
       aliasB: hardlinkB,
+    },
+    retry: {
+      root: retryRoot,
+      file: retryFile,
+      manifest: retryManifest,
+    },
+    lifecycle: {
+      root: lifecycleRoot,
+      file: lifecycleFile,
+      manifest: lifecycleManifest,
     },
   };
 }
@@ -882,6 +1739,46 @@ async function addRoot(call, displayName, rootPath) {
   });
   if (!result.ok || result.response.status !== "ok") {
     throw new Error(`failed to add ${displayName}`);
+  }
+  return result.response.data;
+}
+
+async function renameRoot(call, rootId, displayName, label) {
+  const result = await invoke(call, "set_scan_root_display_name", {
+    schemaVersion: 1,
+    id: rootId,
+    displayName,
+  });
+  log({
+    kind: "root-renamed",
+    method: "native",
+    label,
+    rootId,
+    displayName,
+    result,
+  });
+  if (
+    !result.ok ||
+    result.response.status !== "ok" ||
+    result.response.data.displayName !== displayName
+  ) {
+    throw new Error(`${label} did not persist the display name`);
+  }
+  return result.response.data;
+}
+
+async function removeRoot(call, rootId, label) {
+  const result = await invoke(call, "remove_scan_root", {
+    schemaVersion: 1,
+    id: rootId,
+  });
+  log({ kind: "root-removed", method: "native", label, rootId, result });
+  if (
+    !result.ok ||
+    result.response.status !== "ok" ||
+    result.response.data.id !== rootId
+  ) {
+    throw new Error(`${label} did not remove the requested root`);
   }
   return result.response.data;
 }
@@ -1039,7 +1936,12 @@ async function startApp(label) {
       label,
       result: consoleState,
     });
-    return { child, websocket: connection.websocket, call: connection.call };
+    return {
+      child,
+      websocket: connection.websocket,
+      call: connection.call,
+      send: connection.send,
+    };
   } catch (error) {
     try {
       execFileSync("taskkill.exe", ["/F", "/PID", String(child.pid)], {
@@ -1087,6 +1989,22 @@ async function stopApp(app, label) {
     gracefulExitCode: graceful.exitCode,
     forced,
   });
+}
+
+async function forceStopApp(app, label) {
+  if (!app?.child?.pid) return;
+  try {
+    app.websocket?.close();
+  } catch {
+    // The CDP target can disappear during an intentional crash simulation.
+  }
+  const pid = app.child.pid;
+  nativeCall("app-stop-crash", "taskkill.exe", ["/F", "/PID", String(pid)]);
+  const started = Date.now();
+  while (isProcessAlive(pid) && Date.now() - started < 5000) await sleep(100);
+  if (isProcessAlive(pid))
+    throw new Error(`${label} app process survived exact-PID crash cleanup`);
+  log({ kind: "app-crash-stopped", method: "native", label, pid });
 }
 
 async function runCase(label, cases, body) {
@@ -1160,6 +2078,8 @@ async function main() {
         "Hardlink Aliases",
         fixtures.hardlinks.root,
       ),
+      retry: await addRoot(app.call, "Retry Exhausted", fixtures.retry.root),
+      lifecycle: await addRoot(app.call, "Lifecycle", fixtures.lifecycle.root),
     };
 
     const baselines = {};
@@ -1223,12 +2143,282 @@ async function main() {
         page: pageSummary(resource.page),
       };
       await uiSnapshot(app.call, "after-baseline-commits");
+      await visibleUiJourney(app, roots, baselines.resource.page);
     });
 
     await stopApp(app, "after-baseline");
     app = undefined;
     copyDatabaseSnapshot("baseline");
     app = await startApp("after-baseline");
+
+    await runCase("cancel-background-periodic", failures, async () => {
+      const baseline = await captureCommittedBaseline(
+        app.call,
+        roots.resource.id,
+        "before-cancel-background",
+      );
+      const active = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "cancel-background",
+        300000,
+      );
+      const cancelled = await cancelJob(
+        app.call,
+        active.start.jobId,
+        "cancel-background",
+      );
+      if (
+        !["cancellation_requested", "already_cancelled"].includes(
+          cancelled.outcome,
+        )
+      ) {
+        throw new Error(
+          `unexpected cancel outcome: ${JSON.stringify(cancelled)}`,
+        );
+      }
+      const eventPath = path.join(
+        fixtures.resource.root,
+        "cancel-background-event.flp",
+      );
+      writeSyntheticFile(eventPath);
+      log({
+        kind: "background-event-during-cancellation",
+        method: "native",
+        rootId: roots.resource.id,
+        relativePath: relativeArtifact(eventPath),
+        expected: "periodic hint must not clear durable cancellation",
+      });
+      const terminal = await waitForJobTerminal(
+        app.call,
+        roots.resource.id,
+        active.start.jobId,
+        "cancel-background",
+        300000,
+      );
+      if (
+        terminal.status.state !== "cancelled" ||
+        JSON.stringify(pageSummary(terminal.page).records) !==
+          JSON.stringify(baseline.page.records)
+      ) {
+        throw new Error(
+          "cancelled background event changed the committed snapshot",
+        );
+      }
+      await sleep(1500);
+      const settledStatus = await statusFor(app.call, roots.resource.id);
+      if (
+        settledStatus?.jobId !== active.start.jobId ||
+        settledStatus.state !== "cancelled"
+      ) {
+        log({
+          kind: "background-event-after-cancellation-settled",
+          method: "native",
+          status: compactStatus(settledStatus),
+          boundary:
+            "the installed watcher delivered the event after the original job had already terminalized; ordinary reconciliation may create one fresh job, so this is not classified as the pending-cancellation race",
+        });
+        if (
+          settledStatus &&
+          settledStatus.jobId !== active.start.jobId &&
+          ["queued", "running"].includes(settledStatus.state)
+        ) {
+          await cancelJob(
+            app.call,
+            settledStatus.jobId,
+            "cancel-background-post-terminal-cleanup",
+          );
+          await waitForJobTerminal(
+            app.call,
+            roots.resource.id,
+            settledStatus.jobId,
+            "cancel-background-post-terminal-cleanup",
+            300000,
+          );
+        }
+      }
+      fs.unlinkSync(eventPath);
+      log({
+        kind: "background-event-cleanup",
+        method: "native",
+        relativePath: relativeArtifact(eventPath),
+      });
+    });
+
+    await runCase("explicit-ordering-and-retry", failures, async () => {
+      const cancelThenManual = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "cancel-then-manual",
+        300000,
+      );
+      await cancelJob(
+        app.call,
+        cancelThenManual.start.jobId,
+        "cancel-then-manual",
+      );
+      const manual = await invoke(app.call, "scan_now", {
+        schemaVersion: 1,
+        rootId: roots.resource.id,
+      });
+      log({ kind: "manual-after-cancel", method: "native", result: manual });
+      if (!manual.ok || manual.response.status !== "ok") {
+        throw new Error("Manual trigger after cancellation was not accepted");
+      }
+      if (
+        manual.response.data.outcome === "already_running" &&
+        (!manual.response.data.runId || manual.response.data.runId.length === 0)
+      ) {
+        throw new Error("already_running Manual response lost its run id");
+      }
+      const manualTerminal = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "cancel-then-manual",
+        300000,
+      );
+      if (
+        manualTerminal.status.state !== "completed" ||
+        manualTerminal.status.jobId === cancelThenManual.start.jobId
+      ) {
+        throw new Error(
+          `Manual cancel ordering did not produce one completed successor: ${JSON.stringify(compactStatus(manualTerminal.status))}`,
+        );
+      }
+
+      const manualThenCancel = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "manual-then-cancel",
+        300000,
+      );
+      const coalesced = await invoke(app.call, "scan_now", {
+        schemaVersion: 1,
+        rootId: roots.resource.id,
+      });
+      log({
+        kind: "manual-follow-up-before-cancel",
+        method: "native",
+        result: coalesced,
+      });
+      if (!coalesced.ok || coalesced.response.status !== "ok") {
+        throw new Error("Manual follow-up before cancellation was rejected");
+      }
+      await cancelJob(
+        app.call,
+        manualThenCancel.start.jobId,
+        "manual-then-cancel",
+      );
+      const cancelledTerminal = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "manual-then-cancel",
+        300000,
+      );
+      if (
+        cancelledTerminal.status.state !== "cancelled" ||
+        cancelledTerminal.status.jobId !== manualThenCancel.start.jobId
+      ) {
+        throw new Error(
+          "cancellation after a Manual follow-up did not win the ordering",
+        );
+      }
+
+      const retried = await retryJob(
+        app.call,
+        manualThenCancel.start.jobId,
+        "retry-after-cancel",
+      );
+      if (
+        retried.outcome !== "queued" ||
+        retried.jobId === manualThenCancel.start.jobId
+      ) {
+        throw new Error(
+          `Retry after cancellation did not start a fresh chain: ${JSON.stringify(retried)}`,
+        );
+      }
+      const retriedTerminal = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "retry-after-cancel",
+        300000,
+      );
+      if (
+        retriedTerminal.status.state !== "completed" ||
+        retriedTerminal.status.jobId !== retried.jobId
+      ) {
+        throw new Error("the fresh Retry chain did not complete");
+      }
+      await uiSnapshot(app.call, "after-explicit-ordering-and-retry");
+    });
+
+    await runCase("retry-running-race-observation", failures, async () => {
+      const active = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "retry-running-race",
+        300000,
+      );
+      const retried = await retryJob(
+        app.call,
+        active.start.jobId,
+        "retry-running-race",
+      );
+      if (
+        retried.outcome !== "already_running" ||
+        typeof retried.runId !== "string" ||
+        retried.runId.length === 0
+      ) {
+        throw new Error(
+          `installed retry running response was not parser-safe: ${JSON.stringify(retried)}`,
+        );
+      }
+      log({
+        kind: "uncontrolled-installed-race-observation",
+        method: "native",
+        label: "retry-running-race",
+        result: retried,
+        boundary:
+          "normal installed timing observation; deterministic interleaving is covered by the native test seam",
+      });
+      await cancelJob(app.call, active.start.jobId, "retry-running-race");
+      const terminal = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "retry-running-race",
+        300000,
+      );
+      if (terminal.status.state !== "cancelled") {
+        throw new Error("retry-running race cleanup did not cancel the run");
+      }
+    });
+
+    await runCase("restart-recovery", failures, async () => {
+      const active = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "restart-recovery",
+        300000,
+      );
+      await forceStopApp(app, "restart-recovery");
+      app = undefined;
+      app = await startApp("after-forced-restart");
+      const recovered = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "restart-recovery",
+        300000,
+      );
+      if (
+        recovered.status.state !== "completed" ||
+        recovered.status.runId === active.running.runId
+      ) {
+        throw new Error(
+          `restart recovery did not complete on a recovered chain: ${JSON.stringify(compactStatus(recovered.status))}`,
+        );
+      }
+      await uiSnapshot(app.call, "after-restart-recovery");
+    });
 
     await runCase("denied-traversal", failures, async () => {
       if (!baselines.denied) {
@@ -1489,6 +2679,148 @@ async function main() {
         "hardlinks-disable-after-restore",
       );
     });
+
+    await runCase("retry-exhaustion", failures, async () => {
+      await toggleRoot(
+        app.call,
+        roots.retry.id,
+        false,
+        "retry-exhausted-disable-before-remove",
+      );
+      fs.rmSync(fixtures.retry.root, { recursive: true, force: false });
+      log({
+        kind: "retry-exhausted-root-removed",
+        method: "native",
+        relativePath: relativeArtifact(fixtures.retry.root),
+      });
+      await toggleRoot(
+        app.call,
+        roots.retry.id,
+        true,
+        "retry-exhausted-enable-missing-root",
+      );
+      const exhausted = await scanToTerminal(
+        app.call,
+        roots.retry.id,
+        "retry-exhausted-missing-root",
+        300000,
+      );
+      if (
+        exhausted.status.state !== "failed" ||
+        exhausted.status.retryAvailable !== false
+      ) {
+        throw new Error(
+          `missing-root retry chain did not exhaust: ${JSON.stringify(compactStatus(exhausted.status))}`,
+        );
+      }
+      fs.mkdirSync(fixtures.retry.root, { recursive: true });
+      writeSyntheticFile(fixtures.retry.file);
+      const retried = await retryJob(
+        app.call,
+        exhausted.status.jobId,
+        "retry-after-exhaustion",
+      );
+      if (
+        retried.outcome !== "queued" ||
+        retried.jobId === exhausted.status.jobId
+      ) {
+        throw new Error(
+          `exhausted Retry did not start a fresh chain: ${JSON.stringify(retried)}`,
+        );
+      }
+      const recovered = await waitForExistingTerminal(
+        app.call,
+        roots.retry.id,
+        "retry-after-exhaustion",
+        300000,
+      );
+      if (
+        recovered.status.state !== "completed" ||
+        recovered.status.jobId !== retried.jobId
+      ) {
+        throw new Error("fresh Retry after exhaustion did not complete");
+      }
+      await uiSnapshot(app.call, "after-retry-exhaustion");
+    });
+
+    await runCase("root-lifecycle", failures, async () => {
+      const initial = await scanToTerminal(
+        app.call,
+        roots.lifecycle.id,
+        "lifecycle-initial",
+      );
+      if (initial.status.state !== "completed")
+        throw new Error("lifecycle baseline did not complete");
+      const renamed = await renameRoot(
+        app.call,
+        roots.lifecycle.id,
+        "Lifecycle Renamed",
+        "lifecycle-rename",
+      );
+      const listedAfterRename = await listRoots(app.call);
+      if (
+        !listedAfterRename.some(
+          (root) =>
+            root.id === roots.lifecycle.id &&
+            root.displayName === renamed.displayName,
+        )
+      ) {
+        throw new Error("renamed root was not visible in list_scan_roots");
+      }
+      await toggleRoot(
+        app.call,
+        roots.lifecycle.id,
+        false,
+        "lifecycle-disable",
+      );
+      const disabledScan = await invoke(app.call, "scan_now", {
+        schemaVersion: 1,
+        rootId: roots.lifecycle.id,
+      });
+      log({
+        kind: "disabled-root-scan",
+        method: "native",
+        result: disabledScan,
+      });
+      if (!disabledScan.ok || disabledScan.response.status !== "error") {
+        throw new Error("disabled root accepted a Scan now request");
+      }
+      await toggleRoot(
+        app.call,
+        roots.lifecycle.id,
+        true,
+        "lifecycle-reenable-before-remove",
+      );
+      await removeRoot(app.call, roots.lifecycle.id, "lifecycle-remove");
+      if (
+        (await listRoots(app.call)).some(
+          (root) => root.id === roots.lifecycle.id,
+        )
+      ) {
+        throw new Error("removed root remained in list_scan_roots");
+      }
+      const restored = await addRoot(
+        app.call,
+        "Lifecycle Restored",
+        fixtures.lifecycle.root,
+      );
+      roots.lifecycle = restored;
+      const restoredScan = await scanToTerminal(
+        app.call,
+        roots.lifecycle.id,
+        "lifecycle-restored",
+      );
+      if (restoredScan.status.state !== "completed") {
+        throw new Error("re-added root did not scan successfully");
+      }
+      await toggleRoot(
+        app.call,
+        roots.lifecycle.id,
+        false,
+        "lifecycle-disable-after-restore",
+      );
+      await uiSnapshot(app.call, "after-root-lifecycle");
+    });
   } finally {
     if (app) {
       try {
@@ -1515,6 +2847,25 @@ async function main() {
       } catch (error) {
         failures.push({
           scenario: "hardlink-cleanup",
+          error: safeError(error),
+        });
+      }
+    }
+    const cancellationEvent = path.join(
+      fixtures.resource.root,
+      "cancel-background-event.flp",
+    );
+    if (fs.existsSync(cancellationEvent)) {
+      try {
+        fs.unlinkSync(cancellationEvent);
+        log({
+          kind: "background-event-cleanup-finally",
+          method: "native",
+          relativePath: relativeArtifact(cancellationEvent),
+        });
+      } catch (error) {
+        failures.push({
+          scenario: "background-event-cleanup",
           error: safeError(error),
         });
       }

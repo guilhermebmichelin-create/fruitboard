@@ -121,7 +121,7 @@ export function FruitboardApp({ platform }: FruitboardAppProps) {
         Skip to main content
       </a>
 
-      <div className="brand-block">
+      <header aria-label="Fruitboard workspace" className="brand-block">
         <span aria-hidden="true" className="brand-mark">
           F
         </span>
@@ -129,7 +129,7 @@ export function FruitboardApp({ platform }: FruitboardAppProps) {
           <strong>Fruitboard</strong>
           <span>Local workspace</span>
         </span>
-      </div>
+      </header>
 
       <nav aria-label="Primary" className="primary-navigation">
         <ul className="primary-navigation__list">
@@ -152,10 +152,10 @@ export function FruitboardApp({ platform }: FruitboardAppProps) {
 
       <NativeConnection state={healthState} />
 
-      <header className="page-header">
+      <section aria-labelledby="page-title" className="page-header">
         <div className="page-header__copy">
           <p className="eyebrow">Fruitboard workspace</p>
-          <h1>{currentRoute.title}</h1>
+          <h1 id="page-title">{currentRoute.title}</h1>
           <p>{currentRoute.description}</p>
         </div>
         <div aria-label="Page actions" className="page-actions">
@@ -163,7 +163,7 @@ export function FruitboardApp({ platform }: FruitboardAppProps) {
             {currentRoute.actionLabel}
           </Link>
         </div>
-      </header>
+      </section>
 
       <main className="main-content" id="main-content" tabIndex={-1}>
         <RouteFocusManager />

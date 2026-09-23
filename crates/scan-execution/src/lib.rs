@@ -70,6 +70,52 @@ pub trait ScanClock {
     fn now_ms(&self) -> i64;
 }
 
+/// The host-side ordering boundary for a worker finalization. The worker
+/// supplies the outcome it proposed after its durable snapshot; the desktop
+/// host may promote that proposal to a fenced cancellation when a matching
+/// cancel intent was accepted after the snapshot but before this boundary.
+pub trait FinalizationBoundary: Send + Sync {
+    fn finish_at_control_boundary(
+        &self,
+        database: &Mutex<Database>,
+        scan: &ActiveScan,
+        now_ms: i64,
+        proposed_outcome: ScanRunOutcome,
+        terminal_error_code: Option<&str>,
+    ) -> Result<ScanRunState, StorageError>;
+}
+
+struct DefaultFinalizationBoundary;
+
+impl FinalizationBoundary for DefaultFinalizationBoundary {
+    fn finish_at_control_boundary(
+        &self,
+        database: &Mutex<Database>,
+        scan: &ActiveScan,
+        now_ms: i64,
+        proposed_outcome: ScanRunOutcome,
+        terminal_error_code: Option<&str>,
+    ) -> Result<ScanRunState, StorageError> {
+        let mut database = database.lock().map_err(|_| StorageError::Io)?;
+        database.finish_scan_run_with_error(
+            &scan.leased.run.id,
+            &scan.leased.run.session_id,
+            &scan.leased.run.lease_token,
+            now_ms,
+            proposed_outcome,
+            terminal_error_code,
+        )
+    }
+}
+
+struct SharedResolution<'a> {
+    forced_cancel: bool,
+    cooperative_cancel_observed: bool,
+    outcome: Option<enumeration::Outcome>,
+    partial_class: Option<PartialClass>,
+    finalizer: &'a dyn FinalizationBoundary,
+}
+
 /// Production clock over the system wall clock. Milliseconds since the Unix
 /// epoch, clamped to the durable `i64` range like storage's own clock.
 #[derive(Clone, Copy, Debug, Default)]
@@ -356,14 +402,28 @@ impl ScanWorker {
 
     /// Queue a manual scan for one root through storage's dedup API. A queued
     /// or running root already owns the active slot; running work records one
-    /// coalesced follow-up request.
+    /// coalesced follow-up request that supersedes a pending cancellation.
     pub fn request_manual_scan(
         &self,
         db: &mut Database,
         root_id: &str,
         clock: &dyn ScanClock,
     ) -> Result<EnqueueResult, StorageError> {
-        db.enqueue_scan(root_id, ScanKind::Manual, clock.now_ms())
+        self.request_scan(db, root_id, ScanKind::Manual, clock)
+    }
+
+    /// Queue a scan of `kind` for one root through storage's dedup API. The
+    /// console's explicit Retry uses this to start a fresh chain when the
+    /// target chain is terminal (cancelled or budget-exhausted) instead of
+    /// dead-ending on a conflict.
+    pub fn request_scan(
+        &self,
+        db: &mut Database,
+        root_id: &str,
+        kind: ScanKind,
+        clock: &dyn ScanClock,
+    ) -> Result<EnqueueResult, StorageError> {
+        db.enqueue_scan(root_id, kind, clock.now_ms())
     }
 
     /// Lease the oldest due job and open its staging session. Returns `None`
@@ -553,19 +613,65 @@ impl ScanWorker {
         cancellation: &C,
         clock: &dyn ScanClock,
     ) -> ScanExecution {
+        self.execute_shared_with_finalizer(
+            db,
+            scan,
+            port,
+            cancellation,
+            clock,
+            &DefaultFinalizationBoundary,
+        )
+    }
+
+    /// Shared-mutex execution with the host's exact finalization ordering
+    /// boundary. Every non-publication terminal proposal is consulted there;
+    /// normal failure, follow-up, restart and root-fence outcomes retain their
+    /// proposed storage semantics unless the host has a matching accepted
+    /// cancellation intent for this exact run.
+    pub fn execute_shared_with_finalizer<P: FilesystemPort, C: Cancellation>(
+        &self,
+        db: &Mutex<Database>,
+        scan: ActiveScan,
+        port: &mut P,
+        cancellation: &C,
+        clock: &dyn ScanClock,
+        finalizer: &dyn FinalizationBoundary,
+    ) -> ScanExecution {
         let now = clock.now_ms();
         match self.fence_state_shared(db, &scan, now) {
             FenceState::Unreadable => {
                 return self.execution(&scan, ScanExecutionStatus::Fenced, None, None, None);
             }
             FenceState::Invalidated => {
-                return self.resolve_shared(db, &scan, clock, false, None, None);
+                return self.resolve_shared(
+                    db,
+                    &scan,
+                    clock,
+                    SharedResolution {
+                        forced_cancel: false,
+                        cooperative_cancel_observed: cancellation.is_cancelled(),
+                        outcome: None,
+                        partial_class: None,
+                        finalizer,
+                    },
+                );
             }
             FenceState::Held => {}
         }
         let Some(root_path) = root_path_shared(db, &scan.leased.run.scan_root_id) else {
             // Same removal case as `execute`: the run was detached already.
-            return self.resolve_shared(db, &scan, clock, false, None, None);
+            return self.resolve_shared(
+                db,
+                &scan,
+                clock,
+                SharedResolution {
+                    forced_cancel: false,
+                    cooperative_cancel_observed: cancellation.is_cancelled(),
+                    outcome: None,
+                    partial_class: None,
+                    finalizer,
+                },
+            );
         };
 
         let heartbeat =
@@ -632,9 +738,13 @@ impl ScanWorker {
                 db,
                 &scan,
                 clock,
-                forced_cancel,
-                Some(outcome),
-                partial_class(&report),
+                SharedResolution {
+                    forced_cancel,
+                    cooperative_cancel_observed: cancellation.is_cancelled(),
+                    outcome: Some(outcome),
+                    partial_class: partial_class(&report),
+                    finalizer,
+                },
             );
         }
 
@@ -651,7 +761,18 @@ impl ScanWorker {
                 );
             }
             FenceState::Invalidated => {
-                return self.resolve_shared(db, &scan, clock, false, Some(outcome), None);
+                return self.resolve_shared(
+                    db,
+                    &scan,
+                    clock,
+                    SharedResolution {
+                        forced_cancel: false,
+                        cooperative_cancel_observed: cancellation.is_cancelled(),
+                        outcome: Some(outcome),
+                        partial_class: None,
+                        finalizer,
+                    },
+                );
             }
             FenceState::Held => {}
         }
@@ -660,7 +781,18 @@ impl ScanWorker {
             #[cfg(feature = "diagnostics")]
             let _phase = phase_timer(DiagnosticPhase::Publication);
             let Ok(mut guard) = db.lock() else {
-                return self.resolve_shared(db, &scan, clock, false, Some(outcome), None);
+                return self.resolve_shared(
+                    db,
+                    &scan,
+                    clock,
+                    SharedResolution {
+                        forced_cancel: false,
+                        cooperative_cancel_observed: cancellation.is_cancelled(),
+                        outcome: Some(outcome),
+                        partial_class: None,
+                        finalizer,
+                    },
+                );
             };
             guard.publish_scan_run(
                 &scan.leased.run.id,
@@ -677,7 +809,18 @@ impl ScanWorker {
                 Some(publication),
                 changes,
             ),
-            Err(_) => self.resolve_shared(db, &scan, clock, false, Some(outcome), None),
+            Err(_) => self.resolve_shared(
+                db,
+                &scan,
+                clock,
+                SharedResolution {
+                    forced_cancel: false,
+                    cooperative_cancel_observed: cancellation.is_cancelled(),
+                    outcome: Some(outcome),
+                    partial_class: None,
+                    finalizer,
+                },
+            ),
         }
     }
 
@@ -878,19 +1021,24 @@ impl ScanWorker {
     }
 
     /// Shared-mutex variant of [`Self::resolve`]: each durable step is its own
-    /// short transaction so filesystem I/O never holds the lock. The final
-    /// `finish_scan_run` still validates lease, revision and cancellation
-    /// atomically, so the cancel/commit race keeps SQLite serialization as the
-    /// winner.
+    /// short transaction so filesystem I/O never holds the lock. Every
+    /// terminal proposal crosses the host finalization boundary before the
+    /// storage transition, so a cancellation accepted after the worker's
+    /// earlier token snapshot cannot bypass the exact-run ordering fence.
     fn resolve_shared(
         &self,
         db: &Mutex<Database>,
         scan: &ActiveScan,
         clock: &dyn ScanClock,
-        forced_cancel: bool,
-        outcome: Option<enumeration::Outcome>,
-        partial_class: Option<PartialClass>,
+        resolution: SharedResolution<'_>,
     ) -> ScanExecution {
+        let SharedResolution {
+            forced_cancel,
+            cooperative_cancel_observed,
+            outcome,
+            partial_class,
+            finalizer,
+        } = resolution;
         let now = clock.now_ms();
         let (run, job) = {
             let Ok(guard) = db.lock() else {
@@ -928,7 +1076,10 @@ impl ScanWorker {
                 partial_class,
             );
         }
-        let terminal = if forced_cancel || run.cancellation_requested || job.cancellation_requested
+        let terminal = if forced_cancel
+            || cooperative_cancel_observed
+            || run.cancellation_requested
+            || job.cancellation_requested
         {
             ScanRunOutcome::Cancelled
         } else if job.follow_up_requested {
@@ -936,26 +1087,13 @@ impl ScanWorker {
         } else {
             ScanRunOutcome::Failed
         };
-        let finished = {
-            let Ok(mut guard) = db.lock() else {
-                return self.execution_with_partial_class(
-                    scan,
-                    ScanExecutionStatus::Fenced,
-                    outcome,
-                    None,
-                    None,
-                    partial_class,
-                );
-            };
-            guard.finish_scan_run_with_error(
-                &scan.leased.run.id,
-                &scan.leased.run.session_id,
-                &scan.leased.run.lease_token,
-                now,
-                terminal,
-                durable_error_code(outcome),
-            )
-        };
+        let finished = finalizer.finish_at_control_boundary(
+            db,
+            scan,
+            now,
+            terminal,
+            durable_error_code(outcome),
+        );
         match finished {
             Ok(state) => self.execution_with_partial_class(
                 scan,

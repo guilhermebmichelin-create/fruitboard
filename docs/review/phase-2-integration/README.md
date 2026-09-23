@@ -180,13 +180,13 @@ evidence only and promote no criterion.
 
 <!-- markdownlint-disable MD060 -->
 
-| PR   | Merge     | Scope                                                                                                                                                                             |
-| ---- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| #137 | `b76bac7` | [Phase 2 residual close-out packet](residual-closeout-20260914.md) (2026-09-14); record only, no GitHub mutation                                                                  |
+| PR   | Merge     | Scope                                                                                                                                                                            |
+| ---- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #137 | `b76bac7` | [Phase 2 residual close-out packet](residual-closeout-20260914.md) (2026-09-14); record only, no GitHub mutation                                                                 |
 | #139 | `eeea1b6` | [Non-NTFS scanner scope decision](../../research/non-ntfs-scope-decision-20260915.md); local NTFS is the supported scope, DriveFS/FAT32/cross-volume excluded, #47/#48 stay open |
-| #140 | `c72fbc4` | `AGENTS.md` plain-language summary requirement for generated prompts and reviews                                                                                                  |
+| #140 | `c72fbc4` | `AGENTS.md` plain-language summary requirement for generated prompts and reviews                                                                                                 |
 | #141 | `7c7c477` | [Bounded Rust-parser fixture-manifest proposal](../../research/parser-fixture-manifest-proposal-20260914.md) for #138                                                            |
-| #142 | `274d155` | [Phase 2 residual disposition drafts](residual-disposition-drafts-2026-09-14.md) (2026-09-14); record only, no issue/PR mutation                                                  |
+| #142 | `274d155` | [Phase 2 residual disposition drafts](residual-disposition-drafts-2026-09-14.md) (2026-09-14); record only, no issue/PR mutation                                                 |
 
 <!-- markdownlint-enable MD060 -->
 
@@ -202,15 +202,15 @@ GitHub reports the following at recording time; this index mutates no issue.
 
 <!-- markdownlint-disable MD060 -->
 
-| Item     | Observed state                          | Note                                                                          |
-| -------- | --------------------------------------- | ----------------------------------------------------------------------------- |
-| #41      | CLOSED COMPLETED `2026-09-14T04:31:53Z` | Phase 2 evidence aggregator; acceptance-record provenance                     |
-| #33      | CLOSED `2026-09-15T02:41:05Z`           | Phase 2 epic; was open at acceptance                                          |
-| #107     | CLOSED COMPLETED `2026-09-15T01:46:45Z` | S5 restart-contract follow-up; was carried open at acceptance                 |
-| #36/#37/#39 | CLOSED as accepted (comments 2026-09-15) | P2-02/P2-03/P2-07/P2-09/P2-10/P2-11 accepted; platform and perf boundaries carried |
-| #38/#40  | OPEN                                    | Keep-open rationale posted 2026-09-15; carry the P2-08 evidence-only residual, no code fix ordered |
-| #47, #48 | OPEN                                    | Non-NTFS scope excluded by #139, but kept open as unverified-territory markers |
-| #138     | OPEN                                    | Spike open; fixture-manifest plan approved 2026-09-15 (merged #141); manifest PR authorized, spike starts after its merge |
+| Item        | Observed state                           | Note                                                                                                                      |
+| ----------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| #41         | CLOSED COMPLETED `2026-09-14T04:31:53Z`  | Phase 2 evidence aggregator; acceptance-record provenance                                                                 |
+| #33         | CLOSED `2026-09-15T02:41:05Z`            | Phase 2 epic; was open at acceptance                                                                                      |
+| #107        | CLOSED COMPLETED `2026-09-15T01:46:45Z`  | S5 restart-contract follow-up; was carried open at acceptance                                                             |
+| #36/#37/#39 | CLOSED as accepted (comments 2026-09-15) | P2-02/P2-03/P2-07/P2-09/P2-10/P2-11 accepted; platform and perf boundaries carried                                        |
+| #38/#40     | OPEN                                     | Keep-open rationale posted 2026-09-15; carry the P2-08 evidence-only residual, no code fix ordered                        |
+| #47, #48    | OPEN                                     | Non-NTFS scope excluded by #139, but kept open as unverified-territory markers                                            |
+| #138        | OPEN                                     | Spike open; fixture-manifest plan approved 2026-09-15 (merged #141); manifest PR authorized, spike starts after its merge |
 
 <!-- markdownlint-enable MD060 -->
 
@@ -541,9 +541,9 @@ documentation-only advances.
 
 <!-- markdownlint-disable MD060 -->
 
-| PR   | Merge     | Scope                                                                                                                                                                                                                                                                                                                                                        |
-| ---- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| #145 | `02d5b82` | [Parser fixture-corpus manifest scaffold](../../../fixtures/parser-corpus/manifest.md) for spike #138: records the owner-authoring method decision and the slot/version-row allocation, but commits no fixture byte or digest and force-adds no file, so every slot stays `not covered` and the spike remains blocked |
+| PR   | Merge     | Scope                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #145 | `02d5b82` | [Parser fixture-corpus manifest scaffold](../../../fixtures/parser-corpus/manifest.md) for spike #138: records the owner-authoring method decision and the slot/version-row allocation, but commits no fixture byte or digest and force-adds no file, so every slot stays `not covered` and the spike remains blocked                                                                                        |
 | #146 | `bd2fb1e` | [P2-08 gaps 1-3 installed evidence](installed-journey/run-20260915-p2o8-gaps-evidence.md), executed once on `02d5b82`: gaps 1a (`access_denied`) and 1b (`resource_limit`) are evidenced, gap 2 (`queued`/`running` keyboard and axe) is evidenced, gaps 1c (`unsupported`), 1d (`worker_failed`), and 3 (stable rendered `interrupted`) remain open, and the gap 4 full-criterion disposition is owner-only |
 
 <!-- markdownlint-enable MD060 -->
@@ -572,3 +572,58 @@ All dated 2026-09-13, 2026-09-14, and 2026-09-15 rows above are preserved
 verbatim. This addendum is record-only: it rewrites no dated row, mutates no
 issue, pull request, or comment, merges nothing, and records no acceptance
 decision beyond the owner's 2026-09-14 acceptance.
+
+## Post-#152 autonomous follow-up — 2026-09-21
+
+This dated addendum corrects the current-facing handoff without rewriting the
+historical tables above. The verified publication boundary is `main` at
+`73775453e9e4021c7b6b4ade381fd87300f47c32`, the squash merge of #152. The
+reviewed #152 product tree is `79da7e97f7b8481eab1f01661fe54ab0b33d98aa`.
+The merged implementation includes the explicit Retry and
+cancellation-finalization fixes. The follow-up branch adds only the UI/focus
+validation support, two scoped presentation/accessibility fixes, and this
+status record; it does not change the native cancellation contract.
+
+The retained evidence root is named
+`post152-autonomous-followup-20260921`. The exact installed records are
+`installed-ui-journey-final-20260921/ntfs-cases.jsonl`,
+`installed-ui-journey-final-20260921/driver.stdout.txt`,
+`installed-ui-journey-final-20260921/provenance.json`, and
+`installed-ui-journey-final-20260921/installed-artifacts.json`. The final
+driver record reports `pass: true`, `qualifiedFilesystem: "local NTFS only"`,
+and explicit exclusions for FAT32, DriveFS, and network shares.
+
+<!-- markdownlint-disable MD060 -->
+
+| Requirement                                                      | Current disposition                                                                                     | Exact evidence and genuine residual                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| #38 durable queue, cancellation, retry, and stale-worker fencing | Implemented and merged in #152; P2-04/P2-05/P2-11 remain covered by the 2026-09-14 owner acceptance     | #152 exact tree `79da7e9`; existing Rust/client tests and ten native scenarios; no new native cancellation defect found                                                                                                                                                                                                                                                                                     |
+| #38 visible Scan now/Cancel/Retry journey                        | Improved, but P2-08 remains Partial                                                                     | The installed record exercises visible Scan now and Cancel, real Windows `SendKeys` Tab/Space/Enter, cancelled-state focus, and intentional Scan now after cancellation/exhaustion. There is no fabricated Retry control when the product contract offers Scan now. A normal run still did not capture a stable queued screen, and interrupted remains durable-only                                         |
+| #38 typed failure presentation                                   | Partially evidenced                                                                                     | The native denied-traversal and resource-limit cases pass, and the visible post-case snapshots show “The folder could not be read” and “The scan reached a safe resource limit” while retaining prior results. `unsupported` and `worker_failed` were not produced in the installed UI journey, so their visible copy remains open                                                                          |
+| #40 atomic publication, Library rows, and hardlink aliases       | Automated/native evidence is strong; installed Library evidence is refreshed, but P2-08 remains Partial | The installed journey passes resource-limit cancellation preservation and hardlink-alias cases; `ui-cancelled-preservation` records 20 committed rows preserved. Full installed coverage of every typed failure and interrupted presentation remains open                                                                                                                                                   |
+| UI landmark and targeted accessibility rules                     | Scoped finding fixed; targeted checks pass                                                              | The `axe-targeted-result` records cover Preferences, Library, running, cancelled, and keyboard-started states using `region`, `landmark-one-main`, `landmark-unique`, `button-name`, `link-name`, `aria-allowed-attr`, and `aria-valid-attr`; each completed with `incomplete: []` and `violations: []`. Broader snapshots still report incomplete checks, so this is not a blanket accessibility clearance |
+| Filesystem/platform scope                                        | Explicitly bounded                                                                                      | Native and installed evidence is local synthetic NTFS only. No FAT32, DriveFS, network, cross-volume, or performance qualification claim is made                                                                                                                                                                                                                                                            |
+
+<!-- markdownlint-enable MD060 -->
+
+### Current #38/#40 owner-update recommendations
+
+These are proposed updates only; no issue or PR comment was posted.
+
+- Keep #38 open for the remaining P2-08 visible-state residual: stable queued
+  capture, `unsupported`/`worker_failed` presentation, and a stable interrupted
+  presentation. The cancellation and resource-limit/access-denied visible
+  records should replace the stale statement that none of those presentations
+  had been exercised. The owner still decides whether the remaining evidence is
+  enough for the full criterion.
+- Keep #40 open for the Library/list portion of the same P2-08 residual. The
+  hardlink regression and committed-row preservation are evidenced; the issue
+  should retain only the missing installed typed-state coverage rather than
+  repeating already-completed #152 review or merge work.
+- Keep #47/#48 as excluded or unverified territory. Do not treat them as a
+  blocker for the accepted local-NTFS scope, and do not infer support from this
+  run.
+
+The owner has not accepted full P2-08, authorized production scanning, or
+activated repository security products. Those decisions remain separate from
+the merged #152 implementation and this evidence-only follow-up.

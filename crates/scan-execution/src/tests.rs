@@ -1001,6 +1001,65 @@ fn durable_cancellation_committed_before_apply_prevents_publish() {
     );
 }
 
+// P2-08 retry convergence: a trigger that lands after a cancellation request
+// supersedes the stale cancellation instead of being dropped. The attempt
+// ends interrupted and the queued successor converges.
+#[test]
+fn trigger_after_cancellation_request_runs_the_successor() {
+    let mut harness = Harness::new("cancel-then-trigger");
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    assert_eq!(
+        harness
+            .db
+            .request_scan_cancellation(&scan.leased.run.id, harness.clock.now_ms())
+            .expect("durable cancellation"),
+        ScanRunState::Running
+    );
+    // The user (or a watcher) asks for a scan while the cancelled attempt is
+    // still finishing. Storage clears the stale cancellation and records the
+    // follow-up.
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("coalesced follow-up");
+
+    let mut port = FakePort::new(tree(vec![file_entry("a.flp", 101)]));
+    let execution = harness.worker.execute(
+        &mut harness.db,
+        scan,
+        &mut port,
+        &NeverCancelled,
+        &harness.clock,
+    );
+    assert_eq!(execution.status, ScanExecutionStatus::Interrupted);
+    assert!(!execution.authoritative);
+    assert!(execution.publication.is_none());
+    assert!(harness.committed().is_empty());
+
+    // The successor is due and converges on the next poll.
+    let follow_up = harness
+        .drain(tree(vec![file_entry("a.flp", 101)]))
+        .expect("successor execution");
+    assert_eq!(follow_up.status, ScanExecutionStatus::Published);
+    assert_eq!(
+        follow_up
+            .publication
+            .as_ref()
+            .expect("publication")
+            .location_count,
+        1
+    );
+    assert_eq!(
+        harness.root_jobs().len(),
+        2,
+        "one superseded attempt, one successor"
+    );
+}
+
 // P2-03: the local cooperative cancellation token ends the run cancelled
 // with no publication and no retried work.
 #[test]
@@ -2415,6 +2474,68 @@ fn running_work_coalesces_hints_onto_one_follow_up_request() {
         harness.root_jobs().len(),
         2,
         "one follow-up job, never more"
+    );
+}
+
+// P2-08/P2-09: a watcher hint that arrives after durable cancellation is
+// acknowledged still travels through the real adapter and worker path, but
+// it cannot clear either cancellation mirror or create a successor.
+#[test]
+fn watcher_hint_during_durable_cancellation_keeps_cancelled_attempt_terminal() {
+    let mut harness = Harness::new("followup-cancelled-running");
+    let mut follow_ups = adapter(&harness);
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue");
+    let scan = harness.claim();
+    assert_eq!(
+        harness
+            .db
+            .request_scan_cancellation(&scan.leased.run.id, harness.clock.now_ms())
+            .expect("durable cancellation"),
+        ScanRunState::Running
+    );
+
+    let hint = WatchHint {
+        root: WATCH_ROOT,
+        generation: 1,
+        kind: HintKind::ReconciliationRequested,
+    };
+    let outcome = follow_ups
+        .process_hints(&mut harness.db, &[hint], &harness.clock)
+        .expect("watcher adapter");
+    assert_eq!(outcome.requests.len(), 1);
+    assert!(outcome.requests[0].coalesced);
+    let job = harness
+        .db
+        .scan_job(&scan.leased.run.scan_job_id)
+        .expect("running job");
+    assert!(job.cancellation_requested);
+    assert!(!job.follow_up_requested);
+    let run = harness
+        .db
+        .scan_run(&scan.leased.run.id)
+        .expect("running attempt");
+    assert!(run.cancellation_requested);
+
+    let execution = harness.worker.execute(
+        &mut harness.db,
+        scan,
+        &mut FakePort::new(tree(vec![file_entry("a.flp", 101)])),
+        &NeverCancelled,
+        &harness.clock,
+    );
+    assert_eq!(execution.status, ScanExecutionStatus::Cancelled);
+    assert!(!execution.authoritative);
+    assert_eq!(harness.root_jobs().len(), 1, "no watcher successor");
+    assert_eq!(
+        harness
+            .db
+            .scan_job(&execution.job_id)
+            .expect("cancelled job")
+            .state,
+        ScanJobState::Cancelled
     );
 }
 
