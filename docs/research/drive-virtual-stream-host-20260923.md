@@ -5,10 +5,9 @@
 Can the experimental `driveVirtual` mode manually scan a real streamed Google
 Drive for desktop mount without marking an unseen prior file missing? On this
 one host, the installed app **passed after a narrow Windows port fix**. The
-original PR head failed enumeration. This is partial host evidence, not full
-DriveFS qualification: known offline placeholders, mirrored comparison,
-disconnect/reconnect, overflow, and local NTFS regression remain untested.
-Keep PR #167 draft and the mode experimental and manual-only.
+original PR head failed enumeration. At this host-run checkpoint, known offline
+placeholders, mirrored comparison, disconnect/reconnect, overflow, and local
+NTFS regression remained untested. The mode remains experimental and manual-only.
 
 ## Environment and scope
 
@@ -68,3 +67,13 @@ The disposable Drive folder and installed test packages were removed. The
 preexisting Foundation Smoke database was restored with its original hash;
 normal application data was not changed. This finding does not close #47 or
 promote the DriveFS matrix in the Phase 2 plan.
+
+## Owner disposition, 2026-09-23
+
+After the [installed local NTFS regression](drive-virtual-local-ntfs-regression-20260923.md)
+passed and all ten checks passed on the integrated PR head, the owner approved
+marking PR #167 ready for review as a limited experimental, manual-only spike.
+Issue #47 remains open. This review scope does not establish general DriveFS
+support or authorize a mode switch, sync pause, or automatic DriveFS watching.
+Offline placeholders, mirrored comparison, disconnect/reconnect, and overflow
+remain unverified on the host.
