@@ -540,3 +540,34 @@ After Phase 2 owner acceptance, schedule the bounded independent Rust-parser
 spike before Phase 3 selection. PyFLP remains an optional candidate subject to
 compatibility, packaging and compatible licensing gates, not a requirement.
 No new Phase 3 issues/code are needed to complete this planning PR.
+
+## Current post-#152 handoff — 2026-09-21
+
+This addendum is the current status correction; historical baselines and dated
+tables above remain unchanged. `main` is now
+`73775453e9e4021c7b6b4ade381fd87300f47c32`, the squash merge of #152, whose
+reviewed product tree is `79da7e97f7b8481eab1f01661fe54ab0b33d98aa`. The
+explicit Retry and cancellation-finalization fixes are therefore merged and
+their previous owner-action item is complete.
+
+The feature-enabled installed follow-up uses synthetic local NTFS roots only.
+It passes ten native scenarios and the actual visible settings/Library journey,
+including keyboard focus, Scan now, Cancel, typed denied/resource-limit copy,
+and committed-row preservation. The retained evidence root is
+`post152-autonomous-followup-20260921`; the final driver record is `pass: true`
+and explicitly excludes FAT32, DriveFS, and network shares.
+
+P2-08 remains **Partial**. The installed run now supplies visible
+access-denied/resource-limit evidence and targeted axe passes for the exercised
+Preferences, Library, running, cancelled, and keyboard-started states. It does
+not supply a stable queued screen, `unsupported` or `worker_failed` visible
+presentations, or a stable rendered interrupted state. Broader axe snapshots
+still contain incomplete results, so the targeted passes are not blanket
+accessibility clearance. Issues #38 and #40 remain open for that narrowed
+evidence residual; #47/#48 remain excluded or unverified territory.
+
+No performance qualification, non-NTFS support claim, parser research, full
+P2-08 acceptance, production-scanning activation, or security-product
+activation follows from this implementation or evidence refresh. The owner
+still decides the remaining acceptance, fixture/parser, security, and scope
+items listed in the final handoff.
