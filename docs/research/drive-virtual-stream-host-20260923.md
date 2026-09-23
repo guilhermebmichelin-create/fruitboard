@@ -21,7 +21,7 @@ Keep PR #167 draft and the mode experimental and manual-only.
   The mode was not independently captured from the settings UI.
 - Original PR source: `fc620e3eb92283eeab8bb8a765061d801921aa96`.
   Patched source is the later commit containing this note. Toolchains used:
-  Node 24.20.0, pnpm 11.25.0, Rust 1.98.0, Python 3.11.16.
+  Node 24.20.0, pnpm 11.25.0, Rust 1.98.1, Python 3.11.16.
 - The owner approved one uniquely named, under-1-MiB synthetic folder and
   cleanup despite `G:` having 14.29 GiB free, below the normal 30 GiB
   fixture reserve. The owner chose current mode only; no mode switch or sync

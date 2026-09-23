@@ -4,9 +4,10 @@
   [2026-09-23 Stream files run](drive-virtual-stream-host-20260923.md).
   The full per-mode matrix below remains incomplete.
 - Parent: #33. Follows #42 (partial result in
-  `docs/research/p0-d-drivefs-watcher.md`). Until this runbook is executed
-  or the owner posts an explicit scope-exclusion sentence, DriveFS behavior
-  stays labeled **unverified** and no Drive claim may be made for #36/#37.
+  `docs/research/p0-d-drivefs-watcher.md`). Until the full matrix below is
+  executed or the owner posts an explicit scope-exclusion sentence, general
+  DriveFS behavior stays labeled **unverified** and no Drive claim may be made
+  for #36/#37.
 - Dependents: P2-09 (watcher bursts/overflow/event loss) stays **Pending**;
   this file does not promote P2-07, P2-09, or P2-12, and does not amend
   `docs/PHASE_2_EXECUTION_PLAN.md`.
