@@ -185,7 +185,7 @@ function connect(target) {
 
     websocket.addEventListener("open", () => {
       clearTimeout(connectTimer);
-      resolve({ websocket, call });
+      resolve({ websocket, call, send });
     });
     websocket.addEventListener("error", () => {
       clearTimeout(connectTimer);
@@ -201,26 +201,30 @@ function connect(target) {
       }
     });
 
-    function call(expression, timeoutMilliseconds = 30000) {
+    function send(method, params = {}, timeoutMilliseconds = 30000) {
       return new Promise((resolveCall, rejectCall) => {
         const id = ++nextId;
         const timer = setTimeout(() => {
           pending.delete(id);
-          rejectCall(new Error("CDP evaluation timed out"));
+          rejectCall(new Error(`CDP ${method} timed out`));
         }, timeoutMilliseconds);
         pending.set(id, { resolve: resolveCall, reject: rejectCall, timer });
         websocket.send(
           JSON.stringify({
             id,
-            method: "Runtime.evaluate",
-            params: {
-              expression,
-              returnByValue: true,
-              awaitPromise: true,
-            },
+            method,
+            params,
           }),
         );
       });
+    }
+
+    function call(expression, timeoutMilliseconds = 30000) {
+      return send(
+        "Runtime.evaluate",
+        { expression, returnByValue: true, awaitPromise: true },
+        timeoutMilliseconds,
+      );
     }
   });
 }
@@ -249,6 +253,209 @@ async function evaluate(call, expression, timeoutMilliseconds = 30000) {
     throw new Error(`DOM evaluation failed for installed UI observation`);
   }
   return message.result?.result?.value;
+}
+
+async function waitForUiText(call, text, timeoutMilliseconds = 30000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMilliseconds) {
+    const present = await evaluate(
+      call,
+      `document.body?.innerText?.includes(${JSON.stringify(text)}) === true`,
+    );
+    if (present) return;
+    await sleep(100);
+  }
+  throw new Error(`installed UI did not render expected text: ${text}`);
+}
+
+async function waitForUiSelector(call, selector, timeoutMilliseconds = 30000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMilliseconds) {
+    const present = await evaluate(
+      call,
+      `document.querySelector(${JSON.stringify(selector)}) !== null`,
+    );
+    if (present) return;
+    await sleep(100);
+  }
+  throw new Error(`installed UI did not render selector: ${selector}`);
+}
+
+async function clickVisibleSelector(app, selector, label) {
+  const target = await evaluate(
+    app.call,
+    `(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!(element instanceof HTMLElement)) return null;
+      element.scrollIntoView({ block: "center", inline: "nearest" });
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        tag: element.tagName.toLowerCase(),
+        ariaLabel: element.getAttribute("aria-label"),
+        text: (element.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 120),
+        disabled: element instanceof HTMLButtonElement || element instanceof HTMLInputElement
+          ? element.disabled
+          : false,
+        visible: rect.width > 0 && rect.height > 0 &&
+          rect.top >= 0 && rect.left >= 0 &&
+          rect.bottom <= window.innerHeight && rect.right <= window.innerWidth &&
+          style.visibility !== "hidden" && style.display !== "none",
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+    })()`,
+  );
+  if (!target?.visible || target.disabled) {
+    throw new Error(
+      `visible UI target was not actionable for ${label}: ${JSON.stringify(target)}`,
+    );
+  }
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: target.x,
+    y: target.y,
+  });
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: target.x,
+    y: target.y,
+    button: "left",
+    clickCount: 1,
+  });
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: target.x,
+    y: target.y,
+    button: "left",
+    clickCount: 1,
+  });
+  log({
+    kind: "ui-visible-click",
+    method: "UI",
+    label,
+    selector,
+    target,
+    activeElement: await activeUiElement(app.call),
+  });
+  return target;
+}
+
+async function dispatchUiKey(app, key) {
+  const sendKey = {
+    " ": " ",
+    Tab: "{TAB}",
+    ArrowDown: "{DOWN}",
+    Enter: "{ENTER}",
+    Escape: "{ESC}",
+  }[key];
+  if (!sendKey || !Number.isInteger(app.child?.pid)) {
+    throw new Error(`unsupported installed UI key dispatch: ${key}`);
+  }
+  const script = [
+    '$ErrorActionPreference = "Stop"',
+    "Add-Type -AssemblyName Microsoft.VisualBasic",
+    "Add-Type -AssemblyName System.Windows.Forms",
+    `$appPid = ${app.child.pid}`,
+    "[Microsoft.VisualBasic.Interaction]::AppActivate($appPid)",
+    "Start-Sleep -Milliseconds 75",
+    `[System.Windows.Forms.SendKeys]::SendWait(${JSON.stringify(sendKey)})`,
+  ].join("; ");
+  execFileSync(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", script],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], windowsHide: true },
+  );
+  log({
+    kind: "ui-key-input",
+    method: "UI",
+    key,
+    transport: "Windows.SendKeys",
+    pid: app.child.pid,
+  });
+}
+
+async function activeUiElement(call) {
+  return evaluate(
+    call,
+    `(() => {
+      const element = document.activeElement;
+      if (!(element instanceof HTMLElement)) return null;
+      return {
+        tag: element.tagName.toLowerCase(),
+        id: element.id || null,
+        role: element.getAttribute("role"),
+        ariaLabel: element.getAttribute("aria-label"),
+        text: (element.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 120),
+        href: element.getAttribute("href"),
+      };
+    })()`,
+  );
+}
+
+async function waitForUiActiveLabel(
+  call,
+  ariaLabel,
+  timeoutMilliseconds = 30000,
+) {
+  const started = Date.now();
+  let lastActive = null;
+  while (Date.now() - started < timeoutMilliseconds) {
+    lastActive = await activeUiElement(call);
+    if (lastActive?.ariaLabel === ariaLabel) return lastActive;
+    await sleep(100);
+  }
+  throw new Error(
+    `installed UI did not move focus to ${ariaLabel}: ${JSON.stringify(lastActive)}`,
+  );
+}
+
+async function installedKeyboardTrace(app, label, steps = 12) {
+  await evaluate(app.call, "document.body?.focus(); true");
+  const trace = [];
+  for (let index = 0; index < steps; index += 1) {
+    await dispatchUiKey(app, "Tab", "Tab", 9);
+    await sleep(120);
+    trace.push(await activeUiElement(app.call));
+  }
+  log({ kind: "ui-keyboard-trace", method: "UI", label, trace });
+  return trace;
+}
+
+async function focusVisibleSelectorByKeyboard(app, selector, label) {
+  const target = await evaluate(
+    app.call,
+    `(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      return element instanceof HTMLElement
+        ? { ariaLabel: element.getAttribute("aria-label"), tag: element.tagName }
+        : null;
+    })()`,
+  );
+  if (!target?.ariaLabel) {
+    throw new Error(`keyboard focus target was not labelled for ${label}`);
+  }
+  const trace = [];
+  for (let index = 0; index < 40; index += 1) {
+    const active = await activeUiElement(app.call);
+    trace.push(active);
+    if (active?.ariaLabel === target.ariaLabel) {
+      log({
+        kind: "ui-keyboard-focus",
+        method: "UI",
+        label,
+        selector,
+        target,
+        trace,
+      });
+      return active;
+    }
+    await dispatchUiKey(app, "Tab");
+    await sleep(75);
+  }
+  throw new Error(
+    `keyboard focus did not reach ${label}: ${JSON.stringify({ target, trace })}`,
+  );
 }
 
 function compactStatus(status) {
@@ -360,7 +567,12 @@ async function waitForRunning(
       `${label} did not expose a running state with a non-empty run id`,
     );
   }
-  log({ kind: "running-observed", method: "native", label, status: compactStatus(status) });
+  log({
+    kind: "running-observed",
+    method: "native",
+    label,
+    status: compactStatus(status),
+  });
   return status;
 }
 
@@ -653,6 +865,351 @@ async function runAxe(call, label) {
     log({ kind: "axe-result", method: "UI", label, result: unavailable });
     return unavailable;
   }
+}
+
+async function runAxeRules(call, label, rules) {
+  const source = loadAxeSource();
+  if (!source) {
+    const unavailable = {
+      status: "unavailable",
+      reason: "axe-core source was not present in the evidence checkout",
+      rules,
+    };
+    log({
+      kind: "axe-targeted-result",
+      method: "UI",
+      label,
+      result: unavailable,
+    });
+    return unavailable;
+  }
+  try {
+    const result = await evaluate(
+      call,
+      `(() => {
+        if (!window.axe) new Function(${JSON.stringify(source)})();
+        return window.axe.run(document, {
+          runOnly: { type: "rule", values: ${JSON.stringify(rules)} },
+        }).then((report) => ({
+          version: window.axe.version,
+          passes: report.passes.map((entry) => entry.id),
+          incomplete: report.incomplete.map((entry) => ({
+            id: entry.id,
+            impact: entry.impact,
+            nodes: entry.nodes.slice(0, 20).map((node) => ({
+              target: node.target,
+              html: node.html,
+            })),
+          })),
+          violations: report.violations.map((entry) => ({
+            id: entry.id,
+            impact: entry.impact,
+            nodes: entry.nodes.slice(0, 20).map((node) => ({
+              target: node.target,
+              html: node.html,
+            })),
+          })),
+        }));
+      })()`,
+      60000,
+    );
+    const normalized = { status: "completed", rules, ...result };
+    log({
+      kind: "axe-targeted-result",
+      method: "UI",
+      label,
+      result: normalized,
+    });
+    return normalized;
+  } catch (error) {
+    const unavailable = {
+      status: "unavailable",
+      rules,
+      reason: safeError(error),
+    };
+    log({
+      kind: "axe-targeted-result",
+      method: "UI",
+      label,
+      result: unavailable,
+    });
+    return unavailable;
+  }
+}
+
+async function visibleUiSnapshot(call, label) {
+  const snapshot = await evaluate(
+    call,
+    `(() => ({
+      url: location.href,
+      title: document.title,
+      libraryState: document.querySelector("[data-library-state]")?.getAttribute("data-library-state") ?? null,
+      progress: [...document.querySelectorAll("[data-scan-progress]")].map((element) => element.getAttribute("data-scan-progress")),
+      activeElement: document.activeElement instanceof HTMLElement
+        ? {
+            tag: document.activeElement.tagName.toLowerCase(),
+            id: document.activeElement.id || null,
+            role: document.activeElement.getAttribute("role"),
+            ariaLabel: document.activeElement.getAttribute("aria-label"),
+            text: (document.activeElement.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 120),
+          }
+        : null,
+      controls: [...document.querySelectorAll("a[href], button, input, select")].map((element) => ({
+        tag: element.tagName.toLowerCase(),
+        ariaLabel: element.getAttribute("aria-label"),
+        text: (element.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 80),
+        href: element.getAttribute("href"),
+        disabled: element instanceof HTMLButtonElement || element instanceof HTMLInputElement
+          ? element.disabled
+          : false,
+      })),
+      liveMessages: [...document.querySelectorAll("[aria-live], [role=alert], [role=status]")].map((element) => ({
+        role: element.getAttribute("role"),
+        live: element.getAttribute("aria-live"),
+        text: (element.textContent ?? "").replace(/\\s+/g, " ").trim().slice(0, 180),
+      })).filter((entry) => entry.text.length > 0),
+      body: (document.body.innerText ?? "").replace(/\\s+/g, " ").trim().slice(0, 2200),
+    }))()`,
+  );
+  const axe = await runAxeRules(call, label, [
+    "region",
+    "landmark-one-main",
+    "landmark-unique",
+    "button-name",
+    "link-name",
+    "aria-allowed-attr",
+    "aria-valid-attr",
+  ]);
+  log({ kind: "ui-visible-snapshot", label, method: "UI", snapshot, axe });
+  return { snapshot, axe };
+}
+
+async function visibleUiJourney(app, roots, baselinePage) {
+  const { call, send } = app;
+  const resourceButton = 'button[aria-label^="Scan now Resource Limit"]';
+  const lifecycleToggle = 'input[aria-label="Lifecycle enabled"]';
+
+  await clickVisibleSelector(
+    app,
+    'a[href="#/preferences"]',
+    "navigate-preferences-by-visible-link",
+  );
+  await waitForUiText(call, "Scan roots");
+  await waitForUiSelector(call, lifecycleToggle);
+  await visibleUiSnapshot(call, "preferences-before-settings");
+
+  await clickVisibleSelector(
+    app,
+    lifecycleToggle,
+    "disable-lifecycle-root-by-visible-checkbox",
+  );
+  await sleep(400);
+  const disabledRoot = (await listRoots(call)).find(
+    (root) => root.id === roots.lifecycle.id,
+  );
+  if (!disabledRoot || disabledRoot.enabled !== false) {
+    throw new Error("the visible lifecycle checkbox did not disable its root");
+  }
+  await clickVisibleSelector(
+    app,
+    'a[href="#/preferences"]',
+    "focus-preferences-before-keyboard-toggle",
+  );
+  await focusVisibleSelectorByKeyboard(
+    app,
+    lifecycleToggle,
+    "focus-lifecycle-by-keyboard",
+  );
+  await dispatchUiKey(app, " ");
+  await sleep(400);
+  const reenabledRoot = (await listRoots(call)).find(
+    (root) => root.id === roots.lifecycle.id,
+  );
+  if (!reenabledRoot || reenabledRoot.enabled !== true) {
+    throw new Error(
+      "the focused lifecycle checkbox did not re-enable its root",
+    );
+  }
+  log({
+    kind: "ui-settings-toggle",
+    method: "UI",
+    rootId: roots.lifecycle.id,
+    afterMouse: disabledRoot.enabled,
+    afterKeyboard: reenabledRoot.enabled,
+  });
+
+  await clickVisibleSelector(
+    app,
+    'button[aria-label^="Rename Lifecycle"]',
+    "open-rename-editor-by-visible-button",
+  );
+  await waitForUiSelector(call, 'input[id^="rename-"]');
+  await dispatchUiKey(app, "Escape", "Escape", 27);
+  await sleep(150);
+  const focusAfterRenameEscape = await activeUiElement(call);
+  if (!focusAfterRenameEscape?.ariaLabel?.startsWith("Rename Lifecycle")) {
+    throw new Error(
+      `rename Escape did not restore focus to the visible Rename control: ${JSON.stringify(focusAfterRenameEscape)}`,
+    );
+  }
+  log({
+    kind: "ui-focus-retention",
+    method: "UI",
+    label: "rename-escape",
+    activeElement: focusAfterRenameEscape,
+  });
+  await installedKeyboardTrace(app, "preferences", 14);
+
+  await clickVisibleSelector(
+    app,
+    'a[href="#/library"]',
+    "navigate-library-by-visible-link",
+  );
+  await waitForUiText(call, "Scan status");
+  await waitForUiSelector(call, "#library-root-select");
+
+  const selectionBefore = await evaluate(
+    call,
+    `(() => {
+      const select = document.querySelector("#library-root-select");
+      return select instanceof HTMLSelectElement
+        ? { value: select.value, options: select.options.length }
+        : null;
+    })()`,
+  );
+  await clickVisibleSelector(
+    app,
+    "#library-root-select",
+    "focus-root-selector",
+  );
+  if (selectionBefore?.options > 1) {
+    await dispatchUiKey(app, "ArrowDown", "ArrowDown", 40);
+    await dispatchUiKey(app, "Enter", "Enter", 13);
+    await sleep(500);
+  }
+  const selectionAfter = await evaluate(
+    call,
+    `(() => {
+      const select = document.querySelector("#library-root-select");
+      return select instanceof HTMLSelectElement
+        ? { value: select.value, options: select.options.length }
+        : null;
+    })()`,
+  );
+  if (
+    selectionBefore?.options > 1 &&
+    selectionBefore.value === selectionAfter?.value
+  ) {
+    throw new Error(
+      `keyboard root selection did not change the selected value: ${JSON.stringify({ selectionBefore, selectionAfter })}`,
+    );
+  }
+  log({
+    kind: "ui-root-selection",
+    method: "UI",
+    selectionBefore,
+    selectionAfter,
+  });
+  await visibleUiSnapshot(call, "library-before-ui-scan");
+
+  await clickVisibleSelector(app, resourceButton, "scan-now-by-visible-button");
+  const running = await waitForRunning(
+    call,
+    roots.resource.id,
+    "ui-visible-scan-now",
+    120000,
+  );
+  await waitForUiText(call, "Running");
+  await visibleUiSnapshot(call, "library-running-after-visible-scan-now");
+
+  await clickVisibleSelector(
+    app,
+    'button[aria-label^="Cancel scan Resource Limit"]',
+    "cancel-by-visible-button",
+  );
+  const cancelled = await waitForStatus(
+    call,
+    roots.resource.id,
+    (status) => status?.state === "cancelled",
+    120000,
+    "ui-visible-cancel",
+  );
+  await waitForUiText(call, "Cancelled");
+  await sleep(350);
+  const pageAfterCancel = await pageFor(call, roots.resource.id);
+  const baselineRecords = baselinePage?.records ?? [];
+  const afterCancelSummary = pageSummary(pageAfterCancel);
+  const afterCancelRecords = afterCancelSummary.records ?? [];
+  if (JSON.stringify(afterCancelRecords) !== JSON.stringify(baselineRecords)) {
+    log({
+      kind: "ui-cancelled-page-comparison",
+      method: "UI",
+      baseline: baselinePage,
+      afterCancel: afterCancelSummary,
+    });
+    throw new Error("visible cancellation changed the committed Library page");
+  }
+  const afterCancelActions = await evaluate(
+    call,
+    `(() => [...document.querySelectorAll("button")]
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((label) => label?.includes("Resource Limit")))()`,
+  );
+  const focusAfterCancel = await waitForUiActiveLabel(
+    call,
+    "Scan now Resource Limit",
+  );
+  if (afterCancelActions?.some((label) => label?.startsWith("Retry scan "))) {
+    throw new Error("visible cancellation exposed a non-actionable Retry");
+  }
+  if (
+    !afterCancelActions?.some((label) => label === "Scan now Resource Limit")
+  ) {
+    throw new Error("visible cancellation did not expose Scan now");
+  }
+  log({
+    kind: "ui-cancelled-preservation",
+    method: "UI",
+    running: compactStatus(running),
+    cancelled: compactStatus(cancelled),
+    focusAfterCancel,
+    actions: afterCancelActions,
+    committedRecordCount: afterCancelRecords.length,
+    committedRecordsPreserved: true,
+  });
+  await visibleUiSnapshot(call, "library-cancelled-preserved");
+
+  await dispatchUiKey(app, "Enter", "Enter", 13);
+  const keyboardStarted = await waitForStatus(
+    call,
+    roots.resource.id,
+    (status) => status?.state === "queued" || status?.state === "running",
+    30000,
+    "ui-keyboard-scan-now",
+  );
+  await waitForRunning(call, roots.resource.id, "ui-keyboard-scan-now", 120000);
+  await visibleUiSnapshot(call, "library-running-after-keyboard-scan-now");
+  await clickVisibleSelector(
+    app,
+    'button[aria-label^="Cancel scan Resource Limit"]',
+    "cancel-keyboard-started-scan-by-visible-button",
+  );
+  const keyboardCancelled = await waitForStatus(
+    call,
+    roots.resource.id,
+    (status) => status?.state === "cancelled",
+    120000,
+    "ui-keyboard-cancel-cleanup",
+  );
+  await waitForUiText(call, "Cancelled");
+  log({
+    kind: "ui-keyboard-activation",
+    method: "UI",
+    started: compactStatus(keyboardStarted),
+    cancelled: compactStatus(keyboardCancelled),
+    activeElement: await activeUiElement(call),
+  });
+  await visibleUiSnapshot(call, "library-cancelled-after-keyboard-start");
 }
 
 function nativeCall(
@@ -995,17 +1552,13 @@ function prepareFixtures() {
   const lifecycleRoot = path.join(lifecycleBase, "scan-root");
   const lifecycleFile = path.join(lifecycleRoot, "lifecycle.flp");
   writeSyntheticFile(lifecycleFile);
-  const lifecycleManifest = writeManifest(
-    lifecycleBase,
-    "lifecycle-20260920",
-    [
-      {
-        path: "scan-root/lifecycle.flp",
-        bytes: fs.statSync(lifecycleFile).size,
-        kind: "flp",
-      },
-    ],
-  );
+  const lifecycleManifest = writeManifest(lifecycleBase, "lifecycle-20260920", [
+    {
+      path: "scan-root/lifecycle.flp",
+      bytes: fs.statSync(lifecycleFile).size,
+      kind: "flp",
+    },
+  ]);
 
   return {
     denied: {
@@ -1383,7 +1936,12 @@ async function startApp(label) {
       label,
       result: consoleState,
     });
-    return { child, websocket: connection.websocket, call: connection.call };
+    return {
+      child,
+      websocket: connection.websocket,
+      call: connection.call,
+      send: connection.send,
+    };
   } catch (error) {
     try {
       execFileSync("taskkill.exe", ["/F", "/PID", String(child.pid)], {
@@ -1443,8 +2001,7 @@ async function forceStopApp(app, label) {
   const pid = app.child.pid;
   nativeCall("app-stop-crash", "taskkill.exe", ["/F", "/PID", String(pid)]);
   const started = Date.now();
-  while (isProcessAlive(pid) && Date.now() - started < 5000)
-    await sleep(100);
+  while (isProcessAlive(pid) && Date.now() - started < 5000) await sleep(100);
   if (isProcessAlive(pid))
     throw new Error(`${label} app process survived exact-PID crash cleanup`);
   log({ kind: "app-crash-stopped", method: "native", label, pid });
@@ -1521,16 +2078,8 @@ async function main() {
         "Hardlink Aliases",
         fixtures.hardlinks.root,
       ),
-      retry: await addRoot(
-        app.call,
-        "Retry Exhausted",
-        fixtures.retry.root,
-      ),
-      lifecycle: await addRoot(
-        app.call,
-        "Lifecycle",
-        fixtures.lifecycle.root,
-      ),
+      retry: await addRoot(app.call, "Retry Exhausted", fixtures.retry.root),
+      lifecycle: await addRoot(app.call, "Lifecycle", fixtures.lifecycle.root),
     };
 
     const baselines = {};
@@ -1594,6 +2143,7 @@ async function main() {
         page: pageSummary(resource.page),
       };
       await uiSnapshot(app.call, "after-baseline-commits");
+      await visibleUiJourney(app, roots, baselines.resource.page);
     });
 
     await stopApp(app, "after-baseline");
@@ -2232,10 +2782,7 @@ async function main() {
         method: "native",
         result: disabledScan,
       });
-      if (
-        !disabledScan.ok ||
-        disabledScan.response.status !== "error"
-      ) {
+      if (!disabledScan.ok || disabledScan.response.status !== "error") {
         throw new Error("disabled root accepted a Scan now request");
       }
       await toggleRoot(
@@ -2245,7 +2792,11 @@ async function main() {
         "lifecycle-reenable-before-remove",
       );
       await removeRoot(app.call, roots.lifecycle.id, "lifecycle-remove");
-      if ((await listRoots(app.call)).some((root) => root.id === roots.lifecycle.id)) {
+      if (
+        (await listRoots(app.call)).some(
+          (root) => root.id === roots.lifecycle.id,
+        )
+      ) {
         throw new Error("removed root remained in list_scan_roots");
       }
       const restored = await addRoot(
