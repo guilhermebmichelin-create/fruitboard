@@ -1,6 +1,7 @@
-# Parser spike #138: Rust corpus result and fallback trigger
+# Parser spike #138: bounded parser research result
 
-- Status: **Interim research result. No production parser selected.**
+- Status: **Research result and recommendation; owner decision pending. No
+  production parser selected.**
 - Start: 2026-09-27, after owner-approved fixture PR #168 merged into `main` at
   `e62eebef4713f480fc16526cd4c7b14dbd7178ab`.
 - Scope: the nine approved files in `fixtures/parser-corpus/manifest.md` only.
@@ -70,8 +71,57 @@ runtime beyond the compiled Rust binary was required for the Rust runs.
 
 The Rust prototype is small and read-only, and it met stage 1 and the typed
 robustness cases. It **does not meet the current four-field matrix**, so the
-spike has recorded a shortfall and triggered the separately gated PyFLP research
+spike recorded a shortfall before beginning the separately gated PyFLP research
 comparison under the same approved corpus. This record does not authorize
 production PyFLP, change the manifest's expected values, or select a parser.
-After fallback evidence is added, the owner will decide whether to select,
-defer, or stop under the proposal's decision deadline.
+
+## Gated PyFLP comparison
+
+The stable [PyFLP 2.2.1](https://pypi.org/project/pyflp/) wheel was installed
+only into an isolated, reusable Python 3.11.16 research environment outside the
+product workspace. PyFLP and its dependencies were not added to the application
+or its lockfile. The exact research package set was `pyflp 2.2.1`,
+`construct-typing 0.8.1`, `construct 2.10.70`, `sortedcontainers 2.4.0`,
+`typing-extensions 4.16.0`, `arrow 1.4.0`, `python-dateutil 2.9.0.post0`,
+`six 1.17.0`, and `tzdata 2026.4`. The probe script calls `pyflp.parse` only;
+it has no save call. It checked each approved SHA-256 before and after parsing.
+All nine inputs remained byte-identical. Private report SHA-256:
+`0a903ac3d17644d299df721009ead3d052134fdae3c55e4625aad38d898a0f0c`.
+
+Stable PyFLP returned `TypeError` on eight fixtures, including all five genuine
+saves and the unknown-event derivative. Its error was `EventEnum has no members
+defined`, occurring during event ID construction before any requested metadata
+was returned. The truncated derivative returned `HeaderCorrupted`. No fixture
+yielded all four fields. The [upstream comparison](https://github.com/demberto/PyFLP/compare/v2.2.1...f937126b888ce94271bfea631b89166c74056530)
+shows six commits after the 2.2.1 tag, changing only development requirements
+and pre-commit configuration; parser source is unchanged. A second run of the
+same parser source at that upstream commit would not add independent coverage.
+These failures do not prove PyFLP cannot parse all FLPs; they show this pinned
+stable source did not parse the approved current-version corpus on this host.
+PyFLP remains GPL-3.0 and blocked from product distribution under ADR-002 and
+`LICENSE_INTENT.md`.
+
+## Answers and recommendation
+
+| Question | Evidence-backed answer |
+| --- | --- |
+| Version and base tempo | Rust extracted exact saved versions and 120/140/141/130 BPM from all five genuine saves and the unknown-event derivative. FL 20/21 and absent tempo were not covered. |
+| Channel names and raw sample references | Rust extracted explicit 2024 `Sampler` names; it reported the unstored 2025/2026 names as unavailable. No approved save has a positive raw sample reference. |
+| Version rows | FL 2024, 2025, and 2026 have covered version/tempo evidence; FL 20 and 21 are `not covered`, not proven `unsupported`. |
+| Resource cost | 252 KiB optimized binary, roughly 6.5 ms warm launch, 0.167-0.205 ms in-process read/parse, and 3.89-3.96 MiB peak working set on this host. No extra Rust runtime. |
+| Safety | The bounded Rust CLI read one approved file per call, loaded no plugin/script, and left every input hash unchanged. The four registered robustness cases returned typed outcomes. This does not qualify untested hostile files. |
+| PyFLP fallback | Stable PyFLP 2.2.1 returned no complete parse on the same nine files; its latest upstream parser source is unchanged from that release. Product licensing and packaging gates remain closed. |
+
+**Recommendation to the owner: defer production parser selection.** The Rust
+prototype has a precise stage-2 mismatch against the approved expected matrix,
+and PyFLP did not provide a usable fallback on this corpus. If the owner wants
+to continue the Rust path, a separate approved fixture/expectation decision is
+needed to distinguish an explicit saved channel name from FL Studio's displayed
+default and to add a genuine sample-reference case within the proposal's bounds.
+No fixture value should be altered to make the prototype pass. Any change to
+the twelve-slot, six-row, or time limits requires its own owner decision.
+
+The owner selects Rust, PyFLP, defer, or stop by the proposal's decision
+deadline. Until that decision is recorded in ADR-002 and `FLP_PARSER.md`, the
+production parser remains unselected and Phase 3 parser implementation does not
+start.

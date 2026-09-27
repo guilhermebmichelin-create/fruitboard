@@ -1,6 +1,9 @@
 # Parser fixture corpus manifest (spike #138)
 
-- Status: **Nine fixture slots are populated with corrected candidate bytes. F02 and F03 remain owner-recorded `not covered`; F12 remains reserved. Matching-build validation and renewed owner privacy review are complete; required checks must pass on the final PR head.**
+- Status: **Nine approved fixture slots merged in PR #168 on 2026-09-27. F02
+  and F03 remain owner-recorded `not covered`; F12 remains reserved. Matching-build
+  validation, renewed privacy approval, and final-head checks passed. Spike #138
+  started; see its [research result](../../docs/research/parser-spike-138-result-20260927.md).**
 - Date: 2026-09-27
 - Decision owner: product owner (fixture and privacy approval)
 - Related: issue #138, [fixture-manifest proposal](../../docs/research/parser-fixture-manifest-proposal-20260914.md), [fixture handoff](../../docs/research/parser-fixture-handoff-20260920.md), [parser fixture rules](../../DEVELOPMENT.md#parser-fixture-rules), and [parser selection](../../ROADMAP.md#parser-selection-before-phase-3).
@@ -71,6 +74,6 @@ All four derive **independently** from F01 SHA-256 `d3caba4e6e1a2cd47074b7b6e0f1
 
 Each robustness operation remains the one the owner approved, now applied to corrected F01. The new hashes were computed after regeneration and checked against the candidate bytes. None was run through a parser, loaded as a project, or written back to F01.
 
-## Remaining gate
+## Post-merge corpus boundary
 
-F02 and F03 are explicitly owner-recorded `not covered`; no absent-tempo or zero-channel behavior has been tested for those versions. The covered saves do contain a genuine absent sample-reference field (`File (none)`). The spike remains gated on passing CI on the updated PR head and merge; none of these files has been parsed in the spike. Recheck each SHA-256 before and after every parser run, keep the original bytes read-only, and name the coverage gaps in the result. Tests must never enumerate the owner's real project roots.
+F02 and F03 are explicitly owner-recorded `not covered`; no absent-tempo or zero-channel behavior has been tested for those versions. The covered saves contain a genuine absent sample-reference field (`File (none)`). The approved bytes have been parsed read-only in spike #138, with SHA-256 checked before and after every run. Keep the original bytes read-only, name the coverage gaps in every result, and never enumerate the owner's real project roots.
