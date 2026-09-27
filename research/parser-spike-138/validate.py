@@ -10,8 +10,9 @@ import json
 import platform
 import statistics
 import subprocess
-import time
 from pathlib import Path
+
+from process_runner import ProbeFailure, run_json
 
 
 CORPUS = {
@@ -28,23 +29,25 @@ CORPUS = {
 
 
 def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(64 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def run(binary: Path, *args: str):
-    started = time.perf_counter_ns()
-    proc = subprocess.run([str(binary), *args], capture_output=True, text=True, check=True)
-    elapsed_ms = (time.perf_counter_ns() - started) / 1_000_000
-    return json.loads(proc.stdout), elapsed_ms
+    return run_json([str(binary), *args])
 
 
 def measure(binary: Path, path: Path, expected_hash: str):
     if sha256(path) != expected_hash:
         raise ValueError(f"unapproved bytes: {path.name}")
-    observed, elapsed_ms = run(binary, "parse", str(path))
-    if sha256(path) != expected_hash:
-        raise ValueError(f"input changed during parse: {path.name}")
-    return observed, elapsed_ms
+    try:
+        return run(binary, "parse", str(path))
+    finally:
+        if sha256(path) != expected_hash:
+            raise ValueError(f"input changed during parse: {path.name}")
 
 
 def compare(name, observed, expected):
@@ -84,8 +87,15 @@ def main():
     results = {}
     for name, expected in CORPUS.items():
         path = corpus / name
-        observed, first_ms = measure(args.binary, path, expected[0])
-        warm_ms = [measure(args.binary, path, expected[0])[1] for _ in range(10)]
+        try:
+            observed, first_ms = measure(args.binary, path, expected[0])
+            warm_ms = [measure(args.binary, path, expected[0])[1] for _ in range(10)]
+        except ProbeFailure as exc:
+            results[name] = {
+                "sha256": expected[0], "checks": {"process": False},
+                "observed": {"outcome": "failed", "code": str(exc)},
+            }
+            continue
         results[name] = {
             "sha256": expected[0],
             "checks": compare(name, observed, expected),
