@@ -489,6 +489,8 @@ artifact measurements, and packaging decision remain Issue #18.
   expected features, SHA-256, and privacy approval.
 - `.gitignore` blocks FLP/audio by default. A fixture PR must explicitly
   force-add an approved file, update the manifest, and receive privacy review.
+  The repository privacy check permits only the named parser fixtures at their
+  approved SHA-256 values; any other FLP or changed fixture byte remains blocked.
 - Tests never enumerate the user's real project roots.
 - Personal production projects are not CI fixtures unless the owner explicitly
   approves a minimized/sanitized derivative in writing.
