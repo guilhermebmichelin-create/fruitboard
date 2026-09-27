@@ -103,6 +103,49 @@ PyFLP remains GPL-3.0 and blocked from product distribution under ADR-002 and
 
 ## Answers and recommendation
 
+### Harness review and correction
+
+The continuation review found that the original Rust harness had no process
+timeout or response-size cap, and the PyFLP probe parsed inside its controller
+process. The earlier successful corpus runs did not establish those safety
+properties. Research harness commit `95fa042` corrects this gap with a shared
+process runner: 10 seconds per invocation, at most 256 KiB stdout and 64 KiB
+stderr. Exceeding a bound terminates the direct child and returns a fixed failure
+code. Each PyFLP file now runs in its own child process. This is a transport
+guard for these trusted research executables, not an OS sandbox or descendant
+process containment claim.
+
+Input hashes are checked in `finally` blocks, including on process failure.
+Reports omit arbitrary PyFLP exception messages. The PyFLP field adapter also
+converts its version object to text and reads sample event text directly rather
+than converting through `pathlib.Path`, which can normalize the stored string.
+This follows the installed 2.2.1 API; no upstream implementation was copied.
+
+Seven standard-library regression tests passed on Python 3.11.16. They exercise
+timeout termination, stdout/stderr overflow, invalid responses, concurrent pipe
+draining, recovery after a failed child, input mutation detection after failure,
+and preservation of version/reference text. These transport tests use small
+child programs and a temporary text file; they add no FLP fixture.
+
+The corrected harness reran all nine approved fixtures against the independently
+retained, unchanged Rust binary and the isolated PyFLP installation. The Rust
+results still have exactly the F06/F11 channel-name mismatches; PyFLP still has
+eight `TypeError` results and one `HeaderCorrupted`. Every fixture hash remained
+unchanged. These functional reruns preserve the recommendation below and do not
+replace the original resource observations with a performance qualification.
+
+- Rust report SHA-256:
+  `057573d2b799b7c9300f126b9454a3cdb3d3bcd92fba43b4bd547c0760da434f`.
+- PyFLP report SHA-256:
+  `261a8fc128ad6c5687db4ef77db4a89c52a222124f77e03637b4fd63297d4c6f`.
+- Reproduction: `python -B -m unittest discover -s research/parser-spike-138
+  -p test_harness.py -v`, followed by the existing `validate.py --binary ...
+  --output ...` and isolated-environment `pyflp_probe.py --output ...` commands.
+  Reports stay outside the source checkout and compiler cache. The Python tests
+  are local research validation; the existing application CI does not run them.
+
+### Decision summary
+
 | Question | Evidence-backed answer |
 | --- | --- |
 | Version and base tempo | Rust extracted exact saved versions and 120/140/141/130 BPM from all five genuine saves and the unknown-event derivative. FL 20/21 and absent tempo were not covered. |
@@ -125,3 +168,25 @@ The owner selects Rust, PyFLP, defer, or stop by the proposal's decision
 deadline. Until that decision is recorded in ADR-002 and `FLP_PARSER.md`, the
 production parser remains unselected and Phase 3 parser implementation does not
 start.
+
+### Proposed next research case
+
+To continue the Rust investigation, propose assigning reserved F12 to one genuine
+FL Studio 2026 (26.1.0.5530) save with base tempo 137 BPM, one built-in Sampler
+explicitly named `Fixture Sample A`, and one generated silent WAV at a neutral
+Public Documents fixture path. The expected raw sample path and exact bytes
+would be recorded before parser execution. This adds positive sample-reference
+and explicit-name evidence in the newest covered version; it does not establish
+those features in every supported version or resolve the default-name question.
+
+The proposed procedure generates the synthetic WAV locally, creates the project
+through the FL Studio GUI, inspects and sanitizes its embedded metadata, reopens
+the corrected file without saving, and checks its tempo/name/sample state and
+unchanged SHA-256. The WAV stays outside Git. The final FLP requires owner
+approval of its exact bytes and a separate fixture manifest PR before parsing.
+F12 is still reserved until the owner approves this case. Existing F06/F11
+expectations and their recorded mismatches remain intact.
+
+This would use ten of the twelve fixture slots, the same version rows and four
+fields, and the original 15-day active-work/21-day hard-stop bounds. Production
+parser selection and Phase 3 implementation remain separate owner decisions.

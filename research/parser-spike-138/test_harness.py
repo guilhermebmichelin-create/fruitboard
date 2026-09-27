@@ -69,7 +69,11 @@ class ProcessTests(unittest.TestCase):
                     pyflp_probe.measure(path, expected)
 
     def test_pyflp_retains_version_and_raw_sample_text(self):
-        version = SimpleNamespace(version="26.1.0.5530")
+        class VersionObject:
+            def __str__(self):
+                return "26.1.0.5530"
+
+        version = SimpleNamespace(version=VersionObject())
         self.assertEqual(pyflp_probe.get_field(version, "version", str),
                          {"status": "extracted", "value": "26.1.0.5530"})
         raw = "relative//samples/../Synth.wav"
