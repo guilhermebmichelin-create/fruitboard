@@ -1,6 +1,6 @@
 # Parser fixture corpus manifest (spike #138)
 
-- Status: **Nine fixture slots are populated with corrected candidate bytes. F02 and F03 remain owner-recorded `not covered`; F12 remains reserved. Matching-build validation, renewed privacy review, and PR checks are pending.**
+- Status: **Nine fixture slots are populated with corrected candidate bytes. F02 and F03 remain owner-recorded `not covered`; F12 remains reserved. Matching-build validation and renewed privacy review are pending; required checks must pass on the final PR head.**
 - Date: 2026-09-27
 - Decision owner: product owner (fixture and privacy approval)
 - Related: issue #138, [fixture-manifest proposal](../../docs/research/parser-fixture-manifest-proposal-20260914.md), [fixture handoff](../../docs/research/parser-fixture-handoff-20260920.md), [parser fixture rules](../../DEVELOPMENT.md#parser-fixture-rules), and [parser selection](../../ROADMAP.md#parser-selection-before-phase-3).
