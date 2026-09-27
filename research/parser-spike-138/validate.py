@@ -48,7 +48,7 @@ def measure(binary: Path, path: Path, expected_hash: str):
 
 
 def compare(name, observed, expected):
-    _, version, tempo, name, failure = expected
+    _, version, tempo, expected_name, failure = expected
     checks = {}
     if failure is not None:
         checks["failure"] = observed.get("outcome") == "failed" and observed.get("code") == failure
@@ -57,7 +57,7 @@ def compare(name, observed, expected):
         return checks
     checks["savedVersion"] = observed["savedVersion"] == {"status": "extracted", "value": version}
     checks["baseTempoBpm"] = observed["baseTempoBpm"] == {"status": "extracted", "value": tempo}
-    checks["channelNames"] = observed["channelNames"] == {"status": "extracted", "value": [name]}
+    checks["channelNames"] = observed["channelNames"] == {"status": "extracted", "value": [expected_name]}
     checks["sampleReferences"] = observed["sampleReferences"]["status"] == "unavailable"
     if name == "FIX-RB-UNKNOWN.flp":
         checks["unknownEvent"] = observed["outcome"] == "partial" and observed["diagnostics"] == [{"code": "UNSUPPORTED_EVENT", "eventId": 255}]
