@@ -796,7 +796,11 @@ fn build_scan_status(
         .ok()
         .and_then(|publication: ScanRootPublication| publication.last_successful_at_ms)
         .map(unix_ms_to_rfc3339);
-    let last_outcome_at = job.map(|job| unix_ms_to_rfc3339(job.updated_at_ms));
+    // An active job's updated_at is its queue/lease timestamp, not an outcome.
+    let last_outcome_at = match state {
+        ScanExecutionState::Queued | ScanExecutionState::Running | ScanExecutionState::Idle => None,
+        _ => job.map(|job| unix_ms_to_rfc3339(job.updated_at_ms)),
+    };
     let error_code = match state {
         // A queued/running attempt has not produced an outcome yet.
         ScanExecutionState::Queued | ScanExecutionState::Running | ScanExecutionState::Idle => None,
