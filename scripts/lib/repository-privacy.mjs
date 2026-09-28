@@ -48,6 +48,10 @@ const approvedFlpFixtureHashes = new Map([
     "e0471d55032b7dfaa8bbcd496c487147149b9ce18e0b250882cc6f67f47480ee",
   ],
   [
+    "fixtures/parser-corpus/FIX-FL2026-SAMPLE.flp",
+    "dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39",
+  ],
+  [
     "fixtures/parser-corpus/FIX-RB-TRUNC.flp",
     "38837f28cf0723434b9a089decc617af8e0069e19b12bd8d6d4cee612e59a9cd",
   ],
@@ -65,8 +69,8 @@ const approvedFlpFixtureHashes = new Map([
   ],
 ]);
 
-// These older saves use the documented FLP event framing. The 2026 fixture has
-// newer opaque events, so only its raw path scan can be applied here.
+// These older saves use the documented FLP event framing. The 2026 fixtures
+// have newer opaque events, so only their raw path scan can be applied here.
 const inspectableFlpFixtures = new Set([
   "fixtures/parser-corpus/FIX-BASE-MIN.flp",
   "fixtures/parser-corpus/FIX-FL2024-A.flp",
@@ -74,7 +78,13 @@ const inspectableFlpFixtures = new Set([
   "fixtures/parser-corpus/FIX-FL2025-MIN.flp",
 ]);
 
-const syntheticHomeNames = new Set(["artist", "example", "person", "producer"]);
+const nonPersonalHomeNames = new Set([
+  "artist",
+  "example",
+  "person",
+  "producer",
+  "public",
+]);
 
 const secretPatterns = [
   {
@@ -173,7 +183,7 @@ export function inspectTrackedText(path, text) {
     pattern.lastIndex = 0;
     for (const match of text.matchAll(pattern)) {
       const homeName = match[1]?.trim().toLowerCase();
-      if (homeName && !syntheticHomeNames.has(homeName)) {
+      if (homeName && !nonPersonalHomeNames.has(homeName)) {
         violations.push({
           line: lineAt(text, match.index ?? 0),
           message: "non-synthetic personal home path",

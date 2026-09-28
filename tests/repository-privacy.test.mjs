@@ -57,6 +57,7 @@ test("the committed parser corpus passes its binary privacy scan", () => {
     "FIX-FL2024-B",
     "FIX-FL2025-MIN",
     "FIX-FL2026-MIN",
+    "FIX-FL2026-SAMPLE",
     "FIX-RB-TRUNC",
     "FIX-RB-UNKNOWN",
     "FIX-RB-MALFORM",
@@ -140,12 +141,13 @@ test("rejects personal home paths without printing their sensitive suffix", () =
   );
 });
 
-test("permits the explicit synthetic homes used by redaction regressions", () => {
+test("permits synthetic and Public home paths", () => {
   const text = [
     String.raw`C:\Users\example\private.flp`,
     "/Users/producer/private.flp",
     "/home/artist/private.flp",
     "D:/Users/person/private.flp",
+    String.raw`C:\Users\Public\Documents\fixture-silence.wav`,
   ].join("\n");
 
   assert.deepEqual(inspectTrackedText("safe-test.ts", text), []);
