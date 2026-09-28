@@ -1,5 +1,9 @@
 # Parser spike #138: bounded parser research result
 
+This is the historical nine-fixture result. After F12 merged, its separate
+[follow-up result](parser-spike-138-f12-result-20260928.md) tested the tenth
+approved fixture without changing the pre-registered expectations below.
+
 - Status: **Research result and recommendation; owner decision pending. No
   production parser selected.**
 - Start: 2026-09-27, after owner-approved fixture PR #168 merged into `main` at
