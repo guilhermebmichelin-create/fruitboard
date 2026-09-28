@@ -1,26 +1,24 @@
 # FLP parser architecture and feasibility
 
-Status: **Rust-first bounded evaluation planned; production parser unselected**
+Status: **Rust selected for the next production implementation on 2026-09-28;
+compatibility and packaging gates remain open**
 
 ## Conclusion
 
-Complete the filesystem-only Scanner MVP, then evaluate an independent,
-read-only Rust parser for a small metadata subset before choosing a production
-parser. Start with saved FL version and base tempo, followed by channel names
-and sample references. Arrangements, plugin-state decoding, and duration are
-outside that first spike. Follow the agreed corpus, limits, and acceptance
-criteria in [ROADMAP.md](ROADMAP.md#parser-selection-before-phase-3); the
-bounded spike shape is proposed in the
-[Rust parser research spike proposal](docs/research/rust-parser-spike-proposal.md),
-and the corpus is gated by the
-[fixture-manifest proposal](docs/research/parser-fixture-manifest-proposal-20260914.md)
-and its scaffolded [corpus manifest](fixtures/parser-corpus/manifest.md).
+The owner selected an independent, read-only Rust sidecar after the approved
+ten-fixture research comparison. Start production implementation with saved FL
+version and base tempo, then channel names and raw sample references. The
+displayed built-in `Sampler` default is reported as an explicitly labeled
+inference for the two verified saved builds. The selection and open gates are
+recorded in [ADR-002](docs/adr/002-flp-parser-process.md#2026-09-28-owner-selection).
+The [corpus manifest](fixtures/parser-corpus/manifest.md) and
+[research results](docs/research/parser-spike-138-inferred-default-result-20260928.md)
+provide the tested source boundary. Arrangements, plugin-state decoding, and
+duration remain outside the initial implementation slice.
 
-PyFLP remains a candidate, not a requirement. If the Rust spike falls short,
-evaluate PyFLP against the same known-value fixtures. Compare correctness,
-packaging, and maintenance before adoption; retain the versioned interface and
-isolated process for either implementation. The owner's intended public
-open-source release does not by itself select the exact license.
+PyFLP was tested as the comparison candidate. Its stable release returned no
+complete parse on the approved corpus. It remains outside the product, and the
+owner's intended public open-source release does not select the exact license.
 
 PyFLP is unofficial. Its [PyPI package](https://pypi.org/project/pyflp/) is
 currently version 2.2.1, published June 5, 2023, marked Alpha, and licensed
@@ -61,10 +59,10 @@ HTTP server: stdio has no listening port, discovery, or local-origin
 authentication problem. Every message contains `protocolVersion`, request ID,
 and schema version. Stdout is protocol-only; diagnostics go to stderr.
 
-Illustrative request:
+Initial version-1 request shape (values shown are illustrative):
 
 ```json
-{"protocolVersion":1,"id":"request UUID","method":"parse","params":{"path":"absolute path","expected":{"size":190128,"modifiedAtMs":0},"features":["summary","plugins","arrangements"]}}
+{"protocolVersion":1,"schemaVersion":1,"id":"01234567-89ab-cdef-0123-456789abcdef","method":"parse","params":{"path":"C:\\approved\\project.flp","expected":{"size":46703,"modifiedAtMs":1234567890000},"features":["basic-metadata"]}}
 ```
 
 The absolute path exists only in the private Rust-to-sidecar request needed to
@@ -73,21 +71,21 @@ sync payloads; logs, progress events, and diagnostics use opaque request,
 location, and project-file IDs. Any user-facing path display is fetched through
 an explicit local-only use case.
 
-Illustrative response shape:
+Initial response shape (the actual result includes all four fields):
 
 ```json
 {
   "protocolVersion": 1,
-  "id": "request UUID",
+  "schemaVersion": 1,
+  "id": "01234567-89ab-cdef-0123-456789abcdef",
   "result": {
-    "outcome": "partial",
-    "parser": {"adapter": "pyflp", "adapterVersion": "...", "libraryVersion": "2.2.1"},
-    "inputFingerprint": {"size": 190128, "modifiedAtMs": 0, "hash": null},
-    "project": {
-      "tempo": {"status": "extracted", "value": 69.42},
-      "duration": {"status": "unavailable", "reason": "tempo automation unsupported"}
-    },
-    "diagnostics": [{"code": "UNSUPPORTED_EVENT", "severity": "warning", "context": "arrangement"}]
+    "outcome": "complete",
+    "savedVersion": {"status": "extracted", "value": "26.1.0.5530"},
+    "baseTempoBpm": {"status": "extracted", "value": 137.0},
+    "channelNames": {"status": "extracted", "value": ["Fixture Sample A"]},
+    "sampleReferences": {"status": "extracted", "value": ["sample.wav"]},
+    "inputFingerprint": {"size": 46703, "modifiedAtMs": 1234567890000, "hash": null},
+    "diagnostics": []
   }
 }
 ```
@@ -98,6 +96,13 @@ produced by Rust after parsing; if a parser adapter infers something, it must
 label the method and confidence explicitly. An inferred displayed channel name
 must never be labeled as text extracted from the FLP.
 
+The first selected Rust implementation slice is
+[`crates/flp-parser/`](crates/flp-parser/README.md). It implements the four
+initial fields and a bounded version-1 JSON-lines process. Its verified saved
+builds are exactly 24.1.0.4225, 25.1.3.4922, and 26.1.0.5530; other saved
+builds return typed `UNSUPPORTED_SAVED_VERSION` until approved fixtures expand
+coverage. The crate is not yet wired to scanner jobs or desktop packaging.
+
 The parser result is validated for schema, length/count limits, finite numeric
 values, path/string sizes, and known enum values before persistence. Unknown
 fields are ignored for forward compatibility; unknown required protocol
@@ -106,7 +111,7 @@ versions fail closed.
 ## Process supervision
 
 Start with one long-lived parser process and one job at a time. This amortizes
-Python startup without allowing unbounded memory/concurrency. The Rust
+process startup without allowing unbounded memory/concurrency. The Rust
 supervisor:
 
 - starts only the configured, bundled sidecar binary;
@@ -148,18 +153,19 @@ to JavaScript.
 
 | Option | Advantages | Problems | Position |
 | --- | --- | --- | --- |
-| Packaged Python sidecar | Reuses PyFLP; process isolation; independent upgrade | Runtime size, signing/AV, license and compatibility gates | Evaluate if bounded Rust spike falls short |
+| Packaged Python sidecar | Reuses PyFLP; process isolation; independent upgrade | Runtime size, signing/AV, license and compatibility gates | Not selected; future adoption requires a new decision |
 | Require user Python | Small app download | Fragile setup, dependency conflicts, poor onboarding | Reject for product builds |
 | Embed CPython in Rust process | Potentially lower IPC overhead | Crash/failure and licensing boundary become tighter; complex packaging | Reject initially |
 | Local HTTP parser service | Familiar API | Port/lifecycle/auth surface with no product benefit | Reject; stdio is simpler |
-| Independent Rust parser | No Python runtime; direct control of supported fields | Format research and ongoing compatibility maintenance | Bounded spike first; full implementation requires evidence |
+| Independent Rust parser | No Python runtime; direct control of supported fields | Format research and ongoing compatibility maintenance | Selected for the next implementation; distribution gates remain |
 | Remote parsing service | Central upgrades | Uploads private FLPs, breaks offline/privacy goals | Reject |
 
 ## Expected metadata reliability tiers
 
-These are hypotheses to test, not product promises. PyFLP API references below
-describe candidate coverage, not a selected backend. The initial Rust spike
-tests only its agreed subset; the remaining fields stay deferred.
+These are historical hypotheses to test, not product promises. PyFLP API
+references below describe possible future coverage, not the selected backend.
+The selected Rust implementation currently covers only its four agreed fields;
+the remaining fields stay deferred.
 
 | Metadata | Likely source | Initial status | Required validation |
 | --- | --- | --- | --- |

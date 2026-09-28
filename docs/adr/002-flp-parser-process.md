@@ -1,6 +1,7 @@
 # ADR-002: Versioned FLP parser sidecar boundary
 
-- Status: Accepted (conditional; PyFLP adoption and distribution remain blocked)
+- Status: Accepted; Rust selected for the next production parser implementation
+  on 2026-09-28. Compatibility and packaging gates remain open.
 - Date: 2026-09-04
 - Approved: 2026-09-04 by the product owner
 
@@ -13,6 +14,30 @@ to PyFLP classes. The product must never edit FLP contents.
 
 ## Decision
 
+### 2026-09-28 owner selection
+
+The product owner selected the independent Rust parser approach for the next
+production implementation after reviewing the approved ten-fixture research
+corpus. The [F12 result](../research/parser-spike-138-f12-result-20260928.md)
+shows extraction of a saved sample reference; the
+[inferred-name result](../research/parser-spike-138-inferred-default-result-20260928.md)
+passes the ten-file current-policy comparison while labeling the displayed
+default `Sampler` as an inference. Stable PyFLP 2.2.1 supplied no complete parse
+on this corpus. The selection is for an isolated, bounded, read-only Rust
+sidecar behind the replaceable `FlpParser` port. It does not authorize enabling
+FLP content reads in the filesystem-only scanner or distributing an unqualified
+parser binary.
+
+Implementation proceeds in reviewable slices: establish the versioned process
+protocol and parser core, validate the maintained approved corpus, then add
+supervision and packaging. Compatibility work remains open for FL Studio 20/21,
+absent tempo, zero channels, and other untested features. Windows
+package/startup/crash/signing/update, provenance, and hostile-input limits must
+be reviewed before distribution. The existing PyFLP GPL-3.0 gate remains
+closed; no PyFLP package enters the product.
+
+### Original boundary decision
+
 Define a replaceable `FlpParser` port and versioned, read-only JSON-lines
 protocol. After the filesystem-only Scanner MVP, evaluate a bounded independent
 Rust parser before selecting the production adapter. Python/PyFLP remains a
@@ -24,12 +49,13 @@ This planning amendment authorizes research, not a complete Rust rewrite or
 production parser adoption. Follow the field matrix, safety checks, and decision
 criteria in [the roadmap](../../ROADMAP.md#parser-selection-before-phase-3).
 
-The sidecar may be adopted for distribution only after:
+The selected Rust sidecar may be adopted for distribution only after:
 
 1. a representative FL-version/feature compatibility matrix;
-2. Windows package/startup/crash/signing/update tests;
-3. an explicit decision that the product's distribution complies with PyFLP's
-   GPL-3.0 obligations.
+2. Windows package/startup/crash/signing/update tests and provenance review.
+
+Any future PyFLP adoption would additionally require an explicit decision that
+the product's distribution complies with PyFLP's GPL-3.0 obligations.
 
 Acceptance covers the replaceable parser boundary and proof-of-concept work,
 not permission to add, bundle, or distribute PyFLP. The product owner intends

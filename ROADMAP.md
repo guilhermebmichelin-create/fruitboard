@@ -202,6 +202,12 @@ grouping outside Scanner MVP.
 
 ## Parser selection before Phase 3
 
+The owner selected Rust for the next production parser implementation on
+2026-09-28 after the bounded ten-fixture spike. ADR-002 records the conditional
+decision and remaining compatibility, package, and provenance gates. The steps
+below remain the historical selection criteria and the future validation
+checklist; selection alone does not activate FLP parsing in the scanner.
+
 Owner-approved direction: complete the filesystem-only Scanner MVP, then run a
 bounded Rust-parser research spike before selecting the production FLP parser.
 PyFLP is a candidate, not a required dependency. This research does not block

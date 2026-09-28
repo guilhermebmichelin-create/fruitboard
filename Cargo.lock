@@ -905,6 +905,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fruitboard-flp-parser"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fruitboard-foundation-sidecar-smoke"
 version = "0.1.0"
 
