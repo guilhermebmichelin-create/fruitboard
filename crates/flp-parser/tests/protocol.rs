@@ -46,6 +46,12 @@ fn versioned_protocol_handles_multiple_requests_without_stderr() {
     assert!(stderr.is_empty());
     assert_eq!(responses.len(), 2);
     assert_eq!(responses[0]["result"]["adapter"], "rust-flp-parser");
+    assert!(
+        responses[0]["result"]["fields"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("channelCount"))
+    );
     assert_eq!(responses[1]["result"]["status"], "ok");
     assert_eq!(responses[0]["id"], ID);
 }
@@ -92,6 +98,7 @@ fn parse_request_returns_f12_fields_without_echoing_input_path() {
     assert_eq!(responses.len(), 1);
     assert_eq!(responses[0]["result"]["outcome"], "complete");
     assert_eq!(responses[0]["result"]["baseTempoBpm"]["value"], 137.0);
+    assert_eq!(responses[0]["result"]["channelCount"]["value"], 1);
     assert_eq!(
         responses[0]["result"]["channelNames"]["value"][0],
         "Fixture Sample A"

@@ -30,6 +30,8 @@ fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
         assert_eq!(parsed["outcome"], "complete", "{name}");
         assert_eq!(parsed["savedVersion"]["value"], version, "{name}");
         assert_eq!(parsed["baseTempoBpm"]["value"], tempo, "{name}");
+        assert_eq!(parsed["channelCount"]["status"], "extracted", "{name}");
+        assert_eq!(parsed["channelCount"]["value"], 1, "{name}");
         assert_eq!(parsed["channelNames"]["value"][0], channel, "{name}");
         if matches!(name, "FIX-FL2025-MIN.flp" | "FIX-FL2026-MIN.flp") {
             assert_eq!(parsed["channelNames"]["status"], "inferred", "{name}");
@@ -60,11 +62,13 @@ fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
         let parsed = parse_bytes(&fs::read(fixture(name)).expect("approved fixture"));
         assert_eq!(parsed["outcome"], outcome, "{name}");
         assert_eq!(parsed["code"], code, "{name}");
+        assert_eq!(parsed["channelCount"]["status"], "failed", "{name}");
     }
     let unknown = parse_bytes(&fs::read(fixture("FIX-RB-UNKNOWN.flp")).unwrap());
     assert_eq!(unknown["outcome"], "partial");
     assert_eq!(unknown["diagnostics"][0]["code"], "UNSUPPORTED_EVENT");
     assert_eq!(unknown["diagnostics"][0]["eventId"], 255);
+    assert_eq!(unknown["channelCount"]["value"], 1);
 }
 
 #[test]
@@ -105,6 +109,18 @@ fn oversized_buffer_fails_before_event_walk() {
 }
 
 #[test]
+fn header_count_must_match_channel_events_before_reporting_a_count() {
+    let path = fixture("FIX-BASE-MIN.flp");
+    let original = fs::read(&path).unwrap();
+    let mut changed = original.clone();
+    changed[10..12].copy_from_slice(&2_u16.to_le_bytes());
+    let parsed = parse_bytes(&changed);
+    assert_eq!(parsed["code"], "CHANNEL_COUNT_MISMATCH");
+    assert_eq!(parsed["channelCount"]["status"], "failed");
+    assert_eq!(fs::read(path).unwrap(), original);
+}
+
+#[test]
 fn unverified_saved_build_is_explicitly_unsupported() {
     let version = b"27.0.0.1\0";
     let mut bytes = b"FLhd".to_vec();
@@ -119,4 +135,5 @@ fn unverified_saved_build_is_explicitly_unsupported() {
     assert_eq!(parsed["outcome"], "unsupported");
     assert_eq!(parsed["savedVersion"]["value"], "27.0.0.1");
     assert_eq!(parsed["channelNames"]["status"], "unsupported");
+    assert_eq!(parsed["channelCount"]["status"], "unsupported");
 }
