@@ -1,14 +1,17 @@
 # Rust parser research spike proposal
 
-- Status: **Proposed; not approved, not started. No parser selected.**
+- Status: **Approved and started on 2026-09-27 after fixture PR #168 merged.
+  Research result: [spike #138 result](parser-spike-138-result-20260927.md).
+  Owner parser decision pending; no parser selected.**
 - Date: 2026-09-14
+- Execution update: 2026-09-27
 - Decision owner: product owner (spike approval, fixture approval, parser selection)
 - Related: [ROADMAP.md parser selection before Phase 3](../../ROADMAP.md#parser-selection-before-phase-3),
   [ADR-002](../adr/002-flp-parser-process.md),
   [FLP_PARSER.md](../../FLP_PARSER.md), [research records](README.md), epic #33.
-- Scope of this document: documentation only. It creates no issue, no fixture,
-  no build, and no code. Execution requires the owner to approve the spike issue
-  and a fixture manifest.
+- Scope of this document: the originally approved proposal and historical issue
+  draft. The live issue is #138; the merged fixture manifest and separate result
+  record govern the current run.
 
 ## Context
 
@@ -88,9 +91,8 @@ following hold:
 - The prototype's measurements and parses run only against that merged
   manifest, never against ad-hoc, scaffold, or personal files.
 
-A scaffold manifest with empty `not covered` slots (for example the current
-[`fixtures/parser-corpus/manifest.md`](../../fixtures/parser-corpus/manifest.md)
-scaffold), a manifest still under review, or any personal file is not a done
+A scaffold manifest with empty `not covered` slots, a manifest still under
+review, or any personal file is not a done
 corpus; the spike does not start.
 
 ## Explicit questions
