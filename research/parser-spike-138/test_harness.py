@@ -82,6 +82,26 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(pyflp_probe.raw_sample_reference(channel),
                          {"status": "extracted", "value": raw})
 
+    def test_pyflp_enum_diagnostic_is_opt_in_per_bounded_child(self):
+        with tempfile.TemporaryDirectory(prefix="fruitboard-harness-") as folder:
+            path = Path(folder) / "input.txt"
+            path.write_bytes(b"unchanged")
+            expected = hashlib.sha256(b"unchanged").hexdigest()
+            commands = []
+
+            def capture(command):
+                commands.append(command)
+                return {"outcome": "parsed"}, 1.0
+
+            with patch.object(pyflp_probe, "run_json", side_effect=capture):
+                pyflp_probe.measure(path, expected)
+                pyflp_probe.measure(path, expected, enum_compat=True)
+            self.assertNotIn("--enum-compat-diagnostic", commands[0])
+            self.assertEqual(commands[1][-1], "--enum-compat-diagnostic")
+            self.assertEqual(commands[0][:2], [sys.executable, "-B"])
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(),
+                             expected)
+
 
 if __name__ == "__main__":
     unittest.main()
