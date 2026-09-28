@@ -433,6 +433,7 @@ fn scan_now_runs_to_completion_and_statuses_report_contract_fields() {
     assert_eq!(queued_status[0]["jobId"], job_id);
     assert!(queued_status[0]["runId"].is_null());
     assert_eq!(queued_status[0]["retryAvailable"], false);
+    assert!(queued_status[0]["lastOutcomeAt"].is_null());
 
     harness.tick(tree(vec![
         file_entry("a.flp", 101),
@@ -2741,6 +2742,7 @@ fn statuses_and_pages_stay_responsive_mid_scan() {
         statuses_request(),
     ));
     assert_eq!(data[0]["state"], "running");
+    assert!(data[0]["lastOutcomeAt"].is_null());
     let page = ok_data(handle_get_library_page(
         &runtime,
         &harness.service,
@@ -2766,6 +2768,7 @@ fn statuses_and_pages_stay_responsive_mid_scan() {
         statuses_request(),
     ));
     assert_eq!(data[0]["state"], "running");
+    assert!(data[0]["lastOutcomeAt"].is_null());
     let page = ok_data(handle_get_library_page(
         &runtime,
         &harness.service,
@@ -2933,6 +2936,7 @@ fn restart_drops_in_memory_counters_but_durable_statuses_survive() {
         statuses_request(),
     ));
     assert_eq!(after[0]["state"], "queued");
+    assert!(after[0]["lastOutcomeAt"].is_null());
     assert_ne!(after[0]["jobId"], before[0]["jobId"]);
     assert!(after[0]["runId"].is_null());
     assert_eq!(
