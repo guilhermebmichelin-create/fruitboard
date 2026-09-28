@@ -82,6 +82,21 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(pyflp_probe.raw_sample_reference(channel),
                          {"status": "extracted", "value": raw})
 
+    def test_f12_requires_the_preregistered_positive_sample_reference(self):
+        expected = validate.CORPUS["FIX-FL2026-SAMPLE.flp"]
+        observed = {
+            "outcome": "complete", "diagnostics": [],
+            "savedVersion": {"status": "extracted", "value": expected[1]},
+            "baseTempoBpm": {"status": "extracted", "value": expected[2]},
+            "channelNames": {"status": "extracted", "value": [expected[3]]},
+            "sampleReferences": {"status": "unavailable"},
+        }
+        self.assertFalse(validate.compare("FIX-FL2026-SAMPLE.flp", observed, expected)["sampleReferences"])
+        observed["sampleReferences"] = {
+            "status": "extracted", "value": [validate.F12_SAMPLE_REFERENCE],
+        }
+        self.assertTrue(validate.compare("FIX-FL2026-SAMPLE.flp", observed, expected)["sampleReferences"])
+
     def test_pyflp_enum_diagnostic_is_opt_in_per_bounded_child(self):
         with tempfile.TemporaryDirectory(prefix="fruitboard-harness-") as folder:
             path = Path(folder) / "input.txt"

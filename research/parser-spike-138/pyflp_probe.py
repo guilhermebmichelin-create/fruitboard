@@ -1,4 +1,4 @@
-"""Research-only PyFLP fallback comparison for the approved nine files.
+"""Research-only PyFLP fallback comparison for the approved ten files.
 
 Run only in an isolated Python 3.11 environment after the Rust shortfall is
 recorded. This script imports PyFLP for parsing; it never calls PyFLP's save API.
@@ -135,7 +135,7 @@ def main():
         print(json.dumps(result))
         return
     if sorted(p.name for p in corpus.glob("FIX-*.flp")) != sorted(CORPUS):
-        raise ValueError("corpus file list differs from approved nine")
+        raise ValueError("corpus file list differs from approved ten")
     results = {}
     for name, expected in CORPUS.items():
         path = corpus / name
