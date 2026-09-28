@@ -1,0 +1,122 @@
+use fruitboard_flp_parser::{ExpectedFingerprint, modified_at_ms, parse_bytes, parse_file};
+use serde_json::Value;
+use std::fs;
+use std::path::PathBuf;
+
+fn fixture(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("fixtures/parser-corpus")
+        .join(name)
+}
+
+#[test]
+fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
+    for (name, version, tempo, channel) in [
+        ("FIX-BASE-MIN.flp", "24.1.0.4225", 120.0, "Sampler"),
+        ("FIX-FL2024-A.flp", "24.1.0.4225", 140.0, "Sampler"),
+        ("FIX-FL2024-B.flp", "24.1.0.4225", 141.0, "Sampler"),
+        ("FIX-FL2025-MIN.flp", "25.1.3.4922", 130.0, "Sampler"),
+        ("FIX-FL2026-MIN.flp", "26.1.0.5530", 130.0, "Sampler"),
+        (
+            "FIX-FL2026-SAMPLE.flp",
+            "26.1.0.5530",
+            137.0,
+            "Fixture Sample A",
+        ),
+    ] {
+        let bytes = fs::read(fixture(name)).expect("approved fixture");
+        let parsed = parse_bytes(&bytes);
+        assert_eq!(parsed["outcome"], "complete", "{name}");
+        assert_eq!(parsed["savedVersion"]["value"], version, "{name}");
+        assert_eq!(parsed["baseTempoBpm"]["value"], tempo, "{name}");
+        assert_eq!(parsed["channelNames"]["value"][0], channel, "{name}");
+        if matches!(name, "FIX-FL2025-MIN.flp" | "FIX-FL2026-MIN.flp") {
+            assert_eq!(parsed["channelNames"]["status"], "inferred", "{name}");
+            assert_eq!(
+                parsed["channelNames"]["method"], "sampler-default-for-known-build",
+                "{name}"
+            );
+            assert_eq!(parsed["channelNames"]["confidence"], "high", "{name}");
+        } else {
+            assert_eq!(parsed["channelNames"]["status"], "extracted", "{name}");
+        }
+        if name == "FIX-FL2026-SAMPLE.flp" {
+            assert_eq!(parsed["sampleReferences"]["status"], "extracted");
+            assert_eq!(
+                parsed["sampleReferences"]["value"][0],
+                r"C:\Users\Public\Documents\FruitboardFixtures\F12\fixture-silence.wav"
+            );
+        } else {
+            assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
+        }
+    }
+
+    for (name, outcome, code) in [
+        ("FIX-RB-TRUNC.flp", "failed", "TRUNCATED_DATA_CHUNK"),
+        ("FIX-RB-MALFORM.flp", "failed", "EVENT_LENGTH_OUT_OF_BOUNDS"),
+        ("FIX-RB-LIMIT.flp", "failed", "CHANNEL_COUNT_LIMIT"),
+    ] {
+        let parsed = parse_bytes(&fs::read(fixture(name)).expect("approved fixture"));
+        assert_eq!(parsed["outcome"], outcome, "{name}");
+        assert_eq!(parsed["code"], code, "{name}");
+    }
+    let unknown = parse_bytes(&fs::read(fixture("FIX-RB-UNKNOWN.flp")).unwrap());
+    assert_eq!(unknown["outcome"], "partial");
+    assert_eq!(unknown["diagnostics"][0]["code"], "UNSUPPORTED_EVENT");
+    assert_eq!(unknown["diagnostics"][0]["eventId"], 255);
+}
+
+#[test]
+fn read_only_file_parse_checks_expected_fingerprint_and_hides_path() {
+    let path = fixture("FIX-FL2026-SAMPLE.flp");
+    let bytes_before = fs::read(&path).unwrap();
+    let metadata = fs::metadata(&path).unwrap();
+    let expected = ExpectedFingerprint {
+        size: metadata.len(),
+        modified_at_ms: modified_at_ms(&metadata).unwrap(),
+    };
+    let parsed = parse_file(&path, expected);
+    assert_eq!(parsed["outcome"], "complete");
+    assert_eq!(parsed["inputFingerprint"]["size"], expected.size);
+    assert!(
+        !parsed
+            .to_string()
+            .contains(&path.to_string_lossy().to_string())
+    );
+    assert_eq!(fs::read(&path).unwrap(), bytes_before);
+
+    let changed = parse_file(
+        &path,
+        ExpectedFingerprint {
+            size: expected.size + 1,
+            ..expected
+        },
+    );
+    assert_eq!(changed["code"], "INPUT_CHANGED");
+    assert_eq!(fs::read(&path).unwrap(), bytes_before);
+}
+
+#[test]
+fn oversized_buffer_fails_before_event_walk() {
+    let bytes = vec![0; fruitboard_flp_parser::MAX_FILE_BYTES as usize + 1];
+    let parsed: Value = parse_bytes(&bytes);
+    assert_eq!(parsed["code"], "FILE_SIZE_LIMIT");
+}
+
+#[test]
+fn unverified_saved_build_is_explicitly_unsupported() {
+    let version = b"27.0.0.1\0";
+    let mut bytes = b"FLhd".to_vec();
+    bytes.extend_from_slice(&6_u32.to_le_bytes());
+    bytes.extend_from_slice(&[0; 6]);
+    bytes.extend_from_slice(b"FLdt");
+    bytes.extend_from_slice(&((version.len() + 2) as u32).to_le_bytes());
+    bytes.push(199);
+    bytes.push(version.len() as u8);
+    bytes.extend_from_slice(version);
+    let parsed = parse_bytes(&bytes);
+    assert_eq!(parsed["outcome"], "unsupported");
+    assert_eq!(parsed["savedVersion"]["value"], "27.0.0.1");
+    assert_eq!(parsed["channelNames"]["status"], "unsupported");
+}
