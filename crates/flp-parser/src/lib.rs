@@ -24,6 +24,7 @@ pub fn failed(code: &str) -> Value {
         "outcome":"failed", "code":code,
         "savedVersion":field("failed",Value::Null,Some(code)),
         "baseTempoBpm":field("failed",Value::Null,Some(code)),
+        "channelCount":field("failed",Value::Null,Some(code)),
         "channelNames":field("failed",Value::Null,Some(code)),
         "sampleReferences":field("failed",Value::Null,Some(code)),
         "diagnostics":[]
@@ -53,6 +54,7 @@ fn unsupported_version(version: &str) -> Value {
         "outcome":"unsupported", "code":"UNSUPPORTED_SAVED_VERSION",
         "savedVersion":field("extracted",json!(version),None),
         "baseTempoBpm":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "channelCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "sampleReferences":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "diagnostics":[]
@@ -224,6 +226,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         Some(value) => field("extracted", json!(value), None),
         None => field("unavailable", Value::Null, Some("BASE_TEMPO_ABSENT")),
     };
+    let channel_count = names.len();
     let channel_names = if names.iter().all(Option::is_some) {
         field(
             "extracted",
@@ -279,6 +282,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         "outcome":if diagnostics.is_empty() {"complete"} else {"partial"},
         "savedVersion":saved_version,
         "baseTempoBpm":base_tempo,
+        "channelCount":field("extracted",json!(channel_count),None),
         "channelNames":channel_names,
         "sampleReferences":sample_references,
         "diagnostics":diagnostics,

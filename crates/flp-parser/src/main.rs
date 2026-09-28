@@ -106,7 +106,7 @@ fn respond(line: &[u8]) -> Value {
     let result = match request.method.as_str() {
         "describe" if request.params.is_none() => json!({
             "adapter":"rust-flp-parser", "adapterVersion":env!("CARGO_PKG_VERSION"),
-            "fields":["savedVersion","baseTempoBpm","channelNames","sampleReferences"],
+            "fields":["savedVersion","baseTempoBpm","channelCount","channelNames","sampleReferences"],
             "maxFileBytes":MAX_FILE_BYTES, "maxEvents":100_000,
             "maxChannels":256, "maxEventBytes":2 * 1024 * 1024
         }),

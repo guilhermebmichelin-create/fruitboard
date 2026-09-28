@@ -71,7 +71,7 @@ sync payloads; logs, progress events, and diagnostics use opaque request,
 location, and project-file IDs. Any user-facing path display is fetched through
 an explicit local-only use case.
 
-Initial response shape (the actual result includes all four fields):
+Initial response shape (the actual result includes all five fields):
 
 ```json
 {
@@ -82,6 +82,7 @@ Initial response shape (the actual result includes all four fields):
     "outcome": "complete",
     "savedVersion": {"status": "extracted", "value": "26.1.0.5530"},
     "baseTempoBpm": {"status": "extracted", "value": 137.0},
+    "channelCount": {"status": "extracted", "value": 1},
     "channelNames": {"status": "extracted", "value": ["Fixture Sample A"]},
     "sampleReferences": {"status": "extracted", "value": ["sample.wav"]},
     "inputFingerprint": {"size": 46703, "modifiedAtMs": 1234567890000, "hash": null},
@@ -98,8 +99,9 @@ must never be labeled as text extracted from the FLP.
 
 The first selected Rust implementation slice is
 [`crates/flp-parser/`](crates/flp-parser/README.md). It implements the four
-initial fields and a bounded version-1 JSON-lines process. Its verified saved
-builds are exactly 24.1.0.4225, 25.1.3.4922, and 26.1.0.5530; other saved
+initial fields, followed by a channel count validated against both the header
+and channel events, and a bounded version-1 JSON-lines process. Its verified
+saved builds are exactly 24.1.0.4225, 25.1.3.4922, and 26.1.0.5530; other saved
 builds return typed `UNSUPPORTED_SAVED_VERSION` until approved fixtures expand
 coverage. The crate is not yet wired to scanner jobs or desktop packaging.
 
