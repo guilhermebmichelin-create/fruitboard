@@ -1,5 +1,10 @@
 # Parser spike #138: F12 positive sample-reference follow-up
 
+This result preceded the owner's channel-default interpretation decision.
+The later [inference follow-up](parser-spike-138-inferred-default-result-20260928.md)
+records the research parser's behavior under that decision while retaining the
+original F06/F11 mismatch here.
+
 - Date: 2026-09-28, after the approved F12 fixture merged in PR #170.
 - Question: can the existing bounded Rust research parser extract an explicit
   channel name and raw sample reference from the FL Studio 2026 F12 save, and

@@ -58,7 +58,7 @@ The issue bound remains twelve fixtures and at most six version rows. Ten slots 
 
 ## Pre-registered expected values and hashes
 
-The expected fields come from FL Studio's visible project state and saved-build information; the corrected bytes were reopened in their matching builds and preserve the relevant version, tempo, channel, and sample-reference events. The first nine approved fixtures were used in the separate parser spike PR #169; F12 expectations were recorded before any parser run on F12. `extracted`, `unavailable`, `unsupported`, and `failed` are the status vocabulary in [FLP_PARSER.md](../../FLP_PARSER.md#adapter-shape). A missing Sampler file is `unavailable`, not a made-up path or a claim that a file is missing on disk. The expected channel order is exactly `["Sampler"]` for F01/F04/F05/F06/F11 and F08, and `["Fixture Sample A"]` for F12; F07/F09/F10 pre-register a typed failure before field extraction. A parser may fail or report an unsupported version; observed results must be recorded separately and never back-filled into this table.
+The expected fields come from FL Studio's visible project state and saved-build information; the corrected bytes were reopened in their matching builds and preserve the relevant version, tempo, channel, and sample-reference events. The first nine approved fixtures were used in the separate parser spike PR #169; F12 expectations were recorded before any parser run on F12. The original pre-registered status vocabulary was `extracted`, `unavailable`, `unsupported`, and `failed`; [FLP_PARSER.md](../../FLP_PARSER.md#adapter-shape) also allows a later, explicitly labeled inference. A missing Sampler file is `unavailable`, not a made-up path or a claim that a file is missing on disk. The expected channel order is exactly `["Sampler"]` for F01/F04/F05/F06/F11 and F08, and `["Fixture Sample A"]` for F12; F07/F09/F10 pre-register a typed failure before field extraction. A parser may fail or report an unsupported version; observed results must be recorded separately and never back-filled into this table.
 
 | Slot / exact committed file | Source and license | Saved FL version expected | Base tempo expected | Channel names expected | Raw sample references expected | Bytes | SHA-256 |
 | --- | --- | --- | --- | --- | --- | ---: | --- |
@@ -68,6 +68,21 @@ The expected fields come from FL Studio's visible project state and saved-build 
 | F06 `FIX-FL2025-MIN.flp` | Privacy-sanitized derivative of owner-produced FL Studio 2025 minimal project; no third-party material | `extracted` `25.1.3.4922` | `extracted` `130.000` BPM | `extracted` `["Sampler"]` | `unavailable`: Sampler File `(none)` | 46460 | `745f3cbb7ec095b8e03ab010ad6463c90e2c3616d4d671b868ef6fdbc9fe5fc5` |
 | F11 `FIX-FL2026-MIN.flp` | Privacy-sanitized derivative of owner-produced FL Studio 2026 minimal project; no third-party material | `extracted` `26.1.0.5530` | `extracted` `130.000` BPM | `extracted` `["Sampler"]` | `unavailable`: Sampler File `(none)` | 46589 | `e0471d55032b7dfaa8bbcd496c487147149b9ce18e0b250882cc6f67f47480ee` |
 | F12 `FIX-FL2026-SAMPLE.flp` | Privacy-sanitized derivative of agent-operated FL Studio 2026 save from approved F11 with generated silent sample; owner-approved synthetic content, no third-party material | `extracted` `26.1.0.5530` | `extracted` `137.000` BPM | `extracted` `["Fixture Sample A"]` | `extracted` `C:\Users\Public\Documents\FruitboardFixtures\F12\fixture-silence.wav` | 46703 | `dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39` |
+
+### Owner interpretation decision after the first parser runs
+
+On 2026-09-28, after the original result documented the F06/F11 name
+mismatches, the owner chose to report FL Studio's displayed built-in `Sampler`
+default as an **inference** when no channel-name event is stored. The table
+above remains the original pre-registered GUI expectation; it is not
+retroactively rewritten as a byte-extraction claim. The follow-up Rust research
+adapter therefore returns `status: inferred`, `value: ["Sampler"]`, method
+`sampler-default-for-known-build`, and explicit confidence for F06/F11. This
+rule is restricted to the two GUI-verified saved builds in this corpus and a
+channel-type value of zero. A stored explicit name such as F12's remains
+`extracted`; a missing name outside the verified rule remains `unavailable`.
+The [post-decision result](../../docs/research/parser-spike-138-inferred-default-result-20260928.md)
+reports the new comparison separately from the original one.
 
 ## Approved byte-derived robustness fixtures
 

@@ -92,10 +92,11 @@ Illustrative response shape:
 }
 ```
 
-Each potentially absent fact uses a status such as `extracted`, `unavailable`,
-`unsupported`, or `failed`. `inferred` values are normally produced by Rust
-after parsing; if a parser adapter infers something, it must label the method
-and confidence explicitly.
+Each potentially absent fact uses a status such as `extracted`, `inferred`,
+`unavailable`, `unsupported`, or `failed`. `inferred` values are normally
+produced by Rust after parsing; if a parser adapter infers something, it must
+label the method and confidence explicitly. An inferred displayed channel name
+must never be labeled as text extracted from the FLP.
 
 The parser result is validated for schema, length/count limits, finite numeric
 values, path/string sizes, and known enum values before persistence. Unknown

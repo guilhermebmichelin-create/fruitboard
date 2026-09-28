@@ -97,6 +97,25 @@ class ProcessTests(unittest.TestCase):
         }
         self.assertTrue(validate.compare("FIX-FL2026-SAMPLE.flp", observed, expected)["sampleReferences"])
 
+    def test_missing_default_sampler_name_requires_labeled_inference(self):
+        name = "FIX-FL2025-MIN.flp"
+        expected = validate.CORPUS[name]
+        observed = {
+            "outcome": "complete", "diagnostics": [],
+            "savedVersion": {"status": "extracted", "value": expected[1]},
+            "baseTempoBpm": {"status": "extracted", "value": expected[2]},
+            "channelNames": {"status": "extracted", "value": ["Sampler"]},
+            "sampleReferences": {"status": "unavailable"},
+        }
+        self.assertFalse(validate.compare(name, observed, expected)["channelNames"])
+        observed["channelNames"] = {
+            "status": "inferred", "value": ["Sampler"],
+            "method": "sampler-default-for-known-build", "confidence": "high",
+            "items": [{"status": "inferred", "value": "Sampler",
+                       "method": "sampler-default-for-known-build", "confidence": "high"}],
+        }
+        self.assertTrue(validate.compare(name, observed, expected)["channelNames"])
+
     def test_pyflp_enum_diagnostic_is_opt_in_per_bounded_child(self):
         with tempfile.TemporaryDirectory(prefix="fruitboard-harness-") as folder:
             path = Path(folder) / "input.txt"

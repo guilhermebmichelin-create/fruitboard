@@ -39,6 +39,10 @@ fn three_byte_event_172(version: &str) -> bool {
         || matches!(parts.as_slice(), [25, minor, patch, ..] if *minor > 2 || (*minor == 2 && *patch >= 4))
 }
 
+fn known_sampler_default_build(version: Option<&str>) -> bool {
+    matches!(version, Some("25.1.3.4922" | "26.1.0.5530"))
+}
+
 fn utf16_text(data: &[u8]) -> Result<String, &'static str> {
     if data.len() < 2 || data.len() % 2 != 0 || data.len() > 8192 {
         return Err("INVALID_TEXT_LENGTH");
@@ -74,6 +78,7 @@ fn parse_bytes(bytes: &[u8]) -> Value {
     let mut tempo: Option<f64> = None;
     let mut diagnostics: Vec<Value> = Vec::new();
     let mut names: Vec<Option<String>> = Vec::new();
+    let mut channel_kinds: Vec<u16> = Vec::new();
     let mut samples: Vec<Option<String>> = Vec::new();
     let mut current_channel: Option<usize> = None;
     let mut event_count = 0usize;
@@ -128,6 +133,7 @@ fn parse_bytes(bytes: &[u8]) -> Value {
                 }
                 current_channel = Some(names.len());
                 names.push(None);
+                channel_kinds.push(u16::from_le_bytes([data[0], data[1]]));
                 samples.push(None);
             }
             98 => current_channel = None,
@@ -185,6 +191,7 @@ fn parse_bytes(bytes: &[u8]) -> Value {
     if names.len() != header_channels as usize {
         return failed("CHANNEL_COUNT_MISMATCH");
     }
+    let infer_sampler_default = known_sampler_default_build(version.as_deref());
     let saved_version = match version {
         Some(value) => field("extracted", json!(value), None),
         None => field("unavailable", Value::Null, Some("SAVED_VERSION_ABSENT")),
@@ -200,13 +207,34 @@ fn parse_bytes(bytes: &[u8]) -> Value {
             None,
         )
     } else {
-        json!({
-            "status":"unavailable", "reason":"CHANNEL_NAME_NOT_STORED",
-            "items":names.into_iter().map(|name| match name {
-                Some(value) => field("extracted",json!(value),None),
-                None => field("unavailable",Value::Null,Some("CHANNEL_NAME_NOT_STORED")),
-            }).collect::<Vec<_>>()
-        })
+        let items = names
+            .into_iter()
+            .zip(channel_kinds)
+            .map(|(name, kind)| match name {
+                Some(value) => field("extracted", json!(value), None),
+                None if infer_sampler_default && kind == 0 => json!({
+                    "status":"inferred", "value":"Sampler",
+                    "method":"sampler-default-for-known-build", "confidence":"high"
+                }),
+                None => field("unavailable", Value::Null, Some("CHANNEL_NAME_NOT_STORED")),
+            })
+            .collect::<Vec<_>>();
+        if items
+            .iter()
+            .all(|item| item["status"].as_str() != Some("unavailable"))
+        {
+            json!({
+                "status":"inferred",
+                "value":items.iter().map(|item| item["value"].clone()).collect::<Vec<_>>(),
+                "method":"sampler-default-for-known-build", "confidence":"high",
+                "items":items
+            })
+        } else {
+            json!({
+                "status":"unavailable", "reason":"CHANNEL_NAME_NOT_STORED",
+                "items":items
+            })
+        }
     };
     let sample_references = if samples.iter().all(Option::is_some) {
         field(

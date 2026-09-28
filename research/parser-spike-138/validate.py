@@ -63,7 +63,18 @@ def compare(name, observed, expected):
         return checks
     checks["savedVersion"] = observed["savedVersion"] == {"status": "extracted", "value": version}
     checks["baseTempoBpm"] = observed["baseTempoBpm"] == {"status": "extracted", "value": tempo}
-    checks["channelNames"] = observed["channelNames"] == {"status": "extracted", "value": [expected_name]}
+    if name in ("FIX-FL2025-MIN.flp", "FIX-FL2026-MIN.flp"):
+        inferred = {
+            "status": "inferred", "value": expected_name,
+            "method": "sampler-default-for-known-build", "confidence": "high",
+        }
+        checks["channelNames"] = observed["channelNames"] == {
+            "status": "inferred", "value": [expected_name],
+            "method": "sampler-default-for-known-build", "confidence": "high",
+            "items": [inferred],
+        }
+    else:
+        checks["channelNames"] = observed["channelNames"] == {"status": "extracted", "value": [expected_name]}
     if name == "FIX-FL2026-SAMPLE.flp":
         checks["sampleReferences"] = observed["sampleReferences"] == {
             "status": "extracted", "value": [F12_SAMPLE_REFERENCE],
