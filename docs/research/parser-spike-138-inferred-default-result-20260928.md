@@ -41,12 +41,19 @@ matrix still has its historical F06/F11 shortfall: the string `Sampler` is not
 stored in those two files. This follow-up changes the interpretation of the
 displayed default; it does not rewrite the original pre-registered table.
 
-The locally built optimized Windows research executable is 273,920 bytes.
-Its SHA-256 and the private ten-file report's SHA-256 are recorded with the
-reproducible source commit in the PR validation notes. The run is functional
-validation, not a cold-start, installed-app, or hostile-input performance
-qualification. Stable PyFLP's previous ten-file result is unchanged and was
-not rerun for this Rust-only change.
+The exact Rust source was committed at `080e825`. It was built with Rust
+1.98.1 MSVC using `cargo build --release --locked --offline`. The optimized
+Windows research executable is 273,920 bytes, SHA-256
+`ba505daaffc1e02b8938f9a77627ad2a90b1c142f4bcc2681303fc07623da30c`.
+An independent copy outside the compiler cache produced the private ten-file
+report, SHA-256
+`8ba2ff2507d786a1f410828e61525fc534454f74bf2ed934ad393f6d373a688c`.
+The run reported zero current-policy mismatches. Ten Python harness tests,
+119 repository policy tests, Markdown lint, Rust formatting, and the repository
+privacy scan passed locally. This is functional validation, not a cold-start,
+installed-app, or hostile-input performance qualification. Stable PyFLP's
+previous ten-file result is unchanged and was not rerun for this Rust-only
+change.
 
 ## Remaining decision
 
