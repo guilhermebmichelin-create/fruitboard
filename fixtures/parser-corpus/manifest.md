@@ -69,6 +69,21 @@ The expected fields come from FL Studio's visible project state and saved-build 
 | F11 `FIX-FL2026-MIN.flp` | Privacy-sanitized derivative of owner-produced FL Studio 2026 minimal project; no third-party material | `extracted` `26.1.0.5530` | `extracted` `130.000` BPM | `extracted` `["Sampler"]` | `unavailable`: Sampler File `(none)` | 46589 | `e0471d55032b7dfaa8bbcd496c487147149b9ce18e0b250882cc6f67f47480ee` |
 | F12 `FIX-FL2026-SAMPLE.flp` | Privacy-sanitized derivative of agent-operated FL Studio 2026 save from approved F11 with generated silent sample; owner-approved synthetic content, no third-party material | `extracted` `26.1.0.5530` | `extracted` `137.000` BPM | `extracted` `["Fixture Sample A"]` | `extracted` `C:\Users\Public\Documents\FruitboardFixtures\F12\fixture-silence.wav` | 46703 | `dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39` |
 
+### Owner interpretation decision after the first parser runs
+
+On 2026-09-28, after the original result documented the F06/F11 name
+mismatches, the owner chose to report FL Studio's displayed built-in `Sampler`
+default as an **inference** when no channel-name event is stored. The table
+above remains the original pre-registered GUI expectation; it is not
+retroactively rewritten as a byte-extraction claim. The follow-up Rust research
+adapter therefore returns `status: inferred`, `value: ["Sampler"]`, method
+`sampler-default-for-known-build`, and explicit confidence for F06/F11. This
+rule is restricted to the two GUI-verified saved builds in this corpus and a
+channel-type value of zero. A stored explicit name such as F12's remains
+`extracted`; a missing name outside the verified rule remains `unavailable`.
+The [post-decision result](../../docs/research/parser-spike-138-inferred-default-result-20260928.md)
+reports the new comparison separately from the original one.
+
 ## Approved byte-derived robustness fixtures
 
 All four derive **independently** from F01 SHA-256 `d3caba4e6e1a2cd47074b7b6e0f115d9d896e6da2e95705baff0777ef06b30ae` (111315 bytes, FL Studio saved build 24.1.0.4225). They are deliberately modified byte streams, not FL Studio saves. Offsets are zero-based. The original `FLdt` length is 111293 at offsets 18-21 (`bd b2 01 00`); F01 has one channel at offsets 10-11 (`01 00`). The first event ID is `c7` at offset 22, its length byte `0c` at offset 23, its 12-byte payload spans offsets 24-35, and the next event begins at offset 36. These operations and their expected typed outcomes were approved before creation on 2026-09-27. No parser result was used to set these expectations.
