@@ -4,9 +4,11 @@
   production parser selected.**
 - Start: 2026-09-27, after owner-approved fixture PR #168 merged into `main` at
   `e62eebef4713f480fc16526cd4c7b14dbd7178ab`.
-- Scope: the nine approved files in `fixtures/parser-corpus/manifest.md` only.
-  F02 (FL 20) and F03 (FL 21) remain owner-recorded `not covered`; F12 remains
-  reserved. No personal project, audio, or installed-app save was used.
+- Scope: the original nine approved files in `fixtures/parser-corpus/manifest.md`
+  only. F02 (FL 20) and F03 (FL 21) remain owner-recorded `not covered`. F12
+  was reserved for the original run and is now approved in separate, unmerged
+  PR #170; no research parser has run on F12. No personal project or audio was
+  used in this spike.
 - Research source: `17a5114d872ca66780f385222a042de10555c95e`; corrected validation
   harness: `425792d`; compiled with Rust 1.98.1 MSVC, `--release --locked
   --offline`, in the machine's reusable validation cache. The retained binary is
@@ -184,9 +186,50 @@ through the FL Studio GUI, inspects and sanitizes its embedded metadata, reopens
 the corrected file without saving, and checks its tempo/name/sample state and
 unchanged SHA-256. The WAV stays outside Git. The final FLP requires owner
 approval of its exact bytes and a separate fixture manifest PR before parsing.
-F12 is still reserved until the owner approves this case. Existing F06/F11
-expectations and their recorded mismatches remain intact.
+The owner subsequently approved this case and its exact sanitized bytes, and
+PR #170 contains the fixture and manifest. That PR remains unmerged. Existing
+F06/F11 expectations and their recorded mismatches remain intact.
 
 This would use ten of the twelve fixture slots, the same version rows and four
 fields, and the original 15-day active-work/21-day hard-stop bounds. Production
 parser selection and Phase 3 implementation remain separate owner decisions.
+
+## 2026-09-28 continuation: PyFLP enum diagnostic
+
+The unmodified stable PyFLP 2.2.1 baseline above remains the required fallback
+result: it parsed none of the nine approved files on pinned Python 3.11.16.
+This is partly an entry-point defect rather than nine independent file-format
+failures. Calling its `EventEnum(199)` directly, without an FLP, raises
+`TypeError: EventEnum has no members defined` before its `_missing_` hook can
+resolve the known version event. [Upstream PyFLP issue #201](https://github.com/demberto/PyFLP/issues/201)
+reports the same error.
+
+An **opt-in research diagnostic** in `pyflp_probe.py` now adds one out-of-range
+member to that empty enum's private map inside each bounded child process.
+This allows PyFLP's existing `_missing_` lookup to run. The installed package,
+product code, and baseline probe remain unchanged. The flag is
+`--enum-compat-diagnostic`; it is a temporary compatibility experiment, not a
+proposed production patch. The report from source commit `41462fb` is retained
+outside Git with SHA-256
+`117b36b685f24397a8b59808757e34736f5f6c676d97ab04875ae02d300dbb8c`.
+Each child had the existing ten-second and output limits, and all nine fixture
+hashes were unchanged before and after parsing. Eight local harness tests
+passed, including an opt-in check that keeps the unmodified baseline separate.
+
+| Fixture group | Diagnostic result after the temporary enum workaround |
+| --- | --- |
+| F01/F04/F05 | Version, tempo, explicit `Sampler` name, and absent sample reference matched their registered values. |
+| F08 | The same four fields matched; the probe did not establish the registered unsupported-event diagnostic. |
+| F06 | Version, tempo, and absent sample reference matched; the unstored default channel name remained unavailable. |
+| F11 | Version was extracted, tempo was unavailable, and channel/sample access failed with `NoModelsFound`. |
+| F07/F09 | Parsing failed with `HeaderCorrupted` and `UnicodeDecodeError` respectively; typed field-level failures were not established. |
+| F10 | PyFLP parsed the deliberately excessive 65,535-channel declaration instead of enforcing the registered channel-count limit. |
+
+This diagnostic corrects the interpretation of the baseline failure: bypassing
+the enum defect exposes partial PyFLP coverage, not a complete fallback. It
+still misses newer-version fields and the resource-limit safety case, and no
+approved positive sample reference has been tested. It provides no performance
+qualification or license exception. The recommendation to defer production
+selection is unchanged. The F12 parser test remains gated on PR #170 merge;
+both fixture and research PRs currently have GitHub Actions jobs that could not
+start because of the account billing/spending limit.
