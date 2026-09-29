@@ -7,9 +7,10 @@ mod publication;
 
 pub use error::{DatabaseDetail, Result, StorageError};
 pub use execution::{
-    DEFAULT_SCAN_MAX_ATTEMPTS, EnqueueResult, LeasedScan, ScanJob, ScanJobState, ScanKind,
-    ScanRetryCandidatePage, ScanRetryCursor, ScanRootExecution, ScanRootStatus, ScanRun,
-    ScanRunFinalization, ScanRunOutcome, ScanRunState, ScanSession,
+    DEFAULT_SCAN_MAX_ATTEMPTS, EnqueueResult, LeasedScan, MAX_TERMINAL_RUNS_PER_ROOT,
+    RetentionOutcome, ScanJob, ScanJobState, ScanKind, ScanRetryCandidatePage, ScanRetryCursor,
+    ScanRootExecution, ScanRootStatus, ScanRun, ScanRunFinalization, ScanRunOutcome, ScanRunState,
+    ScanSession, TERMINAL_HISTORY_MAX_AGE_MS,
 };
 use files::{Location, check_path, private_directory, private_file};
 use migrations::{MIGRATIONS, Migration};
