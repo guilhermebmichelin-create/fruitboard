@@ -1,9 +1,12 @@
 use super::{
     CancellationMirror, ScanConsoleHost, ScanEventSink, ScanStatusChangedEvent, build_host,
 };
+use crate::foundation::test_support::RecordingLogSink;
 use fruitboard_filesystem_enumeration::Cancellation;
-use fruitboard_scan_execution::{ScanClock, ScanWorker, SystemClock, WorkerConfig};
-use fruitboard_storage::{Database, ScanJobState, ScanKind, ScanRunState};
+use fruitboard_scan_execution::{
+    FinalizationBoundary, ScanClock, ScanWorker, SystemClock, WorkerConfig,
+};
+use fruitboard_storage::{Database, ScanJobState, ScanKind, ScanRunOutcome, ScanRunState};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -49,6 +52,7 @@ fn active_host() -> (
                 &mut database_guard,
                 Arc::new(SystemClock),
                 Arc::new(NoopSink),
+                Arc::new(RecordingLogSink::default()),
             )
             .expect("build host"),
         )
@@ -192,6 +196,73 @@ fn a_cancellation_registered_after_stop_is_seen_by_the_mirror() {
     host.shutdown(&database);
 }
 
+/// A traversal abort with no user cancellation intent (global host stop or
+/// a lost lease heartbeat) must not be recorded as a user cancellation.
+/// Storage re-upgrades to `Cancelled` whenever durable cancellation flags
+/// exist, so durable user intent is preserved by the same path.
+#[test]
+fn a_stop_driven_abort_is_recorded_as_interrupted_not_cancelled() {
+    let (_directory, database, host, _job_id) = active_host();
+    let scan = host
+        .pending
+        .lock()
+        .expect("pending lock")
+        .as_ref()
+        .expect("claimed scan")
+        .scan
+        .clone();
+    let run_id = scan.leased.run.id.clone();
+    host.stopping
+        .store(true, std::sync::atomic::Ordering::Release);
+
+    let state = host
+        .finish_at_control_boundary(
+            &database,
+            &scan,
+            SystemClock.now_ms(),
+            ScanRunOutcome::Cancelled,
+            None,
+        )
+        .expect("terminalize the stop-driven abort");
+
+    assert_eq!(state, ScanRunState::Interrupted);
+    let database = database.lock().expect("database lock");
+    let run = database.scan_run(&run_id).expect("finished run");
+    assert_eq!(run.state, ScanRunState::Interrupted);
+    assert!(!run.cancellation_requested);
+}
+
+#[test]
+fn a_user_cancellation_still_finalizes_as_a_cancellation() {
+    let (_directory, database, host, job_id) = active_host();
+    host.request_cancellation(&job_id);
+    let scan = host
+        .pending
+        .lock()
+        .expect("pending lock")
+        .as_ref()
+        .expect("claimed scan")
+        .scan
+        .clone();
+    let run_id = scan.leased.run.id.clone();
+
+    let state = host
+        .finish_at_control_boundary(
+            &database,
+            &scan,
+            SystemClock.now_ms(),
+            ScanRunOutcome::Cancelled,
+            None,
+        )
+        .expect("terminalize the user cancellation");
+
+    assert_eq!(state, ScanRunState::Cancelled);
+    let database = database.lock().expect("database lock");
+    let run = database.scan_run(&run_id).expect("cancelled run");
+    assert_eq!(run.state, ScanRunState::Cancelled);
+    assert!(run.cancellation_requested);
+}
+
 // Regression for the installed queue stall (final 2026-09-09 regression, §5):
 // after an unavailable-root automatic retry completes, a watcher follow-up
 // stayed queued for minutes with no running job, every later `scan_now`
@@ -295,8 +366,13 @@ fn failed_retry_behind_queued_follow_up_does_not_block_the_worker() {
     let host = {
         let mut guard = database.lock().expect("database lock");
         Arc::new(
-            build_host(&mut guard, Arc::new(clock.clone()), Arc::new(NoopSink))
-                .expect("build host"),
+            build_host(
+                &mut guard,
+                Arc::new(clock.clone()),
+                Arc::new(NoopSink),
+                Arc::new(RecordingLogSink::default()),
+            )
+            .expect("build host"),
         )
     };
     let root_id = database
