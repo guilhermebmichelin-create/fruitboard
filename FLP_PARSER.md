@@ -96,7 +96,18 @@ Each potentially absent fact uses a status such as `extracted`, `inferred`,
 `unavailable`, `unsupported`, or `failed`. `inferred` values are normally
 produced by Rust after parsing; if a parser adapter infers something, it must
 label the method and confidence explicitly. An inferred displayed channel name
-must never be labeled as text extracted from the FLP.
+must never be labeled as text extracted from the FLP, and an extracted name must
+never be relabeled as inferred by an aggregate method.
+
+Inferred sampler channel names follow FL Studio's own display numbering, so
+successive unnamed sampler channels in a known build are reported as `Sampler`,
+`Sampler 2`, `Sampler 3`, and so on. Only the first is verified against a real
+save and carries `high` confidence; the numbering beyond it follows FL's display
+convention and is reported at `medium` until a multi-channel approved fixture
+confirms it. When a project mixes a stored name with an inferred default, the
+aggregate `channelNames` object uses the method
+`mixed-extracted-and-sampler-default` at `medium` confidence rather than
+claiming the whole array came from the sampler-default rule.
 
 The first selected Rust implementation slice is
 [`crates/flp-parser/`](crates/flp-parser/README.md). It implements the four

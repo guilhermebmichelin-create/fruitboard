@@ -57,6 +57,86 @@ fn known_sampler_default_build(version: Option<&str>) -> bool {
     matches!(version, Some("25.1.3.4922" | "26.1.0.5530"))
 }
 
+/// Build the `channelNames` field from stored names and channel kinds.
+///
+/// FL Studio numbers successive sampler channels `Sampler`, `Sampler 2`,
+/// `Sampler 3`, ..., so an inferred name depends on how many unnamed sampler
+/// channels precede it rather than being a single literal. Only the first is
+/// verified against a real save (see
+/// `docs/research/parser-spike-138-inferred-default-result-20260928.md`); the
+/// numbering beyond it follows FL's display convention and is reported at
+/// lower confidence until a multi-channel fixture confirms it.
+///
+/// Split out from the event walk so the multi-channel shape is directly
+/// testable without new fixture bytes: every approved corpus file currently has
+/// exactly one channel, so this path was previously unreachable in tests.
+fn channel_names_json(
+    names: Vec<Option<String>>,
+    channel_kinds: Vec<u16>,
+    infer_sampler_default: bool,
+) -> Value {
+    if names.iter().all(Option::is_some) {
+        return field(
+            "extracted",
+            json!(names.into_iter().flatten().collect::<Vec<_>>()),
+            None,
+        );
+    }
+    let mut inferred_samplers = 0usize;
+    let items = names
+        .into_iter()
+        .zip(channel_kinds)
+        .map(|(name, kind)| match name {
+            Some(value) => field("extracted", json!(value), None),
+            None if infer_sampler_default && kind == 0 => {
+                inferred_samplers += 1;
+                let (display, confidence) = if inferred_samplers == 1 {
+                    ("Sampler".to_owned(), "high")
+                } else {
+                    (format!("Sampler {inferred_samplers}"), "medium")
+                };
+                json!({
+                    "status":"inferred", "value":display,
+                    "method":"sampler-default-for-known-build",
+                    "confidence":confidence
+                })
+            }
+            None => field("unavailable", Value::Null, Some("CHANNEL_NAME_NOT_STORED")),
+        })
+        .collect::<Vec<_>>();
+    if items
+        .iter()
+        .any(|item| item["status"].as_str() == Some("unavailable"))
+    {
+        return json!({
+            "status":"unavailable", "reason":"CHANNEL_NAME_NOT_STORED",
+            "items":items
+        });
+    }
+    // Never stamp the whole array with a single method. When a project mixes a
+    // stored name with an inferred default, reporting
+    // `sampler-default-for-known-build` for the array implies every element
+    // came from that rule, which mislabels the extracted ones in the opposite
+    // direction to the rule in FLP_PARSER.md.
+    let mixed = items
+        .iter()
+        .any(|item| item["status"].as_str() == Some("extracted"))
+        && items
+            .iter()
+            .any(|item| item["status"].as_str() == Some("inferred"));
+    let (method, confidence) = if mixed {
+        ("mixed-extracted-and-sampler-default", "medium")
+    } else {
+        ("sampler-default-for-known-build", "high")
+    };
+    json!({
+        "status":"inferred",
+        "value":items.iter().map(|item| item["value"].clone()).collect::<Vec<_>>(),
+        "method":method, "confidence":confidence,
+        "items":items
+    })
+}
+
 fn supported_saved_version(version: &str) -> bool {
     matches!(version, "24.1.0.4225" | "25.1.3.4922" | "26.1.0.5530")
 }
@@ -485,42 +565,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         None => field("unavailable", Value::Null, Some("BASE_TEMPO_ABSENT")),
     };
     let channel_count = names.len();
-    let channel_names = if names.iter().all(Option::is_some) {
-        field(
-            "extracted",
-            json!(names.into_iter().flatten().collect::<Vec<_>>()),
-            None,
-        )
-    } else {
-        let items = names
-            .into_iter()
-            .zip(channel_kinds)
-            .map(|(name, kind)| match name {
-                Some(value) => field("extracted", json!(value), None),
-                None if infer_sampler_default && kind == 0 => json!({
-                    "status":"inferred", "value":"Sampler",
-                    "method":"sampler-default-for-known-build", "confidence":"high"
-                }),
-                None => field("unavailable", Value::Null, Some("CHANNEL_NAME_NOT_STORED")),
-            })
-            .collect::<Vec<_>>();
-        if items
-            .iter()
-            .all(|item| item["status"].as_str() != Some("unavailable"))
-        {
-            json!({
-                "status":"inferred",
-                "value":items.iter().map(|item| item["value"].clone()).collect::<Vec<_>>(),
-                "method":"sampler-default-for-known-build", "confidence":"high",
-                "items":items
-            })
-        } else {
-            json!({
-                "status":"unavailable", "reason":"CHANNEL_NAME_NOT_STORED",
-                "items":items
-            })
-        }
-    };
+    let channel_names = channel_names_json(names, channel_kinds, infer_sampler_default);
     let sample_references = if samples.iter().all(Option::is_some) {
         field(
             "extracted",
@@ -616,4 +661,93 @@ pub fn parse_file(path: &Path, expected: ExpectedFingerprint) -> Value {
         "hash": null
     });
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::channel_names_json;
+
+    /// Every approved corpus file has exactly one channel
+    /// (`tests/corpus.rs`), so the multi-channel shape of the sampler-default
+    /// inference was unreachable in tests. These cases drive the extracted
+    /// helper directly rather than adding synthetic fixture bytes.
+    fn names(pairs: &[(Option<&str>, u16)]) -> (Vec<Option<String>>, Vec<u16>) {
+        (
+            pairs
+                .iter()
+                .map(|(name, _)| name.map(str::to_owned))
+                .collect(),
+            pairs.iter().map(|(_, kind)| *kind).collect(),
+        )
+    }
+
+    #[test]
+    fn successive_inferred_samplers_are_numbered_like_fl_studio() {
+        let (stored, kinds) = names(&[(None, 0), (None, 0), (None, 0)]);
+        let value = channel_names_json(stored, kinds, true);
+        assert_eq!(
+            value["value"],
+            serde_json::json!(["Sampler", "Sampler 2", "Sampler 3"])
+        );
+    }
+
+    #[test]
+    fn the_first_inferred_sampler_is_the_verified_shape_and_later_ones_are_marked_weaker() {
+        let (stored, kinds) = names(&[(None, 0), (None, 0)]);
+        let value = channel_names_json(stored, kinds, true);
+        let items = value["items"].as_array().unwrap();
+        assert_eq!(items[0]["value"], "Sampler");
+        assert_eq!(items[0]["confidence"], "high");
+        assert_eq!(items[1]["value"], "Sampler 2");
+        assert_eq!(items[1]["confidence"], "medium");
+    }
+
+    #[test]
+    fn a_stored_name_is_not_relabelled_as_an_inferred_default() {
+        let (stored, kinds) = names(&[(Some("Kick"), 0), (None, 0)]);
+        let value = channel_names_json(stored, kinds, true);
+        let items = value["items"].as_array().unwrap();
+        assert_eq!(items[0]["status"], "extracted");
+        assert_eq!(items[0]["value"], "Kick");
+        // The aggregate must not claim every element came from the inference rule.
+        assert_eq!(value["method"], "mixed-extracted-and-sampler-default");
+        assert_eq!(value["confidence"], "medium");
+        // The stored channel must not consume an inferred sampler ordinal.
+        assert_eq!(items[1]["value"], "Sampler");
+    }
+
+    #[test]
+    fn an_all_inferred_project_keeps_the_single_verified_method() {
+        let (stored, kinds) = names(&[(None, 0), (None, 0)]);
+        let value = channel_names_json(stored, kinds, true);
+        assert_eq!(value["status"], "inferred");
+        assert_eq!(value["method"], "sampler-default-for-known-build");
+    }
+
+    #[test]
+    fn a_non_sampler_channel_is_unavailable_and_suppresses_the_array() {
+        let (stored, kinds) = names(&[(None, 0), (None, 1)]);
+        let value = channel_names_json(stored, kinds, true);
+        assert_eq!(value["status"], "unavailable");
+        assert_eq!(value["reason"], "CHANNEL_NAME_NOT_STORED");
+        let items = value["items"].as_array().unwrap();
+        assert_eq!(items[0]["value"], "Sampler");
+        assert_eq!(items[1]["status"], "unavailable");
+    }
+
+    #[test]
+    fn no_inference_happens_for_an_unverified_build() {
+        let (stored, kinds) = names(&[(None, 0), (None, 0)]);
+        let value = channel_names_json(stored, kinds, false);
+        assert_eq!(value["status"], "unavailable");
+    }
+
+    #[test]
+    fn a_fully_stored_project_is_extracted_and_carries_no_method() {
+        let (stored, kinds) = names(&[(Some("Kick"), 0), (Some("Snare"), 0)]);
+        let value = channel_names_json(stored, kinds, true);
+        assert_eq!(value["status"], "extracted");
+        assert_eq!(value["value"], serde_json::json!(["Kick", "Snare"]));
+        assert!(value.get("method").is_none());
+    }
 }
