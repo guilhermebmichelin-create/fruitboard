@@ -109,6 +109,16 @@ aggregate `channelNames` object uses the method
 `mixed-extracted-and-sampler-default` at `medium` confidence rather than
 claiming the whole array came from the sampler-default rule.
 
+Generator names are separate from editable channel labels. A controlled
+FL Studio 2026 save shows built-in `3x Osc` stored in event 201, while the
+renamed channel label is stored in event 203. The draft
+`channelGeneratorNames` field extracts that verified built-in class and
+labels the 2026 kind-0 Sampler default as an inference. Unverified generator
+classes, mixer effects, external VST identity, and other saved builds remain
+`unsupported` for this field. The controlled two-channel save is private until
+the owner approves its exact sanitized bytes for corpus inclusion under the
+[fixture rules](DEVELOPMENT.md#parser-fixture-rules).
+
 The first selected Rust implementation slice is
 [`crates/flp-parser/`](crates/flp-parser/README.md). It implements the four
 initial fields, followed by a channel count validated against both the header

@@ -104,6 +104,26 @@ fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
         } else {
             assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
         }
+        if version == "26.1.0.5530" {
+            assert_eq!(
+                parsed["channelGeneratorNames"]["status"], "inferred",
+                "{name}"
+            );
+            assert_eq!(
+                parsed["channelGeneratorNames"]["value"],
+                serde_json::json!(["Sampler"]),
+                "{name}"
+            );
+            assert_eq!(
+                parsed["channelGeneratorNames"]["confidence"], "high",
+                "{name}"
+            );
+        } else {
+            assert_eq!(
+                parsed["channelGeneratorNames"]["status"], "unsupported",
+                "{name}"
+            );
+        }
     }
 
     for (name, outcome, code) in [
@@ -115,6 +135,10 @@ fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
         assert_eq!(parsed["outcome"], outcome, "{name}");
         assert_eq!(parsed["code"], code, "{name}");
         assert_eq!(parsed["channelCount"]["status"], "failed", "{name}");
+        assert_eq!(
+            parsed["channelGeneratorNames"]["status"], "failed",
+            "{name}"
+        );
     }
     let unknown = parse_bytes(&fs::read(fixture("FIX-RB-UNKNOWN.flp")).unwrap());
     assert_eq!(unknown["outcome"], "partial");
@@ -189,4 +213,5 @@ fn unverified_saved_build_is_explicitly_unsupported() {
     assert_eq!(parsed["channelNames"]["status"], "unsupported");
     assert_eq!(parsed["channelCount"]["status"], "unsupported");
     assert_eq!(parsed["patternCount"]["status"], "unsupported");
+    assert_eq!(parsed["channelGeneratorNames"]["status"], "unsupported");
 }
