@@ -581,7 +581,10 @@ database with ordinary file copy or place it on a network filesystem.
 - Whether UUID strings or 16-byte blobs materially affect realistic query
   performance. Prefer strings unless benchmarks show a real need.
 - Retention limits for immutable parser snapshots, rejected suggestions,
-  tombstones, and sync operations.
+  tombstones, and sync operations. Terminal scan job/run history is already
+  bounded: `prune_terminal_scan_history` keeps each root's most recent 200
+  terminal runs and everything newer than 30 days, and is invoked from the
+  session-start recovery seam.
 - Which sample path components are useful enough to sync without exposing
   private directory structure.
 
