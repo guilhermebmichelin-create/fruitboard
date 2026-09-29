@@ -698,18 +698,13 @@ fn gap_reconciliation_allowed(
     database: &Database,
     storage_root_id: &str,
 ) -> Result<bool, StorageError> {
-    let latest = database
-        .list_scan_jobs()?
-        .into_iter()
-        .filter(|job| job.scan_root_id == storage_root_id)
-        .max_by(|left, right| {
-            left.created_at_ms
-                .cmp(&right.created_at_ms)
-                .then_with(|| left.id.cmp(&right.id))
-        });
+    // This runs on every supervisor poll tick, so it must not scan job history.
+    // `scan_root_status` answers the question with an indexed lookup: the newest
+    // active job for this root, or failing that the newest terminal one.
+    let latest = database.scan_root_status(storage_root_id)?;
     Ok(match latest {
         None => true,
-        Some(job) => match job.state {
+        Some(status) => match status.job.state {
             // A startup/reconnect gap is still relevant when an existing
             // queued or running scan began before the new watch was armed;
             // enqueue_scan coalesces this onto that work (and marks a running
@@ -717,10 +712,17 @@ fn gap_reconciliation_allowed(
             // an explicit fresh trigger after session recovery, unless its
             // durable cancellation flag says the chain was intentionally
             // stopped.
+            //
+            // Preferring the active job over a newer terminal one is what makes
+            // this correct. The partial unique index `scan_job_active_root`
+            // allows at most one queued/running job per root, and that job can
+            // be older than a later terminal job; selecting by creation time
+            // alone would read the terminal state and wrongly suppress the gap
+            // for work that is still pending.
             ScanJobState::Queued | ScanJobState::Running => true,
-            ScanJobState::Interrupted => !job.cancellation_requested,
+            ScanJobState::Interrupted => !status.job.cancellation_requested,
             ScanJobState::Cancelled => false,
-            ScanJobState::Failed => job.attempt < job.max_attempts,
+            ScanJobState::Failed => status.job.attempt < status.job.max_attempts,
             ScanJobState::Completed => true,
         },
     })
@@ -736,7 +738,9 @@ pub(crate) enum SupervisorSignal {
 mod tests {
     use super::*;
     use fruitboard_filesystem_watcher::{Coalescer, CoalescerConfig, WatchOutcome};
-    use fruitboard_storage::{Database, ScanRootAvailability, ScanRootMode};
+    use fruitboard_storage::{
+        Database, ScanJobState, ScanKind, ScanRootAvailability, ScanRootMode,
+    };
     use std::sync::Arc;
 
     struct FakeWatchState {
@@ -865,6 +869,48 @@ mod tests {
         assert_eq!(factory.states.lock().unwrap().len(), 1);
         assert_eq!(supervisor.watcher_root_for(&root.id), Some(watcher_root));
         assert_eq!(supervisor.generation_for(&root.id), Some(1));
+    }
+
+    #[test]
+    fn gap_reconciliation_reads_one_root_and_follows_job_state() {
+        let directory = TestDirectory::new();
+        let mut database = Database::open(&directory.0).unwrap();
+        let root = database
+            .add_scan_root("Synthetic", r"C:\synthetic-root")
+            .unwrap();
+        let other = database
+            .add_scan_root("Other", r"C:\synthetic-other")
+            .unwrap();
+
+        // No history at all: a gap is always relevant.
+        assert!(gap_reconciliation_allowed(&database, &root.id).unwrap());
+
+        // An active job for this root keeps the gap relevant even when other
+        // roots carry unrelated, newer job history. This is the property the
+        // previous full-history read got wrong in the other direction.
+        let active = database
+            .enqueue_scan(&root.id, ScanKind::Manual, 1_000)
+            .unwrap();
+        database
+            .enqueue_scan(&other.id, ScanKind::Manual, 9_000)
+            .unwrap();
+        assert!(gap_reconciliation_allowed(&database, &root.id).unwrap());
+
+        // A terminal chain with no active job is decided by that chain, and the
+        // answer is scoped to the requested root only.
+        assert_eq!(
+            database.cancel_scan_job(&active.job_id, 2_000).unwrap(),
+            ScanJobState::Cancelled
+        );
+        assert!(!gap_reconciliation_allowed(&database, &root.id).unwrap());
+        assert!(gap_reconciliation_allowed(&database, &other.id).unwrap());
+
+        // Re-enqueueing after the terminal state is relevant again, which also
+        // proves the lookup observes new work rather than a cached result.
+        database
+            .enqueue_scan(&root.id, ScanKind::Manual, 10_000)
+            .unwrap();
+        assert!(gap_reconciliation_allowed(&database, &root.id).unwrap());
     }
 
     #[test]
