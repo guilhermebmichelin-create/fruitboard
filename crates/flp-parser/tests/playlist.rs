@@ -33,6 +33,19 @@ fn append_payload(bytes: &mut Vec<u8>, payload: &[u8]) {
     bytes[18..22].copy_from_slice(&data_length.to_le_bytes());
 }
 
+fn append_meter(bytes: &mut Vec<u8>, numerator: u8, denominator: u8) {
+    bytes.extend_from_slice(&[17, numerator, 18, denominator]);
+    let data_length = (bytes.len() - 22) as u32;
+    bytes[18..22].copy_from_slice(&data_length.to_le_bytes());
+}
+
+fn append_tempo(bytes: &mut Vec<u8>, millibpm: u32) {
+    bytes.push(156);
+    bytes.extend_from_slice(&millibpm.to_le_bytes());
+    let data_length = (bytes.len() - 22) as u32;
+    bytes[18..22].copy_from_slice(&data_length.to_le_bytes());
+}
+
 fn clip(start: u32, pattern_id: u16, length: u32, track_token: u32) -> [u8; 88] {
     let mut record = [0; 88];
     record[0..4].copy_from_slice(&start.to_le_bytes());
@@ -62,6 +75,17 @@ fn approved_f13_matches_four_gui_registered_placements() {
             {"patternId":3,"startTick":1152,"lengthTick":384,"trackToken":499},
         ])
     );
+    assert_eq!(parsed["playlistPatternEndTick"]["status"], "extracted");
+    assert_eq!(parsed["playlistPatternEndTick"]["value"], 1536);
+    assert_eq!(
+        parsed["playlistPatternNominalSeconds"]["status"],
+        "inferred"
+    );
+    assert_eq!(parsed["playlistPatternNominalSeconds"]["confidence"], "low");
+    let nominal = parsed["playlistPatternNominalSeconds"]["value"]
+        .as_f64()
+        .unwrap();
+    assert!((nominal - 1536.0 / 96.0 * 60.0 / 130.0).abs() < 1e-10);
     assert_eq!(std::fs::read(&path).unwrap(), before);
 }
 
@@ -76,6 +100,14 @@ fn empty_saved_2026_arrangements_have_no_placements() {
         let parsed = parse_bytes(&before);
         assert_eq!(parsed["playlistPatternClips"]["status"], "extracted");
         assert_eq!(parsed["playlistPatternClips"]["value"], json!([]));
+        assert_eq!(
+            parsed["playlistPatternEndTick"]["reason"],
+            "NO_PLAYLIST_PATTERN_CLIPS"
+        );
+        assert_eq!(
+            parsed["playlistPatternNominalSeconds"]["reason"],
+            "NO_PLAYLIST_PATTERN_CLIPS"
+        );
         assert_eq!(std::fs::read(&path).unwrap(), before);
     }
 }
@@ -86,11 +118,19 @@ fn missing_and_unverified_playlist_data_is_labeled() {
         parse_bytes(&stream("26.1.0.5530", &[1]))["playlistPatternClips"]["reason"],
         "PLAYLIST_DATA_NOT_STORED"
     );
+    assert_eq!(
+        parse_bytes(&stream("26.1.0.5530", &[1]))["playlistPatternEndTick"]["reason"],
+        "PLAYLIST_DATA_NOT_STORED"
+    );
     for version in ["24.1.0.4225", "25.1.3.4922", "99.0.0.0"] {
         let mut bytes = stream(version, &[1]);
         append_payload(&mut bytes, &clip(0, 1, 384, 499));
         assert_eq!(
             parse_bytes(&bytes)["playlistPatternClips"]["status"],
+            "unsupported"
+        );
+        assert_eq!(
+            parse_bytes(&bytes)["playlistPatternEndTick"]["status"],
             "unsupported"
         );
     }
@@ -102,6 +142,10 @@ fn unknown_layout_kind_reference_and_multiple_arrangements_are_not_guessed() {
     append_payload(&mut malformed, &[0; 87]);
     assert_eq!(
         parse_bytes(&malformed)["playlistPatternClips"]["reason"],
+        "PLAYLIST_CLIP_LAYOUT_UNVERIFIED"
+    );
+    assert_eq!(
+        parse_bytes(&malformed)["playlistPatternNominalSeconds"]["reason"],
         "PLAYLIST_CLIP_LAYOUT_UNVERIFIED"
     );
 
@@ -144,6 +188,8 @@ fn zero_length_and_overflow_are_bounded() {
     let failed = parse_bytes(&overflow);
     assert_eq!(failed["code"], "PLAYLIST_POSITION_OVERFLOW");
     assert_eq!(failed["playlistPatternClips"]["status"], "failed");
+    assert_eq!(failed["playlistPatternEndTick"]["status"], "failed");
+    assert_eq!(failed["playlistPatternNominalSeconds"]["status"], "failed");
 
     let mut excessive = stream("26.1.0.5530", &[1]);
     append_payload(
@@ -151,4 +197,76 @@ fn zero_length_and_overflow_are_bounded() {
         &clip(0, 1, 384, 499).repeat(MAX_PLAYLIST_CLIPS + 1),
     );
     assert_eq!(parse_bytes(&excessive)["code"], "PLAYLIST_CLIP_LIMIT");
+}
+
+#[test]
+fn timeline_uses_maximum_clip_end_across_overlap_and_gap() {
+    let mut bytes = stream("26.1.0.5530", &[1, 2]);
+    append_meter(&mut bytes, 4, 4);
+    append_tempo(&mut bytes, 130_000);
+    let mut records = Vec::new();
+    records.extend_from_slice(&clip(0, 1, 768, 499));
+    records.extend_from_slice(&clip(384, 2, 384, 498));
+    append_payload(&mut bytes, &records);
+    let parsed = parse_bytes(&bytes);
+    assert_eq!(parsed["playlistPatternEndTick"]["value"], 768);
+    assert_eq!(
+        parsed["playlistPatternNominalSeconds"]["status"],
+        "inferred"
+    );
+    assert!(
+        (parsed["playlistPatternNominalSeconds"]["value"]
+            .as_f64()
+            .unwrap()
+            - 768.0 / 96.0 * 60.0 / 130.0)
+            .abs()
+            < 1e-10
+    );
+
+    let mut gap = stream("26.1.0.5530", &[1, 2]);
+    append_meter(&mut gap, 4, 4);
+    append_tempo(&mut gap, 130_000);
+    records.extend_from_slice(&clip(1536, 1, 384, 499));
+    append_payload(&mut gap, &records);
+    assert_eq!(parse_bytes(&gap)["playlistPatternEndTick"]["value"], 1920);
+}
+
+#[test]
+fn nominal_seconds_needs_known_ppq_meter_and_base_tempo() {
+    let mut no_tempo = stream("26.1.0.5530", &[1]);
+    append_meter(&mut no_tempo, 4, 4);
+    append_payload(&mut no_tempo, &clip(0, 1, 384, 499));
+    let parsed = parse_bytes(&no_tempo);
+    assert_eq!(parsed["playlistPatternEndTick"]["value"], 384);
+    assert_eq!(
+        parsed["playlistPatternNominalSeconds"]["reason"],
+        "BASE_TEMPO_ABSENT"
+    );
+
+    let mut changed_ppq = no_tempo.clone();
+    changed_ppq[12..14].copy_from_slice(&120_u16.to_le_bytes());
+    append_tempo(&mut changed_ppq, 130_000);
+    assert_eq!(
+        parse_bytes(&changed_ppq)["playlistPatternNominalSeconds"]["reason"],
+        "PPQ_UNVERIFIED"
+    );
+
+    let mut changed_meter = stream("26.1.0.5530", &[1]);
+    append_meter(&mut changed_meter, 3, 4);
+    append_tempo(&mut changed_meter, 130_000);
+    append_payload(&mut changed_meter, &clip(0, 1, 384, 499));
+    assert_eq!(
+        parse_bytes(&changed_meter)["playlistPatternNominalSeconds"]["reason"],
+        "METER_UNVERIFIED"
+    );
+
+    let mut repeated_meter = stream("26.1.0.5530", &[1]);
+    append_meter(&mut repeated_meter, 4, 4);
+    append_meter(&mut repeated_meter, 4, 4);
+    append_tempo(&mut repeated_meter, 130_000);
+    append_payload(&mut repeated_meter, &clip(0, 1, 384, 499));
+    assert_eq!(
+        parse_bytes(&repeated_meter)["playlistPatternNominalSeconds"]["reason"],
+        "METER_UNVERIFIED"
+    );
 }
