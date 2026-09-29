@@ -54,6 +54,14 @@ const makeRecord = (
   presence,
 });
 
+/** The record facts render as a `dt`/`dd` definition list; the root fact is
+ * located by its visible definition text (the `dt` "Root" names the pair). */
+const recordRootFact = (label: string) =>
+  screen.getByText(
+    (_content, element) =>
+      element?.tagName === "DD" && element.textContent === label,
+  );
+
 function renderLibrary(
   adapter: LibraryScanAdapter,
   renderContext: LibraryRenderContext = "native",
@@ -248,7 +256,7 @@ describe("LibraryPage", () => {
     expect(screen.getByText("1,024 bytes")).toBeTruthy();
     expect(screen.getAllByText(/Jan 2, 2026/)).not.toHaveLength(0);
     expect(
-      screen.getByLabelText("Root Projects (C:\\Synthetic\\Music\\Projects)"),
+      recordRootFact("Projects (C:\\Synthetic\\Music\\Projects)"),
     ).toBeTruthy();
     expect(adapter.calls.pages.every((limit) => limit <= 200)).toBe(true);
     expect(
@@ -1126,10 +1134,8 @@ describe("LibraryPage", () => {
 
     await screen.findByRole("heading", { name: "Detached.flp" });
     expect(
-      screen.getByLabelText("Root Projects (C:\\Synthetic\\Music\\Projects)"),
+      recordRootFact("Projects (C:\\Synthetic\\Music\\Projects)"),
     ).toBeTruthy();
-    expect(
-      screen.getByLabelText("Root Projects (E:\\Removed\\Projects)"),
-    ).toBeTruthy();
+    expect(recordRootFact("Projects (E:\\Removed\\Projects)")).toBeTruthy();
   });
 });
