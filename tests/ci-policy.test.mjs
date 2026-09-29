@@ -24,6 +24,7 @@ test("foundation CI exposes stable, always-present checks", () => {
     "client",
     "rust-portable",
     "migration",
+    "flp-parser-portable",
     "windows-foundation",
     "security",
   ]) {
@@ -73,7 +74,7 @@ test("workflow permissions and third-party execution fail closed", () => {
   const disabledCredentialCount = (
     workflow.match(/^\s+persist-credentials: false$/gm) ?? []
   ).length;
-  assert.equal(checkoutCount, 9);
+  assert.equal(checkoutCount, 10);
   assert.equal(disabledCredentialCount, checkoutCount);
 });
 
