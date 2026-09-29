@@ -121,6 +121,10 @@ jobs:
           cargo test -p fruitboard-storage --locked
           cargo clippy -p fruitboard-reconciliation --all-targets --locked -- -D warnings
           cargo test -p fruitboard-reconciliation --locked
+      - name: Check parser authorization on Linux
+        run: |
+          cargo clippy -p fruitboard-flp-parser --all-targets --locked -- -D warnings
+          cargo test -p fruitboard-flp-parser --locked
 
   migration:
     name: migration

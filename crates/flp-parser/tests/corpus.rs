@@ -159,6 +159,13 @@ fn read_only_file_parse_checks_expected_fingerprint_and_hides_path() {
     let parsed = parse_file(&path, expected);
     assert_eq!(parsed["outcome"], "complete");
     assert_eq!(parsed["inputFingerprint"]["size"], expected.size);
+    // The digest identifies the parsed bytes and an independent bounded
+    // read from the same file verifies them after parsing.
+    assert_eq!(parsed["inputFingerprint"]["hash"]["algorithm"], "sha256");
+    assert_eq!(
+        parsed["inputFingerprint"]["hash"]["value"],
+        fruitboard_flp_parser::sha256_hex(&bytes_before)
+    );
     assert!(
         !parsed
             .to_string()
