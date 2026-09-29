@@ -379,11 +379,22 @@ function ConnectedLibraryPage({
       });
       if (!isCurrentRequest()) return;
       if (page.rootId !== requestRootId) {
-        restartPagination(
-          "The Library returned a page for the wrong scan root. Pagination restarted at page 1.",
+        // A page for a different root is a contract violation, not a
+        // pagination problem. Restarting here re-allocates `pagePosition`,
+        // which re-fires this effect and re-issues the same request, so the
+        // restart can never terminate on its own. Fail terminally instead and
+        // let the existing "Try again" action be the only way forward.
+        setPaginationNotice(null);
+        setPageState((previous) =>
+          previous.kind === "ready"
+            ? { ...previous, refreshError: true }
+            : { kind: "error" },
         );
         return;
       }
+      // A snapshot change is a genuine concurrent publication. This branch is
+      // self-limiting: `performPaginationRestart` clears the cursor, and the
+      // check below requires a non-null cursor, so it cannot re-fire.
       if (
         requestPosition.cursor !== null &&
         (requestPosition.snapshotId === null ||

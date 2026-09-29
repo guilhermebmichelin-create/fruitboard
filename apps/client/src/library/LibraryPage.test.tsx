@@ -823,6 +823,45 @@ describe("LibraryPage", () => {
     ).toBeNull();
   });
 
+  it("fails terminally instead of looping when a page arrives for another root", async () => {
+    const harness = makeDeferredAdapter([rootA]);
+    const user = userEvent.setup();
+    renderLibrary(harness.adapter);
+    await waitFor(() => expect(harness.statusRequests).toHaveLength(1));
+    await settle(harness.statusRequests[0]!, [makeStatus(rootA)]);
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(1));
+
+    // A page whose rootId disagrees with the request is a contract violation.
+    await settle(
+      harness.pageRequests[0]!.deferred,
+      page(rootB.id, "snapshot-1", [
+        makeRecord(rootB, "wrong", "Wrong.flp", "Wrong.flp"),
+      ]),
+    );
+
+    await screen.findByRole("heading", { name: /results unavailable/i });
+
+    // The regression: this used to restart pagination, which re-allocated
+    // `pagePosition` and re-fired the load effect forever (~4 requests/second).
+    // Assert the request count stays put instead.
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(1));
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(harness.pageRequests).toHaveLength(1);
+    expect(harness.pageRequests[0]!.request.rootId).toBe(rootA.id);
+    expect(screen.queryByRole("heading", { name: "Wrong.flp" })).toBeNull();
+
+    // Recovery still works, and only when the user asks for it.
+    await user.click(screen.getByRole("button", { name: /try again/i }));
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(2));
+    await settle(
+      harness.pageRequests[1]!.deferred,
+      page(rootA.id, "snapshot-2", [
+        makeRecord(rootA, "recovered", "Recovered.flp", "Recovered.flp"),
+      ]),
+    );
+    await screen.findByRole("heading", { name: "Recovered.flp" });
+  });
+
   it("ignores an older status refresh that resolves after the newer one", async () => {
     const harness = makeDeferredAdapter([rootA]);
     renderLibrary(harness.adapter);
