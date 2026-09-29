@@ -71,7 +71,7 @@ sync payloads; logs, progress events, and diagnostics use opaque request,
 location, and project-file IDs. Any user-facing path display is fetched through
 an explicit local-only use case.
 
-Initial response shape (the actual result includes all five fields):
+Initial response shape (the actual result includes all six fields):
 
 ```json
 {
@@ -83,6 +83,7 @@ Initial response shape (the actual result includes all five fields):
     "savedVersion": {"status": "extracted", "value": "26.1.0.5530"},
     "baseTempoBpm": {"status": "extracted", "value": 137.0},
     "channelCount": {"status": "extracted", "value": 1},
+    "patternCount": {"status": "unavailable", "reason": "PATTERN_DATA_NOT_STORED"},
     "channelNames": {"status": "extracted", "value": ["Fixture Sample A"]},
     "sampleReferences": {"status": "extracted", "value": ["sample.wav"]},
     "inputFingerprint": {"size": 46703, "modifiedAtMs": 1234567890000, "hash": null},
@@ -104,6 +105,13 @@ and channel events, and a bounded version-1 JSON-lines process. Its verified
 saved builds are exactly 24.1.0.4225, 25.1.3.4922, and 26.1.0.5530; other saved
 builds return typed `UNSUPPORTED_SAVED_VERSION` until approved fixtures expand
 coverage. The crate is not yet wired to scanner jobs or desktop packaging.
+
+The draft pattern-count extension counts distinct stored pattern IDs in
+26.1.0.5530, with a 1024-pattern resource bound. Repeated note/property markers
+do not inflate the result. Absent markers are `unavailable`; the 2024/2025
+builds are `unsupported` for this new field. A privately verified synthetic
+three-pattern GUI save is awaiting owner fixture approval before this extension
+can merge; see the [validation record](docs/research/parser-pattern-count-184-result.md).
 
 The parser result is validated for schema, length/count limits, finite numeric
 values, path/string sizes, and known enum values before persistence. Unknown

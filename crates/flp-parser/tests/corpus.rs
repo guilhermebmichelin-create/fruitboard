@@ -12,17 +12,62 @@ fn fixture(name: &str) -> PathBuf {
 
 #[test]
 fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
-    for (name, version, tempo, channel) in [
-        ("FIX-BASE-MIN.flp", "24.1.0.4225", 120.0, "Sampler"),
-        ("FIX-FL2024-A.flp", "24.1.0.4225", 140.0, "Sampler"),
-        ("FIX-FL2024-B.flp", "24.1.0.4225", 141.0, "Sampler"),
-        ("FIX-FL2025-MIN.flp", "25.1.3.4922", 130.0, "Sampler"),
-        ("FIX-FL2026-MIN.flp", "26.1.0.5530", 130.0, "Sampler"),
+    for (name, version, tempo, channel, pattern_status, pattern_value) in [
+        (
+            "FIX-BASE-MIN.flp",
+            "24.1.0.4225",
+            120.0,
+            "Sampler",
+            "unsupported",
+            0,
+        ),
+        (
+            "FIX-FL2024-A.flp",
+            "24.1.0.4225",
+            140.0,
+            "Sampler",
+            "unsupported",
+            0,
+        ),
+        (
+            "FIX-FL2024-B.flp",
+            "24.1.0.4225",
+            141.0,
+            "Sampler",
+            "unsupported",
+            0,
+        ),
+        (
+            "FIX-FL2025-MIN.flp",
+            "25.1.3.4922",
+            130.0,
+            "Sampler",
+            "unsupported",
+            0,
+        ),
+        (
+            "FIX-FL2026-MIN.flp",
+            "26.1.0.5530",
+            130.0,
+            "Sampler",
+            "unavailable",
+            0,
+        ),
         (
             "FIX-FL2026-SAMPLE.flp",
             "26.1.0.5530",
             137.0,
             "Fixture Sample A",
+            "unavailable",
+            0,
+        ),
+        (
+            "FIX-FL2026-PATTERNS.flp",
+            "26.1.0.5530",
+            130.0,
+            "Sampler",
+            "extracted",
+            3,
         ),
     ] {
         let bytes = fs::read(fixture(name)).expect("approved fixture");
@@ -32,8 +77,15 @@ fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
         assert_eq!(parsed["baseTempoBpm"]["value"], tempo, "{name}");
         assert_eq!(parsed["channelCount"]["status"], "extracted", "{name}");
         assert_eq!(parsed["channelCount"]["value"], 1, "{name}");
+        assert_eq!(parsed["patternCount"]["status"], pattern_status, "{name}");
+        if pattern_status == "extracted" {
+            assert_eq!(parsed["patternCount"]["value"], pattern_value, "{name}");
+        }
         assert_eq!(parsed["channelNames"]["value"][0], channel, "{name}");
-        if matches!(name, "FIX-FL2025-MIN.flp" | "FIX-FL2026-MIN.flp") {
+        if matches!(
+            name,
+            "FIX-FL2025-MIN.flp" | "FIX-FL2026-MIN.flp" | "FIX-FL2026-PATTERNS.flp"
+        ) {
             assert_eq!(parsed["channelNames"]["status"], "inferred", "{name}");
             assert_eq!(
                 parsed["channelNames"]["method"], "sampler-default-for-known-build",
@@ -136,4 +188,5 @@ fn unverified_saved_build_is_explicitly_unsupported() {
     assert_eq!(parsed["savedVersion"]["value"], "27.0.0.1");
     assert_eq!(parsed["channelNames"]["status"], "unsupported");
     assert_eq!(parsed["channelCount"]["status"], "unsupported");
+    assert_eq!(parsed["patternCount"]["status"], "unsupported");
 }
