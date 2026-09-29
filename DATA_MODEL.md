@@ -466,6 +466,23 @@ activation and platform/resource qualification remain separate.
 
 Detailed logs are rolling structured files, not unbounded database rows.
 
+Terminal scan history maintenance keeps each root's newest 200 terminal runs
+and every run newer than 30 days. Runs referenced by a root's last successful
+publication, any file location, or any staging row are always protected;
+their jobs remain protected too. Staging, library rows, active work, and
+sessions are never changed by this maintenance. These exceptions mean the
+policy is a retention window, not a hard bound on total stored rows. Staging
+and session lifetime policies remain separate work.
+
+Migration 008 adds indexes for old-terminal keyset reads, per-root recency,
+and reference guards. Session startup examines at most 64 runs and 64 jobs;
+subsequent scan lease polls (including idle polls) continue the sweep with
+the same per-pass budget. Process-local cursors advance over protected rows,
+reset after reaching the end or changing policy, and restart at the beginning
+when the database is reopened. Keep-window overrides are limited to 10,000
+runs per root so each indexed threshold lookup also has a fixed upper bound.
+Maintenance errors do not fail session creation or discard a committed lease.
+
 ### Devices and sync
 
 `device`
