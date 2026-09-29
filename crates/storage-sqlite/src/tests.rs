@@ -6767,3 +6767,522 @@ fn retry_candidate_window_bounds_filtered_history_and_seeks_continuations() {
     );
     assert_eq!(crate::execution::test_retry_window_rows(), 1);
 }
+
+#[test]
+fn prune_terminal_scan_history_keeps_the_policy_window() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Synthetic\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+
+    // Old and mid history: failed terminal runs. The mid run publishes one
+    // committed location before finishing.
+    let mut old_mid_ids = Vec::new();
+    for (start, publish) in [(100_i64, false), (300, true)] {
+        database
+            .enqueue_scan(&root.id, ScanKind::Manual, start)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", start + 1, 100)
+            .unwrap()
+            .unwrap();
+        if publish {
+            publish_observations(
+                &mut database,
+                &lease,
+                start + 2,
+                &[staged_observation("keep.flp", 10, 10, None)],
+            );
+        } else {
+            database
+                .finish_scan_run(
+                    &lease.run.id,
+                    &lease.run.session_id,
+                    &lease.run.lease_token,
+                    start + 3,
+                    ScanRunOutcome::Failed,
+                )
+                .unwrap();
+        }
+        old_mid_ids.push(lease.run.id);
+    }
+
+    // A fresh terminal run inside the age window.
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 999_500)
+        .unwrap();
+    let fresh_lease = database
+        .lease_next_scan("session-1", 999_501, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .finish_scan_run(
+            &fresh_lease.run.id,
+            &fresh_lease.run.session_id,
+            &fresh_lease.run.lease_token,
+            999_502,
+            ScanRunOutcome::Failed,
+        )
+        .unwrap();
+
+    // A second root whose history is all newer than the age cutoff: its
+    // older run is outside the count window but must survive the cutoff.
+    let recent = database
+        .add_scan_root("Recent", "C:\\Synthetic\\Recent")
+        .unwrap();
+    let mut recent_ids = Vec::new();
+    for start in [998_000_i64, 999_000] {
+        database
+            .enqueue_scan(&recent.id, ScanKind::Manual, start)
+            .unwrap();
+        let lease = database
+            .lease_next_scan("session-1", start + 1, 100)
+            .unwrap()
+            .unwrap();
+        database
+            .finish_scan_run(
+                &lease.run.id,
+                &lease.run.session_id,
+                &lease.run.lease_token,
+                start + 2,
+                ScanRunOutcome::Failed,
+            )
+            .unwrap();
+        recent_ids.push(lease.run.id);
+    }
+
+    // Active work survives: a queued job on the first root and a running
+    // run on a third root.
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 999_600)
+        .unwrap();
+    let archive = database
+        .add_scan_root("Archive", "D:\\Synthetic\\Archive")
+        .unwrap();
+    database
+        .enqueue_scan(&archive.id, ScanKind::Manual, 900_000)
+        .unwrap();
+    let running = database
+        .lease_next_scan("session-1", 900_001, 5_000_000)
+        .unwrap()
+        .unwrap();
+
+    // Keep the newest 1 terminal run per root and anything newer than
+    // 500_000. The published mid run remains protected by its references.
+    let outcome = database
+        .prune_terminal_scan_history_with_policy(1_000_000, 1, 500_000)
+        .unwrap();
+    assert_eq!(
+        outcome,
+        RetentionOutcome {
+            runs_pruned: 1,
+            jobs_pruned: 1,
+            runs_examined: 2,
+            jobs_examined: 2,
+        }
+    );
+
+    let runs = database.list_scan_runs().unwrap();
+    let run_ids = runs.iter().map(|run| run.id.as_str()).collect::<Vec<_>>();
+    assert!(!run_ids.contains(&old_mid_ids[0].as_str()));
+    assert!(run_ids.contains(&old_mid_ids[1].as_str()));
+    assert!(run_ids.contains(&fresh_lease.run.id.as_str()));
+    assert!(run_ids.contains(&recent_ids[0].as_str()));
+    assert!(run_ids.contains(&recent_ids[1].as_str()));
+    assert!(run_ids.contains(&running.run.id.as_str()));
+
+    let jobs = database.list_scan_jobs().unwrap();
+    assert!(
+        jobs.iter()
+            .all(|job| job.state != ScanJobState::Queued || job.scan_root_id == root.id),
+        "queued work is never pruned"
+    );
+    assert!(
+        jobs.iter().any(|job| job.id == running.run.scan_job_id),
+        "the running job survives"
+    );
+    assert!(
+        jobs.iter().any(|job| job.id == fresh_lease.run.scan_job_id),
+        "the newest job of the root survives"
+    );
+
+    // Library rows survive history pruning.
+    let rows = database.list_published_locations(&root.id).unwrap();
+    let location = rows
+        .iter()
+        .find(|row| row.relative_path == "keep.flp")
+        .unwrap();
+    assert_eq!(
+        location.last_seen_scan_run_id.as_deref(),
+        Some(old_mid_ids[1].as_str())
+    );
+    assert_eq!(
+        database
+            .scan_root_publication(&root.id)
+            .unwrap()
+            .last_successful_run_id,
+        Some(old_mid_ids[1].clone())
+    );
+    assert!(
+        database
+            .connection
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM scan_stage WHERE run_id = ?1)",
+                [&old_mid_ids[1]],
+                |row| row.get::<_, bool>(0)
+            )
+            .unwrap()
+    );
+    assert_eq!(
+        database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM scan_stage_observation WHERE run_id = ?1",
+                [&old_mid_ids[1]],
+                |row| row.get::<_, i64>(0)
+            )
+            .unwrap(),
+        0 // Publication already cleared observations; retention changes nothing.
+    );
+}
+
+#[test]
+fn prune_terminal_scan_history_with_policy_rejects_nonsense_values() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    assert_eq!(
+        database.prune_terminal_scan_history_with_policy(1, 0, 1),
+        Err(StorageError::InvalidSchema)
+    );
+    assert_eq!(
+        database.prune_terminal_scan_history_with_policy(1, 1, -1),
+        Err(StorageError::InvalidSchema)
+    );
+    assert_eq!(
+        database.prune_terminal_scan_history_with_policy(1, 10_001, 1),
+        Err(StorageError::InvalidSchema)
+    );
+    // A now_ms that cannot produce a valid cutoff is refused rather than
+    // silently pruning with a wrapped-around window.
+    assert_eq!(
+        database.prune_terminal_scan_history_with_policy(0, 1, 1_000),
+        Err(StorageError::InvalidSchema)
+    );
+}
+
+#[test]
+fn begin_scan_session_runs_bounded_history_retention() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Synthetic\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+
+    // 205 old terminal runs on one root, created directly so the test stays
+    // fast; the default policy keeps the newest 200 per root.
+    {
+        let transaction = database.connection.unchecked_transaction().unwrap();
+        transaction
+            .execute(
+                "INSERT INTO scan_job (id, scan_root_id, kind, state, retry_chain_id, attempt,
+                        max_attempts, not_before_ms, priority, created_at_ms, updated_at_ms)
+                 VALUES ('bulk-job', ?1, 'manual', 'failed', 'bulk-chain', 1, 4, 0, 0, 5, 5)",
+                [&root.id],
+            )
+            .unwrap();
+        for index in 0..205_i64 {
+            transaction
+                .execute(
+                    "INSERT INTO scan_run (id, scan_job_id, scan_root_id, generation,
+                            configuration_revision, retry_chain_id, attempt, session_id,
+                            lease_token, state, started_at_ms, finished_at_ms,
+                            lease_expires_at_ms, outcome)
+                     VALUES (?1, 'bulk-job', ?2, 1, 0, 'bulk-chain', ?4, 'session-1',
+                             'bulk-lease', 'failed', ?3, ?3, ?3, 'failed')",
+                    rusqlite::params![
+                        format!("bulk-run-{index:03}"),
+                        root.id,
+                        index + 10,
+                        index + 1
+                    ],
+                )
+                .unwrap();
+        }
+        transaction.commit().unwrap();
+    }
+
+    // One restart session with a realistic clock (older than the 30-day
+    // cutoff) triggers the retention pass from the recovery seam.
+    let now_ms = 4_000_000_000_i64;
+    database.begin_scan_session("session-2", now_ms).unwrap();
+
+    let runs = database.list_scan_runs().unwrap();
+    assert_eq!(
+        runs.len(),
+        200,
+        "the newest 200 terminal runs per root survive the default policy"
+    );
+    let oldest_survivor = runs.iter().map(|run| run.started_at_ms).min().unwrap();
+    assert_eq!(oldest_survivor, 15, "the five oldest runs were pruned");
+    // The bulk job stays because its surviving runs still reference it and
+    // because it is the newest job of its root.
+    assert!(
+        database
+            .list_scan_jobs()
+            .unwrap()
+            .iter()
+            .any(|job| job.id == "bulk-job")
+    );
+}
+
+#[test]
+fn history_and_retention_queries_stay_set_based_and_index_seeking() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Synthetic\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 2)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("session-1", 3, 100)
+        .unwrap()
+        .unwrap();
+    database
+        .finish_scan_run(
+            &lease.run.id,
+            &lease.run.session_id,
+            &lease.run.lease_token,
+            4,
+            ScanRunOutcome::Failed,
+        )
+        .unwrap();
+
+    let explain = |sql: String, params: &[&dyn rusqlite::ToSql]| -> Vec<String> {
+        database
+            .connection
+            .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+            .unwrap()
+            .query_map(params, |row| row.get::<_, String>(3))
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap()
+    };
+
+    // The history readers are single set-based statements; the plans must
+    // not grow per-id lookups.
+    let jobs_plan = explain(crate::execution::list_scan_jobs_query(), &[]);
+    let runs_plan = explain(crate::execution::list_scan_runs_query(), &[]);
+    println!("list_scan_jobs plan: {jobs_plan:?}");
+    println!("list_scan_runs plan: {runs_plan:?}");
+    assert!(jobs_plan.iter().all(|detail| !detail.contains("SEARCH")));
+    assert!(runs_plan.iter().all(|detail| !detail.contains("SEARCH")));
+
+    // The retention run selection is index-assisted on the terminal-state
+    // subset instead of scanning every run.
+    let retention_runs_plan = explain(
+        crate::execution::RETENTION_RUNS_QUERY.to_owned(),
+        &[&i64::MIN, &"", &10_i64, &64_i64],
+    );
+    println!("retention runs plan: {retention_runs_plan:?}");
+    assert!(
+        retention_runs_plan
+            .iter()
+            .any(|detail| detail.contains("SEARCH scan_run USING INDEX scan_run_retention_age")),
+        "retention run selection should seek a scan_run index: {retention_runs_plan:?}"
+    );
+
+    assert!(
+        retention_runs_plan
+            .iter()
+            .all(|detail| !detail.contains("TEMP B-TREE"))
+    );
+    let keep_plan = explain(
+        crate::execution::RETENTION_KEEP_QUERY.to_owned(),
+        &[&root.id, &199_i64],
+    );
+    assert!(
+        keep_plan
+            .iter()
+            .any(|detail| detail.contains("SEARCH scan_run USING INDEX scan_run_retention_root"))
+    );
+    assert!(
+        keep_plan
+            .iter()
+            .all(|detail| !detail.contains("TEMP B-TREE"))
+    );
+    let retention_jobs_plan = explain(
+        crate::execution::RETENTION_JOBS_QUERY.to_owned(),
+        &[&i64::MIN, &"", &10_i64, &64_i64],
+    );
+    println!("retention jobs plan: {retention_jobs_plan:?}");
+    assert!(
+        retention_jobs_plan
+            .iter()
+            .any(|detail| detail.contains("SEARCH scan_job USING INDEX scan_job_retention_age")),
+        "retention job selection should seek a scan_job index: {retention_jobs_plan:?}"
+    );
+    assert!(
+        retention_jobs_plan
+            .iter()
+            .all(|detail| !detail.contains("TEMP B-TREE"))
+    );
+}
+
+fn insert_retention_history(database: &mut Database, root_id: &str, count: usize) {
+    let transaction = database.connection.unchecked_transaction().unwrap();
+    for index in 0..count {
+        let job_id = format!("history-job-{index:05}");
+        let run_id = format!("history-run-{index:05}");
+        // Equal timestamps exercise the id tie-breaker in every keyset seek.
+        transaction
+            .execute(
+                "INSERT INTO scan_job(id, scan_root_id, kind, state, retry_chain_id, attempt,
+                                  max_attempts, not_before_ms, created_at_ms, updated_at_ms)
+             VALUES (?1, ?2, 'manual', 'failed', 'chain', 4, 4, 0, 10, 10)",
+                rusqlite::params![job_id, root_id],
+            )
+            .unwrap();
+        transaction.execute(
+            "INSERT INTO scan_run(id, scan_job_id, scan_root_id, generation, configuration_revision,
+                                  retry_chain_id, attempt, session_id, lease_token, state,
+                                  started_at_ms, finished_at_ms, lease_expires_at_ms, outcome)
+             VALUES (?1, ?2, ?3, 1, 0, 'chain', 4, 'session-1', 'lease', 'failed', 10, 10, 10, 'failed')",
+            rusqlite::params![run_id, job_id, root_id],
+        ).unwrap();
+    }
+    transaction.commit().unwrap();
+}
+
+#[test]
+fn retention_protects_root_location_and_stage_references_independently() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Synthetic\\Projects")
+        .unwrap();
+    insert_retention_history(&mut database, &root.id, 80);
+    database
+        .connection
+        .execute(
+            "UPDATE scan_root SET last_successful_run_id = 'history-run-00000' WHERE id = ?1",
+            [&root.id],
+        )
+        .unwrap();
+    database.connection.execute(
+        "INSERT INTO scan_stage(run_id, scan_root_id, generation, configuration_revision, session_id,
+                                lease_token, state, created_at_ms, updated_at_ms)
+         VALUES ('history-run-00001', ?1, 1, 0, 'session-1', 'lease', 'discarded', 10, 10)", [&root.id],
+    ).unwrap();
+    database.connection.execute_batch(
+        "INSERT INTO project_file(id, display_filename, extension, byte_size, modified_at_ms, created_at_ms, updated_at_ms)
+         VALUES ('file', 'keep.flp', 'flp', 1, 10, 10, 10);",
+    ).unwrap();
+    database.connection.execute(
+        "INSERT INTO file_location(id, project_file_id, scan_root_id, normalized_path, relative_path,
+                                   byte_size, modified_at_ms, created_at_ms, updated_at_ms,
+                                   locator_key, last_seen_scan_run_id)
+         VALUES ('location', 'file', ?1, 'keep.flp', 'keep.flp', 1, 10, 10, 10,
+                 'v1:i:keep.flp', 'history-run-00002')", [&root.id],
+    ).unwrap();
+    let outcome = database
+        .prune_terminal_scan_history_with_policy(4_000_000_000, 1, 1_000)
+        .unwrap();
+    assert_eq!(outcome.runs_examined, MAX_RETENTION_ROWS_PER_PASS);
+    assert_eq!(outcome.runs_pruned, MAX_RETENTION_ROWS_PER_PASS - 3);
+    for id in [
+        "history-run-00000",
+        "history-run-00001",
+        "history-run-00002",
+    ] {
+        assert!(
+            database.scan_run(id).is_ok(),
+            "referenced run {id} survives"
+        );
+    }
+    assert_eq!(
+        database
+            .scan_root_publication(&root.id)
+            .unwrap()
+            .last_successful_run_id
+            .as_deref(),
+        Some("history-run-00000")
+    );
+    assert_eq!(
+        database.list_published_locations(&root.id).unwrap()[0]
+            .last_seen_scan_run_id
+            .as_deref(),
+        Some("history-run-00002")
+    );
+    assert_eq!(
+        database
+            .connection
+            .query_row(
+                "SELECT state FROM scan_stage WHERE run_id = 'history-run-00001'",
+                [],
+                |row| row.get::<_, String>(0)
+            )
+            .unwrap(),
+        "discarded"
+    );
+}
+
+#[test]
+fn bounded_retention_advances_past_protected_rows_and_idle_polls_drain_history() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Synthetic\\Projects")
+        .unwrap();
+    database.begin_scan_session("session-1", 1).unwrap();
+    database
+        .set_scan_root_enabled_at(&root.id, false, 2)
+        .unwrap();
+    insert_retention_history(&mut database, &root.id, 5_000);
+    for index in 0..MAX_RETENTION_ROWS_PER_PASS {
+        database
+            .connection
+            .execute(
+                "INSERT INTO scan_stage(run_id, scan_root_id, generation, configuration_revision,
+                                    session_id, lease_token, state, created_at_ms, updated_at_ms)
+             VALUES (?1, ?2, 1, 0, 'session-1', 'lease', 'discarded', 10, 10)",
+                rusqlite::params![format!("history-run-{index:05}"), root.id],
+            )
+            .unwrap();
+    }
+    let now = 4_000_000_000;
+    let first = database.prune_terminal_scan_history(now).unwrap();
+    assert_eq!(first.runs_examined, MAX_RETENTION_ROWS_PER_PASS);
+    assert_eq!(first.jobs_examined, MAX_RETENTION_ROWS_PER_PASS);
+    assert_eq!(
+        first.runs_pruned, 0,
+        "protected first window must still advance"
+    );
+    let second = database.prune_terminal_scan_history(now).unwrap();
+    assert_eq!(second.runs_pruned, MAX_RETENTION_ROWS_PER_PASS);
+    assert_eq!(second.jobs_pruned, MAX_RETENTION_ROWS_PER_PASS);
+    for _ in 0..100 {
+        assert!(
+            database
+                .lease_next_scan("session-1", now, 100)
+                .unwrap()
+                .is_none()
+        );
+    }
+    let retained = MAX_RETENTION_ROWS_PER_PASS + MAX_TERMINAL_RUNS_PER_ROOT as usize;
+    assert_eq!(database.list_scan_runs().unwrap().len(), retained);
+    assert_eq!(database.list_scan_jobs().unwrap().len(), retained);
+    assert_eq!(
+        database
+            .connection
+            .query_row("SELECT COUNT(*) FROM scan_stage", [], |row| row
+                .get::<_, i64>(0))
+            .unwrap(),
+        MAX_RETENTION_ROWS_PER_PASS as i64
+    );
+}
