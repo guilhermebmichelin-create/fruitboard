@@ -2,7 +2,7 @@
 //! This process receives requests only from a trusted native supervisor.
 
 use fruitboard_flp_parser::{
-    ExpectedFingerprint, MAX_FILE_BYTES, MAX_PATTERNS, MAX_PLAYLIST_CLIPS, parse_file,
+    ExpectedFingerprint, MAX_FILE_BYTES, MAX_PATTERNS, MAX_PLAYLIST_CLIPS, parse_authorized_file,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -128,22 +128,12 @@ fn respond(line: &[u8]) -> Value {
                 return error(id, "UNSUPPORTED_FEATURE");
             }
             let path = Path::new(&params.path);
-            if !path.is_absolute() {
-                return error(id, "INVALID_PATH");
-            }
-            // Fail closed: only component-wise descendants of an explicit
-            // allowed root are parseable. `Path::starts_with` compares whole
-            // components, so a sibling like `C:\root-evil` never matches the
-            // allowed root `C:\root`, and an empty allowlist denies all.
-            let inside_allowed_root = params.allowed_roots.iter().any(|root| {
-                let root = Path::new(root);
-                root.is_absolute() && path.starts_with(root)
-            });
-            if !inside_allowed_root {
-                return error(id, "INVALID_PATH");
-            }
             let started = std::time::Instant::now();
-            let mut result = parse_file(path, params.expected);
+            let mut result =
+                match parse_authorized_file(path, &params.allowed_roots, params.expected) {
+                    Ok(result) => result,
+                    Err(code) => return error(id, code),
+                };
             result["parseElapsedMicros"] = json!(started.elapsed().as_micros());
             result
         }

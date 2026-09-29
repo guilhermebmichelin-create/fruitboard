@@ -7,6 +7,18 @@ const readRootFile = (path) =>
 
 const workflow = readRootFile(".github/workflows/foundation.yml");
 
+test("portable CI exercises parser filesystem authorization on Linux", () => {
+  const start = workflow.indexOf("  rust-portable:\n");
+  const end = workflow.indexOf("\n  migration:", start);
+  const portable = workflow.slice(start, end);
+  assert.match(portable, /runs-on: ubuntu-latest/);
+  assert.match(
+    portable,
+    /cargo clippy -p fruitboard-flp-parser --all-targets --locked -- -D warnings/,
+  );
+  assert.match(portable, /cargo test -p fruitboard-flp-parser --locked/);
+});
+
 const workflowJob = (name) => {
   const marker = `  ${name}:\n`;
   const start = workflow.indexOf(marker);

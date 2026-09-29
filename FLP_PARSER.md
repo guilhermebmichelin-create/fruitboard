@@ -62,8 +62,15 @@ and schema version. Stdout is protocol-only; diagnostics go to stderr.
 Initial version-1 request shape (values shown are illustrative). Schema
 version 2 added the `allowedRoots` allowlist to `parse` params: the
 supervisor passes the enabled scan roots, and the sidecar refuses any path
-that is not a component-wise descendant of one of them (`INVALID_PATH`).
-An empty allowlist denies every path:
+that is not a descendant of one of them (`INVALID_PATH`). Paths and roots
+must be absolute without parent-directory components. Symlinks, junctions,
+and other reparse points are refused throughout the ancestor chain and at
+the leaf. Windows device paths, alternate streams, and trailing-dot/space
+aliases are refused. An empty allowlist denies every path. The parser reads
+the same handle it authorized: Windows ancestor/leaf handles deny write and
+delete sharing until parsing finishes; Linux checks object identities and
+the opened descriptor through `/proc/self/fd`. Authorization fails closed
+on other platforms until an equivalent backend is qualified:
 
 ```json
 {"protocolVersion":1,"schemaVersion":2,"id":"01234567-89ab-cdef-0123-456789abcdef","method":"parse","params":{"path":"C:\\approved\\project.flp","expected":{"size":46703,"modifiedAtMs":1234567890000},"features":["basic-metadata"],"allowedRoots":["C:\\approved"]}}
@@ -77,8 +84,12 @@ an explicit local-only use case.
 
 Initial response shape (the actual result includes all six fields). Schema
 version 2 replaced the null `hash` with the SHA-256 content digest of the
-exact bytes read; the digest is computed before and after parsing on the same
-buffer and the parse fails `INPUT_BUFFER_MUTATED` if they differ:
+exact bytes read. After parsing, a second bounded read through the same
+authorized handle checks the digest, size, and modified timestamp again;
+a difference fails `INPUT_CHANGED`. This detects observed changes even when
+size and timestamp were preserved. It is a before/after observation, not a
+guarantee against a change-and-restore between observations or a change
+after the response; the future supervisor still owns result freshness:
 
 ```json
 {
