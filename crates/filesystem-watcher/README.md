@@ -3,12 +3,12 @@
 This isolated Rust crate watches one configured root directory with a
 handle-bound `ReadDirectoryChangesW` watch on Windows and turns raw
 notifications into bounded, coalesced, non-authoritative hints. It has no
-parser, no SQLite connection, no content reads, no hydration, no logging, no
-storage follow-up wiring, and no production scan entry point. The only
-consumer seam is the `WatcherPort` trait; connecting it to durable
-reconciliation follow-ups is the next slice. It implements the
+parser, no SQLite connection, no content reads, no hydration, no logging, and
+no storage writes of its own. The consumer seam is the `WatcherPort` trait;
+the desktop watcher supervisor connects it to durable reconciliation
+follow-ups. It implements the
 [accepted scanner contracts](https://github.com/guilhermebmichelin-create/fruitboard/blob/main/docs/PHASE_2_EXECUTION_PLAN.md)
-watcher slice, not the integrated scanner.
+watcher slice; the integrated scanner is `fruitboard-scan-execution`.
 
 ## Hints are never authority
 

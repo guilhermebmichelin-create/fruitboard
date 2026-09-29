@@ -1,6 +1,6 @@
 # Development and delivery
 
-Status: **Active workflow; Phase 1 accepted, Phase 2 (epic #33) underway**
+Status: **Active workflow; Phase 0-2 accepted (Phase 2 with known gaps)**
 
 ## Working agreement
 
@@ -157,7 +157,11 @@ are procedural; no automatic deletion or monitoring service is installed.
 
 ## GitHub governance
 
-Protect `main` with:
+Protect `main` with these long-term goals. Not all of them are enforced today;
+the configuration GitHub actually enforces is recorded in
+[Enforced branch protection](#enforced-branch-protection) below (this is a
+single-maintainer repository, so approving-review counts, stale-approval
+dismissal, conversation resolution, and the merge queue are currently off):
 
 - pull requests required, one approving review, stale approvals dismissed after
   material changes;
@@ -245,9 +249,10 @@ The first application packages use these exact Phase 1 foundation versions:
 
 | Dependency                | Pin             | Purpose                                        |
 | ------------------------- | --------------- | ---------------------------------------------- |
-| Tauri Rust / build        | 2.11.5 / 2.6.3  | Native desktop host and build integration      |
+| Tauri Rust / build        | 2.11.6 / 2.6.3  | Native desktop host and build integration      |
 | Tauri JavaScript / CLI    | 2.11.1 / 2.11.4 | Typed invoke adapter and desktop commands      |
 | Tauri shell plugin        | 2.3.6           | Rust-only inert sidecar packaging smoke        |
+| Tauri dialog plugin       | 2.7.3           | Native folder picker for scan roots            |
 | UUID / regex              | 1.26.1 / 1.13.1 | Opaque native IDs and diagnostic redaction     |
 | rusqlite / libsqlite3-sys | 0.40.2 / 0.38.2 | Bundled native SQLite and backup API           |
 | React / React DOM         | 19.3.0          | Shared client rendering                        |
@@ -516,7 +521,7 @@ look like a successful quality signal.
 | ---------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `docs-policy`                | Ubuntu  | Markdown, script/policy tests, tracked and unignored-file privacy scan                                                         | `pnpm privacy:check && pnpm lint:docs && pnpm lint:scripts && node --test "tests/*.test.mjs"`                                                                                                                                                                                                                                                 |
 | `client`                     | Ubuntu  | Frozen install, lint, typecheck, component tests, production web build                                                         | `pnpm --recursive --if-present lint && pnpm --recursive --if-present typecheck && pnpm --recursive --if-present test && pnpm --filter @fruitboard/client build`                                                                                                                                                                               |
-| `rust-portable`              | Ubuntu  | Rustfmt, warning-denied Clippy, portable storage and reconciliation tests                                                      | `cargo fmt --all --check; cargo clippy -p fruitboard-storage --all-targets --locked; cargo test -p fruitboard-storage --locked; cargo clippy -p fruitboard-reconciliation --all-targets --locked; cargo test -p fruitboard-reconciliation --locked`                                                                                           |
+| `rust-portable`              | Ubuntu  | Rustfmt, warning-denied Clippy, portable storage and reconciliation tests                                                      | `cargo fmt --all --check; cargo clippy -p fruitboard-storage --all-targets --locked -- -D warnings; cargo test -p fruitboard-storage --locked; cargo clippy -p fruitboard-reconciliation --all-targets --locked -- -D warnings; cargo test -p fruitboard-reconciliation --locked`                                                             |
 | `migration`                  | Ubuntu  | Latest creation, every supported upgrade, killed migration, backup recovery, and the named durable execution/publication tests | `cargo test -p fruitboard-storage --locked` (all storage tests; the job selects the 28 named migration/recovery/execution/publication filters)                                                                                                                                                                                                |
 | `windows-foundation`         | Windows | Exact Node/Rust/Python/uv/pnpm/SQLite pins, complete production build, and feature-enabled scan-console tests/Clippy           | `pnpm.cmd check; cargo test -p fruitboard-desktop --features scan-console --locked; cargo clippy -p fruitboard-desktop --features scan-console --all-targets --locked -- -D warnings`                                                                                                                                                         |
 | `security`                   | Ubuntu  | Privacy regressions, high-severity npm audit, RustSec advisory audit                                                           | `node scripts/verify-repository-privacy.mjs; pnpm audit --audit-level high; cargo audit`                                                                                                                                                                                                                                                      |
@@ -543,11 +548,13 @@ contain only generated package/compiler data. CI uploads no artifacts, so it
 cannot persist project data, local databases, logs, or personal paths.
 
 GitHub dependency review, CodeQL, and GitHub secret protection were unavailable
-on the private GitHub Free plan when this baseline was adopted. The repository
-became public on 2026-09-07, so these GitHub-native products are now available
-on the current plan; enabling them remains a separate, deliberate step (tracked
-by the [enforced branch protection](#enforced-branch-protection) rollout). Until
-they are enabled, the baseline continues to use executable privacy
+on the private GitHub Free plan when this baseline was adopted, and they stayed
+off after the repository became public on 2026-09-07. They were activated on
+2026-09-29: secret scanning and push protection are enabled in the repository
+settings (validity checks and non-provider patterns remain off), Dependabot
+alerts and security updates are enabled, and the informational CodeQL and
+dependency-review workflows from the [#148 proposal](docs/review/security/issue-148-proposal-20260920.md)
+run alongside the existing baseline. The baseline keeps executable privacy
 regressions, `pnpm audit`, RustSec, and weekly Dependabot updates for pnpm,
 Cargo, and GitHub Actions, and never represents an unavailable or skipped
 integration as a passing security check.

@@ -4,9 +4,9 @@
 //!
 //! This is the #37 watcher foundation slice. It is deliberately NOT the
 //! integrated watcher: nothing here writes to storage, nothing decides file
-//! state, and no follow-up is wired to the durable queue yet. The only
-//! consumer seam is [`WatcherPort`]; the next slice will connect it to
-//! durable reconciliation follow-ups.
+//! state, and no follow-up is enqueued here. The consumer seam is
+//! [`WatcherPort`]; the desktop watcher supervisor connects it to durable
+//! reconciliation follow-ups.
 //!
 //! # Contracts
 //!

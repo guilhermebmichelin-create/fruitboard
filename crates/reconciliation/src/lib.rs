@@ -3,7 +3,9 @@
 //! Inputs are boundary-normalized relative paths and qualified local identities.
 //! A completed enumeration is necessary but not sufficient for production apply:
 //! storage must also fence generation, revision, lease and cancellation atomically.
-//! This bounded reference core is not wired to a production scan command.
+//! This bounded reference core is consumed by `fruitboard-scan-execution` as
+//! advisory change summaries; authoritative publication remains fenced by
+//! storage.
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Qualified physical identity, never a logical project identifier.

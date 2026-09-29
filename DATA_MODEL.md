@@ -94,7 +94,9 @@ termination evidence is not a hardware power-loss qualification.
 Projects, workflows, parser snapshots, tombstones, notes, and FTS remain
 deferred to their owning slices. Migrations 003-005 provide durable execution,
 a fenced staging/publication boundary, and the locator-key/identity integration
-contract; none of them activates production scanning, and no parser exists.
+contract; none of them activates production scanning. The Rust FLP parser
+selected in [ADR-002](docs/adr/002-flp-parser-process.md) lives in
+`crates/flp-parser` and is not yet wired into the scanner or the host.
 
 ## Modeling principles
 

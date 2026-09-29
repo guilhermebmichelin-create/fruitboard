@@ -205,14 +205,17 @@ print only fixed safe text.
   nothing, and verifies `NotSigned` rather than implying trust. Public builds
   must sign the application, every sidecar, installer, and update metadata in a
   protected release environment with timestamping and post-build verification.
-- GitHub dependency review, CodeQL, and GitHub secret protection are available
-  for this public repository, but issue #148 remains an owner-only activation
-  decision. The read-only configuration and rollout proposal is recorded in
-  [the issue-148 security proposal](docs/review/security/issue-148-proposal-20260920.md);
-  no activation workflow or repository setting is committed here. Until each
-  product is enabled and validated on a real pull request, the executable
-  privacy regressions, `pnpm audit --audit-level high`, and RustSec checks below
-  remain the baseline; an unavailable integration is never represented as a
+- GitHub dependency review, CodeQL, and GitHub secret protection were activated
+  on 2026-09-29 under issue #148: secret scanning and push protection are
+  enabled in the repository settings (validity checks and non-provider patterns
+  remain off), Dependabot alerts and security updates are enabled, and the
+  informational CodeQL and dependency-review workflows from
+  [the issue-148 security proposal](docs/review/security/issue-148-proposal-20260920.md)
+  are committed and run on every pull request. The proposal's executable
+  positive/clean verification pairs are owner-run procedures and are not
+  claimed as evidence until they are recorded; the executable privacy
+  regressions, `pnpm audit --audit-level high`, and RustSec checks below remain
+  the baseline, and an unavailable integration is never represented as a
   passing security check.
 - Add Python dependency auditing with the parser environment; the current empty
   research lock has no parser dependency and PyFLP remains blocked.
