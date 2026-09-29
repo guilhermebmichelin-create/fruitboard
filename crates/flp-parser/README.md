@@ -4,9 +4,9 @@ This is the first product implementation slice after the owner selected Rust
 under [ADR-002](../../docs/adr/002-flp-parser-process.md). Its code derives from
 the bounded research parser at commit `080e825`. It reads one explicit FLP
 read-only, returns the four initial metadata fields plus channel and pattern
-counts, pattern names, and playlist pattern clips. It keeps typed
-failure/partial outcomes tested against the approved
-eleven-file corpus.
+counts, pattern names, playlist pattern clips and timing summaries, and the
+narrow generator-name field described below. It keeps typed failure/partial
+outcomes tested against the approved twelve-file corpus.
 
 The executable uses protocol version 1 and schema version 1 as newline-delimited
 JSON on stdin/stdout. It accepts `describe`, `healthCheck`, and `parse` methods.
@@ -31,6 +31,21 @@ with the FLP header. A malformed file has a typed `failed` count, and an
 unverified saved build has an `unsupported` count. The approved valid projects
 each have one channel. Arrangement length and plugin details need separate,
 pre-registered fixture coverage before they are claimed.
+
+`channelGeneratorNames` is distinct from editable `channelNames`. For the exact
+26.1.0.5530 build, a controlled GUI save identified native generator class
+`3x Osc` in UTF-16 event 201, while its editable channel name
+`Fixture Synth A` was in event 203. A kind-0 channel with an explicitly empty
+event 201 is reported as built-in `Sampler` by a labeled, high-confidence
+inference from the approved 2026 minimal saves. A verified `3x Osc` class is
+`extracted`. The array retains per-channel provenance in `items` and reports
+`medium` aggregate confidence when stored and inferred classes are mixed.
+Unknown classes or layouts are field-level `unsupported`, even if event 201
+contains a plausible string. The 2024/2025 builds are `unsupported` for this
+field. Mixer effects, VST identity/vendor, and plugin state are not decoded.
+The owner approved the exact sanitized two-channel F14 file for corpus
+inclusion on 2026-09-29. Its ordinary test checks the class and editable
+label separately; it does not establish broader compatibility.
 
 The `patternCount` extension counts distinct saved pattern IDs for
 26.1.0.5530. That build repeats IDs for note and property sections; repetitions

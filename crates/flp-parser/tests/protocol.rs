@@ -80,6 +80,12 @@ fn versioned_protocol_handles_multiple_requests_without_stderr() {
             .unwrap()
             .contains(&json!("patternNames"))
     );
+    assert!(
+        responses[0]["result"]["fields"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("channelGeneratorNames"))
+    );
     assert_eq!(responses[1]["result"]["status"], "ok");
     assert_eq!(responses[0]["id"], ID);
 }

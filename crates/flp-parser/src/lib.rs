@@ -38,6 +38,7 @@ pub fn failed(code: &str) -> Value {
         "playlistPatternEndTick":field("failed",Value::Null,Some(code)),
         "playlistPatternNominalSeconds":field("failed",Value::Null,Some(code)),
         "channelNames":field("failed",Value::Null,Some(code)),
+        "channelGeneratorNames":field("failed",Value::Null,Some(code)),
         "sampleReferences":field("failed",Value::Null,Some(code)),
         "diagnostics":[]
     })
@@ -148,6 +149,99 @@ fn channel_names_json(
     })
 }
 
+#[derive(Default)]
+enum GeneratorEvent {
+    #[default]
+    Missing,
+    Name(String),
+    Invalid,
+    Multiple,
+}
+
+/// Event 201 names the generator class separately from editable event-203
+/// channel text. Only the 2026 built-in Sampler and 3x Osc layouts have GUI
+/// evidence. Other classes remain field-level unsupported.
+fn channel_generator_names_json(
+    version: Option<&str>,
+    kinds: Vec<u16>,
+    events: Vec<GeneratorEvent>,
+) -> Value {
+    if !known_pattern_build(version) {
+        return field(
+            "unsupported",
+            Value::Null,
+            Some("GENERATOR_NAMES_UNVERIFIED_BUILD"),
+        );
+    }
+    if kinds.is_empty() {
+        return field(
+            "unsupported",
+            Value::Null,
+            Some("ZERO_CHANNEL_PROJECT_UNVERIFIED"),
+        );
+    }
+    let items = kinds
+        .into_iter()
+        .zip(events)
+        .enumerate()
+        .map(|(channel_index, (kind, event))| {
+            let name = match (kind, event) {
+                (0, GeneratorEvent::Name(value)) if value.is_empty() => json!({
+                    "status":"inferred", "value":"Sampler",
+                    "method":"sampler-generator-default-for-known-build",
+                    "confidence":"high"
+                }),
+                (1, GeneratorEvent::Name(value)) if value == "3x Osc" => {
+                    field("extracted", json!(value), None)
+                }
+                (_, GeneratorEvent::Invalid) => field(
+                    "unsupported",
+                    Value::Null,
+                    Some("GENERATOR_NAME_ENCODING_UNVERIFIED"),
+                ),
+                (_, GeneratorEvent::Multiple) => field(
+                    "unsupported",
+                    Value::Null,
+                    Some("MULTIPLE_GENERATOR_EVENTS_UNVERIFIED"),
+                ),
+                _ => field(
+                    "unsupported",
+                    Value::Null,
+                    Some("GENERATOR_CLASS_UNVERIFIED"),
+                ),
+            };
+            json!({"channelIndex":channel_index,"name":name})
+        })
+        .collect::<Vec<_>>();
+    if items
+        .iter()
+        .any(|item| item["name"]["status"].as_str() == Some("unsupported"))
+    {
+        return json!({
+            "status":"unsupported", "reason":"GENERATOR_CLASS_UNVERIFIED",
+            "items":items
+        });
+    }
+    let names = items
+        .iter()
+        .map(|item| item["name"]["value"].clone())
+        .collect::<Vec<_>>();
+    let inferred = items
+        .iter()
+        .any(|item| item["name"]["status"].as_str() == Some("inferred"));
+    if !inferred {
+        return field("extracted", json!(names), None);
+    }
+    let mixed = items
+        .iter()
+        .any(|item| item["name"]["status"].as_str() == Some("extracted"));
+    json!({
+        "status":"inferred", "value":names, "items":items,
+        "method":if mixed {"mixed-extracted-and-sampler-generator-default"} else {"sampler-generator-default-for-known-build"},
+        "confidence":if mixed {"medium"} else {"high"}
+    })
+}
+
 fn supported_saved_version(version: &str) -> bool {
     matches!(version, "24.1.0.4225" | "25.1.3.4922" | "26.1.0.5530")
 }
@@ -164,6 +258,7 @@ fn unsupported_version(version: &str) -> Value {
         "playlistPatternEndTick":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "playlistPatternNominalSeconds":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "channelGeneratorNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "sampleReferences":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "diagnostics":[]
     })
@@ -315,6 +410,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     let mut diagnostics: Vec<Value> = Vec::new();
     let mut names: Vec<Option<String>> = Vec::new();
     let mut channel_kinds: Vec<u16> = Vec::new();
+    let mut generator_events: Vec<GeneratorEvent> = Vec::new();
     let mut samples: Vec<Option<String>> = Vec::new();
     let mut current_channel: Option<usize> = None;
     let mut pattern_ids = BTreeSet::new();
@@ -382,6 +478,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
                 current_channel = Some(names.len());
                 names.push(None);
                 channel_kinds.push(u16::from_le_bytes([data[0], data[1]]));
+                generator_events.push(GeneratorEvent::Missing);
                 samples.push(None);
             }
             // The GUI-verified 2026 save repeats each pattern ID for note and
@@ -465,6 +562,16 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
                     return failed("INVALID_CHANNEL_NAME");
                 };
                 names[index] = Some(name);
+            }
+            201 if current_channel.is_some() && known_pattern_build(version.as_deref()) => {
+                let index = current_channel.expect("guarded");
+                generator_events[index] = match &generator_events[index] {
+                    GeneratorEvent::Missing => match utf16_text(data) {
+                        Ok(name) => GeneratorEvent::Name(name),
+                        Err(_) => GeneratorEvent::Invalid,
+                    },
+                    _ => GeneratorEvent::Multiple,
+                };
             }
             196 if current_channel.is_some() => {
                 let index = current_channel.expect("guarded");
@@ -567,7 +674,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
             None => field("unavailable", Value::Null, Some("BASE_TEMPO_ABSENT")),
         },
     };
-    let saved_version = match version {
+    let saved_version = match version.as_ref() {
         Some(value) => field("extracted", json!(value), None),
         None => field("unavailable", Value::Null, Some("SAVED_VERSION_ABSENT")),
     };
@@ -576,6 +683,8 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         None => field("unavailable", Value::Null, Some("BASE_TEMPO_ABSENT")),
     };
     let channel_count = names.len();
+    let channel_generator_names =
+        channel_generator_names_json(version.as_deref(), channel_kinds.clone(), generator_events);
     let channel_names = channel_names_json(names, channel_kinds, infer_sampler_default);
     let sample_references = if samples.iter().all(Option::is_some) {
         field(
@@ -603,6 +712,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         "playlistPatternEndTick":playlist_end,
         "playlistPatternNominalSeconds":playlist_nominal_seconds,
         "channelNames":channel_names,
+        "channelGeneratorNames":channel_generator_names,
         "sampleReferences":sample_references,
         "diagnostics":diagnostics,
         "eventCount":event_count

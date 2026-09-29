@@ -112,6 +112,16 @@ An all-inferred array keeps the sampler-default method, but its confidence is
 `medium` when any included name is `medium`; the one verified inferred Sampler
 alone remains `high`.
 
+Generator names are separate from editable channel labels. A controlled
+FL Studio 2026 save shows built-in `3x Osc` stored in event 201, while the
+renamed channel label is stored in event 203. The draft
+`channelGeneratorNames` field extracts that verified built-in class and
+labels the 2026 kind-0 Sampler default as an inference. Unverified generator
+classes, mixer effects, external VST identity, and other saved builds remain
+`unsupported` for this field. The owner approved the exact sanitized
+two-channel F14 save for corpus inclusion on 2026-09-29 under the
+[fixture rules](DEVELOPMENT.md#parser-fixture-rules).
+
 The first selected Rust implementation slice is
 [`crates/flp-parser/`](crates/flp-parser/README.md). It implements the four
 initial fields, followed by a channel count validated against both the header
@@ -120,12 +130,12 @@ saved builds are exactly 24.1.0.4225, 25.1.3.4922, and 26.1.0.5530; other saved
 builds return typed `UNSUPPORTED_SAVED_VERSION` until approved fixtures expand
 coverage. The crate is not yet wired to scanner jobs or desktop packaging.
 
-The draft pattern-count extension counts distinct stored pattern IDs in
+The merged pattern-count extension counts distinct stored pattern IDs in
 26.1.0.5530, with a 1024-pattern resource bound. Repeated note/property markers
 do not inflate the result. Absent markers are `unavailable`; the 2024/2025
-builds are `unsupported` for this new field. A privately verified synthetic
-three-pattern GUI save is awaiting owner fixture approval before this extension
-can merge; see the [validation record](docs/research/parser-pattern-count-184-result.md).
+builds are `unsupported` for this field. The owner approved the exact
+three-pattern F13 GUI save, now in the corpus; see the
+[validation record](docs/research/parser-pattern-count-184-result.md).
 
 The parser result is validated for schema, length/count limits, finite numeric
 values, path/string sizes, and known enum values before persistence. Unknown
@@ -188,8 +198,8 @@ to JavaScript.
 
 These are historical hypotheses to test, not product promises. PyFLP API
 references below describe possible future coverage, not the selected backend.
-The selected Rust implementation currently covers only its four agreed fields;
-the remaining fields stay deferred.
+The selected Rust implementation's current fields and limits are listed in its
+[crate documentation](crates/flp-parser/README.md); the other rows stay deferred.
 
 | Metadata | Likely source | Initial status | Required validation |
 | --- | --- | --- | --- |
