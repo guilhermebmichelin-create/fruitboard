@@ -353,6 +353,104 @@ pub struct LeasedScan {
     pub root: ScanRootExecution,
 }
 
+/// Column lists shared by the single-row readers and the set-based history
+/// readers so they cannot drift apart.
+pub(crate) const JOB_COLUMNS: &str = "id, scan_root_id, kind, state, retry_chain_id, attempt,
+                    max_attempts, not_before_ms, priority, follow_up_requested,
+                    cancellation_requested, created_at_ms, updated_at_ms, last_error_code";
+pub(crate) const RUN_COLUMNS: &str =
+    "id, scan_job_id, scan_root_id, generation, configuration_revision,
+                    retry_chain_id, attempt, session_id, lease_token, state,
+                    cancellation_requested, started_at_ms, finished_at_ms,
+                    lease_expires_at_ms, outcome, error_code";
+
+/// Set-based history reads: exactly one query per list, never a per-id
+/// follow-up (`SELECT id` + one `SELECT` per row made `list_scan_jobs` O(N)
+/// queries under the process-wide database mutex).
+pub(crate) fn list_scan_jobs_query() -> String {
+    format!("SELECT {JOB_COLUMNS} FROM scan_job ORDER BY created_at_ms, id")
+}
+
+pub(crate) fn list_scan_runs_query() -> String {
+    format!("SELECT {RUN_COLUMNS} FROM scan_run ORDER BY started_at_ms, id")
+}
+
+/// The default retention policy: each root keeps its most recent
+/// [`MAX_TERMINAL_RUNS_PER_ROOT`] terminal runs and every terminal run newer
+/// than [`TERMINAL_HISTORY_MAX_AGE_MS`]. Queued/running rows, active
+/// sessions, staging, and library rows are never touched.
+pub const MAX_TERMINAL_RUNS_PER_ROOT: u64 = 200;
+pub const TERMINAL_HISTORY_MAX_AGE_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+/// Maximum candidates examined in each ledger during one maintenance pass.
+pub const MAX_RETENTION_ROWS_PER_PASS: usize = 64;
+const MAX_RETENTION_KEEP_WINDOW: u64 = 10_000;
+
+#[derive(Clone, Default)]
+pub(crate) struct HistoryRetentionCursor {
+    policy: Option<(u64, i64)>,
+    runs: Option<(i64, String)>,
+    jobs: Option<(i64, String)>,
+}
+
+/// Counts returned by one retention pass.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RetentionOutcome {
+    pub runs_pruned: usize,
+    pub jobs_pruned: usize,
+    pub runs_examined: usize,
+    pub jobs_examined: usize,
+}
+
+/// Seek a bounded candidate window BEFORE checking retention eligibility.
+/// The cursor advances across protected rows too, avoiding starvation.
+pub(crate) const RETENTION_RUNS_QUERY: &str = "
+    SELECT id, scan_root_id, started_at_ms
+    FROM scan_run INDEXED BY scan_run_retention_age
+    WHERE state IN ('completed', 'failed', 'cancelled', 'interrupted')
+      AND (started_at_ms, id) > (?1, ?2) AND started_at_ms < ?3
+    ORDER BY started_at_ms, id LIMIT ?4";
+
+pub(crate) const RETENTION_JOBS_QUERY: &str = "
+    SELECT id, scan_root_id, updated_at_ms
+    FROM scan_job INDEXED BY scan_job_retention_age
+    WHERE state IN ('completed', 'failed', 'cancelled', 'interrupted')
+      AND (updated_at_ms, id) > (?1, ?2) AND updated_at_ms < ?3
+    ORDER BY updated_at_ms, id LIMIT ?4";
+
+pub(crate) const RETENTION_KEEP_QUERY: &str = "
+    SELECT started_at_ms, id FROM scan_run INDEXED BY scan_run_retention_root
+    WHERE scan_root_id = ?1
+      AND state IN ('completed', 'failed', 'cancelled', 'interrupted')
+    ORDER BY started_at_ms DESC, id DESC LIMIT 1 OFFSET ?2";
+
+type RetentionCandidate = (String, String, i64);
+
+fn retention_candidates(
+    connection: &Connection,
+    query: &str,
+    cursor: &Option<(i64, String)>,
+    cutoff: i64,
+) -> Result<Vec<RetentionCandidate>> {
+    let (time, id) = cursor
+        .as_ref()
+        .map_or((i64::MIN, ""), |(time, id)| (*time, id.as_str()));
+    Ok(connection
+        .prepare(query)?
+        .query_map(
+            params![time, id, cutoff, MAX_RETENTION_ROWS_PER_PASS as i64],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )?
+        .collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+fn next_retention_cursor(candidates: &[RetentionCandidate]) -> Option<(i64, String)> {
+    if candidates.len() == MAX_RETENTION_ROWS_PER_PASS {
+        candidates.last().map(|(id, _, time)| (*time, id.clone()))
+    } else {
+        None
+    }
+}
+
 type RawJob = (
     String,
     String,
@@ -484,10 +582,7 @@ fn run_from_raw(raw: RawRun) -> Result<ScanRun> {
 fn select_job(connection: &Connection, id: &str) -> Result<ScanJob> {
     let raw = connection
         .query_row(
-            "SELECT id, scan_root_id, kind, state, retry_chain_id, attempt,
-                    max_attempts, not_before_ms, priority, follow_up_requested,
-                    cancellation_requested, created_at_ms, updated_at_ms, last_error_code
-             FROM scan_job WHERE id = ?1",
+            &format!("SELECT {JOB_COLUMNS} FROM scan_job WHERE id = ?1"),
             [id],
             raw_job_from_row,
         )
@@ -498,11 +593,7 @@ fn select_job(connection: &Connection, id: &str) -> Result<ScanJob> {
 fn select_run(connection: &Connection, id: &str) -> Result<ScanRun> {
     let raw = connection
         .query_row(
-            "SELECT id, scan_job_id, scan_root_id, generation, configuration_revision,
-                    retry_chain_id, attempt, session_id, lease_token, state,
-                    cancellation_requested, started_at_ms, finished_at_ms,
-                    lease_expires_at_ms, outcome, error_code
-             FROM scan_run WHERE id = ?1",
+            &format!("SELECT {RUN_COLUMNS} FROM scan_run WHERE id = ?1"),
             [id],
             raw_run_from_row,
         )
@@ -1313,7 +1404,7 @@ impl Database {
         if session_id.is_empty() {
             return Err(StorageError::InvalidSchema);
         }
-        self.transaction(|transaction| {
+        let session = self.transaction(|transaction| {
             if transaction
                 .query_row(
                     "SELECT 1 FROM scan_session WHERE id = ?1",
@@ -1351,7 +1442,11 @@ impl Database {
                 started_at_ms: now_ms,
                 ended_at_ms: None,
             })
-        })
+        })?;
+        // One bounded maintenance pass; later scan polls continue the sweep.
+        // A retention error does not fail session creation.
+        let _ = self.prune_terminal_scan_history(now_ms);
+        Ok(session)
     }
 
     /// Queue one scan per root. A queued or running root already owns the
@@ -1378,7 +1473,7 @@ impl Database {
         if session_id.is_empty() || lease_duration_ms <= 0 {
             return Err(StorageError::InvalidSchema);
         }
-        self.transaction(|transaction| {
+        let leased = self.transaction(|transaction| {
             let session = select_session(transaction, session_id)?;
             if session.ended_at_ms.is_some() {
                 return Err(StorageError::Conflict);
@@ -1486,7 +1581,11 @@ impl Database {
             let job = select_job(transaction, &job_id)?;
             let run = select_run(transaction, &run_id)?;
             Ok(Some(LeasedScan { job, run, root }))
-        })
+        })?;
+        // Includes idle polls, so a long-lived session also makes progress.
+        // Maintenance errors never discard an already committed lease.
+        let _ = self.prune_terminal_scan_history(now_ms);
+        Ok(leased)
     }
 
     /// Extend a lease only while the exact session/token still owns a current
@@ -2015,27 +2114,106 @@ impl Database {
     }
 
     pub fn list_scan_jobs(&self) -> Result<Vec<ScanJob>> {
-        let mut statement = self
-            .connection
-            .prepare("SELECT id FROM scan_job ORDER BY created_at_ms, id")?;
-        let ids = statement
-            .query_map([], |row| row.get::<_, String>(0))?
+        let mut statement = self.connection.prepare(&list_scan_jobs_query())?;
+        let raws = statement
+            .query_map([], raw_job_from_row)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        ids.into_iter()
-            .map(|id| select_job(&self.connection, &id))
-            .collect()
+        raws.into_iter().map(job_from_raw).collect()
     }
 
     pub fn list_scan_runs(&self) -> Result<Vec<ScanRun>> {
-        let mut statement = self
-            .connection
-            .prepare("SELECT id FROM scan_run ORDER BY started_at_ms, id")?;
-        let ids = statement
-            .query_map([], |row| row.get::<_, String>(0))?
+        let mut statement = self.connection.prepare(&list_scan_runs_query())?;
+        let raws = statement
+            .query_map([], raw_run_from_row)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        ids.into_iter()
-            .map(|id| select_run(&self.connection, &id))
-            .collect()
+        raws.into_iter().map(run_from_raw).collect()
+    }
+
+    /// Prune terminal scan history with the default policy: each root keeps
+    /// its most recent [`MAX_TERMINAL_RUNS_PER_ROOT`] terminal runs and every
+    /// terminal run newer than [`TERMINAL_HISTORY_MAX_AGE_MS`].
+    pub fn prune_terminal_scan_history(&mut self, now_ms: i64) -> Result<RetentionOutcome> {
+        self.prune_terminal_scan_history_with_policy(
+            now_ms,
+            MAX_TERMINAL_RUNS_PER_ROOT,
+            TERMINAL_HISTORY_MAX_AGE_MS,
+        )
+    }
+
+    /// Prune terminal scan history with an explicit policy. A run is removed
+    /// only when it is both older than `max_age_ms` and outside the
+    /// `max_terminal_runs_per_root` most recent terminal runs of its root;
+    /// terminal jobs follow their runs (never the newest job of a root).
+    /// Runs referenced by root publication, any library location, or any stage
+    /// are retained regardless of age/count. Staging and library rows are never
+    /// changed. Each call examines at most 64 runs and 64 jobs, seeking past the
+    /// previous window. Protected rows advance the cursor too. The keep window
+    /// is limited to 10,000 to bound each indexed per-root threshold lookup.
+    pub fn prune_terminal_scan_history_with_policy(
+        &mut self,
+        now_ms: i64,
+        max_terminal_runs_per_root: u64,
+        max_age_ms: i64,
+    ) -> Result<RetentionOutcome> {
+        if max_age_ms < 0
+            || !(1..=MAX_RETENTION_KEEP_WINDOW).contains(&max_terminal_runs_per_root)
+            || now_ms < max_age_ms
+        {
+            return Err(StorageError::InvalidSchema);
+        }
+        let age_cutoff_ms = now_ms
+            .checked_sub(max_age_ms)
+            .ok_or(StorageError::InvalidSchema)?;
+        let policy = (max_terminal_runs_per_root, max_age_ms);
+        let mut cursor = if self.history_retention.policy == Some(policy) {
+            self.history_retention.clone()
+        } else {
+            HistoryRetentionCursor {
+                policy: Some(policy),
+                ..Default::default()
+            }
+        };
+        let outcome = self.transaction(|transaction| {
+            let runs = retention_candidates(transaction, RETENTION_RUNS_QUERY, &cursor.runs, age_cutoff_ms)?;
+            let mut outcome = RetentionOutcome { runs_examined: runs.len(), ..Default::default() };
+            let mut thresholds = std::collections::BTreeMap::new();
+            for (id, root_id, started_at) in &runs {
+                if !thresholds.contains_key(root_id) {
+                    let threshold: Option<(i64, String)> = transaction.query_row(
+                        RETENTION_KEEP_QUERY,
+                        params![root_id, (max_terminal_runs_per_root - 1) as i64],
+                        |row| Ok((row.get(0)?, row.get(1)?)),
+                    ).optional()?;
+                    thresholds.insert(root_id.clone(), threshold);
+                }
+                if thresholds[root_id].as_ref().is_some_and(|(time, keep_id)|
+                    (*started_at, id.as_str()) < (*time, keep_id.as_str())) {
+                    outcome.runs_pruned += transaction.execute(
+                        "DELETE FROM scan_run WHERE id = ?1
+                         AND NOT EXISTS (SELECT 1 FROM scan_root WHERE last_successful_run_id = ?1)
+                         AND NOT EXISTS (SELECT 1 FROM file_location WHERE last_seen_scan_run_id = ?1)
+                         AND NOT EXISTS (SELECT 1 FROM scan_stage WHERE run_id = ?1)",
+                        [id],
+                    )?;
+                }
+            }
+            let jobs = retention_candidates(transaction, RETENTION_JOBS_QUERY, &cursor.jobs, age_cutoff_ms)?;
+            outcome.jobs_examined = jobs.len();
+            for (id, root_id, _) in &jobs {
+                outcome.jobs_pruned += transaction.execute(
+                    "DELETE FROM scan_job WHERE id = ?1
+                     AND NOT EXISTS (SELECT 1 FROM scan_run WHERE scan_job_id = ?1)
+                     AND id <> (SELECT id FROM scan_job WHERE scan_root_id = ?2
+                                ORDER BY created_at_ms DESC, id DESC LIMIT 1)",
+                    params![id, root_id],
+                )?;
+            }
+            cursor.runs = next_retention_cursor(&runs);
+            cursor.jobs = next_retention_cursor(&jobs);
+            Ok(outcome)
+        })?;
+        self.history_retention = cursor;
+        Ok(outcome)
     }
 
     pub fn set_scan_root_enabled_at(

@@ -52,6 +52,11 @@ pub(crate) enum LogEventKind {
     Failed,
     #[serde(rename = "command_panicked")]
     Panicked,
+    /// A background lifecycle thread panicked and was contained by its
+    /// guard; the host stopped claiming work.
+    #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
+    #[serde(rename = "thread_panicked")]
+    ThreadPanicked,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -281,7 +286,10 @@ impl LogSink for LocalLogSink {
         let record = StoredLogRecord {
             timestamp_millis: event.timestamp_millis,
             level: event.level,
-            subsystem: "command",
+            subsystem: match event.kind {
+                LogEventKind::ThreadPanicked => "lifecycle",
+                _ => "command",
+            },
             version: env!("CARGO_PKG_VERSION"),
             event: event.kind,
             operation: event.operation,
