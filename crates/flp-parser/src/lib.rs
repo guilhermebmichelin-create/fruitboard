@@ -35,6 +35,8 @@ pub fn failed(code: &str) -> Value {
         "patternCount":field("failed",Value::Null,Some(code)),
         "patternNames":field("failed",Value::Null,Some(code)),
         "playlistPatternClips":field("failed",Value::Null,Some(code)),
+        "playlistPatternEndTick":field("failed",Value::Null,Some(code)),
+        "playlistPatternNominalSeconds":field("failed",Value::Null,Some(code)),
         "channelNames":field("failed",Value::Null,Some(code)),
         "sampleReferences":field("failed",Value::Null,Some(code)),
         "diagnostics":[]
@@ -68,6 +70,8 @@ fn unsupported_version(version: &str) -> Value {
         "patternCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "patternNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "playlistPatternClips":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "playlistPatternEndTick":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "playlistPatternNominalSeconds":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "sampleReferences":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "diagnostics":[]
@@ -95,73 +99,92 @@ fn playlist_pattern_clips(
     payload: Option<&[u8]>,
     multiple_payloads: bool,
     pattern_ids: &BTreeSet<u16>,
-) -> Result<Value, &'static str> {
+) -> Result<(Value, Option<u32>), &'static str> {
     if !known_pattern_build(version) {
-        return Ok(field(
-            "unsupported",
-            Value::Null,
-            Some("PLAYLIST_CLIPS_UNVERIFIED_BUILD"),
+        return Ok((
+            field(
+                "unsupported",
+                Value::Null,
+                Some("PLAYLIST_CLIPS_UNVERIFIED_BUILD"),
+            ),
+            None,
         ));
     }
     if multiple_payloads {
-        return Ok(field(
-            "unsupported",
-            Value::Null,
-            Some("MULTIPLE_ARRANGEMENTS_UNVERIFIED"),
+        return Ok((
+            field(
+                "unsupported",
+                Value::Null,
+                Some("MULTIPLE_ARRANGEMENTS_UNVERIFIED"),
+            ),
+            None,
         ));
     }
     let Some(payload) = payload else {
-        return Ok(field(
-            "unavailable",
-            Value::Null,
-            Some("PLAYLIST_DATA_NOT_STORED"),
+        return Ok((
+            field("unavailable", Value::Null, Some("PLAYLIST_DATA_NOT_STORED")),
+            None,
         ));
     };
     // The approved F13 GUI save has four 88-byte event-233 records. The
     // 2026 minimal saves have an empty event-233 payload. Other layouts and
     // clip kinds stay unsupported rather than being interpreted as patterns.
     if !payload.len().is_multiple_of(88) {
-        return Ok(field(
-            "unsupported",
-            Value::Null,
-            Some("PLAYLIST_CLIP_LAYOUT_UNVERIFIED"),
+        return Ok((
+            field(
+                "unsupported",
+                Value::Null,
+                Some("PLAYLIST_CLIP_LAYOUT_UNVERIFIED"),
+            ),
+            None,
         ));
     }
     if payload.len() / 88 > MAX_PLAYLIST_CLIPS {
         return Err("PLAYLIST_CLIP_LIMIT");
     }
     let mut clips = Vec::with_capacity(payload.len() / 88);
+    let mut end_tick: Option<u32> = None;
     for record in payload.as_chunks::<88>().0 {
         let item = le_u32(&record[4..8]);
         let family = item as u16;
         let encoded_id = (item >> 16) as u16;
         if family != 0x5000 || encoded_id <= 0x5000 {
-            return Ok(field(
-                "unsupported",
-                Value::Null,
-                Some("PLAYLIST_CLIP_KIND_UNVERIFIED"),
+            return Ok((
+                field(
+                    "unsupported",
+                    Value::Null,
+                    Some("PLAYLIST_CLIP_KIND_UNVERIFIED"),
+                ),
+                None,
             ));
         }
         let pattern_id = encoded_id - 0x5000;
         if !pattern_ids.contains(&pattern_id) {
-            return Ok(field(
-                "unsupported",
-                Value::Null,
-                Some("PLAYLIST_PATTERN_REFERENCE_UNVERIFIED"),
+            return Ok((
+                field(
+                    "unsupported",
+                    Value::Null,
+                    Some("PLAYLIST_PATTERN_REFERENCE_UNVERIFIED"),
+                ),
+                None,
             ));
         }
         let start_tick = le_u32(&record[0..4]);
         let length_tick = le_u32(&record[8..12]);
         if length_tick == 0 {
-            return Ok(field(
-                "unsupported",
-                Value::Null,
-                Some("ZERO_LENGTH_PLAYLIST_CLIP_UNVERIFIED"),
+            return Ok((
+                field(
+                    "unsupported",
+                    Value::Null,
+                    Some("ZERO_LENGTH_PLAYLIST_CLIP_UNVERIFIED"),
+                ),
+                None,
             ));
         }
-        if start_tick.checked_add(length_tick).is_none() {
-            return Err("PLAYLIST_POSITION_OVERFLOW");
-        }
+        let clip_end = start_tick
+            .checked_add(length_tick)
+            .ok_or("PLAYLIST_POSITION_OVERFLOW")?;
+        end_tick = Some(end_tick.map_or(clip_end, |previous| previous.max(clip_end)));
         clips.push(json!({
             "patternId":pattern_id,
             "startTick":start_tick,
@@ -169,7 +192,7 @@ fn playlist_pattern_clips(
             "trackToken":le_u32(&record[12..16]),
         }));
     }
-    Ok(field("extracted", json!(clips), None))
+    Ok((field("extracted", json!(clips), None), end_tick))
 }
 
 pub fn parse_bytes(bytes: &[u8]) -> Value {
@@ -180,6 +203,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         return failed("INVALID_HEADER");
     }
     let header_channels = u16::from_le_bytes([bytes[10], bytes[11]]);
+    let header_ppq = u16::from_le_bytes([bytes[12], bytes[13]]);
     if header_channels > MAX_CHANNELS {
         return failed("CHANNEL_COUNT_LIMIT");
     }
@@ -194,6 +218,9 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     let mut cursor = 22usize;
     let mut version: Option<String> = None;
     let mut tempo: Option<f64> = None;
+    let mut timing_numerator: Option<u8> = None;
+    let mut timing_denominator: Option<u8> = None;
+    let mut multiple_timing_events = false;
     let mut diagnostics: Vec<Value> = Vec::new();
     let mut names: Vec<Option<String>> = Vec::new();
     let mut channel_kinds: Vec<u16> = Vec::new();
@@ -250,6 +277,12 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         let data = &bytes[cursor..end];
         cursor = end;
         match id {
+            17 if known_pattern_build(version.as_deref()) => {
+                multiple_timing_events |= timing_numerator.replace(data[0]).is_some();
+            }
+            18 if known_pattern_build(version.as_deref()) => {
+                multiple_timing_events |= timing_denominator.replace(data[0]).is_some();
+            }
             64 => {
                 current_pattern = None;
                 if names.len() >= MAX_CHANNELS as usize {
@@ -400,7 +433,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
             json!({"status":"unavailable","reason":"PATTERN_NAME_NOT_STORED","items":items})
         }
     };
-    let playlist_clips = match playlist_pattern_clips(
+    let (playlist_clips, playlist_end_tick) = match playlist_pattern_clips(
         version.as_deref(),
         playlist_payload.as_deref(),
         multiple_playlist_payloads,
@@ -408,6 +441,40 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     ) {
         Ok(value) => value,
         Err(code) => return failed(code),
+    };
+    let playlist_end = match playlist_end_tick {
+        Some(value) => field("extracted", json!(value), None),
+        None if playlist_clips["status"] == "extracted" => field(
+            "unavailable",
+            Value::Null,
+            Some("NO_PLAYLIST_PATTERN_CLIPS"),
+        ),
+        None => field(
+            playlist_clips["status"].as_str().expect("field status"),
+            Value::Null,
+            playlist_clips["reason"].as_str(),
+        ),
+    };
+    let playlist_nominal_seconds = match playlist_end_tick {
+        None => playlist_end.clone(),
+        Some(_) if header_ppq != 96 => field("unsupported", Value::Null, Some("PPQ_UNVERIFIED")),
+        Some(_)
+            if timing_numerator != Some(4)
+                || timing_denominator != Some(4)
+                || multiple_timing_events =>
+        {
+            field("unsupported", Value::Null, Some("METER_UNVERIFIED"))
+        }
+        Some(end_tick) => match tempo {
+            Some(bpm) => json!({
+                "status":"inferred",
+                "value":f64::from(end_tick) / 96.0 * 60.0 / bpm,
+                "method":"constant-base-tempo-over-pattern-clips",
+                "confidence":"low",
+                "assumptions":["tempo remains at base BPM", "only verified pattern clips define span"]
+            }),
+            None => field("unavailable", Value::Null, Some("BASE_TEMPO_ABSENT")),
+        },
     };
     let saved_version = match version {
         Some(value) => field("extracted", json!(value), None),
@@ -477,6 +544,8 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         "patternCount":pattern_count,
         "patternNames":pattern_names,
         "playlistPatternClips":playlist_clips,
+        "playlistPatternEndTick":playlist_end,
+        "playlistPatternNominalSeconds":playlist_nominal_seconds,
         "channelNames":channel_names,
         "sampleReferences":sample_references,
         "diagnostics":diagnostics,

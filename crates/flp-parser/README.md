@@ -65,8 +65,20 @@ payloads and return an extracted empty array. An absent payload is
 `unavailable`. Other supported builds and unfamiliar layouts, clip kinds,
 references, or multiple arrangement payloads return `unsupported` for this
 field. The parser rejects clip counts over 1024 and overflowing end positions.
-Audio clips, automation clips, track normalization, and seconds are not yet
-decoded. The existing response-size fallback still applies.
+Audio clips, automation clips, track normalization, and rendered song length
+are not yet decoded. The existing response-size fallback still applies.
+
+`playlistPatternEndTick` is the greatest saved pattern-clip start plus length,
+not a sum of clips. The approved F13 arrangement ends at tick 1536. An empty
+saved pattern playlist reports `unavailable`, because it has no pattern-clip
+end. Unsupported playlist layouts keep their field-level reason.
+`playlistPatternNominalSeconds` is an `inferred`, low-confidence conversion
+using the saved base BPM and the verified 96-PPQ, 4/4 timing layout. F13 yields
+about 7.385 seconds if its base tempo stays constant. This is a nominal span
+through the pattern clips, not the song's rendered length: tempo automation,
+other clip kinds, and sound tails are outside this calculation. Unknown PPQ or
+meter remains `unsupported`; missing base tempo is `unavailable`. See the
+[timing evidence](../../docs/research/parser-extent-190-result.md).
 
 The corpus tests read the exact approved fixtures under `fixtures/parser-corpus/`.
 The repository privacy check validates their allowed paths and SHA-256 values;
