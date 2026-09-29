@@ -4,7 +4,8 @@ This is the first product implementation slice after the owner selected Rust
 under [ADR-002](../../docs/adr/002-flp-parser-process.md). Its code derives from
 the bounded research parser at commit `080e825`. It reads one explicit FLP
 read-only, returns the four initial metadata fields plus channel and pattern
-counts and pattern names, and keeps typed failure/partial outcomes tested against the approved
+counts, pattern names, and playlist pattern clips. It keeps typed
+failure/partial outcomes tested against the approved
 eleven-file corpus.
 
 The executable uses protocol version 1 and schema version 1 as newline-delimited
@@ -14,7 +15,7 @@ in milliseconds. The only optional feature list is `["basic-metadata"]`. Every
 response carries the request ID; malformed requests receive a fixed error
 code. Requests are capped at 64 KiB and responses at 256 KiB. The parser caps
 files at 4 MiB, event payloads at 2 MiB, events at 100,000, and channels at
-256. Unique saved patterns are capped at 1024. Only the three exact saved builds
+256. Unique saved patterns and playlist clips are each capped at 1024. Only the three exact saved builds
 in the approved corpus currently return
 metadata; other build strings receive `UNSUPPORTED_SAVED_VERSION`.
 
@@ -52,6 +53,20 @@ status. No default name is invented. No stored IDs means
 conflicting names, malformed UTF-16, and names outside a pattern context fail
 with typed codes. Text uses the existing 8192-byte limit and response limits
 remain in force. This field does not describe pattern notes or playlist length.
+
+`playlistPatternClips` reads event-233 pattern placements only for the exact
+2026 build validated by the [F13 playlist study](../../docs/research/parser-playlist-188-result.md).
+The extracted value is an array in saved record order, with entries like
+`{"patternId":1,"startTick":0,"lengthTick":384,"trackToken":499}`.
+Ticks and the track token are raw stored values; no bar number or track number
+is inferred. F13 has A, A, B, C at ticks 0, 384, 768, and 1152, each 384
+ticks long. The approved 2026 minimal projects have empty saved arrangement
+payloads and return an extracted empty array. An absent payload is
+`unavailable`. Other supported builds and unfamiliar layouts, clip kinds,
+references, or multiple arrangement payloads return `unsupported` for this
+field. The parser rejects clip counts over 1024 and overflowing end positions.
+Audio clips, automation clips, track normalization, and seconds are not yet
+decoded. The existing response-size fallback still applies.
 
 The corpus tests read the exact approved fixtures under `fixtures/parser-corpus/`.
 The repository privacy check validates their allowed paths and SHA-256 values;

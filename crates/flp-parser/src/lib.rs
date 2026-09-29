@@ -13,6 +13,7 @@ const MAX_EVENTS: usize = 100_000;
 const MAX_CHANNELS: u16 = 256;
 const MAX_EVENT_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_PATTERNS: usize = 1024;
+pub const MAX_PLAYLIST_CLIPS: usize = 1024;
 
 fn known_pattern_build(version: Option<&str>) -> bool {
     version == Some("26.1.0.5530")
@@ -33,6 +34,7 @@ pub fn failed(code: &str) -> Value {
         "channelCount":field("failed",Value::Null,Some(code)),
         "patternCount":field("failed",Value::Null,Some(code)),
         "patternNames":field("failed",Value::Null,Some(code)),
+        "playlistPatternClips":field("failed",Value::Null,Some(code)),
         "channelNames":field("failed",Value::Null,Some(code)),
         "sampleReferences":field("failed",Value::Null,Some(code)),
         "diagnostics":[]
@@ -65,6 +67,7 @@ fn unsupported_version(version: &str) -> Value {
         "channelCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "patternCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "patternNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "playlistPatternClips":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "sampleReferences":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "diagnostics":[]
@@ -85,6 +88,88 @@ fn utf16_text(data: &[u8]) -> Result<String, &'static str> {
         return Err("INVALID_TEXT_TERMINATOR");
     }
     String::from_utf16(&units[..units.len() - 1]).map_err(|_| "INVALID_TEXT_ENCODING")
+}
+
+fn playlist_pattern_clips(
+    version: Option<&str>,
+    payload: Option<&[u8]>,
+    multiple_payloads: bool,
+    pattern_ids: &BTreeSet<u16>,
+) -> Result<Value, &'static str> {
+    if !known_pattern_build(version) {
+        return Ok(field(
+            "unsupported",
+            Value::Null,
+            Some("PLAYLIST_CLIPS_UNVERIFIED_BUILD"),
+        ));
+    }
+    if multiple_payloads {
+        return Ok(field(
+            "unsupported",
+            Value::Null,
+            Some("MULTIPLE_ARRANGEMENTS_UNVERIFIED"),
+        ));
+    }
+    let Some(payload) = payload else {
+        return Ok(field(
+            "unavailable",
+            Value::Null,
+            Some("PLAYLIST_DATA_NOT_STORED"),
+        ));
+    };
+    // The approved F13 GUI save has four 88-byte event-233 records. The
+    // 2026 minimal saves have an empty event-233 payload. Other layouts and
+    // clip kinds stay unsupported rather than being interpreted as patterns.
+    if !payload.len().is_multiple_of(88) {
+        return Ok(field(
+            "unsupported",
+            Value::Null,
+            Some("PLAYLIST_CLIP_LAYOUT_UNVERIFIED"),
+        ));
+    }
+    if payload.len() / 88 > MAX_PLAYLIST_CLIPS {
+        return Err("PLAYLIST_CLIP_LIMIT");
+    }
+    let mut clips = Vec::with_capacity(payload.len() / 88);
+    for record in payload.as_chunks::<88>().0 {
+        let item = le_u32(&record[4..8]);
+        let family = item as u16;
+        let encoded_id = (item >> 16) as u16;
+        if family != 0x5000 || encoded_id <= 0x5000 {
+            return Ok(field(
+                "unsupported",
+                Value::Null,
+                Some("PLAYLIST_CLIP_KIND_UNVERIFIED"),
+            ));
+        }
+        let pattern_id = encoded_id - 0x5000;
+        if !pattern_ids.contains(&pattern_id) {
+            return Ok(field(
+                "unsupported",
+                Value::Null,
+                Some("PLAYLIST_PATTERN_REFERENCE_UNVERIFIED"),
+            ));
+        }
+        let start_tick = le_u32(&record[0..4]);
+        let length_tick = le_u32(&record[8..12]);
+        if length_tick == 0 {
+            return Ok(field(
+                "unsupported",
+                Value::Null,
+                Some("ZERO_LENGTH_PLAYLIST_CLIP_UNVERIFIED"),
+            ));
+        }
+        if start_tick.checked_add(length_tick).is_none() {
+            return Err("PLAYLIST_POSITION_OVERFLOW");
+        }
+        clips.push(json!({
+            "patternId":pattern_id,
+            "startTick":start_tick,
+            "lengthTick":length_tick,
+            "trackToken":le_u32(&record[12..16]),
+        }));
+    }
+    Ok(field("extracted", json!(clips), None))
 }
 
 pub fn parse_bytes(bytes: &[u8]) -> Value {
@@ -117,6 +202,8 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     let mut pattern_ids = BTreeSet::new();
     let mut pattern_names = BTreeMap::new();
     let mut current_pattern = None;
+    let mut playlist_payload: Option<Vec<u8>> = None;
+    let mut multiple_playlist_payloads = false;
     let mut event_count = 0usize;
     while cursor < bytes.len() {
         if event_count == MAX_EVENTS {
@@ -207,6 +294,15 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
                     return failed("CONFLICTING_PATTERN_NAMES");
                 }
                 pattern_names.insert(pattern_id, name);
+            }
+            233 if known_pattern_build(version.as_deref()) => {
+                if playlist_payload.is_some() {
+                    multiple_playlist_payloads = true;
+                } else {
+                    playlist_payload = Some(data.to_vec());
+                }
+                current_pattern = None;
+                current_channel = None;
             }
             199 => {
                 if version.is_some() || data.len() < 2 || data.last() != Some(&0) {
@@ -304,6 +400,15 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
             json!({"status":"unavailable","reason":"PATTERN_NAME_NOT_STORED","items":items})
         }
     };
+    let playlist_clips = match playlist_pattern_clips(
+        version.as_deref(),
+        playlist_payload.as_deref(),
+        multiple_playlist_payloads,
+        &pattern_ids,
+    ) {
+        Ok(value) => value,
+        Err(code) => return failed(code),
+    };
     let saved_version = match version {
         Some(value) => field("extracted", json!(value), None),
         None => field("unavailable", Value::Null, Some("SAVED_VERSION_ABSENT")),
@@ -371,6 +476,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         "channelCount":field("extracted",json!(channel_count),None),
         "patternCount":pattern_count,
         "patternNames":pattern_names,
+        "playlistPatternClips":playlist_clips,
         "channelNames":channel_names,
         "sampleReferences":sample_references,
         "diagnostics":diagnostics,
