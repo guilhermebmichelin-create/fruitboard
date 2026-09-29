@@ -1,8 +1,7 @@
 use fruitboard_flp_parser::parse_bytes;
 use serde_json::json;
 
-// In-memory boundary cases. The private matching-build GUI save establishes
-// which event carries the class name; it is not included before privacy approval.
+// In-memory boundary cases complement the approved matching-build GUI fixture.
 fn stream(version: &str, generator_event: &[u8]) -> Vec<u8> {
     let mut events = vec![199, (version.len() + 1) as u8];
     events.extend_from_slice(version.as_bytes());
@@ -108,4 +107,39 @@ fn older_saved_builds_stay_unverified_for_generator_names() {
             "GENERATOR_NAMES_UNVERIFIED_BUILD"
         );
     }
+}
+
+#[test]
+fn approved_two_channel_fixture_separates_generator_and_label_without_writing() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("fixtures/parser-corpus/FIX-FL2026-3XOSC.flp");
+    let before = std::fs::read(&path).expect("approved F14 fixture");
+    assert_eq!(before.len(), 47_881);
+    let parsed = parse_bytes(&before);
+    assert_eq!(parsed["outcome"], "complete");
+    assert_eq!(parsed["savedVersion"]["value"], "26.1.0.5530");
+    assert_eq!(parsed["baseTempoBpm"]["value"], 130.0);
+    assert_eq!(parsed["channelCount"]["value"], 2);
+    assert_eq!(
+        parsed["channelNames"]["value"],
+        json!(["Sampler", "Fixture Synth A"])
+    );
+    assert_eq!(parsed["channelNames"]["confidence"], "medium");
+    assert_eq!(
+        parsed["channelGeneratorNames"]["value"],
+        json!(["Sampler", "3x Osc"])
+    );
+    assert_eq!(parsed["channelGeneratorNames"]["confidence"], "medium");
+    assert_eq!(
+        parsed["channelGeneratorNames"]["items"][0]["name"]["status"],
+        "inferred"
+    );
+    assert_eq!(
+        parsed["channelGeneratorNames"]["items"][1]["name"],
+        json!({"status":"extracted","value":"3x Osc"})
+    );
+    assert_eq!(parsed["patternCount"]["status"], "unavailable");
+    assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
+    assert_eq!(std::fs::read(path).unwrap(), before);
 }

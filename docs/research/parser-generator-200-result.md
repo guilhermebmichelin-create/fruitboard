@@ -1,7 +1,8 @@
 # FL Studio 2026 generator-name slice (issue #200)
 
-Status: implementation validated locally; controlled fixture remains private
-until the owner approves its exact sanitized bytes for repository inclusion.
+Status: implementation validated locally; the owner approved the exact
+sanitized F14 bytes for public repository inclusion on 2026-09-29. The file
+is included in the corpus and exact-head CI remains a merge gate.
 
 ## Registered case and GUI result
 
@@ -35,8 +36,10 @@ registration payload and its two framing bytes, followed by correction of the
 FLdt length. Bounded event and byte scans found no remaining registration
 event, non-Public Windows home path, email, known local account name, or
 embedded RIFF audio. These checks do not decode the opaque native plugin
-state. Both files and the screenshots remain outside Git pending owner privacy
-approval under [the fixture rules](../../DEVELOPMENT.md#parser-fixture-rules).
+state. The approved sanitized file is pinned in the
+[corpus manifest](../../fixtures/parser-corpus/manifest.md); the raw GUI save
+and screenshots remain outside Git. The owner approved only the exact
+47,881-byte candidate under [the fixture rules](../../DEVELOPMENT.md#parser-fixture-rules).
 
 ## Parser behavior and local validation
 
@@ -55,5 +58,6 @@ and repository privacy verification pass. A direct JSON-lines request against
 the private sanitized candidate returned two channels, channel names
 `Sampler` and `Fixture Synth A`, and generator names `Sampler` and `3x Osc`,
 without echoing the input path or changing candidate bytes. The ordinary
-committed corpus still contains only Sampler channels. An approved committed
-fixture and exact-head CI remain gates before merge.
+committed corpus test also reads exact approved F14 bytes and checks the
+separation between generator and channel label. Exact-head CI remains a gate
+before merge.
