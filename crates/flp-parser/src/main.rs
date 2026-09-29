@@ -10,7 +10,7 @@ use std::io::{self, BufRead, Write};
 use std::path::Path;
 
 const PROTOCOL_VERSION: u64 = 1;
-const SCHEMA_VERSION: u64 = 1;
+const SCHEMA_VERSION: u64 = 2;
 const MAX_REQUEST_BYTES: usize = 64 * 1024;
 const MAX_RESPONSE_BYTES: usize = 256 * 1024;
 
@@ -25,11 +25,17 @@ struct Request {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ParseParams {
     path: String,
     expected: ExpectedFingerprint,
     #[serde(default)]
     features: Vec<String>,
+    /// Enabled scan roots supplied by the trusted supervisor. `parse` is
+    /// refused unless the file path lies inside one of them; an empty list
+    /// denies every path.
+    #[serde(default)]
+    allowed_roots: Vec<String>,
 }
 
 enum LineRead {
@@ -123,6 +129,17 @@ fn respond(line: &[u8]) -> Value {
             }
             let path = Path::new(&params.path);
             if !path.is_absolute() {
+                return error(id, "INVALID_PATH");
+            }
+            // Fail closed: only component-wise descendants of an explicit
+            // allowed root are parseable. `Path::starts_with` compares whole
+            // components, so a sibling like `C:\root-evil` never matches the
+            // allowed root `C:\root`, and an empty allowlist denies all.
+            let inside_allowed_root = params.allowed_roots.iter().any(|root| {
+                let root = Path::new(root);
+                root.is_absolute() && path.starts_with(root)
+            });
+            if !inside_allowed_root {
                 return error(id, "INVALID_PATH");
             }
             let started = std::time::Instant::now();

@@ -59,10 +59,14 @@ HTTP server: stdio has no listening port, discovery, or local-origin
 authentication problem. Every message contains `protocolVersion`, request ID,
 and schema version. Stdout is protocol-only; diagnostics go to stderr.
 
-Initial version-1 request shape (values shown are illustrative):
+Initial version-1 request shape (values shown are illustrative). Schema
+version 2 added the `allowedRoots` allowlist to `parse` params: the
+supervisor passes the enabled scan roots, and the sidecar refuses any path
+that is not a component-wise descendant of one of them (`INVALID_PATH`).
+An empty allowlist denies every path:
 
 ```json
-{"protocolVersion":1,"schemaVersion":1,"id":"01234567-89ab-cdef-0123-456789abcdef","method":"parse","params":{"path":"C:\\approved\\project.flp","expected":{"size":46703,"modifiedAtMs":1234567890000},"features":["basic-metadata"]}}
+{"protocolVersion":1,"schemaVersion":2,"id":"01234567-89ab-cdef-0123-456789abcdef","method":"parse","params":{"path":"C:\\approved\\project.flp","expected":{"size":46703,"modifiedAtMs":1234567890000},"features":["basic-metadata"],"allowedRoots":["C:\\approved"]}}
 ```
 
 The absolute path exists only in the private Rust-to-sidecar request needed to
@@ -71,12 +75,15 @@ sync payloads; logs, progress events, and diagnostics use opaque request,
 location, and project-file IDs. Any user-facing path display is fetched through
 an explicit local-only use case.
 
-Initial response shape (the actual result includes all six fields):
+Initial response shape (the actual result includes all six fields). Schema
+version 2 replaced the null `hash` with the SHA-256 content digest of the
+exact bytes read; the digest is computed before and after parsing on the same
+buffer and the parse fails `INPUT_BUFFER_MUTATED` if they differ:
 
 ```json
 {
   "protocolVersion": 1,
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "01234567-89ab-cdef-0123-456789abcdef",
   "result": {
     "outcome": "complete",
@@ -86,7 +93,7 @@ Initial response shape (the actual result includes all six fields):
     "patternCount": {"status": "unavailable", "reason": "PATTERN_DATA_NOT_STORED"},
     "channelNames": {"status": "extracted", "value": ["Fixture Sample A"]},
     "sampleReferences": {"status": "extracted", "value": ["sample.wav"]},
-    "inputFingerprint": {"size": 46703, "modifiedAtMs": 1234567890000, "hash": null},
+    "inputFingerprint": {"size": 46703, "modifiedAtMs": 1234567890000, "hash": {"algorithm": "sha256", "value": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"}},
     "diagnostics": []
   }
 }

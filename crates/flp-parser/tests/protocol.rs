@@ -34,10 +34,10 @@ fn exchange(lines: &[Vec<u8>]) -> (Vec<Value>, String) {
 #[test]
 fn versioned_protocol_handles_multiple_requests_without_stderr() {
     let describe = json!({
-        "protocolVersion":1,"schemaVersion":1,"id":ID,"method":"describe"
+        "protocolVersion":1,"schemaVersion":2,"id":ID,"method":"describe"
     });
     let health = json!({
-        "protocolVersion":1,"schemaVersion":1,"id":ID,"method":"healthCheck"
+        "protocolVersion":1,"schemaVersion":2,"id":ID,"method":"healthCheck"
     });
     let (responses, stderr) = exchange(&[
         serde_json::to_vec(&describe).unwrap(),
@@ -93,7 +93,7 @@ fn versioned_protocol_handles_multiple_requests_without_stderr() {
 #[test]
 fn protocol_rejects_invalid_versions_and_overlong_requests() {
     let wrong_version = json!({
-        "protocolVersion":2,"schemaVersion":1,"id":ID,"method":"describe"
+        "protocolVersion":2,"schemaVersion":2,"id":ID,"method":"describe"
     });
     let (responses, stderr) = exchange(&[
         serde_json::to_vec(&wrong_version).unwrap(),
@@ -116,15 +116,17 @@ fn parse_request_returns_f12_fields_without_echoing_input_path() {
         .join("fixtures/parser-corpus/FIX-FL2026-SAMPLE.flp");
     let metadata = fs::metadata(&path).unwrap();
     let before = fs::read(&path).unwrap();
+    let allowed_root = path.parent().unwrap().to_path_buf();
     let request = json!({
-        "protocolVersion":1,"schemaVersion":1,"id":ID,"method":"parse",
+        "protocolVersion":1,"schemaVersion":2,"id":ID,"method":"parse",
         "params":{
             "path":path,
             "expected":{
                 "size":metadata.len(),
                 "modifiedAtMs":fruitboard_flp_parser::modified_at_ms(&metadata).unwrap()
             },
-            "features":["basic-metadata"]
+            "features":["basic-metadata"],
+            "allowedRoots":[allowed_root]
         }
     });
     let (responses, stderr) = exchange(&[serde_json::to_vec(&request).unwrap()]);
@@ -141,10 +143,98 @@ fn parse_request_returns_f12_fields_without_echoing_input_path() {
         responses[0]["result"]["sampleReferences"]["status"],
         "extracted"
     );
+    // The reported content digest tracks the exact read buffer: it is the
+    // SHA-256 of the bytes as they were before and after parsing.
+    assert_eq!(
+        responses[0]["result"]["inputFingerprint"]["hash"]["algorithm"],
+        "sha256"
+    );
+    assert_eq!(
+        responses[0]["result"]["inputFingerprint"]["hash"]["value"],
+        fruitboard_flp_parser::sha256_hex(&before)
+    );
     assert!(
         !responses[0]
             .to_string()
             .contains(&path.to_string_lossy().to_string())
     );
     assert_eq!(fs::read(&path).unwrap(), before);
+}
+
+#[test]
+fn parse_refuses_paths_outside_the_allowed_roots() {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("fixtures/parser-corpus/FIX-FL2026-SAMPLE.flp");
+    let metadata = fs::metadata(&path).unwrap();
+    let expected = json!({
+        "size":metadata.len(),
+        "modifiedAtMs":fruitboard_flp_parser::modified_at_ms(&metadata).unwrap()
+    });
+
+    // A sibling directory whose name merely shares a prefix must not match
+    // (component-wise containment), and an empty allowlist denies everything.
+    let sibling_root = path
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("parser-corpus-evil");
+    let outside_root = path
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("other-corpus");
+    for allowed in [
+        json!([sibling_root]),
+        json!([outside_root]),
+        json!([]),
+        Value::Null,
+    ] as [Value; 4]
+    {
+        let mut params = json!({
+            "path":path,
+            "expected":expected.clone(),
+            "features":["basic-metadata"]
+        });
+        if allowed != Value::Null {
+            params["allowedRoots"] = allowed;
+        }
+        let request = json!({
+            "protocolVersion":1,"schemaVersion":2,"id":ID,"method":"parse",
+            "params":params
+        });
+        let (responses, stderr) = exchange(&[serde_json::to_vec(&request).unwrap()]);
+        assert!(stderr.is_empty());
+        assert_eq!(responses.len(), 1);
+        assert_eq!(responses[0]["error"]["code"], "INVALID_PATH");
+    }
+
+    // The file itself is untouched by refusals.
+    assert!(path.exists());
+
+    // Prefix-sibling attack: `parser-corpus-evil` shares a string prefix
+    // with the allowed root `parser-corpus` but is not inside it.
+    let allowed_root = path.parent().unwrap().to_path_buf();
+    let sibling_path = path
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("parser-corpus-evil")
+        .join("sneaky.flp");
+    let request = json!({
+        "protocolVersion":1,"schemaVersion":2,"id":ID,"method":"parse",
+        "params":{
+            "path":sibling_path,
+            "expected":expected.clone(),
+            "features":["basic-metadata"],
+            "allowedRoots":[allowed_root]
+        }
+    });
+    let (responses, stderr) = exchange(&[serde_json::to_vec(&request).unwrap()]);
+    assert!(stderr.is_empty());
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["error"]["code"], "INVALID_PATH");
 }

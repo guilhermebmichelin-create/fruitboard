@@ -2,6 +2,7 @@
 //! Event interpretation derives from research source commit 080e825.
 
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::Read;
@@ -737,6 +738,20 @@ pub fn modified_at_ms(metadata: &std::fs::Metadata) -> Option<u64> {
         .ok()
 }
 
+/// Content digest of a read buffer, reported in the parse fingerprint and
+/// recomputed after parsing so an in-place mutation of the input is caught.
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    let digest = hasher.finalize();
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        use std::fmt::Write as _;
+        let _ = write!(hex, "{byte:02x}");
+    }
+    hex
+}
+
 /// Opens only the explicit path supplied by the trusted supervisor. The
 /// supervisor owns root authorization and must not pass unvalidated paths.
 pub fn parse_file(path: &Path, expected: ExpectedFingerprint) -> Value {
@@ -775,11 +790,16 @@ pub fn parse_file(path: &Path, expected: ExpectedFingerprint) -> Value {
     if after.len() != expected.size || after_modified != expected.modified_at_ms {
         return failed("INPUT_CHANGED");
     }
+    let digest_before = sha256_hex(&bytes);
     let mut result = parse_bytes(&bytes);
+    let digest_after = sha256_hex(&bytes);
+    if digest_before != digest_after {
+        return failed("INPUT_BUFFER_MUTATED");
+    }
     result["inputFingerprint"] = json!({
         "size": expected.size,
         "modifiedAtMs": expected.modified_at_ms,
-        "hash": null
+        "hash": {"algorithm": "sha256", "value": digest_before}
     });
     result
 }
