@@ -234,7 +234,12 @@ export interface CancelScanResult {
   readonly outcome: CancelScanOutcome;
 }
 
+export interface ScanConsoleState {
+  readonly enabled: boolean;
+}
+
 export interface LibraryScanAdapter {
+  getConsoleState(): Promise<ScanConsoleState>;
   getLibraryPage(request: LibraryPageRequest): Promise<LibraryPage>;
   listScanStatuses(): Promise<readonly ScanStatus[]>;
   scanNow(rootId: string): Promise<ScanStartResult>;
