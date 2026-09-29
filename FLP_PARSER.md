@@ -108,6 +108,9 @@ confirms it. When a project mixes a stored name with an inferred default, the
 aggregate `channelNames` object uses the method
 `mixed-extracted-and-sampler-default` at `medium` confidence rather than
 claiming the whole array came from the sampler-default rule.
+An all-inferred array keeps the sampler-default method, but its confidence is
+`medium` when any included name is `medium`; the one verified inferred Sampler
+alone remains `high`.
 
 Generator names are separate from editable channel labels. A controlled
 FL Studio 2026 save shows built-in `3x Osc` stored in event 201, while the
