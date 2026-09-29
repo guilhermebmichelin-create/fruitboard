@@ -598,10 +598,12 @@ database with ordinary file copy or place it on a network filesystem.
 - Whether UUID strings or 16-byte blobs materially affect realistic query
   performance. Prefer strings unless benchmarks show a real need.
 - Retention limits for immutable parser snapshots, rejected suggestions,
-  tombstones, and sync operations. Terminal scan job/run history is already
-  bounded: `prune_terminal_scan_history` keeps each root's most recent 200
-  terminal runs and everything newer than 30 days, and is invoked from the
-  session-start recovery seam.
+  tombstones, and sync operations. Terminal scan job/run history has incremental
+  maintenance through `prune_terminal_scan_history`: it preserves each root's
+  newest 200 terminal runs and everything newer than 30 days, plus runs still
+  referenced by library state or staging. Each pass examines at most 64 run
+  candidates and 64 job candidates at session startup and during supervisor
+  polling. This preservation window does not impose a hard cap on stored rows.
 - Which sample path components are useful enough to sync without exposing
   private directory structure.
 
