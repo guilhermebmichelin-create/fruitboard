@@ -246,7 +246,7 @@ impl NativeFoundation {
         let database = Arc::new(Mutex::new(Database::open(data_directory)?));
 
         #[cfg(feature = "scan-console")]
-        let scan_console = ScanConsoleService::new_enabled(database.clone());
+        let scan_console = ScanConsoleService::new_enabled(database.clone(), logs.clone());
         #[cfg(not(feature = "scan-console"))]
         let scan_console = ScanConsoleService::new(database.clone());
 
