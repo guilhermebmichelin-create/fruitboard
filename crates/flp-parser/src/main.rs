@@ -1,7 +1,9 @@
 //! Versioned JSON-lines transport for the selected Rust FLP parser.
 //! This process receives requests only from a trusted native supervisor.
 
-use fruitboard_flp_parser::{ExpectedFingerprint, MAX_FILE_BYTES, MAX_PATTERNS, parse_file};
+use fruitboard_flp_parser::{
+    ExpectedFingerprint, MAX_FILE_BYTES, MAX_PATTERNS, MAX_PLAYLIST_CLIPS, parse_file,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::io::{self, BufRead, Write};
@@ -106,9 +108,10 @@ fn respond(line: &[u8]) -> Value {
     let result = match request.method.as_str() {
         "describe" if request.params.is_none() => json!({
             "adapter":"rust-flp-parser", "adapterVersion":env!("CARGO_PKG_VERSION"),
-            "fields":["savedVersion","baseTempoBpm","channelCount","patternCount","patternNames","channelNames","sampleReferences"],
+            "fields":["savedVersion","baseTempoBpm","channelCount","patternCount","patternNames","playlistPatternClips","channelNames","sampleReferences"],
             "maxFileBytes":MAX_FILE_BYTES, "maxEvents":100_000,
-            "maxChannels":256, "maxPatterns":MAX_PATTERNS, "maxEventBytes":2 * 1024 * 1024
+            "maxChannels":256, "maxPatterns":MAX_PATTERNS, "maxPlaylistClips":MAX_PLAYLIST_CLIPS,
+            "maxEventBytes":2 * 1024 * 1024
         }),
         "healthCheck" if request.params.is_none() => json!({"status":"ok"}),
         "parse" => {
