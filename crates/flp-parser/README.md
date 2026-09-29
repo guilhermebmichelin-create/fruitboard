@@ -5,7 +5,7 @@ under [ADR-002](../../docs/adr/002-flp-parser-process.md). Its code derives from
 the bounded research parser at commit `080e825`. It reads one explicit FLP
 read-only, returns the four initial metadata fields plus channel and pattern
 counts, and keeps the typed failure/partial outcomes tested against the approved
-ten-file corpus.
+eleven-file corpus.
 
 The executable uses protocol version 1 and schema version 1 as newline-delimited
 JSON on stdin/stdout. It accepts `describe`, `healthCheck`, and `parse` methods.

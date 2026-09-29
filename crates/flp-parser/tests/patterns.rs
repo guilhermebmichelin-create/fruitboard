@@ -60,11 +60,13 @@ fn zero_id_and_unique_pattern_limit_fail_with_typed_results() {
 }
 
 #[test]
-#[ignore = "private GUI fixture awaits owner approval before corpus inclusion"]
-fn private_gui_candidate_has_three_patterns_despite_four_placements() {
-    let path = std::env::var_os("FRUITBOARD_PRIVATE_PATTERN_FIXTURE")
-        .expect("explicit private candidate path required");
-    let before = std::fs::read(&path).unwrap();
+fn approved_three_pattern_corpus_counts_distinct_ids_despite_repetition() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .join("fixtures/parser-corpus")
+        .join("FIX-FL2026-PATTERNS.flp");
+    let before = std::fs::read(&path).expect("approved pattern fixture");
+    assert_eq!(before.len(), 47449);
     let parsed = parse_bytes(&before);
     assert_eq!(parsed["outcome"], "complete");
     assert_eq!(parsed["savedVersion"]["value"], "26.1.0.5530");
@@ -72,5 +74,5 @@ fn private_gui_candidate_has_three_patterns_despite_four_placements() {
     assert_eq!(parsed["channelCount"]["value"], 1);
     assert_eq!(parsed["patternCount"]["status"], "extracted");
     assert_eq!(parsed["patternCount"]["value"], 3);
-    assert_eq!(std::fs::read(path).unwrap(), before);
+    assert_eq!(std::fs::read(&path).unwrap(), before);
 }

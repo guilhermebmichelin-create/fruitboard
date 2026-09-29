@@ -52,13 +52,13 @@ are present. Repeated and sparse IDs count once each. ID zero fails with
 does not establish a stored pattern. Unverified 2024/2025 builds receive a
 field-level `unsupported` result. Existing five-field results remain covered.
 
-All 12 local Rust tests passed, including the explicitly enabled private
-candidate test, ordinary ten-file corpus tests, synthetic malformed/count-limit
+All 12 local Rust tests passed, including the ordinary committed-corpus
+three-pattern test (`FIX-FL2026-PATTERNS.flp`, SHA-256 `227b44e0…005c2a`),
+ordinary eleven-file corpus tests, synthetic malformed/count-limit
 cases, and process protocol tests. Warning-denied Clippy passed. A separate
 JSON-lines process request also returned three patterns, one channel, and 130
-BPM with empty stderr and the candidate hash unchanged. Required PR CI and a normal committed-fixture test
-remain gates. The private test is ignored by default and must be converted to
-an ordinary approved-corpus test before merge; its omission in CI is not a pass.
+BPM with empty stderr and the candidate hash unchanged. Required PR CI
+remains the final gate before merge.
 
 Coverage is one three-pattern FL 2026 project. Empty named/deleted patterns,
 other FL versions, pattern contents, and playlist decoding remain open. Four
