@@ -108,6 +108,9 @@ confirms it. When a project mixes a stored name with an inferred default, the
 aggregate `channelNames` object uses the method
 `mixed-extracted-and-sampler-default` at `medium` confidence rather than
 claiming the whole array came from the sampler-default rule.
+An all-inferred array keeps the sampler-default method, but its confidence is
+`medium` when any included name is `medium`; the one verified inferred Sampler
+alone remains `high`.
 
 The first selected Rust implementation slice is
 [`crates/flp-parser/`](crates/flp-parser/README.md). It implements the four

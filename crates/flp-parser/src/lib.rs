@@ -124,10 +124,21 @@ fn channel_names_json(
         && items
             .iter()
             .any(|item| item["status"].as_str() == Some("inferred"));
-    let (method, confidence) = if mixed {
-        ("mixed-extracted-and-sampler-default", "medium")
+    let method = if mixed {
+        "mixed-extracted-and-sampler-default"
     } else {
-        ("sampler-default-for-known-build", "high")
+        "sampler-default-for-known-build"
+    };
+    // A list cannot be more certain than a name inside it. A later inferred
+    // Sampler has medium confidence even when every name uses the same method.
+    let confidence = if mixed
+        || items
+            .iter()
+            .any(|item| item["confidence"].as_str() == Some("medium"))
+    {
+        "medium"
+    } else {
+        "high"
     };
     json!({
         "status":"inferred",
@@ -717,11 +728,20 @@ mod tests {
     }
 
     #[test]
-    fn an_all_inferred_project_keeps_the_single_verified_method() {
+    fn all_inferred_names_keep_the_method_and_weakest_confidence() {
         let (stored, kinds) = names(&[(None, 0), (None, 0)]);
         let value = channel_names_json(stored, kinds, true);
         assert_eq!(value["status"], "inferred");
         assert_eq!(value["method"], "sampler-default-for-known-build");
+        assert_eq!(value["confidence"], "medium");
+    }
+
+    #[test]
+    fn one_verified_inferred_sampler_keeps_high_aggregate_confidence() {
+        let (stored, kinds) = names(&[(None, 0)]);
+        let value = channel_names_json(stored, kinds, true);
+        assert_eq!(value["value"], serde_json::json!(["Sampler"]));
+        assert_eq!(value["confidence"], "high");
     }
 
     #[test]
