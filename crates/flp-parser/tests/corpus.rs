@@ -32,6 +32,15 @@ fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
         assert_eq!(parsed["baseTempoBpm"]["value"], tempo, "{name}");
         assert_eq!(parsed["channelCount"]["status"], "extracted", "{name}");
         assert_eq!(parsed["channelCount"]["value"], 1, "{name}");
+        assert_eq!(
+            parsed["patternCount"]["status"],
+            if version == "26.1.0.5530" {
+                "unavailable"
+            } else {
+                "unsupported"
+            },
+            "{name}"
+        );
         assert_eq!(parsed["channelNames"]["value"][0], channel, "{name}");
         if matches!(name, "FIX-FL2025-MIN.flp" | "FIX-FL2026-MIN.flp") {
             assert_eq!(parsed["channelNames"]["status"], "inferred", "{name}");
@@ -136,4 +145,5 @@ fn unverified_saved_build_is_explicitly_unsupported() {
     assert_eq!(parsed["savedVersion"]["value"], "27.0.0.1");
     assert_eq!(parsed["channelNames"]["status"], "unsupported");
     assert_eq!(parsed["channelCount"]["status"], "unsupported");
+    assert_eq!(parsed["patternCount"]["status"], "unsupported");
 }

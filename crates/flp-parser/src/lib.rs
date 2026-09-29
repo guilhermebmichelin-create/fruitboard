@@ -2,6 +2,7 @@
 //! Event interpretation derives from research source commit 080e825.
 
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -11,6 +12,11 @@ pub const MAX_FILE_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_EVENTS: usize = 100_000;
 const MAX_CHANNELS: u16 = 256;
 const MAX_EVENT_BYTES: usize = 2 * 1024 * 1024;
+pub const MAX_PATTERNS: usize = 1024;
+
+fn known_pattern_build(version: Option<&str>) -> bool {
+    version == Some("26.1.0.5530")
+}
 
 fn field(status: &str, value: Value, reason: Option<&str>) -> Value {
     match reason {
@@ -25,6 +31,7 @@ pub fn failed(code: &str) -> Value {
         "savedVersion":field("failed",Value::Null,Some(code)),
         "baseTempoBpm":field("failed",Value::Null,Some(code)),
         "channelCount":field("failed",Value::Null,Some(code)),
+        "patternCount":field("failed",Value::Null,Some(code)),
         "channelNames":field("failed",Value::Null,Some(code)),
         "sampleReferences":field("failed",Value::Null,Some(code)),
         "diagnostics":[]
@@ -55,6 +62,7 @@ fn unsupported_version(version: &str) -> Value {
         "savedVersion":field("extracted",json!(version),None),
         "baseTempoBpm":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "patternCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "sampleReferences":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "diagnostics":[]
@@ -104,6 +112,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     let mut channel_kinds: Vec<u16> = Vec::new();
     let mut samples: Vec<Option<String>> = Vec::new();
     let mut current_channel: Option<usize> = None;
+    let mut pattern_ids = BTreeSet::new();
     let mut event_count = 0usize;
     while cursor < bytes.len() {
         if event_count == MAX_EVENTS {
@@ -158,6 +167,19 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
                 names.push(None);
                 channel_kinds.push(u16::from_le_bytes([data[0], data[1]]));
                 samples.push(None);
+            }
+            // The GUI-verified 2026 save repeats each pattern ID for note and
+            // property sections. Count unique IDs, never marker occurrences.
+            65 if known_pattern_build(version.as_deref()) => {
+                let id = u16::from_le_bytes([data[0], data[1]]);
+                if id == 0 {
+                    return failed("INVALID_PATTERN_ID");
+                }
+                if !pattern_ids.contains(&id) && pattern_ids.len() == MAX_PATTERNS {
+                    return failed("PATTERN_COUNT_LIMIT");
+                }
+                pattern_ids.insert(id);
+                current_channel = None;
             }
             98 => current_channel = None,
             199 => {
@@ -218,6 +240,19 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         return failed("CHANNEL_COUNT_MISMATCH");
     }
     let infer_sampler_default = known_sampler_default_build(version.as_deref());
+    let pattern_count = if !known_pattern_build(version.as_deref()) {
+        field(
+            "unsupported",
+            Value::Null,
+            Some("PATTERN_COUNT_UNVERIFIED_BUILD"),
+        )
+    } else if pattern_ids.is_empty() {
+        // FL Studio can display an implicit empty Pattern 1 without saving a
+        // pattern marker. Its GUI default is not evidence for a stored count.
+        field("unavailable", Value::Null, Some("PATTERN_DATA_NOT_STORED"))
+    } else {
+        field("extracted", json!(pattern_ids.len()), None)
+    };
     let saved_version = match version {
         Some(value) => field("extracted", json!(value), None),
         None => field("unavailable", Value::Null, Some("SAVED_VERSION_ABSENT")),
@@ -283,6 +318,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         "savedVersion":saved_version,
         "baseTempoBpm":base_tempo,
         "channelCount":field("extracted",json!(channel_count),None),
+        "patternCount":pattern_count,
         "channelNames":channel_names,
         "sampleReferences":sample_references,
         "diagnostics":diagnostics,

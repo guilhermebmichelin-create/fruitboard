@@ -52,6 +52,13 @@ fn versioned_protocol_handles_multiple_requests_without_stderr() {
             .unwrap()
             .contains(&json!("channelCount"))
     );
+    assert!(
+        responses[0]["result"]["fields"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("patternCount"))
+    );
+    assert_eq!(responses[0]["result"]["maxPatterns"], 1024);
     assert_eq!(responses[1]["result"]["status"], "ok");
     assert_eq!(responses[0]["id"], ID);
 }
