@@ -59,6 +59,12 @@ fn versioned_protocol_handles_multiple_requests_without_stderr() {
             .contains(&json!("patternCount"))
     );
     assert_eq!(responses[0]["result"]["maxPatterns"], 1024);
+    assert!(
+        responses[0]["result"]["fields"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("patternNames"))
+    );
     assert_eq!(responses[1]["result"]["status"], "ok");
     assert_eq!(responses[0]["id"], ID);
 }

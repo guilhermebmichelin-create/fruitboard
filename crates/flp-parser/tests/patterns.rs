@@ -75,4 +75,107 @@ fn approved_three_pattern_corpus_counts_distinct_ids_despite_repetition() {
     assert_eq!(parsed["patternCount"]["status"], "extracted");
     assert_eq!(parsed["patternCount"]["value"], 3);
     assert_eq!(std::fs::read(&path).unwrap(), before);
+    assert_eq!(parsed["patternNames"]["status"], "extracted");
+    for (index, suffix) in ["A", "B", "C"].iter().enumerate() {
+        let item = &parsed["patternNames"]["value"][index];
+        assert_eq!(item["patternId"], index + 1);
+        assert_eq!(item["name"]["status"], "extracted");
+        assert_eq!(item["name"]["value"], format!("Fixture Pattern {suffix}"));
+    }
+}
+
+fn append(bytes: &mut Vec<u8>, events: &[u8]) {
+    bytes.extend_from_slice(events);
+    let length = (bytes.len() - 22) as u32;
+    bytes[18..22].copy_from_slice(&length.to_le_bytes());
+}
+
+fn name_event(name: &str) -> Vec<u8> {
+    let data: Vec<u8> = name
+        .encode_utf16()
+        .chain([0])
+        .flat_map(u16::to_le_bytes)
+        .collect();
+    assert!(data.len() < 128);
+    let mut event = vec![193, data.len() as u8];
+    event.extend(data);
+    event
+}
+
+#[test]
+fn names_follow_sparse_ids_and_identical_repetitions_are_idempotent() {
+    let mut bytes = stream("26.1.0.5530", &[9]);
+    append(&mut bytes, &name_event("Música 🎵"));
+    append(&mut bytes, &[65, 4, 0]);
+    append(&mut bytes, &name_event(""));
+    append(&mut bytes, &[65, 9, 0]);
+    append(&mut bytes, &name_event("Música 🎵"));
+    let parsed = parse_bytes(&bytes);
+    assert_eq!(
+        parsed["patternNames"]["value"],
+        serde_json::json!([
+            {"patternId":4,"name":{"status":"extracted","value":""}},
+            {"patternId":9,"name":{"status":"extracted","value":"Música 🎵"}}
+        ])
+    );
+    append(&mut bytes, &name_event("different"));
+    let failed = parse_bytes(&bytes);
+    assert_eq!(failed["code"], "CONFLICTING_PATTERN_NAMES");
+    assert_eq!(failed["patternNames"]["status"], "failed");
+}
+
+#[test]
+fn absent_names_preserve_ids_and_supported_names_without_inventing_defaults() {
+    let mut bytes = stream("26.1.0.5530", &[4, 9]);
+    append(&mut bytes, &name_event("Nine"));
+    let parsed = parse_bytes(&bytes);
+    assert_eq!(parsed["patternNames"]["status"], "unavailable");
+    assert_eq!(parsed["patternNames"]["items"][0]["patternId"], 4);
+    assert_eq!(
+        parsed["patternNames"]["items"][0]["name"]["reason"],
+        "PATTERN_NAME_NOT_STORED"
+    );
+    assert_eq!(parsed["patternNames"]["items"][1]["name"]["value"], "Nine");
+    assert_eq!(
+        parse_bytes(&stream("26.1.0.5530", &[]))["patternNames"]["reason"],
+        "PATTERN_DATA_NOT_STORED"
+    );
+    for version in ["24.1.0.4225", "25.1.3.4922", "99.0.0.0"] {
+        assert_eq!(
+            parse_bytes(&stream(version, &[1]))["patternNames"]["status"],
+            "unsupported"
+        );
+    }
+}
+
+#[test]
+fn malformed_names_and_names_outside_pattern_context_fail() {
+    for data in [
+        vec![1],
+        vec![65, 0],
+        vec![0, 216, 0, 0],
+        vec![0, 0, 0, 0],
+        vec![0; 8194],
+    ] {
+        let mut bytes = stream("26.1.0.5530", &[1]);
+        let mut event = vec![193];
+        let mut length = data.len();
+        while length >= 128 {
+            event.push((length as u8 & 127) | 128);
+            length >>= 7;
+        }
+        event.push(length as u8);
+        event.extend(data);
+        append(&mut bytes, &event);
+        assert_eq!(parse_bytes(&bytes)["code"], "INVALID_PATTERN_NAME");
+    }
+    for boundary in [vec![98, 0, 0], vec![64, 0, 0]] {
+        let mut bytes = stream("26.1.0.5530", &[1]);
+        append(&mut bytes, &boundary);
+        append(&mut bytes, &name_event("Orphan"));
+        assert_eq!(parse_bytes(&bytes)["code"], "PATTERN_NAME_WITHOUT_ID");
+    }
+    let mut bytes = stream("26.1.0.5530", &[]);
+    append(&mut bytes, &name_event("Orphan"));
+    assert_eq!(parse_bytes(&bytes)["code"], "PATTERN_NAME_WITHOUT_ID");
 }

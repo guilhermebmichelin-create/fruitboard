@@ -2,7 +2,7 @@
 //! Event interpretation derives from research source commit 080e825.
 
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -32,6 +32,7 @@ pub fn failed(code: &str) -> Value {
         "baseTempoBpm":field("failed",Value::Null,Some(code)),
         "channelCount":field("failed",Value::Null,Some(code)),
         "patternCount":field("failed",Value::Null,Some(code)),
+        "patternNames":field("failed",Value::Null,Some(code)),
         "channelNames":field("failed",Value::Null,Some(code)),
         "sampleReferences":field("failed",Value::Null,Some(code)),
         "diagnostics":[]
@@ -63,6 +64,7 @@ fn unsupported_version(version: &str) -> Value {
         "baseTempoBpm":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "patternCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "patternNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "sampleReferences":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "diagnostics":[]
@@ -113,6 +115,8 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     let mut samples: Vec<Option<String>> = Vec::new();
     let mut current_channel: Option<usize> = None;
     let mut pattern_ids = BTreeSet::new();
+    let mut pattern_names = BTreeMap::new();
+    let mut current_pattern = None;
     let mut event_count = 0usize;
     while cursor < bytes.len() {
         if event_count == MAX_EVENTS {
@@ -160,6 +164,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         cursor = end;
         match id {
             64 => {
+                current_pattern = None;
                 if names.len() >= MAX_CHANNELS as usize {
                     return failed("CHANNEL_COUNT_LIMIT");
                 }
@@ -179,9 +184,30 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
                     return failed("PATTERN_COUNT_LIMIT");
                 }
                 pattern_ids.insert(id);
+                current_pattern = Some(id);
                 current_channel = None;
             }
-            98 => current_channel = None,
+            98 => {
+                current_channel = None;
+                current_pattern = None;
+            }
+            // Approved F13 stores UTF-16 names after repeated event-65 IDs.
+            // A channel/arrangement boundary ends that pattern context.
+            193 if known_pattern_build(version.as_deref()) => {
+                let Some(pattern_id) = current_pattern else {
+                    return failed("PATTERN_NAME_WITHOUT_ID");
+                };
+                let Ok(name) = utf16_text(data) else {
+                    return failed("INVALID_PATTERN_NAME");
+                };
+                if pattern_names
+                    .get(&pattern_id)
+                    .is_some_and(|old| old != &name)
+                {
+                    return failed("CONFLICTING_PATTERN_NAMES");
+                }
+                pattern_names.insert(pattern_id, name);
+            }
             199 => {
                 if version.is_some() || data.len() < 2 || data.last() != Some(&0) {
                     return failed("INVALID_SAVED_VERSION");
@@ -253,6 +279,31 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     } else {
         field("extracted", json!(pattern_ids.len()), None)
     };
+    let pattern_names = if !known_pattern_build(version.as_deref()) {
+        field(
+            "unsupported",
+            Value::Null,
+            Some("PATTERN_NAMES_UNVERIFIED_BUILD"),
+        )
+    } else if pattern_ids.is_empty() {
+        field("unavailable", Value::Null, Some("PATTERN_DATA_NOT_STORED"))
+    } else {
+        let items = pattern_ids
+            .iter()
+            .map(|id| {
+                let name = match pattern_names.get(id) {
+                    Some(name) => field("extracted", json!(name), None),
+                    None => field("unavailable", Value::Null, Some("PATTERN_NAME_NOT_STORED")),
+                };
+                json!({"patternId":id,"name":name})
+            })
+            .collect::<Vec<_>>();
+        if pattern_names.len() == pattern_ids.len() {
+            field("extracted", json!(items), None)
+        } else {
+            json!({"status":"unavailable","reason":"PATTERN_NAME_NOT_STORED","items":items})
+        }
+    };
     let saved_version = match version {
         Some(value) => field("extracted", json!(value), None),
         None => field("unavailable", Value::Null, Some("SAVED_VERSION_ABSENT")),
@@ -319,6 +370,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         "baseTempoBpm":base_tempo,
         "channelCount":field("extracted",json!(channel_count),None),
         "patternCount":pattern_count,
+        "patternNames":pattern_names,
         "channelNames":channel_names,
         "sampleReferences":sample_references,
         "diagnostics":diagnostics,
