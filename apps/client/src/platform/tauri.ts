@@ -97,17 +97,6 @@ export const createSetStartupViewArguments = (startupView: StartupView) =>
     }),
   });
 
-export const SCAN_CONSOLE_COMMANDS = Object.freeze([
-  "scan_now",
-  "cancel_scan",
-  "retry_scan",
-  "list_scan_statuses",
-  "get_library_page",
-  "get_scan_console_state",
-] as const);
-
-export type ScanConsoleCommand = (typeof SCAN_CONSOLE_COMMANDS)[number];
-
 export function createTauriLibraryTransport(
   invokeCommand: NativeLibraryTransport["invoke"] = (command, arguments_) =>
     invoke(command, arguments_),

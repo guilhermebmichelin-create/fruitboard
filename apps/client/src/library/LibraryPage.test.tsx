@@ -127,6 +127,7 @@ function makeDeferredAdapter(roots: readonly ScanRoot[]) {
   const statusRequests: DeferredStatusRequest[] = [];
   const listeners = new Set<() => void>();
   const adapter: LibraryScanAdapter = {
+    getConsoleState: () => Promise.resolve({ enabled: true }),
     getLibraryPage(request) {
       const entry = deferred<LibraryPageData>();
       pageRequests.push({ request: { ...request }, deferred: entry });
@@ -231,6 +232,49 @@ describe("LibraryPage", () => {
       view.container.querySelector('[data-library-state="empty"]'),
     ).toBeTruthy();
     expect(screen.getByText(/No scan roots are configured/)).toBeTruthy();
+  });
+
+  it("shows the honest disabled panel when this build has no scanning", async () => {
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      consoleEnabled: false,
+    });
+    const view = renderLibrary(adapter);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Library scanning is not enabled in this build",
+      }),
+    ).toBeTruthy();
+    expect(
+      view.container.querySelector('[data-library-state="disabled"]'),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/produced without the scanning feature/),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Scan now/i })).toBeNull();
+    expect(
+      view.container.querySelector('[data-library-state="error"]'),
+    ).toBeNull();
+    expect(screen.queryByText(/Try again/)).toBeNull();
+  });
+
+  it("falls back to the normal surfaces when the console probe fails", async () => {
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      files: [makeRecord(rootA, "location-a", "Native.flp", "Native.flp")],
+      consoleProbeFails: true,
+    });
+    renderLibrary(adapter);
+
+    expect(
+      await screen.findByRole("heading", { name: "Native.flp" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", {
+        name: "Library scanning is not enabled in this build",
+      }),
+    ).toBeNull();
   });
 
   it("loads a bounded per-root page and never mixes roots", async () => {
@@ -1105,6 +1149,7 @@ describe("LibraryPage", () => {
       },
     ]);
     const adapter: LibraryScanAdapter = {
+      getConsoleState: () => Promise.resolve({ enabled: true }),
       getLibraryPage: () => Promise.resolve(recordPage),
       listScanStatuses: () => Promise.resolve(statuses),
       scanNow: (rootId) =>
