@@ -2290,7 +2290,7 @@ async function main() {
         "recovery-library",
       );
       await waitForUiText(app.call, "Scan status");
-      await app.call("Emulation.setDeviceMetricsOverride", {
+      await app.send("Emulation.setDeviceMetricsOverride", {
         width: 1280,
         height: 900,
         deviceScaleFactor: 1,
@@ -2339,7 +2339,7 @@ async function main() {
         );
       }
       const capture = async (label, width) => {
-        await app.call("Emulation.setDeviceMetricsOverride", {
+        await app.send("Emulation.setDeviceMetricsOverride", {
           width,
           height: 900,
           deviceScaleFactor: 1,
@@ -2376,7 +2376,7 @@ async function main() {
             "recovery history and current execution were not visible together",
           );
         }
-        const screenshot = await app.call("Page.captureScreenshot", {
+        const screenshot = await app.send("Page.captureScreenshot", {
           format: "png",
           fromSurface: true,
           captureBeyondViewport: false,
@@ -2384,7 +2384,7 @@ async function main() {
         const screenshotPath = path.join(journeyRoot, `${label}.png`);
         fs.writeFileSync(
           screenshotPath,
-          Buffer.from(screenshot.data, "base64"),
+          Buffer.from(screenshot.result.data, "base64"),
         );
         // Preserve layout while hiding synthetic absolute paths in the
         // shareable image. Raw captures/AX records remain outside Git.
@@ -2399,19 +2399,22 @@ async function main() {
         );
         const redactedPath = path.join(journeyRoot, `${label}-redacted.png`);
         try {
-          const redacted = await app.call("Page.captureScreenshot", {
+          const redacted = await app.send("Page.captureScreenshot", {
             format: "png",
             fromSurface: true,
             captureBeyondViewport: false,
           });
-          fs.writeFileSync(redactedPath, Buffer.from(redacted.data, "base64"));
+          fs.writeFileSync(
+            redactedPath,
+            Buffer.from(redacted.result.data, "base64"),
+          );
         } finally {
           await evaluate(
             app.call,
             'document.getElementById("fruitboard-evidence-redaction")?.remove()',
           );
         }
-        const accessibility = await app.call("Accessibility.getFullAXTree", {});
+        const accessibility = await app.send("Accessibility.getFullAXTree", {});
         fs.writeFileSync(
           path.join(journeyRoot, `${label}-accessibility.json`),
           JSON.stringify(accessibility, null, 2),
@@ -2432,7 +2435,7 @@ async function main() {
         await capture("recovery-desktop", 1280);
         await capture("recovery-narrow", 390);
       } finally {
-        await app.call("Emulation.clearDeviceMetricsOverride", {});
+        await app.send("Emulation.clearDeviceMetricsOverride", {});
       }
       await installedKeyboardTrace(app, "interrupted-recovery", 4);
       await visibleUiSnapshot(app.call, "interrupted-recovery");

@@ -275,6 +275,31 @@ function ConnectedLibraryPage({
   const scanButtonReferences = useRef(new Map<string, HTMLButtonElement>());
   const cancelButtonReferences = useRef(new Map<string, HTMLButtonElement>());
   const retryButtonReferences = useRef(new Map<string, HTMLButtonElement>());
+  const pendingCancelFocus = useRef<{
+    rootId: string;
+    requestId: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const pending = pendingCancelFocus.current;
+    if (
+      !pending ||
+      statusState.kind !== "ready" ||
+      actionState.kind === "working"
+    )
+      return;
+    if (actionSequence.current !== pending.requestId) {
+      pendingCancelFocus.current = null;
+      return;
+    }
+    const target =
+      retryButtonReferences.current.get(pending.rootId) ??
+      scanButtonReferences.current.get(pending.rootId);
+    if (target?.isConnected && !target.disabled) {
+      pendingCancelFocus.current = null;
+      target.focus();
+    }
+  }, [statusState, actionState]);
 
   const focusLater = useCallback((target: () => HTMLElement | null) => {
     let attempts = 0;
@@ -917,14 +942,9 @@ function ConnectedLibraryPage({
     try {
       await adapter.cancelScan(status.jobId);
       if (!isCurrentAction()) return;
+      pendingCancelFocus.current = { rootId, requestId };
       if (!(await refreshAfterAction(requestId))) return;
       setActionState({ kind: "idle" });
-      focusLater(
-        () =>
-          retryButtonReferences.current.get(rootId) ??
-          scanButtonReferences.current.get(rootId) ??
-          null,
-      );
     } catch {
       if (!isCurrentAction()) return;
       await refreshAfterAction(requestId);
