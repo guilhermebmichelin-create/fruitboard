@@ -297,6 +297,8 @@ pub(crate) struct ScanConsoleService {
     #[cfg(feature = "scan-console")]
     clock: Arc<dyn fruitboard_scan_execution::ScanClock + Send + Sync>,
     #[cfg(feature = "scan-console")]
+    logs: Arc<dyn super::logging::LogSink>,
+    #[cfg(feature = "scan-console")]
     host: Mutex<Option<Arc<super::scan_console_host::ScanConsoleHost>>>,
     #[cfg(feature = "scan-console")]
     initialization_started: AtomicBool,
@@ -355,10 +357,14 @@ impl ScanConsoleService {
 
 #[cfg(feature = "scan-console")]
 impl ScanConsoleService {
-    pub(crate) fn new_enabled(database: Arc<Mutex<Database>>) -> Self {
+    pub(crate) fn new_enabled(
+        database: Arc<Mutex<Database>>,
+        logs: Arc<dyn super::logging::LogSink>,
+    ) -> Self {
         Self {
             database,
             clock: Arc::new(fruitboard_scan_execution::SystemClock),
+            logs,
             host: Mutex::new(None),
             initialization_started: AtomicBool::new(false),
             #[cfg(all(test, feature = "scan-console"))]
@@ -385,6 +391,7 @@ impl ScanConsoleService {
             &mut database,
             self.clock.clone(),
             Arc::new(super::scan_console_host::TauriEventSink::new(app)),
+            self.logs.clone(),
         )?;
         drop(database);
         let host = Arc::new(host);

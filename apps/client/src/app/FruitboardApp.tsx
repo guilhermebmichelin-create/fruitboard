@@ -158,7 +158,7 @@ export function FruitboardApp({ platform }: FruitboardAppProps) {
           <h1 id="page-title">{currentRoute.title}</h1>
           <p>{currentRoute.description}</p>
         </div>
-        <div aria-label="Page actions" className="page-actions">
+        <div className="page-actions">
           <Link className="header-action" to={currentRoute.actionPath}>
             {currentRoute.actionLabel}
           </Link>

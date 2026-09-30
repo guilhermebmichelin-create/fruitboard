@@ -8,10 +8,19 @@ counts, pattern names, playlist pattern clips and timing summaries, and the
 narrow generator-name field described below. It keeps typed failure/partial
 outcomes tested against the approved twelve-file corpus.
 
-The executable uses protocol version 1 and schema version 1 as newline-delimited
+The executable uses protocol version 1 and schema version 2 as newline-delimited
 JSON on stdin/stdout. It accepts `describe`, `healthCheck`, and `parse` methods.
-`parse` requires an absolute path and an expected size and modified timestamp
-in milliseconds. The only optional feature list is `["basic-metadata"]`. Every
+`parse` requires an absolute path, a non-empty `allowedRoots` list of enabled
+roots, and an expected size and modified timestamp in milliseconds. Parent
+traversal, linked/reparse ancestors or leaves, Windows device paths and
+alternate streams are rejected. Authorization and parsing use the same open
+file, with guarded ancestors on Windows and descriptor/identity checks on
+Linux; other platforms fail closed pending qualification. The result reports
+the SHA-256 of the bytes parsed, verified by a second bounded read from that
+handle after parsing (`INPUT_CHANGED` on a mismatch). This is an observation
+window, not a guarantee of future filesystem freshness. Schema-1 requests
+receive `UNSUPPORTED_SCHEMA_VERSION`.
+The only optional feature list is `["basic-metadata"]`. Every
 response carries the request ID; malformed requests receive a fixed error
 code. Requests are capped at 64 KiB and responses at 256 KiB. The parser caps
 files at 4 MiB, event payloads at 2 MiB, events at 100,000, and channels at

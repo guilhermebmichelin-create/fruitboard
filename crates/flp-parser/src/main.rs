@@ -2,7 +2,7 @@
 //! This process receives requests only from a trusted native supervisor.
 
 use fruitboard_flp_parser::{
-    ExpectedFingerprint, MAX_FILE_BYTES, MAX_PATTERNS, MAX_PLAYLIST_CLIPS, parse_file,
+    ExpectedFingerprint, MAX_FILE_BYTES, MAX_PATTERNS, MAX_PLAYLIST_CLIPS, parse_authorized_file,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -10,7 +10,7 @@ use std::io::{self, BufRead, Write};
 use std::path::Path;
 
 const PROTOCOL_VERSION: u64 = 1;
-const SCHEMA_VERSION: u64 = 1;
+const SCHEMA_VERSION: u64 = 2;
 const MAX_REQUEST_BYTES: usize = 64 * 1024;
 const MAX_RESPONSE_BYTES: usize = 256 * 1024;
 
@@ -25,11 +25,17 @@ struct Request {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ParseParams {
     path: String,
     expected: ExpectedFingerprint,
     #[serde(default)]
     features: Vec<String>,
+    /// Enabled scan roots supplied by the trusted supervisor. `parse` is
+    /// refused unless the file path lies inside one of them; an empty list
+    /// denies every path.
+    #[serde(default)]
+    allowed_roots: Vec<String>,
 }
 
 enum LineRead {
@@ -122,11 +128,12 @@ fn respond(line: &[u8]) -> Value {
                 return error(id, "UNSUPPORTED_FEATURE");
             }
             let path = Path::new(&params.path);
-            if !path.is_absolute() {
-                return error(id, "INVALID_PATH");
-            }
             let started = std::time::Instant::now();
-            let mut result = parse_file(path, params.expected);
+            let mut result =
+                match parse_authorized_file(path, &params.allowed_roots, params.expected) {
+                    Ok(result) => result,
+                    Err(code) => return error(id, code),
+                };
             result["parseElapsedMicros"] = json!(started.elapsed().as_micros());
             result
         }

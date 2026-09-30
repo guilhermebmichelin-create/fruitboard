@@ -3,10 +3,12 @@ import {
   createNativeLibraryScanAdapter,
   clampLibraryLimit,
   parseCancelScanResult,
+  parseScanConsoleState,
   parseScanStartResult,
   parseScanStatus,
   CANCEL_SCAN_COMMAND,
   GET_LIBRARY_PAGE_COMMAND,
+  GET_SCAN_CONSOLE_STATE_COMMAND,
   LIST_SCAN_STATUSES_COMMAND,
   RETRY_SCAN_COMMAND,
   SCAN_NOW_COMMAND,
@@ -682,5 +684,67 @@ describe("native scan-status-changed subscription", () => {
     );
     const adapter = createNativeLibraryScanAdapter(transport);
     expect(() => adapter.subscribe(vi.fn())).not.toThrow();
+  });
+});
+
+describe("native console-state seam", () => {
+  it("reports an enabled build with the exact typed request", async () => {
+    const { transport, invoke } = transportWith(() =>
+      okEnvelope({ enabled: true }),
+    );
+    const adapter = createNativeLibraryScanAdapter(transport);
+    await expect(adapter.getConsoleState()).resolves.toEqual({ enabled: true });
+    expect(invoke).toHaveBeenCalledExactlyOnceWith(
+      GET_SCAN_CONSOLE_STATE_COMMAND,
+      {
+        request: { schemaVersion: 1 },
+      },
+    );
+  });
+
+  it("reports a feature-disabled build verbatim", async () => {
+    const { transport } = transportWith(() => okEnvelope({ enabled: false }));
+    await expect(
+      createNativeLibraryScanAdapter(transport).getConsoleState(),
+    ).resolves.toEqual({ enabled: false });
+  });
+
+  it("rejects a malformed console state instead of guessing", async () => {
+    for (const data of [
+      {},
+      { enabled: "true" },
+      { enabled: null },
+      "enabled",
+    ]) {
+      const { transport } = transportWith(() => okEnvelope(data));
+      await expectCode(
+        createNativeLibraryScanAdapter(transport).getConsoleState(),
+        "internal",
+      );
+    }
+  });
+
+  it("parses only the documented shape", () => {
+    expect(parseScanConsoleState({ enabled: true })).toEqual({ enabled: true });
+    expect(parseScanConsoleState({ enabled: false })).toEqual({
+      enabled: false,
+    });
+    for (const value of [null, {}, { enabled: 1 }, { enabled: "yes" }, []]) {
+      expect(() => parseScanConsoleState(value)).toThrow(LibraryAdapterError);
+    }
+  });
+
+  it("surfaces the stable unavailable error from the probe", async () => {
+    const { transport } = transportWith(() =>
+      errorEnvelope(
+        "unavailable",
+        "The requested service is temporarily unavailable.",
+        true,
+      ),
+    );
+    await expectCode(
+      createNativeLibraryScanAdapter(transport).getConsoleState(),
+      "unavailable",
+    );
   });
 });

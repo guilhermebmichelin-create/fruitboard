@@ -285,8 +285,12 @@ impl Harness {
             session_id,
             Arc::new(clock.clone()),
             sink.clone(),
+            Arc::new(RecordingLogSink::default()),
         ));
-        let mut service = ScanConsoleService::new_enabled(Arc::new(Mutex::new(database)));
+        let mut service = ScanConsoleService::new_enabled(
+            Arc::new(Mutex::new(database)),
+            Arc::new(RecordingLogSink::default()),
+        );
         service.clock = Arc::new(clock.clone());
         *service.host.lock().unwrap() = Some(host);
         Self {
@@ -358,6 +362,7 @@ impl Harness {
             session_id,
             Arc::new(self.clock.clone()),
             self.sink.clone(),
+            self.service.logs.clone(),
         ));
         *self.service.host.lock().unwrap() = Some(host);
     }
@@ -931,8 +936,12 @@ fn cancellation_after_worker_snapshot_before_finalization_must_not_create_succes
         session,
         clock.clone(),
         Arc::new(RecordingEventSink::default()),
+        Arc::new(RecordingLogSink::default()),
     ));
-    let mut service = ScanConsoleService::new_enabled(Arc::new(Mutex::new(database)));
+    let mut service = ScanConsoleService::new_enabled(
+        Arc::new(Mutex::new(database)),
+        Arc::new(RecordingLogSink::default()),
+    );
     service.clock = clock.clone();
     *service.host.lock().unwrap() = Some(host.clone());
     let (runtime, _) = test_runtime();
@@ -1031,8 +1040,12 @@ fn cancellation_after_worker_snapshot_with_older_manual_follow_up_stays_cancelle
         session,
         clock.clone(),
         Arc::new(RecordingEventSink::default()),
+        Arc::new(RecordingLogSink::default()),
     ));
-    let mut service = ScanConsoleService::new_enabled(Arc::new(Mutex::new(database)));
+    let mut service = ScanConsoleService::new_enabled(
+        Arc::new(Mutex::new(database)),
+        Arc::new(RecordingLogSink::default()),
+    );
     service.clock = clock.clone();
     *service.host.lock().unwrap() = Some(host.clone());
     let (runtime, _) = test_runtime();

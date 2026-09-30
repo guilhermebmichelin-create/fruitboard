@@ -13,6 +13,7 @@ import {
   type LibraryScanAdapter,
   type PublishedFileLocation,
   type ScanErrorCode,
+  type ScanConsoleState,
   type ScanExecutionState,
   type ScanStartResult,
   type ScanStatus,
@@ -325,6 +326,15 @@ export function parseScanStatusList(value: unknown): readonly ScanStatus[] {
   return value.map(parseScanStatus);
 }
 
+export function parseScanConsoleState(value: unknown): ScanConsoleState {
+  if (!isRecord(value)) throw new LibraryAdapterError("internal");
+  const enabled: unknown = value["enabled"];
+  if (enabled !== true && enabled !== false) {
+    throw new LibraryAdapterError("internal");
+  }
+  return { enabled };
+}
+
 type ScanStartOutcomeValue = ScanStartResult["outcome"];
 type CancelOutcomeValue = CancelScanResult["outcome"];
 
@@ -562,6 +572,14 @@ export function createNativeLibraryScanAdapter(
   };
 
   return {
+    async getConsoleState(): Promise<ScanConsoleState> {
+      return execute(
+        GET_SCAN_CONSOLE_STATE_COMMAND,
+        GET_SCAN_CONSOLE_STATE_ARGUMENTS as unknown as Record<string, unknown>,
+        parseScanConsoleState,
+      );
+    },
+
     async getLibraryPage(request: LibraryPageRequest): Promise<LibraryPage> {
       if (request.rootId === "") throw new LibraryAdapterError("not_found");
       return execute(
