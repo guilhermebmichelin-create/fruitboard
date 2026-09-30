@@ -18,6 +18,46 @@ fn field(status: &str, value: Value, reason: Option<&str>) -> Value {
     }
 }
 
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum ChannelType {
+    #[default]
+    Missing,
+    Sampler,
+    Invalid,
+    Multiple,
+}
+
+impl ChannelType {
+    fn from_event(value: u8) -> Self {
+        match value {
+            0 => Self::Sampler,
+            _ => Self::Invalid,
+        }
+    }
+}
+
+struct Channel {
+    id: u16,
+    channel_type: ChannelType,
+    name: Option<String>,
+    sample: Option<String>,
+}
+
+#[derive(Clone, Copy)]
+struct ChannelContext {
+    id: u16,
+    index: usize,
+}
+
+impl ChannelContext {
+    fn resolve(self, channels: &[Channel]) -> Option<usize> {
+        channels
+            .get(self.index)
+            .filter(|channel| channel.id == self.id)
+            .map(|_| self.index)
+    }
+}
+
 fn failed(code: &str) -> Value {
     json!({
         "outcome":"failed", "code":code,
@@ -44,11 +84,13 @@ fn known_sampler_default_build(version: Option<&str>) -> bool {
 }
 
 fn utf16_text(data: &[u8]) -> Result<String, &'static str> {
-    if data.len() < 2 || data.len() % 2 != 0 || data.len() > 8192 {
+    if data.len() < 2 || !data.len().is_multiple_of(2) || data.len() > 8192 {
         return Err("INVALID_TEXT_LENGTH");
     }
     let units: Vec<u16> = data
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
         .collect();
     if units.last() != Some(&0) || units[..units.len() - 1].contains(&0) {
@@ -77,10 +119,8 @@ fn parse_bytes(bytes: &[u8]) -> Value {
     let mut version: Option<String> = None;
     let mut tempo: Option<f64> = None;
     let mut diagnostics: Vec<Value> = Vec::new();
-    let mut names: Vec<Option<String>> = Vec::new();
-    let mut channel_kinds: Vec<u16> = Vec::new();
-    let mut samples: Vec<Option<String>> = Vec::new();
-    let mut current_channel: Option<usize> = None;
+    let mut channels: Vec<Channel> = Vec::new();
+    let mut current_channel: Option<ChannelContext> = None;
     let mut event_count = 0usize;
     while cursor < bytes.len() {
         if event_count == MAX_EVENTS {
@@ -128,13 +168,28 @@ fn parse_bytes(bytes: &[u8]) -> Value {
         cursor = end;
         match id {
             64 => {
-                if names.len() >= MAX_CHANNELS as usize {
+                if channels.len() >= MAX_CHANNELS as usize {
                     return failed("CHANNEL_COUNT_LIMIT");
                 }
-                current_channel = Some(names.len());
-                names.push(None);
-                channel_kinds.push(u16::from_le_bytes([data[0], data[1]]));
-                samples.push(None);
+                let id = u16::from_le_bytes([data[0], data[1]]);
+                let index = channels.len();
+                channels.push(Channel {
+                    id,
+                    channel_type: ChannelType::Missing,
+                    name: None,
+                    sample: None,
+                });
+                current_channel = Some(ChannelContext { id, index });
+            }
+            21 if current_channel.is_some() => {
+                if let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
+                {
+                    let channel = &mut channels[index];
+                    channel.channel_type = match channel.channel_type {
+                        ChannelType::Missing => ChannelType::from_event(data[0]),
+                        _ => ChannelType::Multiple,
+                    };
+                }
             }
             98 => current_channel = None,
             199 => {
@@ -163,35 +218,49 @@ fn parse_bytes(bytes: &[u8]) -> Value {
                 tempo = Some(bpm);
             }
             203 if current_channel.is_some() => {
-                let index = current_channel.expect("guarded");
-                if names[index].is_some() {
+                let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
+                else {
+                    continue;
+                };
+                if channels[index].name.is_some() {
                     return failed("MULTIPLE_CHANNEL_NAMES");
                 }
                 let Ok(name) = utf16_text(data) else {
                     return failed("INVALID_CHANNEL_NAME");
                 };
-                names[index] = Some(name);
+                channels[index].name = Some(name);
             }
             196 if current_channel.is_some() => {
-                let index = current_channel.expect("guarded");
-                if samples[index].is_some() {
+                let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
+                else {
+                    continue;
+                };
+                if channels[index].sample.is_some() {
                     return failed("MULTIPLE_SAMPLE_REFERENCES");
                 }
                 let Ok(reference) = utf16_text(data) else {
                     return failed("INVALID_SAMPLE_REFERENCE");
                 };
                 if !reference.is_empty() {
-                    samples[index] = Some(reference);
+                    channels[index].sample = Some(reference);
                 }
             }
             255 => diagnostics.push(json!({"code":"UNSUPPORTED_EVENT","eventId":255})),
             _ => {}
         }
     }
-    if names.len() != header_channels as usize {
+    if channels.len() != header_channels as usize {
         return failed("CHANNEL_COUNT_MISMATCH");
     }
     let infer_sampler_default = known_sampler_default_build(version.as_deref());
+    let names = channels
+        .iter()
+        .map(|channel| channel.name.clone())
+        .collect::<Vec<_>>();
+    let channel_types = channels
+        .iter()
+        .map(|channel| channel.channel_type)
+        .collect::<Vec<_>>();
     let saved_version = match version {
         Some(value) => field("extracted", json!(value), None),
         None => field("unavailable", Value::Null, Some("SAVED_VERSION_ABSENT")),
@@ -203,16 +272,16 @@ fn parse_bytes(bytes: &[u8]) -> Value {
     let channel_names = if names.iter().all(Option::is_some) {
         field(
             "extracted",
-            json!(names.into_iter().flatten().collect::<Vec<_>>()),
+            json!(names.iter().flatten().cloned().collect::<Vec<_>>()),
             None,
         )
     } else {
         let items = names
             .into_iter()
-            .zip(channel_kinds)
-            .map(|(name, kind)| match name {
+            .zip(channel_types)
+            .map(|(name, channel_type)| match name {
                 Some(value) => field("extracted", json!(value), None),
-                None if infer_sampler_default && kind == 0 => json!({
+                None if infer_sampler_default && channel_type == ChannelType::Sampler => json!({
                     "status":"inferred", "value":"Sampler",
                     "method":"sampler-default-for-known-build", "confidence":"high"
                 }),
@@ -236,6 +305,10 @@ fn parse_bytes(bytes: &[u8]) -> Value {
             })
         }
     };
+    let samples = channels
+        .into_iter()
+        .map(|channel| channel.sample)
+        .collect::<Vec<_>>();
     let sample_references = if samples.iter().all(Option::is_some) {
         field(
             "extracted",
@@ -361,4 +434,97 @@ fn main() {
         output["peakWorkingSetBytes"] = json!(peak);
     }
     println!("{output}");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_bytes;
+
+    struct SyntheticChannel {
+        id: u16,
+        type_events: Vec<u8>,
+        name: Option<String>,
+    }
+
+    fn channel(id: u16, type_events: &[u8], name: Option<&str>) -> SyntheticChannel {
+        SyntheticChannel {
+            id,
+            type_events: type_events.to_vec(),
+            name: name.map(str::to_owned),
+        }
+    }
+
+    fn text_event(events: &mut Vec<u8>, id: u8, text: &str) {
+        let data = text
+            .encode_utf16()
+            .chain([0])
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>();
+        events.extend_from_slice(&[id, data.len() as u8]);
+        events.extend(data);
+    }
+
+    fn stream(channels: &[SyntheticChannel]) -> Vec<u8> {
+        let version = "26.1.0.5530";
+        let mut events = vec![199, (version.len() + 1) as u8];
+        events.extend_from_slice(version.as_bytes());
+        events.push(0);
+        events.push(156);
+        events.extend_from_slice(&130_000_u32.to_le_bytes());
+        for channel in channels {
+            events.push(64);
+            events.extend_from_slice(&channel.id.to_le_bytes());
+            for channel_type in &channel.type_events {
+                events.extend_from_slice(&[21, *channel_type]);
+            }
+            if let Some(name) = &channel.name {
+                text_event(&mut events, 203, name);
+            }
+        }
+        let mut bytes = b"FLhd".to_vec();
+        bytes.extend_from_slice(&6_u32.to_le_bytes());
+        bytes.extend_from_slice(&[0, 0]);
+        bytes.extend_from_slice(&(channels.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(&96_u16.to_le_bytes());
+        bytes.extend_from_slice(b"FLdt");
+        bytes.extend_from_slice(&(events.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&events);
+        bytes
+    }
+
+    #[test]
+    fn sampler_inference_uses_event_21_type_not_event_64_id() {
+        let channels = [channel(0, &[2], None), channel(1, &[0], None)];
+        let parsed = parse_bytes(&stream(&channels));
+
+        assert_eq!(parsed["outcome"], "complete");
+        assert_eq!(parsed["channelNames"]["status"], "unavailable");
+        assert_eq!(parsed["channelNames"]["items"][0]["status"], "unavailable");
+        assert_eq!(
+            parsed["channelNames"]["items"][0]["reason"],
+            "CHANNEL_NAME_NOT_STORED"
+        );
+        assert_eq!(parsed["channelNames"]["items"][1]["status"], "inferred");
+        assert_eq!(parsed["channelNames"]["items"][1]["value"], "Sampler");
+    }
+
+    #[test]
+    fn missing_duplicate_and_unknown_types_do_not_hide_stored_names_or_infer_defaults() {
+        let channels = [
+            channel(7, &[], None),
+            channel(40, &[0, 0], Some("Stored despite duplicate type")),
+            channel(1, &[255], None),
+        ];
+        let parsed = parse_bytes(&stream(&channels));
+
+        assert_eq!(parsed["outcome"], "complete");
+        assert_eq!(parsed["channelNames"]["status"], "unavailable");
+        assert_eq!(parsed["channelNames"]["items"][0]["status"], "unavailable");
+        assert_eq!(parsed["channelNames"]["items"][1]["status"], "extracted");
+        assert_eq!(
+            parsed["channelNames"]["items"][1]["value"],
+            "Stored despite duplicate type"
+        );
+        assert_eq!(parsed["channelNames"]["items"][2]["status"], "unavailable");
+    }
 }

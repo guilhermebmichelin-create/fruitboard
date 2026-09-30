@@ -60,7 +60,7 @@ fn known_sampler_default_build(version: Option<&str>) -> bool {
     matches!(version, Some("25.1.3.4922" | "26.1.0.5530"))
 }
 
-/// Build the `channelNames` field from stored names and channel kinds.
+/// Build the `channelNames` field from stored names and validated channel types.
 ///
 /// FL Studio numbers successive sampler channels `Sampler`, `Sampler 2`,
 /// `Sampler 3`, ..., so an inferred name depends on how many unnamed sampler
@@ -75,7 +75,7 @@ fn known_sampler_default_build(version: Option<&str>) -> bool {
 /// exactly one channel, so this path was previously unreachable in tests.
 fn channel_names_json(
     names: Vec<Option<String>>,
-    channel_kinds: Vec<u16>,
+    channel_types: Vec<ChannelType>,
     infer_sampler_default: bool,
 ) -> Value {
     if names.iter().all(Option::is_some) {
@@ -88,10 +88,10 @@ fn channel_names_json(
     let mut inferred_samplers = 0usize;
     let items = names
         .into_iter()
-        .zip(channel_kinds)
-        .map(|(name, kind)| match name {
+        .zip(channel_types)
+        .map(|(name, channel_type)| match name {
             Some(value) => field("extracted", json!(value), None),
-            None if infer_sampler_default && kind == 0 => {
+            None if infer_sampler_default && channel_type == ChannelType::Sampler => {
                 inferred_samplers += 1;
                 let (display, confidence) = if inferred_samplers == 1 {
                     ("Sampler".to_owned(), "high")
@@ -160,12 +160,55 @@ enum GeneratorEvent {
     Multiple,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ChannelType {
+    #[default]
+    Missing,
+    Sampler,
+    NativeGenerator,
+    Invalid,
+    Multiple,
+}
+
+impl ChannelType {
+    fn from_event(value: u8) -> Self {
+        match value {
+            0 => Self::Sampler,
+            2 => Self::NativeGenerator,
+            _ => Self::Invalid,
+        }
+    }
+}
+
+struct Channel {
+    id: u16,
+    channel_type: ChannelType,
+    name: Option<String>,
+    generator_event: GeneratorEvent,
+    sample: Option<String>,
+}
+
+#[derive(Clone, Copy)]
+struct ChannelContext {
+    id: u16,
+    index: usize,
+}
+
+impl ChannelContext {
+    fn resolve(self, channels: &[Channel]) -> Option<usize> {
+        channels
+            .get(self.index)
+            .filter(|channel| channel.id == self.id)
+            .map(|_| self.index)
+    }
+}
+
 /// Event 201 names the generator class separately from editable event-203
 /// channel text. Only the 2026 built-in Sampler and 3x Osc layouts have GUI
 /// evidence. Other classes remain field-level unsupported.
 fn channel_generator_names_json(
     version: Option<&str>,
-    kinds: Vec<u16>,
+    channel_types: Vec<ChannelType>,
     events: Vec<GeneratorEvent>,
 ) -> Value {
     if !known_pattern_build(version) {
@@ -175,25 +218,27 @@ fn channel_generator_names_json(
             Some("GENERATOR_NAMES_UNVERIFIED_BUILD"),
         );
     }
-    if kinds.is_empty() {
+    if channel_types.is_empty() {
         return field(
             "unsupported",
             Value::Null,
             Some("ZERO_CHANNEL_PROJECT_UNVERIFIED"),
         );
     }
-    let items = kinds
+    let items = channel_types
         .into_iter()
         .zip(events)
         .enumerate()
-        .map(|(channel_index, (kind, event))| {
-            let name = match (kind, event) {
-                (0, GeneratorEvent::Name(value)) if value.is_empty() => json!({
+        .map(|(channel_index, (channel_type, event))| {
+            let name = match (channel_type, event) {
+                (ChannelType::Sampler, GeneratorEvent::Name(value)) if value.is_empty() => json!({
                     "status":"inferred", "value":"Sampler",
                     "method":"sampler-generator-default-for-known-build",
                     "confidence":"high"
                 }),
-                (1, GeneratorEvent::Name(value)) if value == "3x Osc" => {
+                (ChannelType::NativeGenerator, GeneratorEvent::Name(value))
+                    if value == "3x Osc" =>
+                {
                     field("extracted", json!(value), None)
                 }
                 (_, GeneratorEvent::Invalid) => field(
@@ -410,11 +455,8 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     let mut timing_denominator: Option<u8> = None;
     let mut multiple_timing_events = false;
     let mut diagnostics: Vec<Value> = Vec::new();
-    let mut names: Vec<Option<String>> = Vec::new();
-    let mut channel_kinds: Vec<u16> = Vec::new();
-    let mut generator_events: Vec<GeneratorEvent> = Vec::new();
-    let mut samples: Vec<Option<String>> = Vec::new();
-    let mut current_channel: Option<usize> = None;
+    let mut channels: Vec<Channel> = Vec::new();
+    let mut current_channel: Option<ChannelContext> = None;
     let mut pattern_ids = BTreeSet::new();
     let mut pattern_names = BTreeMap::new();
     let mut current_pattern = None;
@@ -474,14 +516,29 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
             }
             64 => {
                 current_pattern = None;
-                if names.len() >= MAX_CHANNELS as usize {
+                if channels.len() >= MAX_CHANNELS as usize {
                     return failed("CHANNEL_COUNT_LIMIT");
                 }
-                current_channel = Some(names.len());
-                names.push(None);
-                channel_kinds.push(u16::from_le_bytes([data[0], data[1]]));
-                generator_events.push(GeneratorEvent::Missing);
-                samples.push(None);
+                let id = u16::from_le_bytes([data[0], data[1]]);
+                let index = channels.len();
+                channels.push(Channel {
+                    id,
+                    channel_type: ChannelType::Missing,
+                    name: None,
+                    generator_event: GeneratorEvent::Missing,
+                    sample: None,
+                });
+                current_channel = Some(ChannelContext { id, index });
+            }
+            21 if current_channel.is_some() => {
+                if let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
+                {
+                    let channel = &mut channels[index];
+                    channel.channel_type = match channel.channel_type {
+                        ChannelType::Missing => ChannelType::from_event(data[0]),
+                        _ => ChannelType::Multiple,
+                    };
+                }
             }
             // The GUI-verified 2026 save repeats each pattern ID for note and
             // property sections. Count unique IDs, never marker occurrences.
@@ -556,18 +613,24 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
                 tempo = Some(bpm);
             }
             203 if current_channel.is_some() => {
-                let index = current_channel.expect("guarded");
-                if names[index].is_some() {
+                let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
+                else {
+                    continue;
+                };
+                if channels[index].name.is_some() {
                     return failed("MULTIPLE_CHANNEL_NAMES");
                 }
                 let Ok(name) = utf16_text(data) else {
                     return failed("INVALID_CHANNEL_NAME");
                 };
-                names[index] = Some(name);
+                channels[index].name = Some(name);
             }
             201 if current_channel.is_some() && known_pattern_build(version.as_deref()) => {
-                let index = current_channel.expect("guarded");
-                generator_events[index] = match &generator_events[index] {
+                let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
+                else {
+                    continue;
+                };
+                channels[index].generator_event = match &channels[index].generator_event {
                     GeneratorEvent::Missing => match utf16_text(data) {
                         Ok(name) => GeneratorEvent::Name(name),
                         Err(_) => GeneratorEvent::Invalid,
@@ -576,24 +639,44 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
                 };
             }
             196 if current_channel.is_some() => {
-                let index = current_channel.expect("guarded");
-                if samples[index].is_some() {
+                let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
+                else {
+                    continue;
+                };
+                if channels[index].sample.is_some() {
                     return failed("MULTIPLE_SAMPLE_REFERENCES");
                 }
                 let Ok(reference) = utf16_text(data) else {
                     return failed("INVALID_SAMPLE_REFERENCE");
                 };
                 if !reference.is_empty() {
-                    samples[index] = Some(reference);
+                    channels[index].sample = Some(reference);
                 }
             }
             255 => diagnostics.push(json!({"code":"UNSUPPORTED_EVENT","eventId":255})),
             _ => {}
         }
     }
-    if names.len() != header_channels as usize {
+    if channels.len() != header_channels as usize {
         return failed("CHANNEL_COUNT_MISMATCH");
     }
+    let channel_count = channels.len();
+    let channel_types = channels
+        .iter()
+        .map(|channel| channel.channel_type)
+        .collect::<Vec<_>>();
+    let names = channels
+        .iter_mut()
+        .map(|channel| channel.name.take())
+        .collect::<Vec<_>>();
+    let generator_events = channels
+        .iter_mut()
+        .map(|channel| std::mem::take(&mut channel.generator_event))
+        .collect::<Vec<_>>();
+    let samples = channels
+        .into_iter()
+        .map(|channel| channel.sample)
+        .collect::<Vec<_>>();
     let infer_sampler_default = known_sampler_default_build(version.as_deref());
     let pattern_count = if !known_pattern_build(version.as_deref()) {
         field(
@@ -684,10 +767,9 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         Some(value) => field("extracted", json!(value), None),
         None => field("unavailable", Value::Null, Some("BASE_TEMPO_ABSENT")),
     };
-    let channel_count = names.len();
     let channel_generator_names =
-        channel_generator_names_json(version.as_deref(), channel_kinds.clone(), generator_events);
-    let channel_names = channel_names_json(names, channel_kinds, infer_sampler_default);
+        channel_generator_names_json(version.as_deref(), channel_types.clone(), generator_events);
+    let channel_names = channel_names_json(names, channel_types, infer_sampler_default);
     let sample_references = if samples.iter().all(Option::is_some) {
         field(
             "extracted",
@@ -866,7 +948,7 @@ fn test_directory(label: &str) -> std::path::PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::channel_names_json;
+    use super::{ChannelType, channel_names_json};
 
     #[test]
     fn same_size_same_mtime_change_during_parse_is_detected() {
@@ -907,13 +989,16 @@ mod tests {
     /// (`tests/corpus.rs`), so the multi-channel shape of the sampler-default
     /// inference was unreachable in tests. These cases drive the extracted
     /// helper directly rather than adding synthetic fixture bytes.
-    fn names(pairs: &[(Option<&str>, u16)]) -> (Vec<Option<String>>, Vec<u16>) {
+    fn names(pairs: &[(Option<&str>, u8)]) -> (Vec<Option<String>>, Vec<ChannelType>) {
         (
             pairs
                 .iter()
                 .map(|(name, _)| name.map(str::to_owned))
                 .collect(),
-            pairs.iter().map(|(_, kind)| *kind).collect(),
+            pairs
+                .iter()
+                .map(|(_, channel_type)| ChannelType::from_event(*channel_type))
+                .collect(),
         )
     }
 
