@@ -2931,6 +2931,130 @@ fn follow_up_boundary_never_carries_path_data() {
     assert!(job.last_error_code.is_none());
 }
 
+#[test]
+fn retention_prunes_real_worker_finalized_stages_only_past_age_and_count() {
+    const HISTORY_AGE_MS: i64 = 30 * 24 * 60 * 60 * 1_000;
+
+    let mut harness = Harness::new("worker-stage-retention");
+    let mut old_run_ids = Vec::new();
+
+    for _ in 0..4 {
+        let execution = harness.scan(tree(vec![file_entry("keep.flp", 101)]));
+        assert_eq!(execution.status, ScanExecutionStatus::Published);
+        old_run_ids.push(execution.run_id);
+    }
+
+    // The fifth old run stages a file before a disappearing directory makes
+    // the enumeration non-authoritative. The real worker discards its rows
+    // and leaves an empty finalized header, just like other terminal failures.
+    let discarded = harness.scan(tree(vec![
+        file_entry("staged-then-discarded.flp", 202),
+        vanishing_dir_entry("vanishing", 303, vec![file_entry("hidden.flp", 404)]),
+    ]));
+    assert_eq!(discarded.status, ScanExecutionStatus::Failed);
+    assert_eq!(discarded.enumeration_outcome, Some(EnumOutcome::Partial));
+    assert_eq!(
+        harness.staging_state(&discarded.run_id),
+        ScanStageState::Discarded
+    );
+    old_run_ids.push(discarded.run_id.clone());
+    assert_eq!(
+        harness
+            .db
+            .scan_staging(&discarded.run_id)
+            .expect("discarded stage")
+            .record_count,
+        1,
+        "the worker staged an observation before discarding it"
+    );
+    let inspection = Connection::open_with_flags(
+        harness.db_path(),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .expect("open read-only inspection handle");
+    assert_eq!(
+        inspection
+            .query_row(
+                "SELECT COUNT(*) FROM scan_stage_observation WHERE run_id = ?1",
+                [&discarded.run_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count discarded observations"),
+        0,
+        "discard leaves a finalized header with no observation rows"
+    );
+    drop(inspection);
+
+    // Keep the old cohort just inside the age window while the worker's
+    // automatic maintenance runs during these claims. The explicit final
+    // maintenance pass advances two milliseconds so the old runs are age
+    // eligible and outside the newest 200, while these runs remain recent.
+    let recent_time = T0 + HISTORY_AGE_MS - 1;
+    harness.clock.set(recent_time);
+    let mut newest_run_id = String::new();
+    for _ in 0..200 {
+        let execution = harness.scan(tree(vec![file_entry("keep.flp", 101)]));
+        assert_eq!(execution.status, ScanExecutionStatus::Published);
+        newest_run_id = execution.run_id;
+    }
+
+    // A live worker claim creates an open stage. Retention must leave it and
+    // its running run alone while it removes old finalized headers.
+    harness
+        .worker
+        .request_manual_scan(&mut harness.db, &harness.root_id, &harness.clock)
+        .expect("enqueue active scan");
+    let active = harness.claim();
+    let active_run_id = active.leased.run.id.clone();
+    assert_eq!(harness.staging_state(&active_run_id), ScanStageState::Open);
+
+    harness.clock.set(recent_time + 2);
+    let pruned = harness
+        .db
+        .prune_terminal_scan_history(harness.clock.now_ms())
+        .expect("retention pass");
+    assert_eq!(pruned.runs_pruned, 5);
+    for run_id in old_run_ids {
+        assert!(harness.db.scan_run(&run_id).is_err());
+        assert!(harness.db.scan_staging(&run_id).is_err());
+    }
+    assert_eq!(harness.run(&newest_run_id).state, ScanRunState::Completed);
+    assert_eq!(
+        harness.staging_state(&newest_run_id),
+        ScanStageState::Published
+    );
+    assert_eq!(harness.run(&active_run_id).state, ScanRunState::Running);
+    assert_eq!(harness.staging_state(&active_run_id), ScanStageState::Open);
+
+    let publication = harness
+        .db
+        .scan_root_publication(&harness.root_id)
+        .expect("success marker");
+    assert_eq!(
+        publication.last_successful_run_id.as_deref(),
+        Some(newest_run_id.as_str())
+    );
+    let library = harness
+        .db
+        .query_library(&LibraryQuery {
+            scan_root_id: harness.root_id.clone(),
+            page_size: MAX_LIBRARY_PAGE_SIZE,
+            cursor: None,
+            snapshot: None,
+        })
+        .expect("published Library page");
+    let keep = library
+        .locations
+        .iter()
+        .find(|location| location.relative_path == "keep.flp")
+        .expect("current file history");
+    assert_eq!(
+        keep.last_seen_scan_run_id.as_deref(),
+        Some(newest_run_id.as_str()),
+        "file-history provenance remains on the latest publication"
+    );
+}
+
 #[cfg(windows)]
 mod ntfs {
     use super::*;

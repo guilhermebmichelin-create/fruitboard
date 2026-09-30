@@ -300,27 +300,32 @@ struct PublicationContext {
 }
 
 #[derive(Clone, Debug)]
-struct StagedObservation {
-    locator_key: String,
-    relative_path: String,
-    byte_size: i64,
-    modified_at_ns: i64,
-    identity: Option<EncodedIdentity>,
+pub(crate) struct StagedObservation {
+    pub(crate) locator_key: String,
+    pub(crate) relative_path: String,
+    pub(crate) byte_size: i64,
+    pub(crate) modified_at_ns: i64,
+    pub(crate) identity: Option<EncodedIdentity>,
 }
 
 #[derive(Clone, Debug)]
-struct ExistingLocation {
-    id: String,
-    project_file_id: String,
-    locator_key: String,
-    identity: Option<EncodedIdentity>,
-    presence: FilePresence,
+pub(crate) struct ExistingLocation {
+    pub(crate) id: String,
+    pub(crate) project_file_id: String,
+    pub(crate) locator_key: String,
+    pub(crate) identity: Option<EncodedIdentity>,
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct QualifiedIdentity {
-    volume_serial: String,
-    file_id: String,
+pub(crate) struct QualifiedIdentity {
+    pub(crate) volume_serial: String,
+    pub(crate) file_id: String,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PreviousLocations {
+    pub(crate) exact_locations: Vec<ExistingLocation>,
+    pub(crate) identity_candidates: BTreeMap<QualifiedIdentity, BTreeSet<String>>,
 }
 
 #[derive(Clone, Debug)]
@@ -822,20 +827,97 @@ fn qualified_identity(identity: Option<&EncodedIdentity>) -> Option<QualifiedIde
     })
 }
 
+pub(crate) const SELECT_OBSERVED_ROOT_LOCATIONS: &str = "
+    SELECT location.id, location.project_file_id, location.locator_key,
+           location.identity_volume_serial, location.identity_file_id,
+           location.presence
+    FROM temp.publication_observed_path AS observed
+    CROSS JOIN file_location AS location INDEXED BY file_location_active_locator
+    WHERE location.scan_root_id = ?1
+      AND location.scan_root_id IS NOT NULL
+      AND location.locator_key = observed.locator_key
+    ORDER BY location.locator_key COLLATE BINARY, location.id";
+
+pub(crate) const SELECT_OBSERVED_IDENTITY_CANDIDATES: &str = "
+    SELECT location.identity_volume_serial, location.identity_file_id,
+           MIN(location.project_file_id), MAX(location.project_file_id)
+    FROM temp.publication_observed_identity AS observed_identity
+    CROSS JOIN file_location AS location INDEXED BY file_location_root_live_identity
+    LEFT JOIN temp.publication_observed_path AS observed_path
+      ON observed_path.locator_key = location.locator_key
+    WHERE location.scan_root_id = ?1
+      AND location.scan_root_id IS NOT NULL
+      AND location.presence = 'present'
+      AND location.identity_volume_serial = observed_identity.identity_volume_serial
+      AND location.identity_file_id = observed_identity.identity_file_id
+      AND location.identity_volume_serial IS NOT NULL
+      AND location.identity_file_id IS NOT NULL
+      AND (observed_path.locator_key IS NULL
+       OR (observed_path.identity_volume_serial = location.identity_volume_serial
+           AND observed_path.identity_file_id = location.identity_file_id))
+    GROUP BY location.identity_volume_serial, location.identity_file_id";
+
+fn prepare_publication_observation_tables(transaction: &Transaction<'_>) -> Result<()> {
+    transaction.execute_batch(
+        "CREATE TEMP TABLE IF NOT EXISTS publication_observed_path (
+             locator_key TEXT PRIMARY KEY COLLATE BINARY,
+             identity_volume_serial TEXT,
+             identity_file_id TEXT
+         ) WITHOUT ROWID;
+         CREATE TEMP TABLE IF NOT EXISTS publication_observed_identity (
+             identity_volume_serial TEXT NOT NULL,
+             identity_file_id TEXT NOT NULL,
+             PRIMARY KEY (identity_volume_serial, identity_file_id)
+         ) WITHOUT ROWID;
+         DELETE FROM temp.publication_observed_path;
+         DELETE FROM temp.publication_observed_identity;",
+    )?;
+    Ok(())
+}
+
+fn clear_publication_observation_tables(transaction: &Transaction<'_>) -> Result<()> {
+    transaction.execute_batch(
+        "DELETE FROM temp.publication_observed_path;
+         DELETE FROM temp.publication_observed_identity;",
+    )?;
+    Ok(())
+}
+
+fn insert_publication_observations(
+    transaction: &Transaction<'_>,
+    observations: &[StagedObservation],
+) -> Result<()> {
+    let mut path_insert = transaction.prepare(
+        "INSERT INTO temp.publication_observed_path
+         (locator_key, identity_volume_serial, identity_file_id)
+         VALUES (?1, ?2, ?3)",
+    )?;
+    let mut identity_insert = transaction.prepare(
+        "INSERT OR IGNORE INTO temp.publication_observed_identity
+         (identity_volume_serial, identity_file_id) VALUES (?1, ?2)",
+    )?;
+    for observation in observations {
+        let identity = observation.identity.as_ref();
+        path_insert.execute(params![
+            &observation.locator_key,
+            identity.map(|identity| identity.volume_serial.as_str()),
+            identity.map(|identity| identity.file_id.as_str()),
+        ])?;
+        if let Some(identity) = identity {
+            identity_insert.execute(params![&identity.volume_serial, &identity.file_id])?;
+        }
+    }
+    Ok(())
+}
+
 fn select_root_locations(
     transaction: &Transaction<'_>,
     root_id: &str,
 ) -> Result<Vec<ExistingLocation>> {
-    let mut statement = transaction.prepare(
-        "SELECT id, project_file_id, locator_key, identity_volume_serial,
-                identity_file_id, presence
-         FROM file_location
-         WHERE scan_root_id = ?1
-         ORDER BY locator_key COLLATE BINARY, id",
-    )?;
+    let mut statement = transaction.prepare(SELECT_OBSERVED_ROOT_LOCATIONS)?;
     statement
         .query_map([root_id], |row| {
-            let presence = FilePresence::parse(&row.get::<_, String>(5)?).map_err(|_| {
+            FilePresence::parse(&row.get::<_, String>(5)?).map_err(|_| {
                 rusqlite::Error::InvalidColumnType(
                     5,
                     "presence".into(),
@@ -849,11 +931,75 @@ fn select_root_locations(
                 project_file_id: row.get(1)?,
                 locator_key: row.get(2)?,
                 identity,
-                presence,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()
         .map_err(Into::into)
+}
+
+fn select_identity_candidates(
+    transaction: &Transaction<'_>,
+    root_id: &str,
+) -> Result<BTreeMap<QualifiedIdentity, BTreeSet<String>>> {
+    let mut statement = transaction.prepare(SELECT_OBSERVED_IDENTITY_CANDIDATES)?;
+    let mut candidates = BTreeMap::new();
+    let rows = statement.query_map([root_id], |row| {
+        let volume_serial = row.get::<_, String>(0)?;
+        let file_id = row.get::<_, String>(1)?;
+        let first_project_file_id = row.get::<_, String>(2)?;
+        let last_project_file_id = row.get::<_, String>(3)?;
+        Ok((
+            volume_serial,
+            file_id,
+            first_project_file_id,
+            last_project_file_id,
+        ))
+    })?;
+    for row in rows {
+        let (volume_serial, file_id, first, last) = row?;
+        let identity = QualifiedIdentity {
+            volume_serial,
+            file_id,
+        };
+        let mut project_file_ids = BTreeSet::new();
+        project_file_ids.insert(first);
+        project_file_ids.insert(last);
+        candidates.insert(identity, project_file_ids);
+    }
+    Ok(candidates)
+}
+
+/// Load only exact-path matches and live candidates for identities present in
+/// this complete scan. The temporary observation tables are bounded by the
+/// staged input limit; the SQL summaries return at most one path row per
+/// observation and one pair of project-file IDs per observed identity. A
+/// pair with distinct IDs is enough to preserve the conservative conflict
+/// rule without materializing every alias. Missing history is never scanned
+/// for identity reuse.
+pub(crate) fn select_previous_locations(
+    transaction: &Transaction<'_>,
+    root_id: &str,
+    observations: &[StagedObservation],
+) -> Result<PreviousLocations> {
+    prepare_publication_observation_tables(transaction)?;
+    let selected: Result<PreviousLocations> = (|| {
+        insert_publication_observations(transaction, observations)?;
+        Ok(PreviousLocations {
+            exact_locations: select_root_locations(transaction, root_id)?,
+            identity_candidates: select_identity_candidates(transaction, root_id)?,
+        })
+    })();
+    let cleared = clear_publication_observation_tables(transaction);
+    match selected {
+        Ok(selected) => {
+            cleared?;
+            Ok(selected)
+        }
+        Err(error) => {
+            let _ = cleared;
+            Err(error)
+        }
+    }
 }
 
 fn identities_differ(previous: &ExistingLocation, current: Option<&QualifiedIdentity>) -> bool {
@@ -885,24 +1031,25 @@ fn identities_differ(previous: &ExistingLocation, current: Option<&QualifiedIden
 /// There is deliberately no Phase-4 grouping: locations are never collapsed
 /// by identity for display or counting.
 ///
-/// P2-06 close-out: this planning phase performs no writes. The caller
-/// applies every planned row inside the same immediate SQLite transaction as
-/// the marker and ledger updates, so a crash before staging, after
-/// staging-before-apply, or during apply rolls back with no partial Library
-/// rows. Staging stays invisible to `query_library` until that commit.
+/// P2-06 close-out: planning does not write committed dataset rows; its only
+/// temporary writes populate connection-local lookup tables bounded by the
+/// staged observation limit. The caller applies every planned row inside the
+/// same immediate SQLite transaction as the marker and ledger updates, so a
+/// crash before staging, after staging-before-apply, or during apply rolls
+/// back with no partial Library rows. Staging stays invisible to
+/// `query_library` until that commit.
 fn plan_observations(
     transaction: &Transaction<'_>,
     root_id: &str,
     observations: &[StagedObservation],
 ) -> Result<Vec<PlannedObservation>> {
-    let previous = select_root_locations(transaction, root_id)?;
-    let previous_by_path: BTreeMap<_, _> = previous
+    let PreviousLocations {
+        exact_locations,
+        mut identity_candidates,
+    } = select_previous_locations(transaction, root_id, observations)?;
+    let previous_by_path: BTreeMap<_, _> = exact_locations
         .iter()
         .map(|location| (location.locator_key.as_str(), location))
-        .collect();
-    let observed_by_path: BTreeMap<_, _> = observations
-        .iter()
-        .map(|observation| (observation.locator_key.as_str(), observation))
         .collect();
 
     let observed_identities: BTreeSet<_> = observations
@@ -910,32 +1057,11 @@ fn plan_observations(
         .filter_map(|observation| qualified_identity(observation.identity.as_ref()))
         .collect();
 
-    // Candidates from the prior committed set are qualified by the complete
-    // current observation set. A prior present path observed with a different
-    // identity is a replacement, not evidence for the old identity.
-    let mut identity_candidates: BTreeMap<QualifiedIdentity, BTreeSet<String>> = BTreeMap::new();
-    for location in previous.iter().filter(|location| {
-        location.presence == FilePresence::Present && location.identity.is_some()
-    }) {
-        let identity =
-            qualified_identity(location.identity.as_ref()).ok_or(StorageError::Conflict)?;
-        let current_supports_identity = observed_by_path
-            .get(location.locator_key.as_str())
-            .map(|observation| {
-                qualified_identity(observation.identity.as_ref()) == Some(identity.clone())
-            })
-            .unwrap_or(true);
-        if current_supports_identity {
-            identity_candidates
-                .entry(identity)
-                .or_default()
-                .insert(location.project_file_id.clone());
-        }
-    }
-
-    // Exact-path continuity is allowed for an existing row, including a
-    // missing row being restored. It is not used as a historical identity
-    // lookup for an unrelated path.
+    // The indexed candidate query uses only the current scan's identities,
+    // excludes exact paths whose current identity proves replacement, and
+    // returns at most two project-file IDs per identity (one candidate or a
+    // conflict). Exact-path continuity below still includes missing rows and
+    // is not used as an identity lookup for an unrelated path.
     let mut path_continuity = Vec::with_capacity(observations.len());
     let mut continuity_candidates: BTreeMap<QualifiedIdentity, BTreeSet<String>> = BTreeMap::new();
     for observation in observations {
@@ -1112,7 +1238,10 @@ fn apply_planned_observation(
 /// and `finish_scan_run` leaves committed rows and the marker untouched).
 /// Any validation or SQL failure returns without committing, so the prior
 /// dataset and marker stay byte-identical. Restart and backup recovery
-/// discard open staging before resuming eligible work.
+/// discard open staging before resuming eligible work. Prior-row selection
+/// and Rust materialization are bounded by the current staged observations;
+/// the indexed root-wide mark-unseen update and present-plus-missing location
+/// count still scale with retained history.
 pub(crate) fn publish_scan_run_tx(
     transaction: &Transaction<'_>,
     run_id: &str,
