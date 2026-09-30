@@ -156,7 +156,12 @@ const getAdapterKey = (adapter: LibraryScanAdapter): number => {
   return nextAdapterKey;
 };
 
-function LibraryIntegrationDisabled() {
+function LibraryIntegrationDisabled({
+  variant,
+}: {
+  readonly variant: "no-adapter" | "feature-disabled";
+}) {
+  const featureDisabled = variant === "feature-disabled";
   return (
     <section
       aria-labelledby="library-disabled-title"
@@ -166,11 +171,18 @@ function LibraryIntegrationDisabled() {
       <div className="state-panel__icon">
         <FolderSearch aria-hidden="true" className="app-icon app-icon--large" />
       </div>
-      <p className="eyebrow">Scanner integration pending</p>
-      <h2 id="library-disabled-title">Library scanning is not enabled</h2>
+      <p className="eyebrow">
+        {featureDisabled ? "Build capability" : "Scanner integration pending"}
+      </p>
+      <h2 id="library-disabled-title">
+        {featureDisabled
+          ? "Library scanning is not enabled in this build"
+          : "Library scanning is not enabled"}
+      </h2>
       <p className="state-panel__description">
-        The production desktop adapter is not connected to the Phase 2 scan
-        contracts yet. No scan controls are available in this build.
+        {featureDisabled
+          ? "This desktop build was produced without the scanning feature. The library list and scan controls are unavailable here."
+          : "The production desktop adapter is not connected to the Phase 2 scan contracts yet. No scan controls are available in this build."}
       </p>
       <Link className="inline-action" to="/preferences">
         Review scan roots
@@ -186,7 +198,8 @@ export function LibraryPage({
   readonly adapter: LibraryScanAdapter | undefined;
   readonly renderContext?: LibraryRenderContext;
 }) {
-  if (adapter === undefined) return <LibraryIntegrationDisabled />;
+  if (adapter === undefined)
+    return <LibraryIntegrationDisabled variant="no-adapter" />;
   return (
     <ConnectedLibraryPage
       adapter={adapter}
@@ -257,6 +270,32 @@ function ConnectedLibraryPage({
       mounted.current = false;
     };
   }, []);
+
+  /**
+   * The native console reports whether scanning is compiled into this
+   * build. Feature-off builds answer `{enabled: false}` while every console
+   * command is a dead-end `unavailable`, so the page must not present
+   * retry surfaces that can never succeed. A probe failure is advisory:
+   * the normal surfaces report their own recoverable states with retry.
+   */
+  const [consoleState, setConsoleState] = useState<
+    "unknown" | "enabled" | "disabled"
+  >("unknown");
+
+  useEffect(() => {
+    let active = true;
+    void adapter.getConsoleState().then(
+      (state) => {
+        if (active) setConsoleState(state.enabled ? "enabled" : "disabled");
+      },
+      () => {
+        if (active) setConsoleState("enabled");
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [adapter]);
 
   const statuses = useMemo(
     () => (statusState.kind === "ready" ? statusState.statuses : []),
@@ -445,20 +484,23 @@ function ConnectedLibraryPage({
   }, [adapter]);
 
   useEffect(() => {
+    if (consoleState !== "enabled") return;
     const timer = window.setTimeout(() => {
       void loadPage();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadPage, pageAttempt]);
+  }, [consoleState, loadPage, pageAttempt]);
 
   useEffect(() => {
+    if (consoleState !== "enabled") return;
     const timer = window.setTimeout(() => {
       void loadStatuses();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadStatuses, statusAttempt]);
+  }, [consoleState, loadStatuses, statusAttempt]);
 
   useEffect(() => {
+    if (consoleState !== "enabled") return;
     let active = true;
     const unsubscribe = adapter.subscribe(() => {
       if (!active) return;
@@ -469,7 +511,7 @@ function ConnectedLibraryPage({
       active = false;
       unsubscribe();
     };
-  }, [adapter, loadPage, loadStatuses]);
+  }, [adapter, consoleState, loadPage, loadStatuses]);
 
   useEffect(() => {
     if (
@@ -645,6 +687,10 @@ function ConnectedLibraryPage({
     setCursorHistory((history) => history.slice(0, -1));
     setPagePosition(previousPosition);
   };
+
+  if (consoleState === "disabled") {
+    return <LibraryIntegrationDisabled variant="feature-disabled" />;
+  }
 
   if (pageState.kind === "loading" && statusState.kind === "loading") {
     return (
