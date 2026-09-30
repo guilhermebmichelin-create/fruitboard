@@ -2,7 +2,7 @@
 
 Date: 2026-09-30. Related issue: #238. Baseline: merged PR #237
 (`fc554b22096aed904a98a81ec8fcec325dfa0b2c`). Compiled implementation:
-`914e38336b7301b3977edf1ff240b75cd961f5f1`; this summary is documentation only.
+`e0928f577569275e25cf979e9c66dd6794beebd5`; this summary is documentation only.
 
 ## Delivered boundary
 
@@ -11,6 +11,9 @@ pending cells, indexed discovery/claims and one globally running lease. The
 native host rotates its process-session fence, recovers interrupted jobs and
 retains the three-attempt budget. Changed source/parser revisions supersede
 work; unchanged terminal inputs and cancellation survive restart without loops.
+An alias's negative publication changes commit ordering, not the desired
+source. Terminal work stays coalesced, while pending fence refresh preserves
+its retry budget and delay.
 The metadata snapshot table remains immutable completed history.
 
 The new native worker uses the selected enabled local NTFS source from storage,
@@ -40,18 +43,27 @@ references and private projection data remain native/local. See the
 
 - Full pinned Windows `pnpm.cmd check` passed: format, lint, typecheck,
   repository/privacy/toolchain policies, 127 Node tests, 158 client tests,
-  workspace Rust tests and the default production desktop build.
-- Full `analysis-jobs` storage tests: 120 passed. Two ignored subprocess
+  workspace Rust tests and the default production desktop build. This rerun
+  follows the alias fix; the subsequent parser test-only isolation change
+  separately passed all eight protocol tests and all-target Clippy. Final-head
+  CI repeats the complete gate.
+- Full `analysis-jobs` storage tests: 122 passed. Two ignored subprocess
   helpers are explicitly invoked by the passing interruption tests. The new
   forced-stop test terminates its owned child after snapshot and terminal-job
   writes but before commit; reopening sees neither partial publication nor a
   lost retry budget, and restart completes the recovered job.
+  Additional regressions cover negative aliases/cancellation without a good
+  snapshot and publication-fence changes preserving retry budgets/backoff.
 - Worker portable tests: four passed. The separately invoked Windows native
   test passed with the freshly built parser at the implementation SHA. It
   copies approved corpus bytes, verifies held-object write/rename denial,
   executes the real parser, saves validated metadata and preserves source bytes.
 - Desktop enabled-feature tests: 118 passed. Warning-denied all-target Clippy
   passed for enabled storage, worker and desktop code.
+- Windows CI exposed a pre-existing parser-test temporary-folder collision
+  when concurrent tests observed the same timestamp. A per-process sequence
+  now isolates the folders; a forced equal-clock concurrent regression passes.
+  Production parser behavior and external dependency pins are unchanged.
 - Installed noninteractive Windows `-AnalysisJobs` development smoke passed
   under the exclusive host lock. Real native root admission/enumeration,
   durable queue, parser and publication produced one complete snapshot. Seed
