@@ -28,11 +28,33 @@ files at 4 MiB, event payloads at 2 MiB, events at 100,000, and channels at
 in the approved corpus currently return
 metadata; other build strings receive `UNSUPPORTED_SAVED_VERSION`.
 
-The trusted native supervisor must authorize a locator inside an enabled root,
-enforce a per-request deadline, and validate response schema and fingerprint
-before any result is persisted. This crate is not yet wired to the scanner or
-packaged into the desktop application. The existing filesystem-only scan path
-continues to avoid FLP content reads. Packaging, crash/restart behavior, richer
+The native `supervisor` module implements the process-transport slice. A trusted
+native caller supplies the absolute executable path, input fingerprint, and
+allowed roots; renderer input cannot select an executable or command arguments.
+One supervisor owns one child and sends one request at a time, with bounded
+64-KiB requests, 256-KiB replies, and at most 256 roots per request. Its default
+deadline is ten seconds and its default process lifetime is 256 completed
+requests. Both are configurable within fixed limits. Pipe writes and reads run
+on one owned worker so a child that stops reading cannot block the caller past
+the request deadline. Cancellation, timeout, malformed replies, and transport
+failures retire the child without replaying the request. Subsequent requests can
+start a replacement after the previous process is stopped and reaped. Explicit
+shutdown and dropping the supervisor release the child and worker. Windows
+launches hide the console window.
+
+The transport checks protocol/schema versions, correlation IDs, mutually
+exclusive result/error envelopes, and bounded rejection-code syntax. Successful
+result objects remain untrusted: application integration must validate their
+field semantics, capabilities, fingerprint, and current file/root revisions
+before persistence. Raw subprocess stderr is discarded rather than captured or
+logged; transport errors use fixed categories with no paths. OS process startup
+and termination are outside the request timer, and this slice does not qualify
+memory/CPU limits or descendant-process containment. Only the trusted parser
+executable is supported.
+
+This crate is not yet wired to the scanner or packaged into the desktop
+application. The existing filesystem-only scan path continues to avoid FLP
+content reads. Semantic result validation, app integration, packaging, richer
 compatibility, and distribution qualification remain gates in ADR-002.
 
 `channelCount` is `extracted` only after the bounded channel-event walk agrees
@@ -107,7 +129,12 @@ meter remains `unsupported`; missing base tempo is `unavailable`. See the
 The corpus tests read the exact approved fixtures under `fixtures/parser-corpus/`.
 The repository privacy check validates their allowed paths and SHA-256 values;
 the parser tests verify fields, typed failures, source-byte preservation, and
-the process protocol. The test command is:
+the process protocol. Supervisor tests also run a real parser exchange and
+stdlib-only subprocess fault fixtures for crashes, stalls, blocked stdin,
+oversized/truncated replies, cancellation, stderr flooding, process recycling,
+and shutdown. The fault executable is compiled once per test run with the pinned
+`rustc` into an independent temporary directory. It has no product parser or
+input-file authority. The test command is:
 
 ```powershell
 cargo test -p fruitboard-flp-parser --locked
