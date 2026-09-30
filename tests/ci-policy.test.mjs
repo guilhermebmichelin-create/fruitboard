@@ -7,6 +7,11 @@ const readRootFile = (path) =>
 
 const workflow = readRootFile(".github/workflows/foundation.yml");
 
+const securityWorkflows = [
+  readRootFile(".github/workflows/codeql.yml"),
+  readRootFile(".github/workflows/dependency-review.yml"),
+];
+
 const workflowJob = (name) => {
   const marker = `  ${name}:\n`;
   const start = workflow.indexOf(marker);
@@ -76,6 +81,52 @@ test("workflow permissions and third-party execution fail closed", () => {
   ).length;
   assert.equal(checkoutCount, 10);
   assert.equal(disabledCredentialCount, checkoutCount);
+});
+
+test("security workflows stay pinned, read-only, and informational", () => {
+  const approvedSecurityActionReferences = new Set([
+    "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
+    "github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63",
+    "github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63",
+  ]);
+
+  for (const securityWorkflow of securityWorkflows) {
+    assert.match(securityWorkflow, /^permissions:\n  contents: read$/m);
+    assert.match(securityWorkflow, /cancel-in-progress: true/);
+    assert.doesNotMatch(
+      securityWorkflow,
+      /pull_request_target|\n\s+paths(?:-ignore)?:/,
+    );
+    assert.doesNotMatch(securityWorkflow, /^    if:/m);
+    assert.doesNotMatch(securityWorkflow, /continue-on-error:/);
+    assert.doesNotMatch(securityWorkflow, /\bsecrets[.:]/);
+    assert.doesNotMatch(securityWorkflow, /upload-artifact|release|publish/i);
+
+    const actionReferences = [
+      ...securityWorkflow.matchAll(/^\s*uses:\s*([^\s#]+)$/gm),
+    ].map((match) => match[1]);
+    assert.ok(actionReferences.length > 0);
+    for (const reference of actionReferences) {
+      assert.match(
+        reference,
+        /^[^@]+@[0-9a-f]{40}$/,
+        `${reference} must use an immutable commit SHA`,
+      );
+      assert.ok(
+        approvedSecurityActionReferences.has(reference),
+        `${reference} must be explicitly reviewed and allowlisted`,
+      );
+    }
+
+    const checkoutCount = actionReferences.filter((reference) =>
+      reference.startsWith("actions/checkout@"),
+    ).length;
+    const disabledCredentialCount = (
+      securityWorkflow.match(/^\s+persist-credentials: false$/gm) ?? []
+    ).length;
+    assert.equal(disabledCredentialCount, checkoutCount);
+  }
 });
 
 test("CI commands cover locked client, portable storage, migrations, and Windows", () => {
