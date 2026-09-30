@@ -70,6 +70,20 @@ const cancelUnavailableMessage =
   "The scan could not be cancelled safely. Refresh and try again.";
 
 const restartPaginationCooldownMs = 250;
+const activeScanRefreshIntervalMs = 5_000;
+const eventRefreshCoalesceMs = 75;
+
+type CoalescedRefresh = {
+  adapter: LibraryScanAdapter;
+  requestId: number;
+  rerun: boolean;
+  promise: Promise<void>;
+};
+
+type RuntimeHealthRefresh = {
+  adapter: LibraryScanAdapter;
+  promise: Promise<void>;
+};
 
 const scanErrorMessages: Readonly<Record<ScanErrorCode, string>> = {
   access_denied:
@@ -237,6 +251,24 @@ function ConnectedLibraryPage({
   const pageRequestSequence = useRef(0);
   const statusRequestSequence = useRef(0);
   const actionSequence = useRef(0);
+  const initialPageReadStarted = useRef(false);
+  const initialStatusReadStarted = useRef(false);
+  const pageRefreshes = useRef(new Map<string, CoalescedRefresh>());
+  const statusRefresh = useRef<CoalescedRefresh | null>(null);
+  const runtimeHealthRefresh = useRef<RuntimeHealthRefresh | null>(null);
+  const loadPageReference = useRef<
+    ((ensureFresh?: boolean) => Promise<void>) | null
+  >(null);
+  const loadStatusesReference = useRef<
+    ((ensureFresh?: boolean) => Promise<void>) | null
+  >(null);
+  const refreshRuntimeHealthReference = useRef<(() => Promise<void>) | null>(
+    null,
+  );
+  const reconcileTimer = useRef<number | null>(null);
+  const reconcileLibraryPage = useRef(false);
+  const pageFollowUpTimer = useRef<number | null>(null);
+  const statusFollowUpTimer = useRef<number | null>(null);
 
   const pendingPageFocus = useRef(false);
   const listHeadingReference = useRef<HTMLHeadingElement | null>(null);
@@ -268,34 +300,80 @@ function ConnectedLibraryPage({
     mounted.current = true;
     return () => {
       mounted.current = false;
+      if (pageFollowUpTimer.current !== null) {
+        window.clearTimeout(pageFollowUpTimer.current);
+        pageFollowUpTimer.current = null;
+      }
+      if (statusFollowUpTimer.current !== null) {
+        window.clearTimeout(statusFollowUpTimer.current);
+        statusFollowUpTimer.current = null;
+      }
     };
   }, []);
 
   /**
    * The native console reports whether scanning is compiled into this
-   * build. Feature-off builds answer `{enabled: false}` while every console
-   * command is a dead-end `unavailable`, so the page must not present
-   * retry surfaces that can never succeed. A probe failure is advisory:
-   * the normal surfaces report their own recoverable states with retry.
+   * build separately from runtime worker health. Feature-off builds hide the
+   * unsupported integration. Feature-enabled builds can keep showing saved
+   * Library data after their worker stops. A probe failure is advisory: the
+   * normal surfaces report their own recoverable states.
    */
   const [consoleState, setConsoleState] = useState<
     "unknown" | "enabled" | "disabled"
   >("unknown");
+  const [runtimeAvailable, setRuntimeAvailable] = useState(true);
+  const [subscriptionStateForAdapter, setSubscriptionStateForAdapter] =
+    useState<{
+      adapter: LibraryScanAdapter;
+      state: "attached" | "unavailable";
+    } | null>(null);
+  const subscriptionState =
+    subscriptionStateForAdapter?.adapter === adapter
+      ? subscriptionStateForAdapter.state
+      : "connecting";
+
+  const refreshRuntimeHealth = useCallback(() => {
+    const pending = runtimeHealthRefresh.current;
+    if (pending?.adapter === adapter) {
+      return pending.promise;
+    }
+    const refresh: RuntimeHealthRefresh = {
+      adapter,
+      promise: Promise.resolve(),
+    };
+    const request = Promise.resolve().then(async () => {
+      try {
+        const state = await adapter.getConsoleState();
+        if (!mounted.current || runtimeHealthRefresh.current !== refresh)
+          return;
+        setConsoleState(state.enabled ? "enabled" : "disabled");
+        setRuntimeAvailable(state.runtimeAvailable);
+      } catch {
+        // The saved Library page and last known scan health remain useful when
+        // the advisory health probe itself cannot be reached.
+        if (mounted.current && runtimeHealthRefresh.current === refresh) {
+          setConsoleState((current) =>
+            current === "unknown" ? "enabled" : current,
+          );
+        }
+      } finally {
+        if (runtimeHealthRefresh.current === refresh) {
+          runtimeHealthRefresh.current = null;
+        }
+      }
+    });
+    refresh.promise = request;
+    runtimeHealthRefresh.current = refresh;
+    return request;
+  }, [adapter]);
 
   useEffect(() => {
-    let active = true;
-    void adapter.getConsoleState().then(
-      (state) => {
-        if (active) setConsoleState(state.enabled ? "enabled" : "disabled");
-      },
-      () => {
-        if (active) setConsoleState("enabled");
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [adapter]);
+    refreshRuntimeHealthReference.current = refreshRuntimeHealth;
+  }, [refreshRuntimeHealth]);
+
+  useEffect(() => {
+    void refreshRuntimeHealth();
+  }, [refreshRuntimeHealth]);
 
   const statuses = useMemo(
     () => (statusState.kind === "ready" ? statusState.statuses : []),
@@ -312,6 +390,12 @@ function ConnectedLibraryPage({
     statuses.some((status) => status.root.id === selectedRootId)
       ? selectedRootId
       : (statuses[0]?.root.id ?? null);
+  const resolvedRootIdReference = useRef<string | null>(resolvedRootId);
+  const lastKnownStatuses = useRef<readonly ScanStatus[] | null>(null);
+
+  useEffect(() => {
+    resolvedRootIdReference.current = resolvedRootId;
+  }, [resolvedRootId]);
 
   const hasNoRoots = statusState.kind === "ready" && statuses.length === 0;
 
@@ -391,6 +475,7 @@ function ConnectedLibraryPage({
       if (rootId === resolvedRootId) return;
       pageRequestSequence.current += 1;
       pendingPageFocus.current = false;
+      resolvedRootIdReference.current = rootId;
       setSelectedRootId(rootId);
       setPagePosition({ cursor: null, snapshotId: null });
       setCursorHistory([]);
@@ -401,91 +486,224 @@ function ConnectedLibraryPage({
     [resolvedRootId],
   );
 
-  const loadPage = useCallback(async () => {
-    const requestId = ++pageRequestSequence.current;
-    const requestPosition = pagePosition;
-    const requestRootId = resolvedRootId;
-    const isCurrentRequest = () =>
-      mounted.current && pageRequestSequence.current === requestId;
-
-    if (requestRootId === null) return;
-
-    try {
-      const page = await adapter.getLibraryPage({
-        rootId: requestRootId,
-        cursor: requestPosition.cursor,
-        limit: LIBRARY_PAGE_LIMIT,
-      });
-      if (!isCurrentRequest()) return;
-      if (page.rootId !== requestRootId) {
-        // A page for a different root is a contract violation, not a
-        // pagination problem. Restarting here re-allocates `pagePosition`,
-        // which re-fires this effect and re-issues the same request, so the
-        // restart can never terminate on its own. Fail terminally instead and
-        // let the existing "Try again" action be the only way forward.
-        setPaginationNotice(null);
-        setPageState((previous) =>
-          previous.kind === "ready"
-            ? { ...previous, refreshError: true }
-            : { kind: "error" },
-        );
-        return;
+  const loadPage = useCallback(
+    async (ensureFresh = false) => {
+      const requestPosition = pagePosition;
+      const requestRootId = resolvedRootId;
+      if (requestRootId === null) return;
+      const loadKey = JSON.stringify([
+        requestRootId,
+        requestPosition.cursor,
+        requestPosition.snapshotId,
+      ]);
+      const pending = pageRefreshes.current.get(loadKey);
+      if (pending !== undefined) {
+        if (
+          pending.adapter !== adapter &&
+          pending.requestId === pageRequestSequence.current
+        ) {
+          pageRequestSequence.current += 1;
+        }
+        if (
+          ensureFresh ||
+          pending.adapter !== adapter ||
+          pending.requestId !== pageRequestSequence.current
+        ) {
+          pending.rerun = true;
+        }
+        return pending.promise;
       }
-      // A snapshot change is a genuine concurrent publication. This branch is
-      // self-limiting: `performPaginationRestart` clears the cursor, and the
-      // check below requires a non-null cursor, so it cannot re-fire.
-      if (
-        requestPosition.cursor !== null &&
-        (requestPosition.snapshotId === null ||
-          page.snapshotId !== requestPosition.snapshotId)
-      ) {
-        restartPagination();
-        return;
-      }
-      setPageState({ kind: "ready", page, refreshError: false });
-    } catch (error) {
-      if (!isCurrentRequest()) return;
-      if (
-        (isStaleCursorError(error) || isInvalidCursorError(error)) &&
-        requestPosition.cursor !== null
-      ) {
-        restartPagination(
-          isInvalidCursorError(error)
-            ? "The saved Library position was invalid. Pagination restarted at page 1."
-            : undefined,
-        );
-        return;
-      }
-      setPageState((previous) =>
-        previous.kind === "ready"
-          ? { ...previous, refreshError: true }
-          : { kind: "error" },
-      );
-    }
-  }, [adapter, pagePosition, resolvedRootId, restartPagination]);
 
-  const loadStatuses = useCallback(async () => {
-    const requestId = ++statusRequestSequence.current;
-    const isCurrentRequest = () =>
-      mounted.current && statusRequestSequence.current === requestId;
+      const requestId = ++pageRequestSequence.current;
+      const refresh: CoalescedRefresh = {
+        adapter,
+        requestId,
+        rerun: false,
+        promise: Promise.resolve(),
+      };
+      pageRefreshes.current.set(loadKey, refresh);
+      const isCurrentRequest = () =>
+        mounted.current && pageRequestSequence.current === requestId;
 
-    try {
-      const statuses = await adapter.listScanStatuses();
-      if (!isCurrentRequest()) return;
-      setStatusState({ kind: "ready", statuses, refreshError: false });
-    } catch {
-      if (!isCurrentRequest()) return;
-      setStatusState((previous) =>
-        previous.kind === "ready"
-          ? { ...previous, refreshError: true }
-          : { kind: "error" },
-      );
-    }
-  }, [adapter]);
+      const promise = (async () => {
+        try {
+          const page = await adapter.getLibraryPage({
+            rootId: requestRootId,
+            cursor: requestPosition.cursor,
+            limit: LIBRARY_PAGE_LIMIT,
+          });
+          if (!isCurrentRequest()) return;
+          if (page.rootId !== requestRootId) {
+            // A page for a different root is a contract violation, not a
+            // pagination problem. Restarting here re-allocates `pagePosition`,
+            // which re-fires this effect and re-issues the same request, so the
+            // restart can never terminate on its own. Fail terminally instead and
+            // let the existing "Try again" action be the only way forward.
+            setPaginationNotice(null);
+            setPageState((previous) =>
+              previous.kind === "ready"
+                ? { ...previous, refreshError: true }
+                : { kind: "error" },
+            );
+            return;
+          }
+          // A snapshot change is a genuine concurrent publication. This branch is
+          // self-limiting: `performPaginationRestart` clears the cursor, and the
+          // check below requires a non-null cursor, so it cannot re-fire.
+          if (
+            requestPosition.cursor !== null &&
+            (requestPosition.snapshotId === null ||
+              page.snapshotId !== requestPosition.snapshotId)
+          ) {
+            restartPagination();
+            return;
+          }
+          setPageState({ kind: "ready", page, refreshError: false });
+        } catch (error) {
+          if (!isCurrentRequest()) return;
+          if (
+            (isStaleCursorError(error) || isInvalidCursorError(error)) &&
+            requestPosition.cursor !== null
+          ) {
+            restartPagination(
+              isInvalidCursorError(error)
+                ? "The saved Library position was invalid. Pagination restarted at page 1."
+                : undefined,
+            );
+            return;
+          }
+          setPageState((previous) =>
+            previous.kind === "ready"
+              ? { ...previous, refreshError: true }
+              : { kind: "error" },
+          );
+        } finally {
+          if (pageRefreshes.current.get(loadKey) === refresh) {
+            pageRefreshes.current.delete(loadKey);
+          }
+          if (
+            refresh.rerun &&
+            mounted.current &&
+            pageFollowUpTimer.current === null
+          ) {
+            pageFollowUpTimer.current = window.setTimeout(() => {
+              pageFollowUpTimer.current = null;
+              if (mounted.current) void loadPageReference.current?.(true);
+            }, 0);
+          }
+        }
+      })();
+      refresh.promise = promise;
+      return promise;
+    },
+    [adapter, pagePosition, resolvedRootId, restartPagination],
+  );
+
+  const loadStatuses = useCallback(
+    (ensureFresh = false) => {
+      const pending = statusRefresh.current;
+      if (pending !== null) {
+        if (
+          pending.adapter !== adapter &&
+          pending.requestId === statusRequestSequence.current
+        ) {
+          statusRequestSequence.current += 1;
+        }
+        if (
+          ensureFresh ||
+          pending.adapter !== adapter ||
+          pending.requestId !== statusRequestSequence.current
+        ) {
+          pending.rerun = true;
+        }
+        return pending.promise;
+      }
+      const refresh: CoalescedRefresh = {
+        adapter,
+        requestId: statusRequestSequence.current + 1,
+        rerun: false,
+        promise: Promise.resolve(),
+      };
+      statusRefresh.current = refresh;
+      const requestId = ++statusRequestSequence.current;
+      const isCurrentRequest = () =>
+        mounted.current && statusRequestSequence.current === requestId;
+
+      const promise = (async () => {
+        try {
+          const statuses = await adapter.listScanStatuses();
+          if (!isCurrentRequest()) return;
+          const previousStatuses = lastKnownStatuses.current;
+          lastKnownStatuses.current = statuses;
+          setStatusState({ kind: "ready", statuses, refreshError: false });
+          const selectedRootPublished = statuses.some((status) => {
+            if (
+              status.root.id !== resolvedRootIdReference.current ||
+              status.state !== "completed"
+            ) {
+              return false;
+            }
+            const previous = previousStatuses?.find(
+              (candidate) => candidate.root.id === status.root.id,
+            );
+            return previous !== undefined && previous.state !== "completed";
+          });
+          if (selectedRootPublished) {
+            void loadPageReference.current?.(true);
+          }
+        } catch {
+          if (!isCurrentRequest()) return;
+          setStatusState((previous) =>
+            previous.kind === "ready"
+              ? { ...previous, refreshError: true }
+              : { kind: "error" },
+          );
+        } finally {
+          if (statusRefresh.current === refresh) statusRefresh.current = null;
+          if (
+            refresh.rerun &&
+            mounted.current &&
+            statusFollowUpTimer.current === null
+          ) {
+            statusFollowUpTimer.current = window.setTimeout(() => {
+              statusFollowUpTimer.current = null;
+              if (mounted.current) void loadStatusesReference.current?.();
+            }, 0);
+          }
+        }
+      })();
+      refresh.promise = promise;
+      return promise;
+    },
+    [adapter],
+  );
+
+  useEffect(() => {
+    loadStatusesReference.current = loadStatuses;
+  }, [loadStatuses]);
+
+  useEffect(() => {
+    loadPageReference.current = loadPage;
+  }, [loadPage]);
+
+  const scheduleReconciliation = useCallback((includeLibraryPage: boolean) => {
+    reconcileLibraryPage.current ||= includeLibraryPage;
+    if (reconcileTimer.current !== null) return;
+    reconcileTimer.current = window.setTimeout(() => {
+      reconcileTimer.current = null;
+      const refreshPage = reconcileLibraryPage.current;
+      reconcileLibraryPage.current = false;
+      if (!mounted.current) return;
+      void refreshRuntimeHealthReference.current?.();
+      void loadStatusesReference.current?.(true);
+      if (refreshPage) void loadPageReference.current?.(true);
+    }, eventRefreshCoalesceMs);
+  }, []);
 
   useEffect(() => {
     if (consoleState !== "enabled") return;
     const timer = window.setTimeout(() => {
+      initialPageReadStarted.current = true;
       void loadPage();
     }, 0);
     return () => window.clearTimeout(timer);
@@ -494,6 +712,7 @@ function ConnectedLibraryPage({
   useEffect(() => {
     if (consoleState !== "enabled") return;
     const timer = window.setTimeout(() => {
+      initialStatusReadStarted.current = true;
       void loadStatuses();
     }, 0);
     return () => window.clearTimeout(timer);
@@ -502,16 +721,68 @@ function ConnectedLibraryPage({
   useEffect(() => {
     if (consoleState !== "enabled") return;
     let active = true;
-    const unsubscribe = adapter.subscribe(() => {
+    const unsubscribe = adapter.subscribe(
+      () => {
+        if (active) scheduleReconciliation(true);
+      },
+      (state) => {
+        if (!active) return;
+        setSubscriptionStateForAdapter({ adapter, state });
+        // If registration resolves after a snapshot has started, re-read so
+        // no transition is lost in the gap. If it resolves first, the initial
+        // snapshots will run after attachment. A failed listener also needs a
+        // fresh activity decision for bounded fallback polling.
+        if (
+          state === "unavailable" ||
+          initialPageReadStarted.current ||
+          initialStatusReadStarted.current
+        ) {
+          scheduleReconciliation(true);
+        }
+      },
+    );
+    const reconcileOnFocus = () => {
       if (!active) return;
-      void loadPage();
-      void loadStatuses();
-    });
+      scheduleReconciliation(true);
+    };
+    const reconcileWhenVisible = () => {
+      if (document.visibilityState === "visible") reconcileOnFocus();
+    };
+    window.addEventListener("focus", reconcileOnFocus);
+    document.addEventListener("visibilitychange", reconcileWhenVisible);
     return () => {
       active = false;
+      window.removeEventListener("focus", reconcileOnFocus);
+      document.removeEventListener("visibilitychange", reconcileWhenVisible);
+      if (reconcileTimer.current !== null) {
+        window.clearTimeout(reconcileTimer.current);
+        reconcileTimer.current = null;
+      }
+      reconcileLibraryPage.current = false;
       unsubscribe();
     };
-  }, [adapter, consoleState, loadPage, loadStatuses]);
+  }, [adapter, consoleState, scheduleReconciliation]);
+
+  const hasActiveScan = statuses.some(
+    (status) => status.state === "queued" || status.state === "running",
+  );
+
+  useEffect(() => {
+    if (consoleState !== "enabled" || !hasActiveScan) return;
+    if (!runtimeAvailable) return;
+    const timer = window.setInterval(() => {
+      void refreshRuntimeHealth();
+      if (subscriptionState !== "attached") void loadStatuses();
+    }, activeScanRefreshIntervalMs);
+    return () => window.clearInterval(timer);
+  }, [
+    consoleState,
+    hasActiveScan,
+    loadStatuses,
+    refreshRuntimeHealth,
+    runtimeAvailable,
+    subscriptionState,
+  ]);
 
   useEffect(() => {
     if (
@@ -541,12 +812,14 @@ function ConnectedLibraryPage({
       const isCurrentAction = () =>
         mounted.current && actionSequence.current === requestId;
       if (!isCurrentAction()) return false;
-      await loadStatuses();
+      await refreshRuntimeHealth();
       if (!isCurrentAction()) return false;
-      await loadPage();
+      await loadStatuses(true);
+      if (!isCurrentAction()) return false;
+      await loadPage(true);
       return isCurrentAction();
     },
-    [loadPage, loadStatuses],
+    [loadPage, loadStatuses, refreshRuntimeHealth],
   );
 
   const runScan = async (status: ScanStatus, action: "retry" | "scan-now") => {
@@ -606,7 +879,10 @@ function ConnectedLibraryPage({
       setActionState({
         kind: "error",
         rootId,
-        message: scanErrorMessages[code],
+        message:
+          code === "unavailable"
+            ? "Scanning is unavailable. Restart Fruitboard to continue; saved Library results are still available."
+            : scanErrorMessages[code],
       });
       focusLater(
         () =>
@@ -776,7 +1052,12 @@ function ConnectedLibraryPage({
       <ScanStatusPanel
         actionState={actionState}
         duplicateDisplayNames={duplicateDisplayNames}
+        runtimeAvailable={runtimeAvailable}
+        subscriptionState={subscriptionState}
         onRetryStatus={() => {
+          if (statusRefresh.current !== null) {
+            statusRefresh.current.rerun = true;
+          }
           statusRequestSequence.current += 1;
           setStatusState({ kind: "loading" });
           setStatusAttempt((attempt) => attempt + 1);
@@ -998,6 +1279,8 @@ function ConnectedLibraryPage({
 function ScanStatusPanel({
   actionState,
   duplicateDisplayNames,
+  runtimeAvailable,
+  subscriptionState,
   onRetryStatus,
   onRunScan,
   onCancelScan,
@@ -1008,6 +1291,8 @@ function ScanStatusPanel({
 }: {
   readonly actionState: ActionState;
   readonly duplicateDisplayNames: ReadonlySet<string>;
+  readonly runtimeAvailable: boolean;
+  readonly subscriptionState: "connecting" | "attached" | "unavailable";
   readonly onRetryStatus: () => void;
   readonly onRunScan: (
     status: ScanStatus,
@@ -1041,6 +1326,20 @@ function ScanStatusPanel({
           reachability check. Incomplete work never publishes partial results.
         </p>
       </div>
+
+      {!runtimeAvailable && (
+        <p className="library-inline-error" role="alert">
+          Scanning has stopped in this session. Restart Fruitboard to continue.
+          Your saved Library results are still available.
+        </p>
+      )}
+
+      {runtimeAvailable && subscriptionState === "unavailable" && (
+        <p className="library-inline-notice" role="status">
+          Live scan updates are not connected. Status checks continue every five
+          seconds while work is active, and when you return to this window.
+        </p>
+      )}
 
       {actionState.kind === "working" && (
         <p aria-live="polite" className="library-action-message" role="status">
@@ -1108,6 +1407,7 @@ function ScanStatusPanel({
                   onRun={(action) => onRunScan(status, action)}
                   retryButtonReferences={retryButtonReferences}
                   scanButtonReferences={scanButtonReferences}
+                  runtimeAvailable={runtimeAvailable}
                   status={status}
                 />
               ))}
@@ -1127,6 +1427,7 @@ function ScanStatusCard({
   onRun,
   retryButtonReferences,
   scanButtonReferences,
+  runtimeAvailable,
   status,
 }: {
   readonly actionState: ActionState;
@@ -1142,6 +1443,7 @@ function ScanStatusCard({
   readonly scanButtonReferences: React.MutableRefObject<
     Map<string, HTMLButtonElement>
   >;
+  readonly runtimeAvailable: boolean;
   readonly status: ScanStatus;
 }) {
   const name = rootControlName(status, duplicateDisplayNames);
@@ -1237,7 +1539,7 @@ function ScanStatusCard({
           <button
             aria-label={`Cancel scan ${name}`}
             className="library-button library-button--secondary"
-            disabled={busy}
+            disabled={busy || !runtimeAvailable}
             onClick={onCancel}
             ref={(button) => {
               if (button === null)
@@ -1253,7 +1555,7 @@ function ScanStatusCard({
           <button
             aria-label={`Retry scan ${name}`}
             className="library-button library-button--primary"
-            disabled={busy || !status.root.enabled}
+            disabled={busy || !status.root.enabled || !runtimeAvailable}
             onClick={() => onRun("retry")}
             ref={(button) => {
               if (button === null)
@@ -1269,7 +1571,7 @@ function ScanStatusCard({
           <button
             aria-label={`Scan now ${name}`}
             className="library-button library-button--primary"
-            disabled={busy || !canScan}
+            disabled={busy || !canScan || !runtimeAvailable}
             onClick={() => onRun("scan-now")}
             ref={(button) => {
               if (button === null)
@@ -1285,6 +1587,11 @@ function ScanStatusCard({
         {!status.root.enabled && (
           <span className="library-scan-item__hint">
             Enable this root in Preferences.
+          </span>
+        )}
+        {!runtimeAvailable && (
+          <span className="library-scan-item__hint">
+            Restart Fruitboard to resume scanning.
           </span>
         )}
       </div>

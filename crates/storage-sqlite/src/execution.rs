@@ -378,7 +378,9 @@ pub(crate) fn list_scan_runs_query() -> String {
 /// The default retention policy: each root keeps its most recent
 /// [`MAX_TERMINAL_RUNS_PER_ROOT`] terminal runs and every terminal run newer
 /// than [`TERMINAL_HISTORY_MAX_AGE_MS`]. Queued/running rows, active
-/// sessions, staging, and library rows are never touched.
+/// sessions, and library rows are never touched. A finalized stage header is
+/// removed only with an otherwise-prunable run, after its observations are
+/// gone and no publication or file-history row refers to the run.
 pub const MAX_TERMINAL_RUNS_PER_ROOT: u64 = 200;
 pub const TERMINAL_HISTORY_MAX_AGE_MS: i64 = 30 * 24 * 60 * 60 * 1000;
 /// Maximum candidates examined in each ledger during one maintenance pass.
@@ -2144,11 +2146,13 @@ impl Database {
     /// only when it is both older than `max_age_ms` and outside the
     /// `max_terminal_runs_per_root` most recent terminal runs of its root;
     /// terminal jobs follow their runs (never the newest job of a root).
-    /// Runs referenced by root publication, any library location, or any stage
-    /// are retained regardless of age/count. Staging and library rows are never
-    /// changed. Each call examines at most 64 runs and 64 jobs, seeking past the
-    /// previous window. Protected rows advance the cursor too. The keep window
-    /// is limited to 10,000 to bound each indexed per-root threshold lookup.
+    /// Runs referenced by root publication or any library location are
+    /// retained regardless of age/count. An otherwise-prunable run may remove
+    /// its empty finalized stage header in the same transaction; open stages,
+    /// stage observations, and library rows are never changed. Each call
+    /// examines at most 64 runs and 64 jobs, seeking past the previous window.
+    /// Protected rows advance the cursor too. The keep window is limited to
+    /// 10,000 to bound each indexed per-root threshold lookup.
     pub fn prune_terminal_scan_history_with_policy(
         &mut self,
         now_ms: i64,
@@ -2188,6 +2192,28 @@ impl Database {
                 }
                 if thresholds[root_id].as_ref().is_some_and(|(time, keep_id)|
                     (*started_at, id.as_str()) < (*time, keep_id.as_str())) {
+                    // Worker-created stages keep a run alive while it is
+                    // active. Once the run is outside both retention windows,
+                    // only an empty finalized header may be removed, and only
+                    // when no durable publication or file-history record
+                    // still names this run. The subsequent guarded run delete
+                    // and this header cleanup share the surrounding
+                    // transaction, so a failed deletion restores both.
+                    transaction.execute(
+                        "DELETE FROM scan_stage
+                         WHERE run_id = ?1 AND state IN ('published', 'discarded')
+                           AND NOT EXISTS (
+                               SELECT 1 FROM scan_stage_observation
+                               WHERE run_id = ?1
+                           )
+                           AND NOT EXISTS (
+                               SELECT 1 FROM scan_root WHERE last_successful_run_id = ?1
+                           )
+                           AND NOT EXISTS (
+                               SELECT 1 FROM file_location WHERE last_seen_scan_run_id = ?1
+                           )",
+                        [id],
+                    )?;
                     outcome.runs_pruned += transaction.execute(
                         "DELETE FROM scan_run WHERE id = ?1
                          AND NOT EXISTS (SELECT 1 FROM scan_root WHERE last_successful_run_id = ?1)

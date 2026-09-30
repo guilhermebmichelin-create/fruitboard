@@ -261,6 +261,7 @@ fn shutdown_stops_the_host_even_when_the_durable_fence_cannot_run() {
 fn a_panicking_lifecycle_thread_is_contained_logged_and_stops_the_host() {
     let logs = Arc::new(RecordingLogSink::default());
     let host = unstarted_host_with_logs(logs.clone());
+    assert!(host.is_operational());
 
     host.run_guarded_thread(
         "scan_console_thread",
@@ -273,6 +274,7 @@ fn a_panicking_lifecycle_thread_is_contained_logged_and_stops_the_host() {
         "a panicked lifecycle thread stops the host"
     );
     assert!(host.shutdown_requested.load(Ordering::Acquire));
+    assert!(!host.is_operational());
     let events = logs.events();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].kind, LogEventKind::ThreadPanicked);

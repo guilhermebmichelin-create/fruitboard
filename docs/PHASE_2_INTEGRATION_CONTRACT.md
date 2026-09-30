@@ -416,3 +416,89 @@ Implemented in #62's storage suite:
 plus the existing atomic publication/recovery tests. The next agents must add
 their own boundary/adapter tests against these exact semantics before
 production scan controls are enabled.
+
+## 7. 2026-09-29 application-review implementation addendum
+
+This addendum records the combined implementation for application review
+issues [#218](https://github.com/guilhermebmichelin-create/fruitboard/issues/218)
+through [#223](https://github.com/guilhermebmichelin-create/fruitboard/issues/223).
+The parser correction is delivered separately in
+[PR #224](https://github.com/guilhermebmichelin-create/fruitboard/pull/224).
+This addendum supplements the Phase 2 contract above; it does not replace its acceptance
+criteria or authorize production traversal, project-content reads, or scanner
+activation. The public behavior and regression references are summarized in
+the [application fixes review note](review/application-fixes-20260929.md).
+
+### 7.1 Parser channel identity and type evidence
+
+Event 64 identifies the channel opened by the event stream; Event 21 carries
+that channel's type. They are separate facts: channel IDs may be sparse or
+reordered and must never be treated as type codes. Type-derived names require
+validated type evidence in channel context. Missing, duplicate, or invalid
+type evidence remains unavailable, while a name stored in the project is
+preserved. Sampler-default inference remains limited to the already-supported
+build/class evidence; this review does not expand the saved-build compatibility
+claim or alter approved FLP fixture bytes.
+
+### 7.2 Runtime health and safe stopped behavior
+
+The native state reports `enabled` and `runtimeAvailable` separately. The
+former describes whether the build includes the scan feature; the latter
+describes whether this process's scan worker is currently available. When the
+worker has stopped, status and saved Library reads remain available, while
+scan, retry, and cancel actions are disabled or rejected. The UI directs the
+user to restart Fruitboard; there is no automatic worker restart. A build
+without the feature reports both values as false.
+
+The client validates native records before rendering them. Every Library
+record must belong to the response's root, timestamps must be valid calendar
+timestamps, and job/run identifiers must match their state. Queued jobs have
+a job ID but no run ID; running jobs have both. A retained terminal job may
+legitimately have no run ID, including cancellation before lease or bounded
+cleanup of old terminal attempts. These valid cases do not relax validation of
+unrelated identities.
+
+### 7.3 Event attachment and reconciliation
+
+The Library tracks whether native event attachment is connected or
+unavailable. It refreshes the snapshot after attachment resolves, coalesces
+overlapping notifications into one reconciliation, and reconciles again when
+the window receives focus or becomes visible. While work is active and event
+attachment is unavailable, status refresh falls back to a bounded five-second
+interval. A published scan refreshes the Library page. This keeps saved data
+readable when notifications fail without treating a listener error as a
+successful update.
+
+### 7.4 Retention of finalized stages
+
+The existing terminal-history limits remain 200 terminal runs per root and
+30 days, with bounded maintenance passes. A run is eligible only when it is
+outside both limits. With that run, the same transaction may remove an empty
+`published` or `discarded` stage header only after its observations are gone
+and no root publication marker or file-history row refers to the run. Open
+stages, active work, retained run references, Library locations, and user
+history remain protected. A SQL failure rolls back both the header cleanup
+and run deletion.
+
+### 7.5 Root-scoped publication lookup and migration 009
+
+Publication loads exact-path continuity only for paths in the current complete
+observation set, including exact missing-path rows needed for restoration.
+Identity reuse is a separate lookup over identities observed in this scan and
+present locations in the same root. It returns enough candidate IDs to
+distinguish one match from conflicting evidence without materializing all
+aliases. Missing history does not create identity-reuse candidates. Ambiguous
+evidence still creates a conservative new physical record; hardlink aliases
+remain separate locations. Planning, committed row updates, and snapshot
+marker changes remain atomic in one transaction.
+
+Migration 009 adds the partial root-local live-identity lookup index. It is an
+additive index change but advances the database schema to version 9. Older
+builds refuse databases with a newer schema; the existing pre-upgrade backup
+and recovery safeguards therefore remain relevant when upgrading or rolling
+back. The migration does not merge aliases or change the publication rules.
+
+The identity lookup narrows publication work to the current observations and
+matching live candidates. Existing indexed count and mark-unseen work may
+still scale with stored location history; this addendum makes no performance
+qualification claim.

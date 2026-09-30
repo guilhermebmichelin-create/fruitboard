@@ -72,6 +72,9 @@ pub(crate) enum DiagnosticCode {
     /// host stopped claiming work.
     #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
     ScanConsoleThreadPanicked,
+    /// A scan command arrived after the process-local scan host had stopped.
+    #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
+    ScanConsoleStopped,
     /// The watcher supervisor thread panicked and was contained; the host
     /// stopped claiming work.
     #[cfg_attr(not(all(feature = "scan-console", windows)), allow(dead_code))]
@@ -98,6 +101,7 @@ impl DiagnosticCode {
             Self::InvalidLibraryCursor => "invalid_library_cursor",
             Self::StaleLibraryCursor => "stale_library_cursor",
             Self::ScanConsoleThreadPanicked => "scan_console_thread_panicked",
+            Self::ScanConsoleStopped => "scan_console_stopped",
             Self::WatcherSupervisorThreadPanicked => "watcher_supervisor_thread_panicked",
             Self::UnexpectedFailure => "unexpected_failure",
         }

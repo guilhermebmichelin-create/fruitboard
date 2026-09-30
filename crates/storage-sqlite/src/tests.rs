@@ -1,5 +1,9 @@
 use super::*;
 use crate::execution::wall_clock_ms;
+use crate::publication::{
+    SELECT_OBSERVED_IDENTITY_CANDIDATES, SELECT_OBSERVED_ROOT_LOCATIONS, StagedObservation,
+    select_previous_locations,
+};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
@@ -139,6 +143,19 @@ fn creates_latest_and_reopens_without_reseeding_settings() {
     {
         let mut database = Database::open(directory.path()).unwrap();
         assert_eq!(database.schema_version().unwrap(), MIGRATIONS.len());
+        assert_eq!(
+            database
+                .connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_schema
+                     WHERE type = 'index' AND name = 'file_location_root_live_identity'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1,
+            "the current schema includes the root-scoped live identity index"
+        );
         assert_eq!(database.startup_view().unwrap(), StartupView::Home);
         database.set_startup_view(StartupView::Library).unwrap();
     }
@@ -236,6 +253,293 @@ fn virtual_drive_publication_updates_observed_files_without_marking_unseen_missi
         .unwrap();
     assert_eq!(old.presence, FilePresence::Present);
     assert_eq!(new.presence, FilePresence::Present);
+}
+
+#[test]
+fn publication_reads_observed_paths_and_live_identity_summaries_from_indexes() {
+    const MISSING_HISTORY: usize = 12_000;
+    const LIVE_ALIASES: usize = 1_025;
+
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Synthetic\\Projects")
+        .unwrap();
+    let other_root = database
+        .add_scan_root("Other", "D:\\Synthetic\\Other")
+        .unwrap();
+
+    database.begin_scan_session("session-1", 100_000).unwrap();
+    database
+        .enqueue_scan(&root.id, ScanKind::Manual, 100_001)
+        .unwrap();
+    let lease = database
+        .lease_next_scan("session-1", 100_002, 1_000)
+        .unwrap()
+        .unwrap();
+
+    {
+        let transaction = database.connection.unchecked_transaction().unwrap();
+        let mut project_file = transaction
+            .prepare(
+                "INSERT INTO project_file
+                 (id, display_filename, extension, byte_size, modified_at_ms,
+                  modified_at_ns, created_at_ms, updated_at_ms)
+                 VALUES (?1, ?2, 'flp', 1, 10, 10, 10, 10)",
+            )
+            .unwrap();
+        let mut location = transaction
+            .prepare(
+                "INSERT INTO file_location
+                 (id, project_file_id, scan_root_id, detached_scan_root_id,
+                  normalized_path, locator_key, relative_path, byte_size,
+                  modified_at_ms, modified_at_ns, identity_volume_serial,
+                  identity_file_id, presence, last_seen_scan_run_id,
+                  last_seen_at_ms, created_at_ms, updated_at_ms)
+                 VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?4, 1, 10, 10,
+                         ?6, ?7, ?8, NULL, NULL, 10, 10)",
+            )
+            .unwrap();
+
+        for index in 0..MISSING_HISTORY {
+            let project_id = format!("old-project-{index:05}");
+            let relative_path = format!("old-{index:05}.flp");
+            let locator_key = format!("v1:i:{relative_path}");
+            project_file
+                .execute(rusqlite::params![&project_id, &relative_path])
+                .unwrap();
+            location
+                .execute(rusqlite::params![
+                    format!("old-location-{index:05}"),
+                    &project_id,
+                    &root.id,
+                    &relative_path,
+                    &locator_key,
+                    (index + 100).to_string(),
+                    (index + 1).to_string(),
+                    "missing",
+                ])
+                .unwrap();
+        }
+
+        project_file
+            .execute(rusqlite::params!["alias-project", "restore.flp"])
+            .unwrap();
+        for index in 0..LIVE_ALIASES {
+            let relative_path = format!("alias-{index:04}.flp");
+            location
+                .execute(rusqlite::params![
+                    format!("alias-location-{index:04}"),
+                    "alias-project",
+                    &root.id,
+                    &relative_path,
+                    format!("v1:i:{relative_path}"),
+                    "7",
+                    "999",
+                    "present",
+                ])
+                .unwrap();
+        }
+        location
+            .execute(rusqlite::params![
+                "restore-location",
+                "alias-project",
+                &root.id,
+                "restore.flp",
+                "v1:i:restore.flp",
+                "7",
+                "999",
+                "missing",
+            ])
+            .unwrap();
+
+        project_file
+            .execute(rusqlite::params!["foreign-project", "foreign.flp"])
+            .unwrap();
+        location
+            .execute(rusqlite::params![
+                "foreign-location",
+                "foreign-project",
+                &other_root.id,
+                "foreign.flp",
+                "v1:i:foreign.flp",
+                "7",
+                "999",
+                "present",
+            ])
+            .unwrap();
+        drop(location);
+        drop(project_file);
+        transaction.commit().unwrap();
+    }
+
+    let observation = exact_observation(
+        "v1:i:restore.flp",
+        "restore.flp",
+        7,
+        100,
+        Some(EncodedIdentity {
+            volume_serial: "7".to_owned(),
+            file_id: "999".to_owned(),
+        }),
+    );
+    database
+        .stage_scan_observations(
+            &lease.run.id,
+            &lease.run.session_id,
+            &lease.run.lease_token,
+            100_003,
+            std::slice::from_ref(&observation),
+        )
+        .unwrap();
+
+    let transaction = database.connection.unchecked_transaction().unwrap();
+    let previous = select_previous_locations(
+        &transaction,
+        &root.id,
+        &[StagedObservation {
+            locator_key: observation.locator_key.clone(),
+            relative_path: observation.relative_path.clone(),
+            byte_size: observation.byte_size as i64,
+            modified_at_ns: observation.modified_at_ns as i64,
+            identity: observation.identity.clone(),
+        }],
+    )
+    .unwrap();
+    assert_eq!(
+        previous.exact_locations.len(),
+        1,
+        "12,000 unrelated missing paths do not enter publication planning"
+    );
+    assert_eq!(
+        transaction
+            .query_row(
+                "SELECT presence FROM file_location WHERE id = ?1",
+                [previous.exact_locations[0].id.as_str()],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap(),
+        "missing",
+        "exact-path continuity selected the previously missing row"
+    );
+    let identity = crate::publication::QualifiedIdentity {
+        volume_serial: "7".to_owned(),
+        file_id: "999".to_owned(),
+    };
+    let candidate_ids = previous.identity_candidates.get(&identity).unwrap();
+    assert_eq!(
+        candidate_ids.len(),
+        1,
+        "all live aliases summarize to their single physical record"
+    );
+    assert!(candidate_ids.contains("alias-project"));
+
+    let (exact_path_plan, identity_plan) = {
+        let explain = |sql: &str| {
+            let mut statement = transaction
+                .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
+                .unwrap();
+            statement
+                .query_map([&root.id], |row| row.get::<_, String>(3))
+                .unwrap()
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .unwrap()
+        };
+        (
+            explain(SELECT_OBSERVED_ROOT_LOCATIONS),
+            explain(SELECT_OBSERVED_IDENTITY_CANDIDATES),
+        )
+    };
+    assert!(
+        exact_path_plan.iter().any(|detail| {
+            detail.contains(
+                "SEARCH location USING INDEX file_location_active_locator (scan_root_id=? AND locator_key=?)",
+            )
+        }),
+        "exact paths must be key lookups: {exact_path_plan:?}"
+    );
+    let exact_observation_loop = exact_path_plan
+        .iter()
+        .position(|detail| detail.contains("SCAN observed"))
+        .expect("the bounded current-path table drives exact-path lookup");
+    let exact_location_loop = exact_path_plan
+        .iter()
+        .position(|detail| {
+            detail.contains("SEARCH location USING INDEX file_location_active_locator")
+        })
+        .expect("the exact-path row uses its root-and-locator index");
+    assert!(
+        exact_observation_loop < exact_location_loop,
+        "exact observations must be outer rows and prior locations indexed inner rows: {exact_path_plan:?}"
+    );
+    assert!(
+        identity_plan.iter().any(|detail| {
+            detail.contains("SEARCH location USING COVERING INDEX file_location_root_live_identity")
+                && detail.contains(
+                    "scan_root_id=? AND presence=? AND identity_volume_serial=? AND identity_file_id=?",
+                )
+        }),
+        "identity lookup must seek by root, state, and both identity parts: {identity_plan:?}"
+    );
+    let identity_observation_loop = identity_plan
+        .iter()
+        .position(|detail| detail.contains("SCAN observed_identity"))
+        .expect("the bounded current-identity table drives candidate lookup");
+    let identity_location_loop = identity_plan
+        .iter()
+        .position(|detail| {
+            detail.contains("SEARCH location USING COVERING INDEX file_location_root_live_identity")
+        })
+        .expect("identity candidates use the root-leading live index");
+    assert!(
+        identity_observation_loop < identity_location_loop,
+        "current identities must be outer rows and candidates indexed inner rows: {identity_plan:?}"
+    );
+    assert!(
+        exact_path_plan
+            .iter()
+            .chain(identity_plan.iter())
+            .all(|detail| !detail.contains("SCAN location")),
+        "publication must not scan the full location table"
+    );
+    transaction.commit().unwrap();
+
+    let publication = database
+        .publish_scan_run(
+            &lease.run.id,
+            &lease.run.session_id,
+            &lease.run.lease_token,
+            100_004,
+        )
+        .unwrap();
+    assert_eq!(
+        publication.location_count,
+        (MISSING_HISTORY + LIVE_ALIASES + 1) as i64,
+        "the public count still includes the full retained history"
+    );
+    let (project_file_id, presence): (String, String) = database
+        .connection
+        .query_row(
+            "SELECT project_file_id, presence FROM file_location
+             WHERE scan_root_id = ?1 AND locator_key = 'v1:i:restore.flp'",
+            [&root.id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(project_file_id, "alias-project");
+    assert_eq!(presence, "present", "the exact missing path is restored");
+    assert_eq!(
+        database
+            .connection
+            .query_row(
+                "SELECT presence FROM file_location WHERE id = 'foreign-location'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap(),
+        "present",
+        "the same identity in another root is not treated as a local candidate"
+    );
 }
 
 #[test]
@@ -7177,8 +7481,24 @@ fn retention_protects_root_location_and_stage_references_independently() {
     database.connection.execute(
         "INSERT INTO scan_stage(run_id, scan_root_id, generation, configuration_revision, session_id,
                                 lease_token, state, created_at_ms, updated_at_ms)
-         VALUES ('history-run-00001', ?1, 1, 0, 'session-1', 'lease', 'discarded', 10, 10)", [&root.id],
+         VALUES ('history-run-00001', ?1, 1, 0, 'session-1', 'lease', 'open', 10, 10)", [&root.id],
     ).unwrap();
+    database.connection.execute(
+        "INSERT INTO scan_stage(run_id, scan_root_id, generation, configuration_revision, session_id,
+                                lease_token, state, record_count, path_bytes, created_at_ms, updated_at_ms)
+         VALUES ('history-run-00003', ?1, 1, 0, 'session-1', 'lease', 'discarded', 1, 20, 10, 10)", [&root.id],
+    ).unwrap();
+    database
+        .connection
+        .execute(
+            "INSERT INTO scan_stage_observation
+         (run_id, normalized_path, locator_key, relative_path, byte_size,
+          modified_at_ms, modified_at_ns, identity_volume_serial, identity_file_id)
+         VALUES ('history-run-00003', 'staged.flp', 'v1:i:staged.flp',
+                 'staged.flp', 1, 10, 10, NULL, NULL)",
+            [],
+        )
+        .unwrap();
     database.connection.execute_batch(
         "INSERT INTO project_file(id, display_filename, extension, byte_size, modified_at_ms, created_at_ms, updated_at_ms)
          VALUES ('file', 'keep.flp', 'flp', 1, 10, 10, 10);",
@@ -7194,11 +7514,12 @@ fn retention_protects_root_location_and_stage_references_independently() {
         .prune_terminal_scan_history_with_policy(4_000_000_000, 1, 1_000)
         .unwrap();
     assert_eq!(outcome.runs_examined, MAX_RETENTION_ROWS_PER_PASS);
-    assert_eq!(outcome.runs_pruned, MAX_RETENTION_ROWS_PER_PASS - 3);
+    assert_eq!(outcome.runs_pruned, MAX_RETENTION_ROWS_PER_PASS - 4);
     for id in [
         "history-run-00000",
         "history-run-00001",
         "history-run-00002",
+        "history-run-00003",
     ] {
         assert!(
             database.scan_run(id).is_ok(),
@@ -7228,7 +7549,81 @@ fn retention_protects_root_location_and_stage_references_independently() {
                 |row| row.get::<_, String>(0)
             )
             .unwrap(),
-        "discarded"
+        "open"
+    );
+    assert_eq!(
+        database
+            .connection
+            .query_row(
+                "SELECT state FROM scan_stage WHERE run_id = 'history-run-00003'",
+                [],
+                |row| row.get::<_, String>(0)
+            )
+            .unwrap(),
+        "discarded",
+        "a finalized header with observations is retained"
+    );
+    assert_eq!(
+        database
+            .connection
+            .query_row(
+                "SELECT COUNT(*) FROM scan_stage_observation WHERE run_id = 'history-run-00003'",
+                [],
+                |row| row.get::<_, i64>(0)
+            )
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn finalized_stage_cleanup_rolls_back_when_the_run_delete_fails() {
+    let directory = TestDirectory::new();
+    let mut database = Database::open(directory.path()).unwrap();
+    let root = database
+        .add_scan_root("Projects", "C:\\Synthetic\\Projects")
+        .unwrap();
+    insert_retention_history(&mut database, &root.id, 2);
+    database
+        .connection
+        .execute(
+            "INSERT INTO scan_stage(run_id, scan_root_id, generation,
+                                    configuration_revision, session_id, lease_token,
+                                    state, created_at_ms, updated_at_ms)
+             VALUES ('history-run-00000', ?1, 1, 0, 'session-1', 'lease',
+                     'discarded', 10, 10)",
+            [&root.id],
+        )
+        .unwrap();
+    database
+        .connection
+        .execute_batch(
+            "CREATE TRIGGER fail_retained_run_delete
+             BEFORE DELETE ON scan_run
+             WHEN OLD.id = 'history-run-00000'
+             BEGIN
+                 SELECT RAISE(ABORT, 'injected_retention_delete_failure');
+             END;",
+        )
+        .unwrap();
+
+    assert!(
+        database
+            .prune_terminal_scan_history_with_policy(1_000, 1, 100)
+            .is_err()
+    );
+    assert!(database.scan_run("history-run-00000").is_ok());
+    assert_eq!(
+        database
+            .connection
+            .query_row(
+                "SELECT state FROM scan_stage WHERE run_id = 'history-run-00000'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap(),
+        "discarded",
+        "header cleanup rolls back with the run deletion"
     );
 }
 
@@ -7250,7 +7645,7 @@ fn bounded_retention_advances_past_protected_rows_and_idle_polls_drain_history()
             .execute(
                 "INSERT INTO scan_stage(run_id, scan_root_id, generation, configuration_revision,
                                     session_id, lease_token, state, created_at_ms, updated_at_ms)
-             VALUES (?1, ?2, 1, 0, 'session-1', 'lease', 'discarded', 10, 10)",
+             VALUES (?1, ?2, 1, 0, 'session-1', 'lease', 'open', 10, 10)",
                 rusqlite::params![format!("history-run-{index:05}"), root.id],
             )
             .unwrap();

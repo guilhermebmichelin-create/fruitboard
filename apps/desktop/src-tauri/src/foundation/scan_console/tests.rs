@@ -2506,6 +2506,148 @@ fn idle_roots_report_honest_empty_status() {
         Some(json!({ "schemaVersion": 1 })),
     ));
     assert_eq!(data["enabled"], true);
+    assert_eq!(data["runtimeAvailable"], true);
+}
+
+#[test]
+fn newest_terminal_job_keeps_status_when_retention_prunes_its_run() {
+    let harness = Harness::new("retained-terminal-without-run");
+    let (runtime, _) = test_runtime();
+
+    let older_job = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let older_job_id = older_job["jobId"].as_str().expect("job id").to_owned();
+    harness.clock.advance(10);
+    harness.tick_port(FakePort::offline(tree(Vec::new())));
+
+    // B is newer than A and also fails, so its job remains the status row
+    // unless the older A chain is explicitly retried after B is terminal.
+    harness.clock.advance(1);
+    let newest_job = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let newest_job_id = newest_job["jobId"].as_str().expect("job id").to_owned();
+    assert_ne!(newest_job_id, older_job_id);
+    harness.tick_port(FakePort::offline(tree(Vec::new())));
+
+    let retried = ok_data(handle_retry_scan(
+        &runtime,
+        &harness.service,
+        retry_request(&older_job_id),
+    ));
+    assert_eq!(retried["jobId"], older_job_id);
+    assert_eq!(retried["outcome"], "queued");
+    harness.clock.advance(1);
+    harness.tick(tree(vec![file_entry("retry.flp", 303)]));
+
+    let retention = harness
+        .database
+        .lock()
+        .unwrap()
+        .prune_terminal_scan_history_with_policy(T0_MS + 1_000, 1, 0)
+        .expect("prune old terminal run");
+    // The keep window preserves A's later successful retry. Both unreferenced
+    // failed runs (A's first attempt and B's newer job) fall outside it.
+    assert_eq!(retention.runs_pruned, 2);
+
+    let newest_run = harness
+        .database
+        .lock()
+        .unwrap()
+        .latest_scan_run_for_job(&newest_job_id)
+        .expect("look up retained job run");
+    assert!(newest_run.is_none());
+
+    let statuses = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(statuses[0]["state"], "failed");
+    assert_eq!(statuses[0]["jobId"], newest_job_id);
+    assert!(statuses[0]["runId"].is_null());
+}
+
+#[test]
+fn contained_host_panic_rejects_new_work_but_keeps_library_reads_available() {
+    let harness = Harness::new("stopped-host-health");
+    let (runtime, _) = test_runtime();
+
+    ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    harness.tick(tree(vec![file_entry("Saved.flp", 101)]));
+
+    let failed_job = ok_data(handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    ));
+    let failed_job_id = failed_job["jobId"].as_str().expect("job id").to_owned();
+    harness.tick_port(FakePort::offline(tree(Vec::new())));
+
+    let host = harness.host();
+    host.run_guarded_thread(
+        "scan_console_thread",
+        DiagnosticCode::ScanConsoleThreadPanicked,
+        || panic!("synthetic lifecycle thread failure"),
+    );
+
+    let console_state = ok_data(handle_get_scan_console_state(
+        &runtime,
+        &harness.service,
+        Some(json!({ "schemaVersion": 1 })),
+    ));
+    assert_eq!(console_state["enabled"], true);
+    assert_eq!(console_state["runtimeAvailable"], false);
+
+    let statuses = ok_data(handle_list_scan_statuses(
+        &runtime,
+        &harness.service,
+        statuses_request(),
+    ));
+    assert_eq!(statuses[0]["state"], "failed");
+    assert_eq!(statuses[0]["jobId"], failed_job_id);
+    assert_eq!(statuses[0]["retryAvailable"], true);
+
+    let page = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    assert_eq!(page["records"][0]["fileName"], "Saved.flp");
+
+    let jobs_before = harness.database.lock().unwrap().list_scan_jobs().unwrap();
+    assert_eq!(
+        error_code(handle_scan_now(
+            &runtime,
+            &harness.service,
+            scan_now_request(&harness.root_id),
+        )),
+        "unavailable"
+    );
+    assert_eq!(
+        error_code(handle_retry_scan(
+            &runtime,
+            &harness.service,
+            retry_request(&failed_job_id),
+        )),
+        "unavailable"
+    );
+    let jobs_after = harness.database.lock().unwrap().list_scan_jobs().unwrap();
+    assert_eq!(jobs_after.len(), jobs_before.len());
+    assert!(
+        jobs_after
+            .iter()
+            .all(|job| job.state != ScanJobState::Queued)
+    );
 }
 
 #[test]
