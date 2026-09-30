@@ -159,8 +159,9 @@ three-pattern F13 GUI save, now in the corpus; see the
 Before persistence, application integration must validate the parser result for
 schema, length/count limits, finite numeric values, path/string sizes, and known
 enum values. Unknown fields may be ignored for forward compatibility; unknown
-required protocol versions fail closed. This application boundary remains to
-be implemented.
+required protocol versions fail closed. The initial five-field typed validation
+boundary is implemented below; application integration and extended metadata
+validation remain open.
 
 ## Process supervision
 
@@ -197,12 +198,30 @@ not enter application logs. Real parser exchanges and subprocess fault tests
 cover this transport on the existing Windows and Linux CI lanes.
 
 This is the first supervision slice for issue #226. Successful result bodies
-remain untrusted. Semantic field/capability/fingerprint validation, current
-file/root revision checks, persistence, memory/CPU qualification, bounded
-redacted diagnostic capture, scanner integration, and packaged executable
+remain untrusted until a separate validator checks them. Initial typed
+validation is described below; extended validation, authoritative application
+integration and publication freshness checks, persistence, memory/CPU
+qualification, bounded redacted diagnostic capture and packaged executable
 resolution remain deferred. No renderer command or FLP content read is enabled
 by this module. See the [crate documentation](crates/flp-parser/README.md) for
 the exact implemented limits and lifecycle behavior.
+
+### Initial typed validation slice
+
+Issue #230 adds native descriptor validation and a typed projection of saved
+version, base tempo, channel count, channel names and raw sample references.
+It checks bounded field/list forms, per-channel extraction/inference provenance,
+safe diagnostics, request fingerprint agreement and native-supplied current
+file/root identity, revision and enablement. An independently known digest must
+match; otherwise the digest is a structurally validated parser claim.
+Unknown/unvalidated extensions are discarded rather than carried as raw JSON.
+The unchanged approved corpus is exercised through the real supervised parser.
+
+No scanner FLP reads, metadata persistence or renderer command is enabled.
+The eventual application integration must obtain current state from native
+authority and recheck freshness in its publication transaction. Pattern,
+generator and playlist/timing validation, packaging and resource qualification
+remain separate steps. See the crate README for the precise projection limits.
 
 ## Packaging recommendation
 

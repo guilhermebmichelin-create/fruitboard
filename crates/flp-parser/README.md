@@ -54,8 +54,41 @@ executable is supported.
 
 This crate is not yet wired to the scanner or packaged into the desktop
 application. The existing filesystem-only scan path continues to avoid FLP
-content reads. Semantic result validation, app integration, packaging, richer
+content reads. Extended result validation, app integration, packaging, richer
 compatibility, and distribution qualification remain gates in ADR-002.
+
+## Initial native result validation
+
+The `validation` module adds a typed projection of the initial five fields:
+saved version, base tempo, channel count, channel names and raw sample
+references. A validated descriptor must identify the selected adapter/version,
+advertise each initial field once, and stay within the parser's resource
+ceilings. `validate_reply` consumes an envelope-checked supervisor reply and
+checks field forms, tempo/count ranges, list lengths and per-channel inference
+method/confidence. Missing per-channel values stay missing; mixed stored and
+inferred names keep their individual provenance. Text is bounded by 4095
+UTF-16 code units (the source's 8192-byte limit including its terminator),
+allowing valid Unicode output larger than 8192 UTF-8 bytes.
+
+The returned fingerprint must match the requested size/mtime and contain a
+lowercase SHA-256 digest. If the caller independently knows a digest, that must
+match too. Without an independent digest, hash shape validates the protocol
+claim; it does not independently prove the parser read those bytes. The native
+caller supplies captured/current root and file IDs, revisions, enablement and
+fingerprints. A changed observation discards the result. These observations
+must come from native authority, not parser or renderer input; integration
+still needs a freshness recheck in the eventual publication transaction.
+
+Complete/partial metadata and fixed failed/unsupported/rejected categories are
+distinct. Diagnostics retain only the known unsupported-event category, up to
+1024 entries and never more than the declared event count. Unrecognized codes
+fail closed. Unknown fields and the currently unvalidated pattern, generator
+and playlist/timing extensions are discarded from the initial projection.
+Validated metadata has no automatic Debug/Serialize implementation because
+names and raw references can contain private text. Raw references are neither
+resolved nor read. This module has no scanner/application call site, renderer
+command, persistence, or packaging effect. Extension validation and application
+integration remain separate slices.
 
 `channelCount` is `extracted` only after the bounded channel-event walk agrees
 with the FLP header. A malformed file has a typed `failed` count, and an

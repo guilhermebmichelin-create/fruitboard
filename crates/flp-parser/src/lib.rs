@@ -2,6 +2,7 @@
 //! Event interpretation derives from research source commit 080e825.
 mod authorized_input;
 pub mod supervisor;
+pub mod validation;
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};

@@ -106,10 +106,18 @@ deadlines, cancellation, process retirement/restart, request-count recycling,
 and shutdown. It discards subprocess stderr and returns fixed transport-error
 categories. Real-process and approved-corpus tests validate this component.
 
-Application semantic/fingerprint/freshness validation, scanner integration,
-packaged binary resolution, resource-limit qualification, and distribution
-gates remain open. This component adds no renderer command, parser packaging,
-or automatic FLP content reads.
+Extended application validation and publication freshness checks, scanner
+integration, packaged binary resolution, resource-limit qualification, and
+distribution gates remain open. This component adds no renderer command,
+parser packaging, or automatic FLP content reads.
+
+Issue #230 adds the initial native result-validation component for five core
+metadata fields. It validates the selected descriptor, field/provenance and
+fingerprint forms, and caller-supplied current file/root observations, returning
+typed data without unvalidated extensions or raw diagnostics. This does not
+wire the parser into the scanner or storage. Extended metadata validation and
+transactional publication freshness checks remain open with application
+integration, packaging and qualification.
 
 ## References
 
