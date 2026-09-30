@@ -627,3 +627,20 @@ These are proposed updates only; no issue or PR comment was posted.
 The owner has not accepted full P2-08, authorized production scanning, or
 activated repository security products. Those decisions remain separate from
 the merged #152 implementation and this evidence-only follow-up.
+
+### September 30 scanner recovery addendum
+
+PR #229 adds an indexed last-finished-attempt status and a visible interruption
+explanation alongside the queued/running successor. Its installed journey also
+found and fixed cancellation focus expiring before the worker finished.
+The [September 30 installed review](installed-journey/run-20260930-scanner-recovery.md)
+records all 11 cases passing twice after those fixes, including native/durable
+recovery, unchanged committed results, and path-masked desktop/narrow captures
+of a queued successor with an interrupted finished attempt.
+
+This updates the September 21 queued/interruption presentation residual with
+installed-native evidence. It does not require a live job to be falsely shown
+as interrupted or keep history after its successor finishes. Installed
+`unsupported`/`worker_failed` presentation and full-criterion owner acceptance
+remain open. P2-08 stays **Partial**, #38/#40 remain open, and #47/#48 remain
+excluded/unverified. Production scanning is not enabled by this PR.
