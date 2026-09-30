@@ -98,6 +98,19 @@ timed out and terminated. It has no parser protocol, Python runtime, PyFLP,
 filesystem input, or product authority. P0-G is satisfied, while P0-B/P0-C and
 the three adoption conditions above remain closed.
 
+## Rust supervision implementation note
+
+Issue #226 adds the first native process-transport slice inside the selected
+Rust parser crate: bounded request/reply pipes, protocol envelope validation,
+deadlines, cancellation, process retirement/restart, request-count recycling,
+and shutdown. It discards subprocess stderr and returns fixed transport-error
+categories. Real-process and approved-corpus tests validate this component.
+
+Application semantic/fingerprint/freshness validation, scanner integration,
+packaged binary resolution, resource-limit qualification, and distribution
+gates remain open. This component adds no renderer command, parser packaging,
+or automatic FLP content reads.
+
 ## References
 
 - [Detailed parser design](../../FLP_PARSER.md)

@@ -156,10 +156,11 @@ builds are `unsupported` for this field. The owner approved the exact
 three-pattern F13 GUI save, now in the corpus; see the
 [validation record](docs/research/parser-pattern-count-184-result.md).
 
-The parser result is validated for schema, length/count limits, finite numeric
-values, path/string sizes, and known enum values before persistence. Unknown
-fields are ignored for forward compatibility; unknown required protocol
-versions fail closed.
+Before persistence, application integration must validate the parser result for
+schema, length/count limits, finite numeric values, path/string sizes, and known
+enum values. Unknown fields may be ignored for forward compatibility; unknown
+required protocol versions fail closed. This application boundary remains to
+be implemented.
 
 ## Process supervision
 
@@ -183,6 +184,25 @@ If a Python exception is recoverable, the sidecar returns a typed failure and
 continues. If native dependencies or the interpreter crash, Rust records a
 per-file failure, restarts the sidecar, and continues the queue. Benchmark a
 small pool only if one worker cannot meet measured throughput.
+
+### Implemented Rust transport slice
+
+The selected crate now exports a native `ParserSupervisor` that owns one child
+and one pipe worker. It sends bounded JSON-lines requests, checks versioned
+reply envelopes and correlation IDs, and supports deadlines, cancellation,
+crash recovery, configured request-count recycling, and explicit/drop shutdown.
+Failed requests are never replayed. Paths travel in JSON rather than shell
+commands, and subprocess stderr is discarded so arbitrary private text does
+not enter application logs. Real parser exchanges and subprocess fault tests
+cover this transport on the existing Windows and Linux CI lanes.
+
+This is the first supervision slice for issue #226. Successful result bodies
+remain untrusted. Semantic field/capability/fingerprint validation, current
+file/root revision checks, persistence, memory/CPU qualification, bounded
+redacted diagnostic capture, scanner integration, and packaged executable
+resolution remain deferred. No renderer command or FLP content read is enabled
+by this module. See the [crate documentation](crates/flp-parser/README.md) for
+the exact implemented limits and lifecycle behavior.
 
 ## Packaging recommendation
 
