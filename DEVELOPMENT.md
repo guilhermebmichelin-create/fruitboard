@@ -509,7 +509,7 @@ smallest regression test that would have caught it.
 
 ## Pull-request CI
 
-`.github/workflows/foundation.yml` runs nine stable, always-present jobs for
+`.github/workflows/foundation.yml` runs ten stable, always-present jobs for
 pull requests to `main`, pushes to `main`, and manual dispatch. The separate
 `windows-packaging-smoke` workflow supplies the tenth required status context.
 Jobs do not use path filters or job-level conditions, so a skipped check cannot
@@ -523,6 +523,7 @@ look like a successful quality signal.
 | `client`                     | Ubuntu  | Frozen install, lint, typecheck, component tests, production web build                                                         | `pnpm --recursive --if-present lint && pnpm --recursive --if-present typecheck && pnpm --recursive --if-present test && pnpm --filter @fruitboard/client build`                                                                                                                                                                               |
 | `rust-portable`              | Ubuntu  | Rustfmt, warning-denied Clippy, portable storage and reconciliation tests                                                      | `cargo fmt --all --check; cargo clippy -p fruitboard-storage --all-targets --locked -- -D warnings; cargo test -p fruitboard-storage --locked; cargo clippy -p fruitboard-reconciliation --all-targets --locked -- -D warnings; cargo test -p fruitboard-reconciliation --locked`                                                             |
 | `migration`                  | Ubuntu  | Latest creation, every supported upgrade, killed migration, backup recovery, and the named durable execution/publication tests | `cargo test -p fruitboard-storage --locked` (all storage tests; the job selects the 28 named migration/recovery/execution/publication filters)                                                                                                                                                                                                |
+| `flp-parser-portable`        | Ubuntu  | Rustfmt, warning-denied Clippy, and the bounded FLP parser crate tests                                                         | `cargo fmt --all --check; cargo clippy -p fruitboard-flp-parser --all-targets --locked -- -D warnings; cargo test -p fruitboard-flp-parser --locked`                                                                                                                                                                                          |
 | `windows-foundation`         | Windows | Exact Node/Rust/Python/uv/pnpm/SQLite pins, complete production build, and feature-enabled scan-console tests/Clippy           | `pnpm.cmd check; cargo test -p fruitboard-desktop --features scan-console --locked; cargo clippy -p fruitboard-desktop --features scan-console --all-targets --locked -- -D warnings`                                                                                                                                                         |
 | `security`                   | Ubuntu  | Privacy regressions, high-severity npm audit, RustSec advisory audit                                                           | `node scripts/verify-repository-privacy.mjs; pnpm audit --audit-level high; cargo audit`                                                                                                                                                                                                                                                      |
 | `filesystem-watcher-windows` | Windows | Filesystem-watcher crate fmt, warning-denied Clippy, and Windows tests                                                         | `cargo fmt --all -- --check; cargo clippy -p fruitboard-filesystem-watcher --all-targets --locked -- -D warnings; cargo test -p fruitboard-filesystem-watcher --locked`                                                                                                                                                                       |
@@ -582,9 +583,13 @@ action SHAs, no secrets, and no artifact upload. The hosted runner uses
 install, native launch/exit, sidecar, data-preservation, reinstall, and uninstall
 behavior without claiming an interactive desktop. The complete local equivalent
 is `pnpm.cmd smoke:windows:foundation`, which additionally proves WebView2
-inspection, audio capability signals, timings, and graceful window close. The
-nine always-present Foundation CI jobs plus this smoke are the ten required
-checks enforced on `main`.
+inspection, audio capability signals, timings, and graceful window close. Of
+the ten always-present Foundation CI jobs, nine plus this smoke are the ten
+required checks enforced on `main`; `flp-parser-portable` runs on every pull
+request as an additional always-present job and is deliberately not yet a
+required context. Promotion is an owner decision after the current open
+pull-request wave merges, because a newly required context blocks every pull
+request head that predates the job.
 
 ### Release workflow
 
