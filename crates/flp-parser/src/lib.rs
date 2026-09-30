@@ -1,10 +1,12 @@
 //! Bounded, read-only FLP metadata parser selected under ADR-002.
 //! Event interpretation derives from research source commit 080e825.
+mod authorized_input;
 
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
@@ -737,12 +739,52 @@ pub fn modified_at_ms(metadata: &std::fs::Metadata) -> Option<u64> {
         .ok()
 }
 
+/// Identifies the bytes read. A same-buffer digest does not establish that
+/// another process left the on-disk file unchanged.
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    let digest = hasher.finalize();
+    let mut hex = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        use std::fmt::Write as _;
+        let _ = write!(hex, "{byte:02x}");
+    }
+    hex
+}
+
 /// Opens only the explicit path supplied by the trusted supervisor. The
 /// supervisor owns root authorization and must not pass unvalidated paths.
 pub fn parse_file(path: &Path, expected: ExpectedFingerprint) -> Value {
     let Ok(file) = File::open(path) else {
         return failed("INPUT_OPEN_FAILED");
     };
+    parse_open_file(&file, expected)
+}
+
+/// The protocol path: authorize first, then read that same file handle while
+/// keeping its ancestor guards alive. Only fixed codes cross this boundary.
+pub fn parse_authorized_file(
+    path: &Path,
+    roots: &[String],
+    expected: ExpectedFingerprint,
+) -> Result<Value, &'static str> {
+    match authorized_input::open(path, roots) {
+        Ok(input) => Ok(parse_open_file(&input.file, expected)),
+        Err("INVALID_PATH") => Err("INVALID_PATH"),
+        Err(code) => Ok(failed(code)),
+    }
+}
+
+fn parse_open_file(file: &File, expected: ExpectedFingerprint) -> Value {
+    parse_open_file_with(file, expected, || {})
+}
+
+fn parse_open_file_with(
+    file: &File,
+    expected: ExpectedFingerprint,
+    after_parse: impl FnOnce(),
+) -> Value {
     let Ok(before) = file.metadata() else {
         return failed("INPUT_METADATA_FAILED");
     };
@@ -775,18 +817,91 @@ pub fn parse_file(path: &Path, expected: ExpectedFingerprint) -> Value {
     if after.len() != expected.size || after_modified != expected.modified_at_ms {
         return failed("INPUT_CHANGED");
     }
+    let digest_before = sha256_hex(&bytes);
     let mut result = parse_bytes(&bytes);
+    after_parse();
+    // Observe the file again, using the SAME authorized handle. Rehashing the
+    // immutable parse buffer alone cannot detect an external file mutation.
+    let mut verification_file = file;
+    if verification_file.rewind().is_err() {
+        return failed("INPUT_READ_FAILED");
+    }
+    bytes.clear();
+    if verification_file
+        .take(MAX_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .is_err()
+    {
+        return failed("INPUT_READ_FAILED");
+    }
+    let Ok(after_parse_metadata) = file.metadata() else {
+        return failed("INPUT_METADATA_FAILED");
+    };
+    if bytes.len() as u64 != expected.size
+        || after_parse_metadata.len() != expected.size
+        || modified_at_ms(&after_parse_metadata) != Some(expected.modified_at_ms)
+        || sha256_hex(&bytes) != digest_before
+    {
+        return failed("INPUT_CHANGED");
+    }
     result["inputFingerprint"] = json!({
         "size": expected.size,
         "modifiedAtMs": expected.modified_at_ms,
-        "hash": null
+        "hash": {"algorithm": "sha256", "value": digest_before}
     });
     result
 }
 
 #[cfg(test)]
+fn test_directory(label: &str) -> std::path::PathBuf {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let path = std::env::temp_dir().join(format!(
+        "fruitboard-parser-{label}-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    ));
+    std::fs::create_dir(&path).unwrap();
+    path.canonicalize().unwrap()
+}
+
+#[cfg(test)]
 mod tests {
     use super::channel_names_json;
+
+    #[test]
+    fn same_size_same_mtime_change_during_parse_is_detected() {
+        let fixture = super::test_directory("content-change");
+        let path = fixture.join("project.flp");
+        let corpus = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/parser-corpus/FIX-FL2026-SAMPLE.flp");
+        let mut bytes = std::fs::read(corpus).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        let file = std::fs::File::open(&path).unwrap();
+        let metadata = file.metadata().unwrap();
+        let expected = super::ExpectedFingerprint {
+            size: metadata.len(),
+            modified_at_ms: super::modified_at_ms(&metadata).unwrap(),
+        };
+        let result = super::parse_open_file_with(&file, expected, || {
+            *bytes.last_mut().unwrap() ^= 1;
+            std::fs::write(&path, &bytes).unwrap();
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_times(std::fs::FileTimes::new().set_modified(metadata.modified().unwrap()))
+                .unwrap();
+            assert_eq!(std::fs::metadata(&path).unwrap().len(), expected.size);
+            assert_eq!(
+                super::modified_at_ms(&std::fs::metadata(&path).unwrap()),
+                Some(expected.modified_at_ms)
+            );
+        });
+        assert_eq!(result["outcome"], "failed");
+        assert!(result.to_string().contains("INPUT_CHANGED"));
+        drop(file);
+        std::fs::remove_dir_all(fixture).unwrap();
+    }
 
     /// Every approved corpus file has exactly one channel
     /// (`tests/corpus.rs`), so the multi-channel shape of the sampler-default

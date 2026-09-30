@@ -156,6 +156,14 @@ test("the shared UI package owns the accessible shell token vocabulary", () => {
     ["color-accent-strong", "color-accent-soft"],
     ["color-text-on-dark", "color-accent"],
     ["color-danger", "color-danger-soft"],
+    // Pairs actually used by the CSS: preference and library error text,
+    // the narrow-layout connection error, the desktop sidebar connection
+    // error (via its on-dark token), and the stale-banner warning icon.
+    ["color-danger", "color-surface"],
+    ["color-danger", "color-canvas"],
+    ["color-danger", "color-surface-strong"],
+    ["color-danger-on-dark", "color-sidebar"],
+    ["color-warning", "color-surface-subtle"],
   ]) {
     assert.ok(
       contrastRatio(

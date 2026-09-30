@@ -187,3 +187,13 @@ test("issue forms require scoped, privacy-aware reports", () => {
   assert.match(feature, /Non-goals and deferrals/);
   assert.match(feature, /Accessibility and application states/);
 });
+
+test("portable CI exercises parser filesystem authorization on Linux", () => {
+  const portable = workflowJob("rust-portable");
+  assert.match(portable, /runs-on: ubuntu-latest/);
+  assert.match(
+    portable,
+    /cargo clippy -p fruitboard-flp-parser --all-targets --locked -- -D warnings/,
+  );
+  assert.match(portable, /cargo test -p fruitboard-flp-parser --locked/);
+});
