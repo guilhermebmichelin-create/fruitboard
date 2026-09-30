@@ -274,11 +274,14 @@ jobs:
         run: cargo test -p fruitboard-desktop --features scan-console --locked
       - name: Lint enabled scan-console code
         run: cargo clippy -p fruitboard-desktop --features scan-console --all-targets --locked -- -D warnings
-      - name: Check enabled native analysis jobs
+      - name: Test enabled native analysis jobs
+        run: cargo test -p fruitboard-desktop --features analysis-jobs --locked
+      - name: Lint enabled native analysis jobs
+        run: cargo clippy -p fruitboard-desktop --features analysis-jobs --all-targets --locked -- -D warnings
+      - name: Exercise native analysis with the freshly built parser
         run: |
-          cargo test -p fruitboard-desktop --features analysis-jobs --locked
-          cargo clippy -p fruitboard-desktop --features analysis-jobs --all-targets --locked -- -D warnings
           cargo build -p fruitboard-flp-parser --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:FRUITBOARD_ANALYSIS_TEST_PARSER = (Resolve-Path target/debug/fruitboard-flp-parser.exe).Path
           cargo test -p fruitboard-analysis-execution --locked native_analysis -- --ignored
 
