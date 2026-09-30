@@ -6,8 +6,8 @@ crate `fruitboard-filesystem-enumeration`) and has a dedicated Windows CI job
 (`enumeration-windows` in `.github/workflows/foundation.yml`) that runs fmt,
 clippy, and the crate's own tests. The shared lockfile only gained this crate
 and its pinned dependencies; no other workspace member changed. Storage
-publication, the queue, the watcher, and the client remain owned by other
-agents and are not touched by this slice.
+publication, the durable queue, the watcher, and the client live in their own
+crates and slices; this crate is consumed by `fruitboard-scan-execution`.
 
 The implementation is deliberately an enumeration producer, not a scanner
 activation. It discovers `.flp` names case-insensitively, obtains filesystem

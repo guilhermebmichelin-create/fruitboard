@@ -9,16 +9,18 @@ bundled SQLite 3.53.2. Native startup opens
 `app_local_data_dir()/storage/fruitboard.db`; Windows resolves this below the
 current user's local application data, outside roaming/Drive locations.
 
-The executable schema is version 5. Migration 005 is the shared Phase 2
+The executable schema is version 8. Migration 005 is the shared Phase 2
 integration boundary; its exact locator, timestamp, identity, job/run, and
 root-scoped pagination contract is documented in
 [`docs/PHASE_2_INTEGRATION_CONTRACT.md`](docs/PHASE_2_INTEGRATION_CONTRACT.md).
+Migration 006 adds retry/status indexes, migration 007 adds the root mode, and
+migration 008 adds indexes for incremental terminal-history maintenance.
 
 | Table | Fields and constraints | Classification |
 | --- | --- | --- |
 | `schema_migration` | Positive version primary key, unique name, exact committed SQL | Device-local migration ledger |
 | `app_settings` | Singleton primary key fixed to 1; `startup_view` constrained to `home`, `library`, `board`, or `preferences` | Device-local preference |
-| `scan_root` | Stable root ID, display name, canonical path, enabled flag, availability and safe error; execution configuration revision and generation | Device-local root configuration |
+| `scan_root` | Stable root ID, display name, canonical path, local NTFS or Drive virtual mode, enabled flag, availability and safe error; execution configuration revision and generation | Device-local root configuration |
 | `scan_session` | Process session ID and start/end timestamps | Device-local execution fence |
 | `scan_job` | One active queued/running job per root, retry chain/attempt budget, due time, follow-up and cancellation flags | Device-local durable queue |
 | `scan_run` | Run ID, root generation/revision, session ID, lease token/deadline, terminal outcome | Device-local leased attempt |
@@ -62,9 +64,9 @@ Migrations are embedded from `crates/storage-sqlite/migrations/`. The runner
 checks the application ID, `user_version`, and the complete ordered ledger,
 then commits all pending SQL, seeds, ledger rows, and the version in one
 IMMEDIATE transaction. Changed history, unrelated databases, and newer schemas
-are refused. Tests cover v0 through v4 fixtures, including migrations 003–005
-preserving roots/preferences, converting legacy publication fields with
-checked bounds, and rolling back after a later failure.
+are refused. Tests upgrade fixtures from every shipped version, v0 through v8,
+and cover preserving roots/preferences, converting legacy publication fields
+with checked bounds, and rolling back after a later failure.
 
 Before upgrading an existing schema, the SQLite backup API creates a verified
 snapshot in `storage/backups/`. Backup failure prevents the upgrade. Completed
@@ -94,7 +96,9 @@ termination evidence is not a hardware power-loss qualification.
 Projects, workflows, parser snapshots, tombstones, notes, and FTS remain
 deferred to their owning slices. Migrations 003-005 provide durable execution,
 a fenced staging/publication boundary, and the locator-key/identity integration
-contract; none of them activates production scanning, and no parser exists.
+contract; none of them activates production scanning. The Rust FLP parser
+selected in [ADR-002](docs/adr/002-flp-parser-process.md) lives in
+`crates/flp-parser` and is not yet wired into the scanner or the host.
 
 ## Modeling principles
 
@@ -596,7 +600,12 @@ database with ordinary file copy or place it on a network filesystem.
 - Whether UUID strings or 16-byte blobs materially affect realistic query
   performance. Prefer strings unless benchmarks show a real need.
 - Retention limits for immutable parser snapshots, rejected suggestions,
-  tombstones, and sync operations.
+  tombstones, and sync operations. Terminal scan job/run history has incremental
+  maintenance through `prune_terminal_scan_history`: it preserves each root's
+  newest 200 terminal runs and everything newer than 30 days, plus runs still
+  referenced by library state or staging. Each pass examines at most 64 run
+  candidates and 64 job candidates at session startup and during supervisor
+  polling. This preservation window does not impose a hard cap on stored rows.
 - Which sample path components are useful enough to sync without exposing
   private directory structure.
 

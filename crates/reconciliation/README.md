@@ -2,10 +2,11 @@
 
 This isolated Rust library proposes per-path changes from normalized metadata
 observations for one root. It has no dependencies, filesystem I/O, parser,
-SQLite connection, watcher, renderer command or production scan entry point.
-It implements the deterministic decision slice of the
-[accepted scanner contracts](https://github.com/guilhermebmichelin-create/fruitboard/blob/main/docs/PHASE_2_EXECUTION_PLAN.md),
-not the integrated scanner.
+SQLite connection, watcher, or renderer command. It implements the
+deterministic decision slice of the
+[accepted scanner contracts](https://github.com/guilhermebmichelin-create/fruitboard/blob/main/docs/PHASE_2_EXECUTION_PLAN.md)
+and is consumed by `fruitboard-scan-execution` as advisory change summaries
+during scans; it is not itself the integrated scanner.
 
 An incomplete outcome rejects the entire proposal. A successful outcome can
 mark previously present paths missing, while retaining missing history. Qualified
@@ -51,4 +52,5 @@ churn, identity fallback, historical ID reuse, invalid/duplicate paths, and
 record/path-byte boundaries. Fixtures are in-memory metadata; no FLP files or
 private folders are used. This is core evidence only, not installed-app, actual
 filesystem enumeration, crash recovery or benchmark evidence. #36 and #41
-remain open until their broader acceptance is satisfied.
+were closed on Phase 2 acceptance (2026-09-14); remaining acceptance gaps are
+tracked in the Phase 2 integration index.
