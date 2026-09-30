@@ -378,14 +378,33 @@ smoke package. It is not the production release configuration. On Windows, run:
 pnpm.cmd smoke:windows:foundation
 ```
 
-The command builds the zero-dependency Rust probe from `Cargo.lock`, packages it
-as a Tauri external binary, installs into a generated path containing spaces and
+The command builds the inert Rust probe and real `fruitboard-flp-parser` from
+`Cargo.lock`, packages them as Tauri external binaries, and installs into a generated path containing spaces and
 Unicode, measures cold/warm shell startup through a loopback-only WebView2 debug
 port, closes the app, exercises fixed respond/fail/timeout/terminate modes,
 uninstalls, verifies the database is byte-identical, reinstalls, verifies the
 saved startup view, and uninstalls again. Generated installers and raw evidence
 stay ignored. The committed summary and limitations are in
 [`docs/review/issue-18/`](docs/review/issue-18/README.md).
+
+Issue #234 extends this development package with native-only parser lifecycle
+validation. The native host selects the fixed parser beside its own installed
+executable, validates health and capabilities, checks process reuse and rejected
+requests, recovers after the harness abruptly terminates its verified owned
+child, and explicitly shuts down before exit. A separate launch verifies a
+missing parser without a fallback executable; the harness restores the same
+bytes before reinstall. No FLP is opened by these lifecycle checks. The default
+app and filesystem scan path remain inactive for parser analysis.
+
+For local validation, set `CARGO_TARGET_DIR` to the explicitly owned reusable
+validation cache and pass `-RetainedEvidenceRoot <absolute-existing-directory>`
+and `-EvidencePath <absolute-report-path>` to the smoke command. Run the storage
+preflight above first, budget build and evidence output, and hold the exclusive
+Foundation Smoke host lock throughout installation and testing. The harness
+honors the selected cache when locating the installer and preserves previous
+synthetic app data. Raw evidence and copied installers belong outside disposable
+compiler caches. The packaging CI job also checks the `packaging-smoke` native
+feature with locked tests and warning-denied Clippy before the installed run.
 
 The package uses WebView2's `downloadBootstrapper`, so installation needs
 network access when the runtime is absent. Downgrades are refused and updater

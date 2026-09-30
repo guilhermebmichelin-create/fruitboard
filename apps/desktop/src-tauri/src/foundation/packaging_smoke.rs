@@ -1,3 +1,4 @@
+use super::packaged_parser::{ParserEvidence, parser_evidence};
 use fruitboard_storage::StartupView;
 use serde::Serialize;
 use std::fs::OpenOptions;
@@ -39,6 +40,7 @@ const STAGE_EXIT_REQUESTED: &str = "exit_requested";
 pub(crate) enum SmokeMode {
     Seed,
     Verify,
+    ParserMissing,
 }
 
 pub(crate) struct SmokeRequest {
@@ -51,6 +53,7 @@ impl SmokeRequest {
         let mode = match std::env::var(MODE_VARIABLE).ok()?.as_str() {
             "seed" => SmokeMode::Seed,
             "verify" => SmokeMode::Verify,
+            "parser-missing" => SmokeMode::ParserMissing,
             _ => return None,
         };
         let output = PathBuf::from(std::env::var_os(OUTPUT_VARIABLE)?);
@@ -99,6 +102,7 @@ struct SmokeEvidence {
     status: &'static str,
     storage: StorageEvidence,
     sidecar: SidecarEvidence,
+    parser: ParserEvidence,
     timing: TimingEvidence,
 }
 
@@ -290,6 +294,8 @@ pub(crate) fn schedule(
         record_stage(&request.output, &schedule_start, STAGE_SCHEDULE_START);
         let result = storage.and_then(|(startup_view_before, startup_view_after)| {
             let (sidecar, mut timing) = sidecar_evidence(&app, &request.output, &schedule_start)?;
+            let parser =
+                parser_evidence(&request.output, request.mode == SmokeMode::ParserMissing)?;
             timing.total_ms = schedule_start
                 .elapsed()
                 .as_millis()
@@ -302,6 +308,7 @@ pub(crate) fn schedule(
                     startup_view_after,
                 },
                 sidecar,
+                parser,
                 timing,
             };
             write_json(&request.output, &evidence)?;

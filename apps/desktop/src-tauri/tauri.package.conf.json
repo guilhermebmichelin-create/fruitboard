@@ -16,7 +16,10 @@
     "active": true,
     "targets": ["nsis"],
     "createUpdaterArtifacts": false,
-    "externalBin": ["binaries/fruitboard-sidecar-smoke"],
+    "externalBin": [
+      "binaries/fruitboard-sidecar-smoke",
+      "binaries/fruitboard-flp-parser"
+    ],
     "useLocalToolsDir": true,
     "windows": {
       "allowDowngrades": false,

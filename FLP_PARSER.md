@@ -73,7 +73,18 @@ the opened descriptor through `/proc/self/fd`. Authorization fails closed
 on other platforms until an equivalent backend is qualified:
 
 ```json
-{"protocolVersion":1,"schemaVersion":2,"id":"01234567-89ab-cdef-0123-456789abcdef","method":"parse","params":{"path":"C:\\approved\\project.flp","expected":{"size":46703,"modifiedAtMs":1234567890000},"features":["basic-metadata"],"allowedRoots":["C:\\approved"]}}
+{
+  "protocolVersion": 1,
+  "schemaVersion": 2,
+  "id": "01234567-89ab-cdef-0123-456789abcdef",
+  "method": "parse",
+  "params": {
+    "path": "C:\\approved\\project.flp",
+    "expected": { "size": 46703, "modifiedAtMs": 1234567890000 },
+    "features": ["basic-metadata"],
+    "allowedRoots": ["C:\\approved"]
+  }
+}
 ```
 
 The absolute path exists only in the private Rust-to-sidecar request needed to
@@ -98,13 +109,23 @@ after the response; the future supervisor still owns result freshness:
   "id": "01234567-89ab-cdef-0123-456789abcdef",
   "result": {
     "outcome": "complete",
-    "savedVersion": {"status": "extracted", "value": "26.1.0.5530"},
-    "baseTempoBpm": {"status": "extracted", "value": 137.0},
-    "channelCount": {"status": "extracted", "value": 1},
-    "patternCount": {"status": "unavailable", "reason": "PATTERN_DATA_NOT_STORED"},
-    "channelNames": {"status": "extracted", "value": ["Fixture Sample A"]},
-    "sampleReferences": {"status": "extracted", "value": ["sample.wav"]},
-    "inputFingerprint": {"size": 46703, "modifiedAtMs": 1234567890000, "hash": {"algorithm": "sha256", "value": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"}},
+    "savedVersion": { "status": "extracted", "value": "26.1.0.5530" },
+    "baseTempoBpm": { "status": "extracted", "value": 137.0 },
+    "channelCount": { "status": "extracted", "value": 1 },
+    "patternCount": {
+      "status": "unavailable",
+      "reason": "PATTERN_DATA_NOT_STORED"
+    },
+    "channelNames": { "status": "extracted", "value": ["Fixture Sample A"] },
+    "sampleReferences": { "status": "extracted", "value": ["sample.wav"] },
+    "inputFingerprint": {
+      "size": 46703,
+      "modifiedAtMs": 1234567890000,
+      "hash": {
+        "algorithm": "sha256",
+        "value": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+      }
+    },
     "diagnostics": []
   }
 }
@@ -147,7 +168,9 @@ initial fields, followed by a channel count validated against both the header
 and channel events, and a bounded version-1 JSON-lines process. Its verified
 saved builds are exactly 24.1.0.4225, 25.1.3.4922, and 26.1.0.5530; other saved
 builds return typed `UNSUPPORTED_SAVED_VERSION` until approved fixtures expand
-coverage. The crate is not yet wired to scanner jobs or desktop packaging.
+coverage. Issue #234 packages the parser in the separate unsigned Windows
+development installer and exercises native lifecycle/recovery checks. The crate
+is not yet wired to scanner analysis jobs or metadata storage.
 
 The merged pattern-count extension counts distinct stored pattern IDs in
 26.1.0.5530, with a 1024-pattern resource bound. Repeated note/property markers
@@ -201,8 +224,9 @@ This is the first supervision slice for issue #226. Successful result bodies
 remain untrusted until a separate validator checks them. Initial typed
 validation is described below; extended validation, authoritative application
 integration and publication freshness checks, persistence, memory/CPU
-qualification, bounded redacted diagnostic capture and packaged executable
-resolution remain deferred. No renderer command or FLP content read is enabled
+qualification and bounded redacted diagnostic capture remain deferred.
+Issue #234 adds fixed installed executable resolution for development lifecycle
+validation. No renderer command or automatic FLP content read is enabled
 by this module. See the [crate documentation](crates/flp-parser/README.md) for
 the exact implemented limits and lifecycle behavior.
 
@@ -220,7 +244,7 @@ The unchanged approved corpus is exercised through the real supervised parser.
 No scanner FLP reads, metadata persistence or renderer command is enabled.
 The eventual application integration must obtain current state from native
 authority and recheck freshness in its publication transaction. Pattern,
-generator and playlist/timing validation, packaging and resource qualification
+generator and playlist/timing validation, production packaging and resource qualification
 remain separate steps. See the crate README for the precise projection limits.
 
 Issue #232 extends the native parser with embedded project creation/local-time
@@ -254,14 +278,14 @@ to JavaScript.
 
 ### Alternatives considered
 
-| Option | Advantages | Problems | Position |
-| --- | --- | --- | --- |
-| Packaged Python sidecar | Reuses PyFLP; process isolation; independent upgrade | Runtime size, signing/AV, license and compatibility gates | Not selected; future adoption requires a new decision |
-| Require user Python | Small app download | Fragile setup, dependency conflicts, poor onboarding | Reject for product builds |
-| Embed CPython in Rust process | Potentially lower IPC overhead | Crash/failure and licensing boundary become tighter; complex packaging | Reject initially |
-| Local HTTP parser service | Familiar API | Port/lifecycle/auth surface with no product benefit | Reject; stdio is simpler |
-| Independent Rust parser | No Python runtime; direct control of supported fields | Format research and ongoing compatibility maintenance | Selected for the next implementation; distribution gates remain |
-| Remote parsing service | Central upgrades | Uploads private FLPs, breaks offline/privacy goals | Reject |
+| Option                        | Advantages                                            | Problems                                                               | Position                                                        |
+| ----------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Packaged Python sidecar       | Reuses PyFLP; process isolation; independent upgrade  | Runtime size, signing/AV, license and compatibility gates              | Not selected; future adoption requires a new decision           |
+| Require user Python           | Small app download                                    | Fragile setup, dependency conflicts, poor onboarding                   | Reject for product builds                                       |
+| Embed CPython in Rust process | Potentially lower IPC overhead                        | Crash/failure and licensing boundary become tighter; complex packaging | Reject initially                                                |
+| Local HTTP parser service     | Familiar API                                          | Port/lifecycle/auth surface with no product benefit                    | Reject; stdio is simpler                                        |
+| Independent Rust parser       | No Python runtime; direct control of supported fields | Format research and ongoing compatibility maintenance                  | Selected for the next implementation; distribution gates remain |
+| Remote parsing service        | Central upgrades                                      | Uploads private FLPs, breaks offline/privacy goals                     | Reject                                                          |
 
 ## Expected metadata reliability tiers
 
@@ -270,21 +294,21 @@ references below describe possible future coverage, not the selected backend.
 The selected Rust implementation's current fields and limits are listed in its
 [crate documentation](crates/flp-parser/README.md); the other rows stay deferred.
 
-| Metadata | Likely source | Initial status | Required validation |
-| --- | --- | --- | --- |
-| Filename/path/size/filesystem times | Rust filesystem | High | Windows/DriveFS semantics; creation time is not portable |
-| FL version, title, author, genre, comments, PPQ, base tempo | PyFLP project API | Medium-high | Version matrix, Unicode, absent and rich-text cases |
-| Time signature | PyFLP arrangements | Medium-high | Multiple arrangements and old versions |
-| Pattern/channel counts and names | PyFLP | Medium-high | Empty/deleted objects, old/new versions |
-| Playlist/mixer tracks | PyFLP | Medium | Current FL versions; open 2025 playlist issue |
-| VST/native plugin display names | PyFLP wrapper/plugin models | Medium | VST2 vs VST3 IDs, Patcher, Waves/shell plugins, unknown state |
-| Stable plugin identifier/vendor | Wrapper events where present | Low-medium | Normalize without inventing missing values |
-| Sample/audio references | Channel/plugin events | Medium | Encodings, macros, relative/data paths; do not claim resolved/missing yet |
-| Automation/markers/MIDI notes | PyFLP | Medium | Summaries vs huge detail; unsupported event handling |
-| Arrangement duration/bar count | Calculated from parsed timeline | Low-medium/inferred | Tempo automation, clip offsets, markers, multiple arrangements |
-| Project creation time | Filesystem plus possible FL metadata | Low-medium | Label sources independently; neither is universal truth |
-| FL embedded `time_spent` | PyFLP project API | Low/uncertain | Semantics, precision, version behavior; never tracked time |
-| Missing dependencies | Resolver combining references + filesystem | Low/inferred | Drive placeholders, search roots, plugin inventory limitations |
+| Metadata                                                    | Likely source                              | Initial status      | Required validation                                                       |
+| ----------------------------------------------------------- | ------------------------------------------ | ------------------- | ------------------------------------------------------------------------- |
+| Filename/path/size/filesystem times                         | Rust filesystem                            | High                | Windows/DriveFS semantics; creation time is not portable                  |
+| FL version, title, author, genre, comments, PPQ, base tempo | PyFLP project API                          | Medium-high         | Version matrix, Unicode, absent and rich-text cases                       |
+| Time signature                                              | PyFLP arrangements                         | Medium-high         | Multiple arrangements and old versions                                    |
+| Pattern/channel counts and names                            | PyFLP                                      | Medium-high         | Empty/deleted objects, old/new versions                                   |
+| Playlist/mixer tracks                                       | PyFLP                                      | Medium              | Current FL versions; open 2025 playlist issue                             |
+| VST/native plugin display names                             | PyFLP wrapper/plugin models                | Medium              | VST2 vs VST3 IDs, Patcher, Waves/shell plugins, unknown state             |
+| Stable plugin identifier/vendor                             | Wrapper events where present               | Low-medium          | Normalize without inventing missing values                                |
+| Sample/audio references                                     | Channel/plugin events                      | Medium              | Encodings, macros, relative/data paths; do not claim resolved/missing yet |
+| Automation/markers/MIDI notes                               | PyFLP                                      | Medium              | Summaries vs huge detail; unsupported event handling                      |
+| Arrangement duration/bar count                              | Calculated from parsed timeline            | Low-medium/inferred | Tempo automation, clip offsets, markers, multiple arrangements            |
+| Project creation time                                       | Filesystem plus possible FL metadata       | Low-medium          | Label sources independently; neither is universal truth                   |
+| FL embedded `time_spent`                                    | PyFLP project API                          | Low/uncertain       | Semantics, precision, version behavior; never tracked time                |
+| Missing dependencies                                        | Resolver combining references + filesystem | Low/inferred        | Drive placeholders, search roots, plugin inventory limitations            |
 
 Project comments and all strings must be size-limited and rendered as text or
 through a sanitizer. Plugin state blobs are neither stored in sync nor exposed

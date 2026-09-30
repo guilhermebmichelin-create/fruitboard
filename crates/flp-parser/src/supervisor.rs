@@ -105,6 +105,13 @@ pub struct ParserSupervisor {
 }
 
 impl ParserSupervisor {
+    /// Native lifecycle observation only. This is the currently owned child,
+    /// including an exited child awaiting retirement, not proof of liveness.
+    /// Never use a PID alone as authority to terminate a process.
+    pub fn process_id(&self) -> Option<u32> {
+        self.running.as_ref().map(|running| running.child.id())
+    }
+
     pub fn new(executable: PathBuf, limits: SupervisorLimits) -> Result<Self, SupervisorError> {
         if !absolute_without_parent(&executable)
             || limits.request_timeout.is_zero()

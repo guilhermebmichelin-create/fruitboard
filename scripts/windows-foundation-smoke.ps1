@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$EvidencePath = "docs/review/issue-18/windows-smoke.json",
+    [string]$RetainedEvidenceRoot = "",
     [switch]$NonInteractive
 )
 
@@ -14,16 +15,27 @@ if ($env:OS -ne "Windows_NT") {
 Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
 
 . (Join-Path $PSScriptRoot "foundation-smoke-lock.ps1")
+. (Join-Path $PSScriptRoot "parser-smoke-process.ps1")
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $resolvedRepositoryRoot = (Resolve-Path -LiteralPath $repositoryRoot).Path
 $runId = [Guid]::NewGuid().ToString("N")
-$runRoot = Join-Path $resolvedRepositoryRoot ".tools\evidence\issue-18\Package Smoke 音 $runId"
+$evidenceRoot = if ($RetainedEvidenceRoot) {
+    if (-not [IO.Path]::IsPathRooted($RetainedEvidenceRoot)) { throw "RetainedEvidenceRoot must be absolute." }
+    (Resolve-Path -LiteralPath $RetainedEvidenceRoot -ErrorAction Stop).Path
+} else {
+    Join-Path $resolvedRepositoryRoot ".tools\evidence\issue-18"
+}
+$runRoot = Join-Path $evidenceRoot "Package Smoke 音 $runId"
 $installDirectory = Join-Path $runRoot "Installed Fruitboard 音"
 $rawEvidenceDirectory = Join-Path $runRoot "raw"
 $syntheticDataDirectory = Join-Path $env:LOCALAPPDATA "com.fruitboard.desktop.foundation-smoke"
 $databasePath = Join-Path $syntheticDataDirectory "storage\fruitboard.db"
-$finalEvidencePath = Join-Path $resolvedRepositoryRoot $EvidencePath
+$finalEvidencePath = if ([IO.Path]::IsPathRooted($EvidencePath)) { $EvidencePath } else { Join-Path $resolvedRepositoryRoot $EvidencePath }
+$cargoTargetDirectory = if ($env:CARGO_TARGET_DIR) {
+    if ([IO.Path]::IsPathRooted($env:CARGO_TARGET_DIR)) { [IO.Path]::GetFullPath($env:CARGO_TARGET_DIR) }
+    else { [IO.Path]::GetFullPath((Join-Path $resolvedRepositoryRoot $env:CARGO_TARGET_DIR)) }
+} else { Join-Path $resolvedRepositoryRoot "target" }
 $smokeLockPath = Get-FoundationSmokeLockPath
 $smokeLockOwner = New-FoundationSmokeLockOwner -RunId $runId -Purpose "windows-foundation-smoke" -RunRoot $runRoot -InstallDirectory $installDirectory
 $smokeLockAcquired = $false
@@ -39,13 +51,22 @@ function Assert-ContainedPath {
     }
 }
 
+function Assert-NoReparsePath {
+    param([string]$Candidate)
+    $entry = Get-Item -LiteralPath $Candidate -Force -ErrorAction Stop
+    while ($null -ne $entry) {
+        if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "A smoke file operation encountered an unexpected reparse point." }
+        $entry = if ($entry -is [IO.DirectoryInfo]) { $entry.Parent } else { $entry.Directory }
+    }
+}
+
 function Invoke-CheckedProcess {
     param(
         [string]$FilePath,
         [string[]]$ArgumentList
     )
 
-    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -PassThru -Wait
+    $process = Start-Process -FilePath $FilePath -ArgumentList $ArgumentList -WindowStyle Hidden -PassThru -Wait
     if ($process.ExitCode -ne 0) {
         throw "A packaging smoke subprocess failed with exit code $($process.ExitCode)."
     }
@@ -134,22 +155,16 @@ function Invoke-LaunchProbe {
 function Invoke-AppSmokeMode {
     param(
         [string]$ApplicationPath,
-        [ValidateSet("seed", "verify")]
+        [ValidateSet("seed", "verify", "parser-missing")]
         [string]$Mode,
         [string]$OutputPath
     )
 
-    # Outer deadline budget (seconds): the native smoke performs up to
-    # 3s (respond) + 3s (fail) + 0.25s (wait-ready) + 3s (wait-terminate) =
-    # 9.25s of bounded sidecar work, plus storage setup (2s SQLite busy
-    # timeout), Tauri startup, evidence sync, and process exit. The previous
-    # 10s deadline left about 0.75s for all of that overhead, so healthy but
-    # slow hosted runs were killed and reported as timeouts. The 30s bound
-    # below covers the documented 9.25s inner worst case plus overhead with
-    # margin; it is still a hard fail-closed bound, not an open-ended wait.
+    # 9.25s inert probe + six 3s parser requests + 8s crash acknowledgement,
+    # plus storage, Tauri startup, evidence sync and exit. Hard outer bound.
     # Diagnostics report only the mode, elapsed milliseconds, exit state, and
     # evidence presence/size: never absolute paths or file contents.
-    $timeoutSeconds = 30
+    $timeoutSeconds = 60
     if (Test-Path -LiteralPath $OutputPath) {
         throw "The raw evidence destination must not already exist."
     }
@@ -157,10 +172,24 @@ function Invoke-AppSmokeMode {
         FRUITBOARD_FOUNDATION_SMOKE_MODE = $Mode
         FRUITBOARD_FOUNDATION_SMOKE_OUTPUT = $OutputPath
     }
+    $applicationStartedUtc = $process.StartTime.ToUniversalTime()
+    $parserPath = Join-Path (Split-Path -Parent $ApplicationPath) "fruitboard-flp-parser.exe"
+    $handshakePath = [IO.Path]::ChangeExtension($OutputPath, "parser-crash.json")
+    $acknowledgementPath = [IO.Path]::ChangeExtension($OutputPath, "parser-crashed")
+    $crashAcknowledged = $false
     try {
         $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $evidenceSeenMs = $null
         while (-not $process.WaitForExit(250)) {
+            if (-not $crashAcknowledged -and (Test-Path -LiteralPath $handshakePath -PathType Leaf)) {
+                # The file may be visible before the writer finishes. Retry
+                # incomplete JSON within the same hard launch deadline.
+                $handshake = try { Get-Content -LiteralPath $handshakePath -Raw | ConvertFrom-Json } catch { $null }
+                if ($null -ne $handshake) {
+                    Invoke-OwnedParserCrash -ApplicationPid $process.Id -ApplicationStartedUtc $applicationStartedUtc -ParserPath $parserPath -ChildPid $handshake.childPid -AcknowledgementPath $acknowledgementPath
+                    $crashAcknowledged = $true
+                }
+            }
             if ($null -eq $evidenceSeenMs -and (Test-Path -LiteralPath $OutputPath)) {
                 $evidenceSeenMs = $stopwatch.ElapsedMilliseconds
             }
@@ -176,8 +205,6 @@ function Invoke-AppSmokeMode {
         $evidenceBytes = if ($evidenceExists) { (Get-Item -LiteralPath $OutputPath).Length } else { -1 }
         $evidenceSeenText = if ($null -eq $evidenceSeenMs) { "not-seen" } else { "$evidenceSeenMs" }
         if (-not $hasExited) {
-            $process.Kill()
-            $process.WaitForExit()
             throw "The installed sidecar smoke timed out (mode=$Mode, elapsedMs=$elapsedMs, hasExited=False, evidenceExists=$evidenceExists, evidenceBytes=$evidenceBytes, evidenceSeenMs=$evidenceSeenText)."
         }
         if ($exitCode -ne 0 -or -not $evidenceExists) {
@@ -187,10 +214,27 @@ function Invoke-AppSmokeMode {
         if ($evidence.status -ne "ok") {
             throw "The installed sidecar smoke returned an error (mode=$Mode, elapsedMs=$elapsedMs, exitCode=$exitCode, evidenceBytes=$evidenceBytes)."
         }
+        if ($Mode -eq "parser-missing") {
+            if (-not $evidence.parser.missingBinaryContained -or $crashAcknowledged) { throw "Missing parser containment was not verified." }
+        } else {
+            foreach ($flag in @("fixedInstalledSibling", "healthValidated", "descriptorValidated", "childReused", "rejectionContained", "abruptExitRecovered", "explicitShutdown", "restartAfterShutdown")) {
+                if ($evidence.parser.$flag -ne $true) { throw "The installed parser lifecycle assertion failed: $flag." }
+            }
+            if (-not $crashAcknowledged) { throw "The real owned parser crash was not exercised." }
+        }
+        Assert-ParserExit -ApplicationPid $process.Id -ApplicationStartedUtc $applicationStartedUtc -ParserPath $parserPath
         return $evidence
     }
     finally {
-        $process.Dispose()
+        try {
+            Stop-OwnedParserProcesses -ApplicationPid $process.Id -ApplicationStartedUtc $applicationStartedUtc -ParserPath $parserPath
+        } finally {
+            if (-not $process.HasExited) {
+                $process.Kill()
+                if (-not $process.WaitForExit(5000)) { throw "The owned application cleanup deadline expired." }
+            }
+            $process.Dispose()
+        }
     }
 }
 
@@ -221,7 +265,7 @@ function Uninstall-SmokePackage {
     }
 }
 
-Assert-ContainedPath -Candidate $runRoot -Parent (Join-Path $resolvedRepositoryRoot ".tools")
+Assert-ContainedPath -Candidate $runRoot -Parent $evidenceRoot
 Assert-ContainedPath -Candidate $installDirectory -Parent $runRoot
 Assert-ContainedPath -Candidate $syntheticDataDirectory -Parent $env:LOCALAPPDATA
 
@@ -260,7 +304,7 @@ finally {
 }
 $buildTimer.Stop()
 
-$builtInstaller = Get-ChildItem -LiteralPath (Join-Path $resolvedRepositoryRoot "target\release\bundle\nsis") -Filter "*.exe" |
+$builtInstaller = Get-ChildItem -LiteralPath (Join-Path $cargoTargetDirectory "release\bundle\nsis") -Filter "*.exe" |
     Sort-Object LastWriteTimeUtc -Descending |
     Select-Object -First 1
 if ($null -eq $builtInstaller) {
@@ -285,6 +329,13 @@ if (-not (Test-Path -LiteralPath $sidecarPath -PathType Leaf)) {
 }
 $applicationBytes = (Get-Item -LiteralPath $applicationPath).Length
 $sidecarBytes = (Get-Item -LiteralPath $sidecarPath).Length
+$parserPath = Join-Path $installDirectory "fruitboard-flp-parser.exe"
+$parserItem = Get-Item -LiteralPath $parserPath -ErrorAction Stop
+if ($parserItem.PSIsContainer -or ($parserItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "The installed parser is not an ordinary file." }
+$parserBytes = $parserItem.Length
+$parserHash = (Get-FileHash -LiteralPath $parserPath -Algorithm SHA256).Hash
+$preparedParserPath = Join-Path $resolvedRepositoryRoot "apps\desktop\src-tauri\binaries\fruitboard-flp-parser-x86_64-pc-windows-msvc.exe"
+if ($parserHash -ne (Get-FileHash -LiteralPath $preparedParserPath -Algorithm SHA256).Hash) { throw "The installed parser differs from the locked build." }
 $installedSignature = Get-AuthenticodeSignature -LiteralPath $applicationPath
 if ($installedSignature.Status -ne [System.Management.Automation.SignatureStatus]::NotSigned) {
     throw "The development smoke expected an explicitly unsigned application."
@@ -299,6 +350,23 @@ if (-not $NonInteractive) {
 }
 $seedEvidencePath = Join-Path $rawEvidenceDirectory "seed.json"
 $seedEvidence = Invoke-AppSmokeMode -ApplicationPath $applicationPath -Mode "seed" -OutputPath $seedEvidencePath
+
+# Hold only this verified synthetic installation's parser. Restore it even
+# when the missing-file test fails; no source or application data is removed.
+$heldParserPath = Join-Path $installDirectory "fruitboard-flp-parser.held"
+Assert-ContainedPath -Candidate $parserPath -Parent $installDirectory
+Assert-ContainedPath -Candidate $heldParserPath -Parent $installDirectory
+Assert-NoReparsePath -Candidate $parserPath
+if (Test-Path -LiteralPath $heldParserPath) { throw "The held parser destination already exists." }
+Move-Item -LiteralPath $parserPath -Destination $heldParserPath
+try {
+    $missingEvidence = Invoke-AppSmokeMode -ApplicationPath $applicationPath -Mode "parser-missing" -OutputPath (Join-Path $rawEvidenceDirectory "parser-missing.json")
+} finally {
+    Assert-NoReparsePath -Candidate $heldParserPath
+    if (Test-Path -LiteralPath $parserPath) { throw "Parser restoration refused to replace an unexpected file." }
+    Move-Item -LiteralPath $heldParserPath -Destination $parserPath
+}
+if ((Get-FileHash -LiteralPath $parserPath -Algorithm SHA256).Hash -ne $parserHash) { throw "Parser restoration changed its bytes." }
 
 if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf)) {
     throw "The packaged app did not create its isolated SQLite database."
@@ -400,6 +468,8 @@ $evidence = [ordered]@{
         installedBytes = [long]$installedBytes
         applicationBytes = $applicationBytes
         sidecarBytes = $sidecarBytes
+        parserBytes = $parserBytes
+        parserSha256 = $parserHash
         buildMilliseconds = $buildTimer.ElapsedMilliseconds
         spacesAndUnicodeInstallerPath = $true
         spacesAndUnicodeInstallPath = $true
@@ -408,6 +478,13 @@ $evidence = [ordered]@{
     launch = $launchEvidence
     audioCanPlayType = $audioEvidence
     sidecar = $seedEvidence.sidecar
+    parser = [ordered]@{
+        seed = $seedEvidence.parser
+        missing = $missingEvidence.parser
+        reinstall = $verifyEvidence.parser
+        restoredBytesVerified = $true
+        noOwnedChildAfterExit = $true
+    }
     dataSafety = [ordered]@{
         databaseBytes = $databaseSize
         firstUninstallPreservedDatabase = $true
@@ -430,7 +507,7 @@ $evidence = [ordered]@{
         "Audio results are WebView2 canPlayType capability signals, not decoded playback tests.",
         "Launch readiness separates WebView target appearance from rendered-shell observation; blank, loading, or error pages fail the probe closed.",
         "The download-bootstrapper installer requires network access when WebView2 is absent.",
-        "No updater, signing credential, Python runtime, PyFLP, scanner, parser, or player is included."
+        "The real parser is packaged for native lifecycle validation only; no scanner analysis job or player is enabled."
         "Concurrent installed validation runs share one test identity and are serialized by the exclusive host lock; a second run fails before side effects."
     )
 }

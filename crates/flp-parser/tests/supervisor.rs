@@ -21,18 +21,21 @@ fn actual_parser_health_describe_and_approved_file_share_one_supervisor() {
     )
     .unwrap();
     let cancellation = CancellationToken::default();
+    assert_eq!(supervisor.process_id(), None);
     let description = value(
         supervisor
             .request(ParserRequest::Describe, &cancellation)
             .unwrap(),
     );
     assert_eq!(description["adapter"], "rust-flp-parser");
+    let child_id = supervisor.process_id().unwrap();
     let health = value(
         supervisor
             .request(ParserRequest::HealthCheck, &cancellation)
             .unwrap(),
     );
     assert_eq!(health["status"], "ok");
+    assert_eq!(supervisor.process_id(), Some(child_id));
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/parser-corpus/FIX-FL2026-SAMPLE.flp")
         .canonicalize()
@@ -77,6 +80,18 @@ fn actual_parser_health_describe_and_approved_file_share_one_supervisor() {
         "ok"
     );
     supervisor.shutdown().unwrap();
+    assert_eq!(supervisor.process_id(), None);
+    assert_eq!(
+        value(
+            supervisor
+                .request(ParserRequest::HealthCheck, &cancellation)
+                .unwrap()
+        )["status"],
+        "ok"
+    );
+    assert!(supervisor.process_id().is_some());
+    supervisor.shutdown().unwrap();
+    assert_eq!(supervisor.process_id(), None);
 }
 
 #[test]

@@ -694,9 +694,11 @@ pub fn run() -> tauri::Result<()> {
                             SmokeMode::Seed => foundation
                                 .preferences
                                 .set_startup_view(StartupView::Library)?,
-                            SmokeMode::Verify => foundation.preferences.get_startup_view()?,
+                            SmokeMode::Verify | SmokeMode::ParserMissing => {
+                                foundation.preferences.get_startup_view()?
+                            }
                         };
-                        if request.mode == SmokeMode::Verify
+                        if request.mode != SmokeMode::Seed
                             && before.startup_view != StartupView::Library
                         {
                             return Err(storage_failed());
