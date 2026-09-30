@@ -12,7 +12,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 mod payload;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub const MAX_METADATA_JSON_BYTES: usize = 256 * 1024;
 pub const MAX_METADATA_PAGE_SIZE: usize = 100;
@@ -21,15 +21,15 @@ pub const MAX_METADATA_PAGE_SIZE: usize = 100;
 /// neither renderer nor parser fields can choose its source fences.
 #[derive(Clone, PartialEq, Eq)]
 pub struct MetadataInput {
-    root_id: String,
-    location_id: String,
-    project_file_id: String,
-    root_revision: i64,
-    file_revision: i64,
-    location_revision: i64,
-    publication_revision: i64,
-    byte_size: u64,
-    modified_at_ns: i64,
+    pub(crate) root_id: String,
+    pub(crate) location_id: String,
+    pub(crate) project_file_id: String,
+    pub(crate) root_revision: i64,
+    pub(crate) file_revision: i64,
+    pub(crate) location_revision: i64,
+    pub(crate) publication_revision: i64,
+    pub(crate) byte_size: u64,
+    pub(crate) modified_at_ns: i64,
 }
 
 impl MetadataInput {
@@ -70,7 +70,11 @@ const SELECT_INPUT: &str = "SELECT root.id, location.id, file.id,
       AND location.modified_at_ns = file.modified_at_ns
       AND location.modified_at_ns >= 0";
 
-fn capture(connection: &Connection, root_id: &str, location_id: &str) -> Result<MetadataInput> {
+pub(crate) fn capture(
+    connection: &Connection,
+    root_id: &str,
+    location_id: &str,
+) -> Result<MetadataInput> {
     let input = connection
         .query_row(SELECT_INPUT, params![root_id, location_id], |row| {
             Ok(MetadataInput {
@@ -247,52 +251,18 @@ impl Database {
         parsed_at_ms: i64,
         before_commit: impl FnOnce(),
     ) -> Result<MetadataSnapshotHeader> {
-        if parsed_at_ms < 0 {
-            return Err(StorageError::InvalidSchema);
-        }
-        if let ProtocolReply::Result(value) = &reply {
-            payload::check_reply_size(value)?;
-        }
         self.transaction(|transaction| {
-            let current = capture(transaction, &input.root_id, &input.location_id).map_err(|error| {
-                if error == StorageError::NotFound { StorageError::Conflict } else { error }
-            })?;
-            if &current != input { return Err(StorageError::Conflict); }
-            let validated = validate_project_reply(reply, capabilities, &input.parse_context(), &current.parse_context())
-                .map_err(|error| if error == ValidationError::StaleInput { StorageError::Conflict } else { StorageError::InvalidSchema })?;
-            let (outcome, parser_code, unsupported_version, content_hash, payload_json) = match &validated {
-                ValidatedProjectReply::Metadata(metadata) => {
-                    let outcome = match metadata.initial().outcome() {
-                        fruitboard_flp_parser::validation::MetadataOutcome::Complete => MetadataOutcome::Complete,
-                        fruitboard_flp_parser::validation::MetadataOutcome::Partial => MetadataOutcome::Partial,
-                    };
-                    (outcome, None, None, Some(metadata.initial().content_sha256()), Some(payload::encode(metadata)?))
-                }
-                ValidatedProjectReply::Failed(code) => (MetadataOutcome::Failed, Some(code.as_str()), None, None, None),
-                ValidatedProjectReply::Rejected(code) => (MetadataOutcome::Rejected, Some(code.as_str()), None, None, None),
-                ValidatedProjectReply::UnsupportedSavedVersion(version) => (MetadataOutcome::Unsupported, None, Some(version.as_str()), None, None),
-            };
-            let id = uuid::Uuid::now_v7().to_string();
-            transaction.execute("INSERT INTO metadata_snapshot
-                (id, project_file_id, input_root_id, input_location_id, input_root_revision,
-                 input_file_revision, input_location_revision, input_byte_size, input_modified_at_ns,
-                 input_content_sha256, adapter_id, adapter_version, protocol_version, parser_schema_version,
-                 projection_version, outcome, parser_code, unsupported_saved_version, payload_json, parsed_at_ms)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 1, ?15, ?16, ?17, ?18, ?19)",
-                params![id, input.project_file_id, input.root_id, input.location_id, input.root_revision,
-                    input.file_revision, input.location_revision, i64::try_from(input.byte_size).map_err(|_| StorageError::InvalidSchema)?, input.modified_at_ns,
-                    content_hash, ADAPTER_ID, ADAPTER_VERSION, i64::try_from(PROTOCOL_VERSION).map_err(|_| StorageError::InvalidSchema)?, i64::try_from(SCHEMA_VERSION).map_err(|_| StorageError::InvalidSchema)?,
-                    outcome.as_str(), parser_code, unsupported_version, payload_json, parsed_at_ms])?;
-            let next = input.publication_revision.checked_add(1).ok_or(StorageError::InvalidSchema)?;
-            let changed = transaction.execute("UPDATE project_file
-                SET current_metadata_snapshot_id = ?1, metadata_publication_revision = ?2
-                WHERE id = ?3 AND metadata_publication_revision = ?4", params![id, next, input.project_file_id, input.publication_revision])?;
-            if changed != 1 { return Err(StorageError::Conflict); }
-            before_commit();
-            transaction.query_row(&format!("SELECT {HEADER_COLUMNS} FROM metadata_snapshot AS snapshot WHERE snapshot.id = ?1"), [&id], read_header).map_err(Into::into)
+            publish(
+                transaction,
+                input,
+                capabilities,
+                reply,
+                parsed_at_ms,
+                None,
+                before_commit,
+            )
         })
     }
-
     pub fn metadata_snapshot(&self, id: &str) -> Result<Option<MetadataSnapshot>> {
         let selected = self.connection.query_row(
             &format!("SELECT {HEADER_COLUMNS}, CASE WHEN length(CAST(snapshot.payload_json AS BLOB)) <= {MAX_METADATA_JSON_BYTES} THEN snapshot.payload_json ELSE NULL END FROM metadata_snapshot AS snapshot WHERE snapshot.id = ?1"),
@@ -385,4 +355,116 @@ impl Database {
         };
         Ok(MetadataPage { items, next })
     }
+}
+
+// Shares the caller's writer transaction with durable job completion.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn publish(
+    transaction: &rusqlite::Transaction<'_>,
+    input: &MetadataInput,
+    capabilities: &ParserCapabilities,
+    reply: ProtocolReply,
+    parsed_at_ms: i64,
+    native_hash: Option<&str>,
+    before_commit: impl FnOnce(),
+) -> Result<MetadataSnapshotHeader> {
+    if parsed_at_ms < 0 {
+        return Err(StorageError::InvalidSchema);
+    }
+    if let ProtocolReply::Result(value) = &reply {
+        payload::check_reply_size(value)?;
+    }
+    let current = capture(transaction, &input.root_id, &input.location_id).map_err(|error| {
+        if error == StorageError::NotFound {
+            StorageError::Conflict
+        } else {
+            error
+        }
+    })?;
+    if &current != input {
+        return Err(StorageError::Conflict);
+    }
+    let mut expected = input.parse_context();
+    expected.content_sha256 = native_hash.map(str::to_owned);
+    let mut observed = current.parse_context();
+    observed.content_sha256 = expected.content_sha256.clone();
+    let validated =
+        validate_project_reply(reply, capabilities, &expected, &observed).map_err(|error| {
+            if error == ValidationError::StaleInput {
+                StorageError::Conflict
+            } else {
+                StorageError::InvalidSchema
+            }
+        })?;
+    let (outcome, parser_code, unsupported_version, content_hash, payload_json) = match &validated {
+        ValidatedProjectReply::Metadata(metadata) => {
+            let outcome = match metadata.initial().outcome() {
+                fruitboard_flp_parser::validation::MetadataOutcome::Complete => {
+                    MetadataOutcome::Complete
+                }
+                fruitboard_flp_parser::validation::MetadataOutcome::Partial => {
+                    MetadataOutcome::Partial
+                }
+            };
+            (
+                outcome,
+                None,
+                None,
+                Some(metadata.initial().content_sha256()),
+                Some(payload::encode(metadata)?),
+            )
+        }
+        ValidatedProjectReply::Failed(code) => (
+            MetadataOutcome::Failed,
+            Some(code.as_str()),
+            None,
+            None,
+            None,
+        ),
+        ValidatedProjectReply::Rejected(code) => (
+            MetadataOutcome::Rejected,
+            Some(code.as_str()),
+            None,
+            None,
+            None,
+        ),
+        ValidatedProjectReply::UnsupportedSavedVersion(version) => (
+            MetadataOutcome::Unsupported,
+            None,
+            Some(version.as_str()),
+            None,
+            None,
+        ),
+    };
+    let id = uuid::Uuid::now_v7().to_string();
+    transaction.execute("INSERT INTO metadata_snapshot
+                (id, project_file_id, input_root_id, input_location_id, input_root_revision,
+                 input_file_revision, input_location_revision, input_byte_size, input_modified_at_ns,
+                 input_content_sha256, adapter_id, adapter_version, protocol_version, parser_schema_version,
+                 projection_version, outcome, parser_code, unsupported_saved_version, payload_json, parsed_at_ms)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 1, ?15, ?16, ?17, ?18, ?19)",
+                params![id, input.project_file_id, input.root_id, input.location_id, input.root_revision,
+                    input.file_revision, input.location_revision, i64::try_from(input.byte_size).map_err(|_| StorageError::InvalidSchema)?, input.modified_at_ns,
+                    content_hash, ADAPTER_ID, ADAPTER_VERSION, i64::try_from(PROTOCOL_VERSION).map_err(|_| StorageError::InvalidSchema)?, i64::try_from(SCHEMA_VERSION).map_err(|_| StorageError::InvalidSchema)?,
+                    outcome.as_str(), parser_code, unsupported_version, payload_json, parsed_at_ms])?;
+    let next = input
+        .publication_revision
+        .checked_add(1)
+        .ok_or(StorageError::InvalidSchema)?;
+    let changed = transaction.execute("UPDATE project_file
+                SET current_metadata_snapshot_id = CASE WHEN ?5 THEN ?1 ELSE current_metadata_snapshot_id END, metadata_publication_revision = ?2
+                WHERE id = ?3 AND metadata_publication_revision = ?4", params![id, next, input.project_file_id, input.publication_revision, matches!(outcome, MetadataOutcome::Complete | MetadataOutcome::Partial)])?;
+    if changed != 1 {
+        return Err(StorageError::Conflict);
+    }
+    before_commit();
+    transaction
+        .query_row(
+            &format!(
+                "SELECT {HEADER_COLUMNS} FROM metadata_snapshot AS snapshot WHERE snapshot.id = ?1"
+            ),
+            [&id],
+            read_header,
+        )
+        .map_err(Into::into)
 }

@@ -871,9 +871,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "fruitboard-analysis-execution"
+version = "0.1.0"
+dependencies = [
+ "fruitboard-flp-parser",
+ "fruitboard-storage",
+ "serde_json",
+ "uuid",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "fruitboard-desktop"
 version = "0.1.0"
 dependencies = [
+ "fruitboard-analysis-execution",
  "fruitboard-filesystem-enumeration",
  "fruitboard-filesystem-watcher",
  "fruitboard-flp-parser",

@@ -19,6 +19,7 @@
     "lint:rust": "cargo clippy --workspace --all-targets --locked -- -D warnings",
     "lint:scripts": "node scripts/check-script-syntax.mjs",
     "package:windows:smoke": "node scripts/prepare-foundation-sidecar.mjs && pnpm --filter @fruitboard/desktop package:windows:smoke",
+    "package:windows:analysis-smoke": "node scripts/prepare-foundation-sidecar.mjs && pnpm --filter @fruitboard/desktop package:windows:analysis-smoke",
     "privacy:check": "node scripts/verify-repository-privacy.mjs",
     "smoke:windows:foundation": "node scripts/run-windows-foundation-smoke.mjs",
     "smoke:windows:foundation:hosted": "node scripts/run-windows-foundation-smoke.mjs -NonInteractive",

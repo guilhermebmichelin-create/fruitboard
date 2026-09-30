@@ -19,12 +19,12 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 const CRASH_ACK_TIMEOUT: Duration = Duration::from_secs(8);
 
 #[derive(Debug, PartialEq, Eq)]
-enum PackageError {
+pub(super) enum PackageError {
     Missing,
     Unsafe,
 }
 
-fn installed_executable(application: &Path) -> Result<PathBuf, PackageError> {
+pub(super) fn installed_executable(application: &Path) -> Result<PathBuf, PackageError> {
     if !application.is_absolute() {
         return Err(PackageError::Unsafe);
     }

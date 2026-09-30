@@ -12,6 +12,13 @@ GPL-3.0, marked Alpha on PyPI, and its stable release predates current FL Studio
 formats. Parser failures must not crash the scanner or couple application data
 to PyFLP classes. The product must never edit FLP contents.
 
+Issue #238 implements the optional native development analysis composition:
+durable bounded jobs, fixed installed Rust parser, freshly authorized local
+NTFS source, independent digest validation and transactional snapshot/job
+publication. This remains behind `analysis-jobs`, outside the default desktop
+and renderer. See the [worker boundary](../../crates/analysis-execution/README.md).
+It does not close compatibility, distribution or performance qualification gates.
+
 ## Decision
 
 ### 2026-09-28 owner selection

@@ -68,3 +68,5 @@ jobs:
           cargo clippy -p fruitboard-desktop --features packaging-smoke --all-targets --locked -- -D warnings
       - name: Build, install, launch, and uninstall the development package
         run: pnpm.cmd smoke:windows:foundation:hosted
+      - name: Exercise installed native analysis and snapshot preservation
+        run: pnpm.cmd smoke:windows:foundation:hosted -AnalysisJobs

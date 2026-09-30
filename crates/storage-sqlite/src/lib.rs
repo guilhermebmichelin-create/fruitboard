@@ -1,5 +1,12 @@
 //! Native-only SQLite ownership. No connection, SQL executor, or path is sent to IPC.
+#[cfg(feature = "analysis-jobs")]
+mod analysis;
 mod error;
+#[cfg(feature = "analysis-jobs")]
+pub use analysis::{
+    AnalysisCursor, AnalysisFailure, AnalysisLease, AnalysisSource, AnalysisState, AnalysisStatus,
+    MAX_ANALYSIS_BATCH,
+};
 mod execution;
 mod files;
 #[cfg(feature = "parser-metadata")]

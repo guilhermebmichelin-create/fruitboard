@@ -103,6 +103,8 @@ struct SmokeEvidence {
     storage: StorageEvidence,
     sidecar: SidecarEvidence,
     parser: ParserEvidence,
+    #[cfg(feature = "analysis-jobs")]
+    analysis: Option<super::analysis_host::AnalysisEvidence>,
     timing: TimingEvidence,
 }
 
@@ -296,6 +298,12 @@ pub(crate) fn schedule(
             let (sidecar, mut timing) = sidecar_evidence(&app, &request.output, &schedule_start)?;
             let parser =
                 parser_evidence(&request.output, request.mode == SmokeMode::ParserMissing)?;
+            #[cfg(feature = "analysis-jobs")]
+            let analysis = if request.mode == SmokeMode::ParserMissing {
+                None
+            } else {
+                Some(super::analysis_host::smoke_evidence(&app, &request.output)?)
+            };
             timing.total_ms = schedule_start
                 .elapsed()
                 .as_millis()
@@ -309,6 +317,8 @@ pub(crate) fn schedule(
                 },
                 sidecar,
                 parser,
+                #[cfg(feature = "analysis-jobs")]
+                analysis,
                 timing,
             };
             write_json(&request.output, &evidence)?;

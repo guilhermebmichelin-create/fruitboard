@@ -334,7 +334,7 @@ impl ScanConsoleService {
         AppError::new(ErrorCode::Unavailable, DiagnosticCode::ScanConsoleDisabled)
     }
 
-    fn scan_now(&self, _root_id: String) -> Result<ScanStartResult, AppError> {
+    pub(crate) fn scan_now(&self, _root_id: String) -> Result<ScanStartResult, AppError> {
         Err(Self::scan_console_disabled())
     }
 
@@ -468,7 +468,7 @@ impl ScanConsoleService {
         }
     }
 
-    fn scan_now(&self, root_id: String) -> Result<ScanStartResult, AppError> {
+    pub(crate) fn scan_now(&self, root_id: String) -> Result<ScanStartResult, AppError> {
         self.enqueue_scan(&root_id, ScanKind::Manual)
     }
 

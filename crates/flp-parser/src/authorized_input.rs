@@ -41,6 +41,13 @@ fn is_link(metadata: &Metadata) -> bool {
     }
 }
 
+#[cfg(windows)]
+fn resident_attributes(attributes: u32) -> bool {
+    // Reject offline/recall objects before requesting a read handle. Analysis
+    // must not hydrate a placeholder or treat its virtual metadata as local.
+    attributes & (0x1000 | 0x40000 | 0x400000) == 0
+}
+
 fn open_read(path: &Path, directory: bool) -> std::io::Result<File> {
     let mut options = OpenOptions::new();
     options.read(true);
@@ -132,6 +139,13 @@ fn open_before_leaf(
     if is_link(&leaf) || !leaf.is_file() {
         return Err("INVALID_PATH");
     }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        if !resident_attributes(leaf.file_attributes()) {
+            return Err("INVALID_PATH");
+        }
+    }
     let file = open_read(path, false).map_err(|_| "INPUT_OPEN_FAILED")?;
     let metadata = file.metadata().map_err(|_| "INVALID_PATH")?;
     if is_link(&metadata) || !metadata.is_file() {
@@ -165,6 +179,15 @@ fn open_before_leaf(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn offline_and_recall_flags_are_denied_before_open() {
+        assert!(resident_attributes(0x20));
+        for flag in [0x1000, 0x40000, 0x400000] {
+            assert!(!resident_attributes(flag | 0x20));
+        }
+    }
 
     #[cfg(windows)]
     #[test]

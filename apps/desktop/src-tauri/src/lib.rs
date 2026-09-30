@@ -233,6 +233,8 @@ struct NativeFoundation {
     preferences: PreferencesService,
     scan_roots: ScanRootsService,
     scan_console: ScanConsoleService,
+    #[cfg(feature = "analysis-jobs")]
+    analysis: foundation::analysis_host::AnalysisHost,
 }
 
 impl NativeFoundation {
@@ -255,10 +257,14 @@ impl NativeFoundation {
             preferences: PreferencesService::new(database.clone()),
             scan_roots: ScanRootsService::new(database.clone()),
             scan_console,
+            #[cfg(feature = "analysis-jobs")]
+            analysis: foundation::analysis_host::AnalysisHost::new(database),
         })
     }
 
     fn shutdown(&self) {
+        #[cfg(feature = "analysis-jobs")]
+        self.analysis.shutdown();
         self.scan_console.shutdown();
     }
 }
@@ -726,6 +732,10 @@ pub fn run() -> tauri::Result<()> {
             if let Some((request, storage)) = smoke {
                 foundation::packaging_smoke::schedule(app.handle().clone(), request, storage);
             }
+            #[cfg(feature = "analysis-jobs")]
+            app.state::<NativeFoundation>()
+                .analysis
+                .start(&std::env::current_exe().map_err(|_| StorageError::Io)?)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

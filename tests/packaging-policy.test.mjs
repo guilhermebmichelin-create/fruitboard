@@ -100,6 +100,66 @@ test("real parser packaging stays optional and uses native installed authority",
   assert.match(processGuard, /WaitForExit\(3000\)/);
 });
 
+test("analysis packaging is opt-in and retains baseline and uninstall data guards", () => {
+  const root = JSON.parse(readRootFile("package.json"));
+  const desktop = JSON.parse(readRootFile("apps/desktop/package.json"));
+  const manifest = readRootFile("apps/desktop/src-tauri/Cargo.toml");
+  const harness = readRootFile("scripts/windows-foundation-smoke.ps1");
+  const workflow = readRootFile(
+    ".github/workflows/windows-packaging-smoke.yml",
+  );
+  const host = readRootFile(
+    "apps/desktop/src-tauri/src/foundation/analysis_host.rs",
+  );
+  assert.match(
+    root.scripts["package:windows:analysis-smoke"],
+    /prepare-foundation-sidecar/,
+  );
+  assert.match(
+    desktop.scripts["package:windows:analysis-smoke"],
+    /--features analysis-jobs/,
+  );
+  assert.match(manifest, /^default = \[\]$/m);
+  assert.match(manifest, /^analysis-jobs = .*scan-console.*packaging-smoke/m);
+  assert.match(workflow, /run: pnpm\.cmd smoke:windows:foundation:hosted\n/);
+  assert.match(
+    workflow,
+    /run: pnpm\.cmd smoke:windows:foundation:hosted -AnalysisJobs/,
+  );
+  assert.match(harness, /\[switch\]\$AnalysisJobs/);
+  assert.match(
+    harness,
+    /Copy-Item -LiteralPath \$approvedFixture -Destination \$analysisFixturePath/,
+  );
+  assert.match(
+    host,
+    /ANALYSIS_SMOKE_TIMEOUT: Duration = Duration::from_secs\(20\)/,
+  );
+  // Baseline relaunch still checks the whole database, while opted-in native
+  // sessions may change rows and must preserve the immutable snapshot instead.
+  assert.match(
+    harness,
+    /\$verifyEvidence\.analysis\.snapshotId -ne \$seedEvidence\.analysis\.snapshotId/,
+  );
+  assert.match(
+    harness,
+    /\$verifyEvidence\.analysis\.payloadSha256 -ne \$seedEvidence\.analysis\.payloadSha256/,
+  );
+  assert.match(
+    harness,
+    /else \{\s+if \(\(Get-FileHash -LiteralPath \$databasePath -Algorithm SHA256\)\.Hash -ne \$databaseHashBeforeUninstall\)/,
+  );
+  assert.match(
+    harness,
+    /throw "Uninstall changed the synthetic user database\."/,
+  );
+  assert.match(
+    harness,
+    /throw "The second uninstall changed the synthetic user database\."/,
+  );
+  assert.doesNotMatch(host, /std::env::var|Command::new|ShellExt/);
+});
+
 test("the dialog dependency is exact, default-free, and locked", () => {
   const workspace = readRootFile("Cargo.toml");
   const lock = readRootFile("Cargo.lock");
