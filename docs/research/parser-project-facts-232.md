@@ -42,6 +42,8 @@ The new collection retains inert top-level names from all such class records,
 including effect names outside channel contexts. An editable channel label
 cannot replace a class name. Empty slots are skipped; the verified empty
 Sampler class in known channel contexts keeps its explicit default inference.
+That inference requires the completed channel's type to remain unambiguous;
+later duplicate or conflicting type records cannot leave a Sampler reference.
 Unknown or malformed class encodings retain a gap rather than guessing.
 
 For `Fruity Wrapper` only, recognized type markers 8 and 10 permit a bounded

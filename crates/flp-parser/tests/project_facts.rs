@@ -235,6 +235,38 @@ fn malformed_wrapper_lengths_duplicates_and_text_do_not_leak_or_panic() {
 }
 
 #[test]
+fn sampler_reference_requires_the_completed_channel_type_to_be_unambiguous() {
+    for events in [
+        vec![event(21, &[0]), event(21, &[2]), event(201, &utf16(""))],
+        vec![event(21, &[0]), event(201, &utf16("")), event(21, &[2])],
+        vec![
+            event(21, &[0]),
+            event(201, &utf16("")),
+            event(201, &utf16("")),
+            event(21, &[0]),
+        ],
+    ] {
+        let mut records = vec![event(64, &0_u16.to_le_bytes())];
+        records.extend(events);
+        // A later valid channel must retain its own Sampler reference.
+        records.extend([
+            event(64, &1_u16.to_le_bytes()),
+            event(21, &[0]),
+            event(201, &utf16("")),
+        ]);
+        let bytes = project(records, 2);
+        let value = reply(&bytes);
+        assert_eq!(value["channelGeneratorNames"]["status"], "unsupported");
+        let result = metadata(value, &bytes);
+        assert_eq!(result.plugins().len(), 1);
+        assert_eq!(
+            result.plugins()[0].name().value().map(String::as_str),
+            Some("Sampler")
+        );
+    }
+}
+
+#[test]
 fn plugin_projection_rejects_inconsistent_identity_and_wrapper_states() {
     let bytes = project(
         vec![event(201, &utf16("Fruity Wrapper")), event(213, &wrapper())],

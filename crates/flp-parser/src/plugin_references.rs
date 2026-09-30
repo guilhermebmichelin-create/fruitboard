@@ -6,8 +6,10 @@ pub(crate) const MAX_PLUGIN_REFERENCES: usize = 1024;
 
 #[derive(Default)]
 pub(crate) struct PluginReferences {
-    references: Vec<Value>,
-    current: Option<Value>,
+    // An empty class may be a Sampler only if its completed channel remains
+    // unambiguous; a later type record can invalidate the provisional inference.
+    references: Vec<(Value, Option<usize>)>,
+    current: Option<(Value, Option<usize>)>,
     wrapper_data_seen: bool,
 }
 
@@ -23,21 +25,26 @@ impl PluginReferences {
         Ok(())
     }
 
-    pub fn name(&mut self, data: &[u8], sampler: bool) -> Result<(), &'static str> {
+    pub fn name(
+        &mut self,
+        data: &[u8],
+        sampler_channel: Option<usize>,
+    ) -> Result<(), &'static str> {
         self.boundary()?;
         let absent = || field("unavailable", Value::Null, Some("PLUGIN_NAME_NOT_STORED"));
-        let (class, name) = match utf16_text(data) {
+        let (class, name, sampler_channel) = match utf16_text(data) {
             Ok(class) if !class.is_empty() => {
                 let name = if class == "Fruity Wrapper" {
                     field("unsupported", Value::Null, Some("VST_METADATA_UNSUPPORTED"))
                 } else {
                     field("extracted", json!(class), None)
                 };
-                (field("extracted", json!(class), None), name)
+                (field("extracted", json!(class), None), name, None)
             }
-            Ok(_) if sampler => (
+            Ok(_) if sampler_channel.is_some() => (
                 absent(),
                 json!({"status":"inferred","value":"Sampler","method":"sampler-default-for-known-build","confidence":"high"}),
+                sampler_channel,
             ),
             Ok(_) => return Ok(()), // An empty slot is not a used plugin.
             Err(_) => {
@@ -46,18 +53,21 @@ impl PluginReferences {
                     Value::Null,
                     Some("PLUGIN_NAME_ENCODING_UNSUPPORTED"),
                 );
-                (invalid.clone(), invalid)
+                (invalid.clone(), invalid, None)
             }
         };
-        self.current = Some(json!({
-            "className":class,"name":name,
-            "vendor":field("unavailable",Value::Null,Some("PLUGIN_VENDOR_NOT_STORED"))
-        }));
+        self.current = Some((
+            json!({
+                "className":class,"name":name,
+                "vendor":field("unavailable",Value::Null,Some("PLUGIN_VENDOR_NOT_STORED"))
+            }),
+            sampler_channel,
+        ));
         Ok(())
     }
 
     pub fn data(&mut self, data: &[u8]) {
-        let Some(reference) = self.current.as_mut() else {
+        let Some((reference, _)) = self.current.as_mut() else {
             return;
         };
         if reference["className"]["value"] != "Fruity Wrapper" {
@@ -87,11 +97,21 @@ impl PluginReferences {
         }
     }
 
-    pub fn into_field(mut self) -> Result<Value, &'static str> {
+    pub fn into_field(
+        mut self,
+        valid_sampler_channel: impl Fn(usize) -> bool,
+    ) -> Result<Value, &'static str> {
         self.boundary()?;
-        Ok(
-            json!({"status":"extracted","value":self.references,"coverage":"top-level-saved-references"}),
-        )
+        let references = self
+            .references
+            .into_iter()
+            .filter_map(|(reference, channel)| {
+                channel
+                    .is_none_or(&valid_sampler_channel)
+                    .then_some(reference)
+            })
+            .collect::<Vec<_>>();
+        Ok(json!({"status":"extracted","value":references,"coverage":"top-level-saved-references"}))
     }
 }
 

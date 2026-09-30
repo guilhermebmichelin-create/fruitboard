@@ -533,12 +533,11 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
             plugin_channel_scope = false;
         }
         if id == 201 {
-            let sampler = plugin_channel_scope
-                && known_sampler_default_build(version.as_deref())
-                && current_channel
-                    .and_then(|context| context.resolve(&channels))
-                    .is_some_and(|index| channels[index].channel_type == ChannelType::Sampler);
-            if let Err(code) = plugins.name(data, sampler) {
+            let sampler_channel = current_channel
+                .filter(|_| plugin_channel_scope && known_sampler_default_build(version.as_deref()))
+                .and_then(|context| context.resolve(&channels))
+                .filter(|index| channels[*index].channel_type == ChannelType::Sampler);
+            if let Err(code) = plugins.name(data, sampler_channel) {
                 return failed(code);
             }
         } else if id == 213 {
@@ -701,7 +700,11 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     }
     let channel_count = channels.len();
     let (project_created_local, fl_studio_time_spent_ms) = project_info.into_fields();
-    let plugin_references = match plugins.into_field() {
+    let plugin_references = match plugins.into_field(|index| {
+        channels
+            .get(index)
+            .is_some_and(|channel| channel.channel_type == ChannelType::Sampler)
+    }) {
         Ok(value) => value,
         Err(code) => return failed(code),
     };
