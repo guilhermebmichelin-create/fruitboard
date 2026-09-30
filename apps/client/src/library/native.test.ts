@@ -349,6 +349,43 @@ describe("native status list seam", () => {
     });
   });
 
+  it("enforces status identities while allowing retained terminal jobs without runs", async () => {
+    const terminalWithoutRun = [
+      { ...baseStatus, state: "completed", runId: null },
+      { ...baseStatus, state: "cancelled", runId: null },
+      { ...baseStatus, state: "failed", runId: null },
+      { ...baseStatus, state: "interrupted", runId: null },
+    ];
+    const { transport } = transportWith(() => okEnvelope(terminalWithoutRun));
+    const statuses =
+      await createNativeLibraryScanAdapter(transport).listScanStatuses();
+    expect(
+      statuses.map(({ state, jobId, runId }) => [state, jobId, runId]),
+    ).toEqual(
+      terminalWithoutRun.map(({ state, jobId, runId }) => [
+        state,
+        jobId,
+        runId,
+      ]),
+    );
+
+    for (const status of [
+      { ...baseStatus, jobId: null },
+      { ...baseStatus, state: "idle", jobId: "job-1" },
+      { ...baseStatus, state: "running", runId: null },
+      { ...baseStatus, state: "running", jobId: null, runId: "run-1" },
+      { ...baseStatus, state: "completed", jobId: null, runId: "run-1" },
+    ]) {
+      const { transport: invalidTransport } = transportWith(() =>
+        okEnvelope([status]),
+      );
+      await expectCode(
+        createNativeLibraryScanAdapter(invalidTransport).listScanStatuses(),
+        "internal",
+      );
+    }
+  });
+
   it("parses the native retry capability and rejects impossible recovery flags", async () => {
     const { transport } = transportWith(() =>
       okEnvelope([
@@ -484,6 +521,25 @@ describe("native library page seam", () => {
     expect(page.nextCursor).toBe("cursor-2");
   });
 
+  it("rejects a record from another root in the actual page adapter", async () => {
+    const { transport } = transportWith(() =>
+      okEnvelope({
+        rootId: "root-1",
+        snapshotId: "snapshot-1",
+        records: [{ ...baseRecord, rootId: "root-2" }],
+        nextCursor: null,
+      }),
+    );
+    await expectCode(
+      createNativeLibraryScanAdapter(transport).getLibraryPage({
+        rootId: "root-1",
+        limit: 4,
+        cursor: null,
+      }),
+      "internal",
+    );
+  });
+
   it("surfaces invalid_cursor and stale_cursor for page-one restart", async () => {
     for (const [code, message] of [
       [
@@ -514,6 +570,9 @@ describe("native library page seam", () => {
       { ...baseRecord, byteSize: "9223372036854775808" },
       { ...baseRecord, modifiedAt: "not-a-date" },
       { ...baseRecord, modifiedAt: "2026-01-02T03:04:05.1234567890Z" },
+      { ...baseRecord, modifiedAt: "2026-02-30T03:04:05Z" },
+      { ...baseRecord, modifiedAt: "2026-99-99T99:99:99Z" },
+      { ...baseRecord, modifiedAt: "2026-01-02T03:04:05+24:00" },
       { ...baseRecord, presence: "partial" },
     ]) {
       const { transport } = transportWith(() =>
@@ -643,11 +702,13 @@ describe("native scan-status-changed subscription", () => {
     );
     const adapter = createNativeLibraryScanAdapter(transport);
     const listener = vi.fn();
-    const unsubscribe = adapter.subscribe(listener);
+    const stateChange = vi.fn();
+    const unsubscribe = adapter.subscribe(listener, stateChange);
     expect(listen).toHaveBeenCalledExactlyOnceWith(
       SCAN_STATUS_CHANGED_EVENT,
       expect.any(Function),
     );
+    expect(stateChange).toHaveBeenCalledExactlyOnceWith("attached");
     handlers.get(SCAN_STATUS_CHANGED_EVENT)?.();
     expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();
@@ -683,17 +744,37 @@ describe("native scan-status-changed subscription", () => {
       },
     );
     const adapter = createNativeLibraryScanAdapter(transport);
-    expect(() => adapter.subscribe(vi.fn())).not.toThrow();
+    const stateChange = vi.fn();
+    expect(() => adapter.subscribe(vi.fn(), stateChange)).not.toThrow();
+    expect(stateChange).toHaveBeenCalledExactlyOnceWith("unavailable");
+  });
+
+  it("reports an asynchronous registration rejection", async () => {
+    const { transport } = transportWith(
+      () => okEnvelope([]),
+      () => Promise.reject(new Error("listen rejected")),
+    );
+    const stateChange = vi.fn();
+    const unsubscribe = createNativeLibraryScanAdapter(transport).subscribe(
+      vi.fn(),
+      stateChange,
+    );
+    await Promise.resolve();
+    expect(stateChange).toHaveBeenCalledExactlyOnceWith("unavailable");
+    unsubscribe();
   });
 });
 
 describe("native console-state seam", () => {
   it("reports an enabled build with the exact typed request", async () => {
     const { transport, invoke } = transportWith(() =>
-      okEnvelope({ enabled: true }),
+      okEnvelope({ enabled: true, runtimeAvailable: true }),
     );
     const adapter = createNativeLibraryScanAdapter(transport);
-    await expect(adapter.getConsoleState()).resolves.toEqual({ enabled: true });
+    await expect(adapter.getConsoleState()).resolves.toEqual({
+      enabled: true,
+      runtimeAvailable: true,
+    });
     expect(invoke).toHaveBeenCalledExactlyOnceWith(
       GET_SCAN_CONSOLE_STATE_COMMAND,
       {
@@ -703,10 +784,12 @@ describe("native console-state seam", () => {
   });
 
   it("reports a feature-disabled build verbatim", async () => {
-    const { transport } = transportWith(() => okEnvelope({ enabled: false }));
+    const { transport } = transportWith(() =>
+      okEnvelope({ enabled: false, runtimeAvailable: false }),
+    );
     await expect(
       createNativeLibraryScanAdapter(transport).getConsoleState(),
-    ).resolves.toEqual({ enabled: false });
+    ).resolves.toEqual({ enabled: false, runtimeAvailable: false });
   });
 
   it("rejects a malformed console state instead of guessing", async () => {
@@ -714,6 +797,7 @@ describe("native console-state seam", () => {
       {},
       { enabled: "true" },
       { enabled: null },
+      { enabled: false, runtimeAvailable: true },
       "enabled",
     ]) {
       const { transport } = transportWith(() => okEnvelope(data));
@@ -725,11 +809,20 @@ describe("native console-state seam", () => {
   });
 
   it("parses only the documented shape", () => {
-    expect(parseScanConsoleState({ enabled: true })).toEqual({ enabled: true });
-    expect(parseScanConsoleState({ enabled: false })).toEqual({
-      enabled: false,
-    });
-    for (const value of [null, {}, { enabled: 1 }, { enabled: "yes" }, []]) {
+    expect(
+      parseScanConsoleState({ enabled: true, runtimeAvailable: true }),
+    ).toEqual({ enabled: true, runtimeAvailable: true });
+    expect(
+      parseScanConsoleState({ enabled: false, runtimeAvailable: false }),
+    ).toEqual({ enabled: false, runtimeAvailable: false });
+    for (const value of [
+      null,
+      {},
+      { enabled: 1 },
+      { enabled: "yes", runtimeAvailable: true },
+      { enabled: true, runtimeAvailable: null },
+      [],
+    ]) {
       expect(() => parseScanConsoleState(value)).toThrow(LibraryAdapterError);
     }
   });

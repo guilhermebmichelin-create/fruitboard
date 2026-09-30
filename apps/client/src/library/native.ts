@@ -14,6 +14,7 @@ import {
   type PublishedFileLocation,
   type ScanErrorCode,
   type ScanConsoleState,
+  type ScanSubscriptionState,
   type ScanExecutionState,
   type ScanStartResult,
   type ScanStatus,
@@ -267,8 +268,30 @@ export function parseScanStatus(value: unknown): ScanStatus {
   const state = stateValue;
   const jobId = parseOptionalId(value["jobId"]);
   const runId = parseOptionalId(value["runId"]);
-  // Queued work has a job but no run yet; running work carries both.
-  if ((state === "queued" || state === "idle") && runId !== null) {
+  // Queued work has a job but no run yet; running work carries both. A
+  // terminal job can lack a run if it was cancelled before leasing or its
+  // old run was removed by bounded history retention.
+  let identityIsValid: boolean;
+  switch (state) {
+    case "idle":
+      identityIsValid = jobId === null && runId === null;
+      break;
+    case "queued":
+      identityIsValid = jobId !== null && runId === null;
+      break;
+    case "running":
+      identityIsValid = jobId !== null && runId !== null;
+      break;
+    case "completed":
+    case "cancelled":
+    case "failed":
+    case "interrupted":
+      identityIsValid = jobId !== null;
+      break;
+    default:
+      identityIsValid = false;
+  }
+  if (!identityIsValid) {
     throw new LibraryAdapterError("internal");
   }
   const cancellationValue: unknown = value["cancellationRequested"];
@@ -329,10 +352,15 @@ export function parseScanStatusList(value: unknown): readonly ScanStatus[] {
 export function parseScanConsoleState(value: unknown): ScanConsoleState {
   if (!isRecord(value)) throw new LibraryAdapterError("internal");
   const enabled: unknown = value["enabled"];
-  if (enabled !== true && enabled !== false) {
+  const runtimeAvailable: unknown = value["runtimeAvailable"];
+  if (
+    (enabled !== true && enabled !== false) ||
+    (runtimeAvailable !== true && runtimeAvailable !== false) ||
+    (!enabled && runtimeAvailable)
+  ) {
     throw new LibraryAdapterError("internal");
   }
-  return { enabled };
+  return { enabled, runtimeAvailable };
 }
 
 type ScanStartOutcomeValue = ScanStartResult["outcome"];
@@ -434,7 +462,7 @@ function parseRecord(value: unknown): PublishedFileLocation {
   ) {
     throw new LibraryAdapterError("internal");
   }
-  // RFC 3339 with nanosecond precision retained verbatim.
+  // A valid calendar timestamp with RFC 3339 offset and nanoseconds retained.
   if (
     typeof modifiedAt !== "string" ||
     extractModifiedAtFraction(modifiedAt) === null
@@ -469,6 +497,9 @@ export function parseLibraryPage(value: unknown): LibraryPage {
   if (!Array.isArray(records)) throw new LibraryAdapterError("internal");
   // Per-root only: records are returned verbatim, never merged or sorted.
   const parsed = records.map(parseRecord);
+  if (parsed.some((record) => record.rootId !== rootId)) {
+    throw new LibraryAdapterError("internal");
+  }
   let parsedCursor: string | null;
   if (nextCursor === null) {
     parsedCursor = null;
@@ -628,15 +659,22 @@ export function createNativeLibraryScanAdapter(
       );
     },
 
-    subscribe(listener: () => void): () => void {
+    subscribe(
+      listener: () => void,
+      onStateChange?: (state: ScanSubscriptionState) => void,
+    ): () => void {
       let disposed = false;
       let unlisten: (() => void) | null = null;
+      const reportState = (state: ScanSubscriptionState) => {
+        if (!disposed) onStateChange?.(state);
+      };
       try {
         const pending = transport.listen(SCAN_STATUS_CHANGED_EVENT, () => {
           if (!disposed) listener();
         });
         if (typeof pending === "function") {
           unlisten = pending;
+          reportState("attached");
         } else {
           void pending.then(
             (resolved) => {
@@ -644,12 +682,14 @@ export function createNativeLibraryScanAdapter(
                 resolved();
               } else {
                 unlisten = resolved;
+                reportState("attached");
               }
             },
-            () => undefined,
+            () => reportState("unavailable"),
           );
         }
       } catch {
+        reportState("unavailable");
         return () => {
           disposed = true;
         };

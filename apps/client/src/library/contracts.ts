@@ -120,11 +120,45 @@ export function formatByteSizeDecimal(value: DecimalString): string {
  */
 export function extractModifiedAtFraction(value: string): string | null {
   const match =
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-]\d{2}:\d{2})$/.exec(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.exec(
       value,
     );
   if (match === null) return null;
-  return match[1] ?? "";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const daysInMonth = [
+    31,
+    isLeapYear(year) ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ][month - 1];
+  if (
+    daysInMonth === undefined ||
+    day < 1 ||
+    day > daysInMonth ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59
+  ) {
+    return null;
+  }
+  return match[7] ?? "";
+}
+
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 }
 
 export interface PublishedFileLocation {
@@ -197,7 +231,11 @@ export interface ScanStatus {
   readonly state: ScanExecutionState;
   /** A queued job exists before a worker leases a run. */
   readonly jobId: string | null;
-  /** A run is allocated when the queued job is leased; null while queued. */
+  /**
+   * A run is allocated when queued work is leased. Terminal history may no
+   * longer retain its run after bounded cleanup, and a queued cancellation
+   * can finish before any run exists.
+   */
   readonly runId: string | null;
   /** Durably set once a leased cancellation is requested. */
   readonly cancellationRequested: boolean;
@@ -235,7 +273,10 @@ export interface CancelScanResult {
 }
 
 export interface ScanConsoleState {
+  /** Whether this binary was built with the scan-console feature. */
   readonly enabled: boolean;
+  /** Whether its scanner worker is still available in this process. */
+  readonly runtimeAvailable: boolean;
 }
 
 export interface LibraryScanAdapter {
@@ -245,8 +286,13 @@ export interface LibraryScanAdapter {
   scanNow(rootId: string): Promise<ScanStartResult>;
   cancelScan(jobId: string): Promise<CancelScanResult>;
   retryScan(jobId: string): Promise<ScanStartResult>;
-  subscribe(listener: () => void): () => void;
+  subscribe(
+    listener: () => void,
+    onStateChange?: (state: ScanSubscriptionState) => void,
+  ): () => void;
 }
+
+export type ScanSubscriptionState = "attached" | "unavailable";
 
 export class LibraryAdapterError extends Error {
   readonly code: LibraryErrorCode;

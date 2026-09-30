@@ -324,7 +324,8 @@ export function createFakeLibraryScanAdapter(
       if (options.consoleProbeFails === true) {
         throw new LibraryAdapterError("unavailable");
       }
-      return { enabled: options.consoleEnabled ?? true };
+      const enabled = options.consoleEnabled ?? true;
+      return { enabled, runtimeAvailable: enabled };
     },
 
     async getLibraryPage(request): Promise<LibraryPage> {
@@ -454,8 +455,9 @@ export function createFakeLibraryScanAdapter(
       return { rootId, jobId, runId: null, outcome: "queued" };
     },
 
-    subscribe(listener) {
+    subscribe(listener, onStateChange) {
       listeners.add(listener);
+      onStateChange?.("attached");
       return () => listeners.delete(listener);
     },
 

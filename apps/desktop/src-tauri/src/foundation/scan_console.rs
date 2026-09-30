@@ -8,16 +8,20 @@
 //! - `scan_now`, `cancel_scan`, `retry_scan`, `list_scan_statuses`,
 //!   `get_library_page`, `get_scan_console_state`.
 //! - `scan-status-changed` events after state transitions and poll-loop run
-//!   completions. Renderer subscription wiring is deliberately not built.
+//!   completions. The renderer reconciles durable reads after attaching and
+//!   when it regains focus.
 //!
 //! The commands are always registered so the client contract is stable. With
 //! the `scan-console` cargo feature off, every console command returns the
 //! typed `unavailable`/`scan_console_disabled` envelope and
-//! `get_scan_console_state` reports `{enabled: false}`; the scanner crates are
-//! not even compiled into default builds. With the feature on, the host
-//! (`scan_console_host`) owns the one worker, the process session and the
-//! poll-loop thread, all sharing the single native `Database` owner behind the
-//! same `Mutex` as the rest of the command layer.
+//! `get_scan_console_state` reports `{enabled: false, runtimeAvailable: false}`;
+//! the scanner crates are not even compiled into default builds. With the
+//! feature on, the same command separately reports whether its process-local
+//! worker is still available. A contained lifecycle panic keeps committed
+//! Library reads available but requires an application restart before more
+//! scans can be accepted. The host (`scan_console_host`) owns the one worker,
+//! the process session and the poll-loop thread, all sharing the single native
+//! `Database` owner behind the same `Mutex` as the rest of the command layer.
 //!
 //! Safety and privacy rules (never relaxed):
 //!
@@ -192,6 +196,7 @@ pub(crate) struct LibraryPageResponse {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ScanConsoleState {
     enabled: bool,
+    runtime_available: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -345,7 +350,10 @@ impl ScanConsoleService {
     }
 
     fn get_scan_console_state(&self) -> Result<ScanConsoleState, AppError> {
-        Ok(ScanConsoleState { enabled: false })
+        Ok(ScanConsoleState {
+            enabled: false,
+            runtime_available: false,
+        })
     }
 
     /// Configuration mutations have no watcher side effect when the feature
@@ -403,14 +411,25 @@ impl ScanConsoleService {
         Ok(())
     }
 
+    fn stopped_error() -> AppError {
+        AppError::new(ErrorCode::Unavailable, DiagnosticCode::ScanConsoleStopped)
+    }
+
     fn host(&self) -> Result<Arc<super::scan_console_host::ScanConsoleHost>, AppError> {
         self.host
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
-            .ok_or_else(|| {
-                AppError::new(ErrorCode::Unavailable, DiagnosticCode::ScanConsoleDisabled)
-            })
+            .ok_or_else(Self::stopped_error)
+    }
+
+    fn operational_host(&self) -> Result<Arc<super::scan_console_host::ScanConsoleHost>, AppError> {
+        let host = self.host()?;
+        if host.is_operational() {
+            Ok(host)
+        } else {
+            Err(Self::stopped_error())
+        }
     }
 
     /// Wake the independent watcher and scan lifecycle loops after a durable
@@ -447,8 +466,11 @@ impl ScanConsoleService {
     /// converge identically (the enqueue dedups onto any active slot and wakes
     /// the host when new work is queued).
     fn enqueue_scan(&self, root_id: &str, kind: ScanKind) -> Result<ScanStartResult, AppError> {
-        let host = self.host()?;
+        let host = self.operational_host()?;
         let mut intent_order = host.intent_order();
+        if !host.is_operational() {
+            return Err(Self::stopped_error());
+        }
         self.enqueue_scan_with_order(&host, &mut intent_order, root_id, kind)
     }
 
@@ -459,8 +481,14 @@ impl ScanConsoleService {
         root_id: &str,
         kind: ScanKind,
     ) -> Result<ScanStartResult, AppError> {
+        if !host.is_operational() {
+            return Err(Self::stopped_error());
+        }
         let worker = host.clone_worker();
         let mut database = self.database.lock().map_err(|_| storage_failed())?;
+        if !host.is_operational() {
+            return Err(Self::stopped_error());
+        }
         let result = worker
             .request_scan(&mut database, root_id, kind, self.clock.as_ref())
             .map_err(map_enqueue_storage_error)?;
@@ -582,14 +610,20 @@ impl ScanConsoleService {
     }
 
     fn retry_scan(&self, job_id: String) -> Result<ScanStartResult, AppError> {
-        let host = self.host()?;
+        let host = self.operational_host()?;
         let mut intent_order = host.intent_order();
+        if !host.is_operational() {
+            return Err(Self::stopped_error());
+        }
         // The job row, its running attempt, and a failed-chain requeue are
         // one database snapshot. Holding one guard across those reads closes
         // the old gap where a worker could finish between the job read and
         // the run read, producing `already_running` with `runId: null`.
         let (job, running_run_id, failed_requeued) = {
             let mut database = self.database.lock().map_err(|_| storage_failed())?;
+            if !host.is_operational() {
+                return Err(Self::stopped_error());
+            }
             let job = database.scan_job(&job_id).map_err(map_scan_storage_error)?;
             #[cfg(all(test, feature = "scan-console"))]
             if let Some(hook) = self
@@ -755,7 +789,16 @@ impl ScanConsoleService {
     }
 
     fn get_scan_console_state(&self) -> Result<ScanConsoleState, AppError> {
-        Ok(ScanConsoleState { enabled: true })
+        let runtime_available = self
+            .host
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .is_some_and(|host| host.is_operational());
+        Ok(ScanConsoleState {
+            enabled: true,
+            runtime_available,
+        })
     }
 }
 

@@ -248,7 +248,7 @@ impl ScanConsoleHost {
     /// Run one lifecycle thread body with panic containment. A panic is
     /// logged as a fixed diagnostic code (no free text or paths), and the
     /// host stops claiming work instead of silently losing its loop.
-    fn run_guarded_thread(
+    pub(crate) fn run_guarded_thread(
         &self,
         operation: &'static str,
         diagnostic: DiagnosticCode,
@@ -259,6 +259,13 @@ impl ScanConsoleHost {
             self.shutdown_requested.store(true, Ordering::Release);
             self.log_thread_panic(operation, diagnostic);
         }
+    }
+
+    /// Reports whether this process-local worker may accept new work. A
+    /// contained panic leaves the host installed for safe durable reads, but
+    /// its stop flags remain set until the application is restarted.
+    pub(crate) fn is_operational(&self) -> bool {
+        !self.stopping.load(Ordering::Acquire) && !self.shutdown_requested.load(Ordering::Acquire)
     }
 
     fn log_thread_panic(&self, operation: &'static str, diagnostic: DiagnosticCode) {

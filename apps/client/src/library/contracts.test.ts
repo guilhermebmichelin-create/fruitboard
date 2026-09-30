@@ -124,5 +124,18 @@ describe("RFC 3339 nanosecond timestamps", () => {
     expect(
       extractModifiedAtFraction("2026-01-02T03:04:05.1234567890Z"),
     ).toBeNull();
+    expect(extractModifiedAtFraction("2024-02-29T23:59:59Z")).toBe("");
+    for (const timestamp of [
+      "2026-02-29T03:04:05Z",
+      "2026-02-30T03:04:05Z",
+      "2026-04-31T03:04:05Z",
+      "2026-13-01T03:04:05Z",
+      "2026-01-01T24:00:00Z",
+      "2026-01-01T00:60:00Z",
+      "2026-01-01T00:00:60Z",
+      "2026-01-01T03:04:05+24:00",
+    ]) {
+      expect(extractModifiedAtFraction(timestamp)).toBeNull();
+    }
   });
 });

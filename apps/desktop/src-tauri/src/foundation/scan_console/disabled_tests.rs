@@ -1,6 +1,6 @@
 //! Feature-off coverage: with `scan-console` disabled every console command
-//! returns the typed unavailable envelope and the state command reports
-//! `{enabled: false}`. These tests run in default builds.
+//! returns the typed unavailable envelope and the state command reports the
+//! unavailable build/runtime pair. These tests run in default builds.
 
 use super::*;
 use crate::foundation::test_support::{FakeClock, FakeIdGenerator, RecordingLogSink};
@@ -143,6 +143,7 @@ fn console_state_reports_disabled_without_erroring() {
     let serialized = serde_json::to_value(response).expect("serialize");
     assert_eq!(serialized["status"], "ok");
     assert_eq!(serialized["data"]["enabled"], false);
+    assert_eq!(serialized["data"]["runtimeAvailable"], false);
     assert_eq!(logs.events()[0].operation, "get_scan_console_state");
 }
 

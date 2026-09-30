@@ -1,10 +1,24 @@
 import { MemoryRouter } from "react-router";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ScanRoot } from "../platform/contracts";
 import { LibraryAdapterError } from "./contracts";
 import { createFakeLibraryScanAdapter } from "./fake";
+import {
+  createNativeLibraryScanAdapter,
+  GET_LIBRARY_PAGE_COMMAND,
+  GET_SCAN_CONSOLE_STATE_COMMAND,
+  LIST_SCAN_STATUSES_COMMAND,
+  type NativeLibraryTransport,
+} from "./native";
 import { LibraryPage } from "./LibraryPage";
 import type {
   LibraryPage as LibraryPageData,
@@ -14,6 +28,10 @@ import type {
   PublishedFileLocation,
   ScanStatus,
 } from "./contracts";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const rootA: ScanRoot = {
   id: "root-a",
@@ -127,7 +145,8 @@ function makeDeferredAdapter(roots: readonly ScanRoot[]) {
   const statusRequests: DeferredStatusRequest[] = [];
   const listeners = new Set<() => void>();
   const adapter: LibraryScanAdapter = {
-    getConsoleState: () => Promise.resolve({ enabled: true }),
+    getConsoleState: () =>
+      Promise.resolve({ enabled: true, runtimeAvailable: true }),
     getLibraryPage(request) {
       const entry = deferred<LibraryPageData>();
       pageRequests.push({ request: { ...request }, deferred: entry });
@@ -159,8 +178,9 @@ function makeDeferredAdapter(roots: readonly ScanRoot[]) {
         runId: null,
         outcome: "queued" as const,
       }),
-    subscribe(listener) {
+    subscribe(listener, onStateChange) {
       listeners.add(listener);
+      onStateChange?.("attached");
       return () => listeners.delete(listener);
     },
   };
@@ -179,6 +199,18 @@ async function settle<T>(entry: Deferred<T>, value: T) {
     entry.resolve(value);
     await Promise.resolve();
   });
+}
+
+async function drainFakeTimerTurns() {
+  // A health response can commit after one act, and that commit mounts effects
+  // which schedule their own zero-delay reads. Advance by a bounded positive
+  // step because the fake clock may schedule a new zero-delay timer at +1 ms.
+  for (let pass = 0; pass < 3; pass += 1) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+      await Promise.resolve();
+    });
+  }
 }
 
 function page(
@@ -257,6 +289,237 @@ describe("LibraryPage", () => {
       view.container.querySelector('[data-library-state="error"]'),
     ).toBeNull();
     expect(screen.queryByText(/Try again/)).toBeNull();
+  });
+
+  it("polls without a listener, refreshes stopped health, and reconciles on focus", async () => {
+    vi.useFakeTimers();
+    const idleRoot: ScanRoot = {
+      ...rootB,
+      id: "root-idle",
+      displayName: "Archive",
+      canonicalPath: "D:\\Synthetic\\Archive",
+    };
+    let execution: ScanStatus["state"] = "running";
+    let runtimeAvailable = true;
+    let records: readonly PublishedFileLocation[] = [
+      makeRecord(rootA, "saved-location", "Saved.flp", "Saved.flp"),
+    ];
+    const calls: string[] = [];
+    const transport: NativeLibraryTransport = {
+      invoke: (command) => {
+        calls.push(command);
+        const data =
+          command === GET_SCAN_CONSOLE_STATE_COMMAND
+            ? { enabled: true, runtimeAvailable }
+            : command === LIST_SCAN_STATUSES_COMMAND
+              ? [
+                  {
+                    ...makeStatus(
+                      rootA,
+                      execution,
+                      "native-job",
+                      execution === "idle" ? null : "native-run",
+                    ),
+                    lastOutcomeAt:
+                      execution === "completed" ? "2026-09-29T00:00:00Z" : null,
+                    lastSuccessfulScanAt:
+                      execution === "completed" ? "2026-09-29T00:00:00Z" : null,
+                  },
+                  makeStatus(rootB, "failed", "retry-job", null),
+                  makeStatus(idleRoot),
+                ]
+              : {
+                  rootId: rootA.id,
+                  snapshotId:
+                    execution === "completed" ? "snapshot-2" : "snapshot-1",
+                  records,
+                  nextCursor: null,
+                };
+        return Promise.resolve({
+          status: "ok",
+          schemaVersion: 1,
+          correlationId: "correlation_00000000000000000000000000000001",
+          data,
+        });
+      },
+      listen: () => Promise.reject(new Error("synthetic listener failure")),
+    };
+    const view = renderLibrary(createNativeLibraryScanAdapter(transport));
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250);
+      });
+      await drainFakeTimerTurns();
+      expect(
+        screen.getByRole("button", { name: /Cancel scan Projects/ }),
+      ).toBeTruthy();
+      expect(
+        screen.getByText(/Live scan updates are not connected/),
+      ).toBeTruthy();
+
+      runtimeAvailable = false;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(screen.getByRole("alert").textContent).toMatch(
+        /Restart Fruitboard/,
+      );
+      expect(
+        screen.getByRole("button", { name: /Cancel scan Projects/ }),
+      ).toHaveProperty("disabled", true);
+      expect(
+        screen.getByRole("button", { name: /Retry scan Projects/ }),
+      ).toHaveProperty("disabled", true);
+      expect(
+        screen.getByRole("button", { name: "Scan now Archive" }),
+      ).toHaveProperty("disabled", true);
+      expect(screen.getByRole("heading", { name: "Saved.flp" })).toBeTruthy();
+
+      execution = "completed";
+      records = [
+        makeRecord(rootA, "native-location", "Published.flp", "Published.flp"),
+      ];
+      fireEvent.focus(window);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      await drainFakeTimerTurns();
+
+      expect(
+        screen.queryByRole("button", { name: /Cancel scan Projects/ }),
+      ).toBeNull();
+      expect(screen.getByText("Completed")).toBeTruthy();
+      expect(
+        screen.getByRole("heading", { name: "Published.flp" }),
+      ).toBeTruthy();
+      expect(
+        calls.filter((command) => command === LIST_SCAN_STATUSES_COMMAND)
+          .length,
+      ).toBeLessThanOrEqual(4);
+      expect(
+        calls.filter((command) => command === GET_LIBRARY_PAGE_COMMAND).length,
+      ).toBeLessThanOrEqual(4);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("reconciles after listener attachment and on focus, then cleans up", async () => {
+    vi.useFakeTimers();
+    let execution: ScanStatus["state"] = "idle";
+    let records: readonly PublishedFileLocation[] = [];
+    let resolveListen!: (unlisten: () => void) => void;
+    const eventHandler: { current: (() => void) | null } = { current: null };
+    const unlisten = vi.fn();
+    const calls: string[] = [];
+    const transport: NativeLibraryTransport = {
+      invoke: (command) => {
+        calls.push(command);
+        const data =
+          command === GET_SCAN_CONSOLE_STATE_COMMAND
+            ? { enabled: true, runtimeAvailable: true }
+            : command === LIST_SCAN_STATUSES_COMMAND
+              ? [
+                  {
+                    ...makeStatus(
+                      rootA,
+                      execution,
+                      execution === "idle" ? null : "gap-job",
+                      execution === "running" || execution === "completed"
+                        ? "gap-run"
+                        : null,
+                    ),
+                    lastOutcomeAt:
+                      execution === "completed" ? "2026-09-29T00:00:00Z" : null,
+                    lastSuccessfulScanAt:
+                      execution === "completed" ? "2026-09-29T00:00:00Z" : null,
+                  },
+                ]
+              : {
+                  rootId: rootA.id,
+                  snapshotId:
+                    execution === "completed"
+                      ? "gap-snapshot-2"
+                      : "gap-snapshot-1",
+                  records,
+                  nextCursor: null,
+                };
+        return Promise.resolve({
+          status: "ok",
+          schemaVersion: 1,
+          correlationId: "correlation_00000000000000000000000000000001",
+          data,
+        });
+      },
+      listen: (_event, handler) => {
+        eventHandler.current = handler;
+        return new Promise((resolve) => {
+          resolveListen = resolve;
+        });
+      },
+    };
+    const view = renderLibrary(createNativeLibraryScanAdapter(transport));
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(150);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await drainFakeTimerTurns();
+      expect(screen.getByText("Not scanned yet")).toBeTruthy();
+
+      // Work changes after the initial status snapshot but before the async
+      // event registration resolves, so no event can report this transition.
+      execution = "running";
+      await act(async () => {
+        resolveListen(unlisten);
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(
+        screen.getByRole("button", { name: /Cancel scan Projects/ }),
+      ).toBeTruthy();
+
+      // The window-focus reconciliation catches a completion that happened
+      // while this page was away, then refreshes only the selected root page.
+      execution = "completed";
+      records = [
+        makeRecord(rootA, "gap-location", "AfterFocus.flp", "AfterFocus.flp"),
+      ];
+      fireEvent.focus(window);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      await drainFakeTimerTurns();
+      expect(screen.getByText("Completed")).toBeTruthy();
+      expect(
+        screen.getByRole("heading", { name: "AfterFocus.flp" }),
+      ).toBeTruthy();
+
+      const statusReadsBeforeUnmount = calls.filter(
+        (command) => command === LIST_SCAN_STATUSES_COMMAND,
+      ).length;
+      view.unmount();
+      expect(unlisten).toHaveBeenCalledOnce();
+      eventHandler.current?.();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(
+        calls.filter((command) => command === LIST_SCAN_STATUSES_COMMAND),
+      ).toHaveLength(statusReadsBeforeUnmount);
+    } finally {
+      view.unmount();
+      vi.useRealTimers();
+    }
   });
 
   it("falls back to the normal surfaces when the console probe fails", async () => {
@@ -777,7 +1040,7 @@ describe("LibraryPage", () => {
     expect(screen.getAllByText(/Jan 2, 2026/)).not.toHaveLength(0);
   });
 
-  it("ignores an older page subscription refresh that resolves after the newer one", async () => {
+  it("coalesces a burst of subscription events into one page refresh", async () => {
     const harness = makeDeferredAdapter([rootA]);
     renderLibrary(harness.adapter);
     await waitFor(() => {
@@ -801,23 +1064,16 @@ describe("LibraryPage", () => {
     harness.emit();
     harness.emit();
     await waitFor(() => {
-      expect(harness.pageRequests).toHaveLength(3);
-      expect(harness.statusRequests).toHaveLength(3);
+      expect(harness.pageRequests).toHaveLength(2);
+      expect(harness.statusRequests).toHaveLength(2);
     });
     await settle(
-      harness.pageRequests[2]!.deferred,
+      harness.pageRequests[1]!.deferred,
       page(rootA.id, "snapshot-1", [
         makeRecord(rootA, "new", "Newest.flp", "Newest.flp"),
       ]),
     );
     await screen.findByRole("heading", { name: "Newest.flp" });
-    await settle(
-      harness.pageRequests[1]!.deferred,
-      page(rootA.id, "snapshot-1", [
-        makeRecord(rootA, "old", "Older.flp", "Older.flp"),
-      ]),
-    );
-
     expect(screen.getByRole("heading", { name: "Newest.flp" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Older.flp" })).toBeNull();
   });
@@ -841,6 +1097,17 @@ describe("LibraryPage", () => {
     await screen.findByRole("heading", { name: "First.flp" });
 
     harness.emit();
+    await waitFor(() => {
+      expect(harness.pageRequests).toHaveLength(2);
+      expect(harness.statusRequests).toHaveLength(2);
+    });
+    // The coalesced event refresh must be in flight before pagination changes;
+    // its older page-one response is intentionally settled after page two.
+    expect(harness.pageRequests[1]!.request).toEqual({
+      rootId: rootA.id,
+      limit: 4,
+      cursor: null,
+    });
     await user.click(screen.getByRole("button", { name: "Next library page" }));
     await waitFor(() => expect(harness.pageRequests).toHaveLength(3));
     expect(harness.pageRequests[2]!.request.cursor).toBe("cursor-1");
@@ -868,10 +1135,61 @@ describe("LibraryPage", () => {
         "cursor-1",
       ),
     );
+    await settle(harness.statusRequests[1]!, [makeStatus(rootA)]);
 
     expect(screen.getByRole("heading", { name: "Second.flp" })).toBeTruthy();
     expect(
       screen.queryByRole("heading", { name: "Late first page.flp" }),
+    ).toBeNull();
+  });
+
+  it("retries an invalidated in-flight page when selection returns to its root", async () => {
+    const harness = makeDeferredAdapter([rootA, rootB]);
+    const user = userEvent.setup();
+    renderLibrary(harness.adapter);
+    await waitFor(() => expect(harness.statusRequests).toHaveLength(1));
+    await settle(harness.statusRequests[0]!, [
+      makeStatus(rootA),
+      makeStatus(rootB),
+    ]);
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(1));
+    expect(harness.pageRequests[0]!.request.rootId).toBe(rootA.id);
+
+    await user.selectOptions(screen.getByLabelText("Scan root"), rootB.id);
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(2));
+    await settle(
+      harness.pageRequests[1]!.deferred,
+      page(rootB.id, "snapshot-b", [
+        makeRecord(rootB, "b", "Other root.flp", "Other root.flp"),
+      ]),
+    );
+    await screen.findByRole("heading", { name: "Other root.flp" });
+
+    await user.selectOptions(screen.getByLabelText("Scan root"), rootA.id);
+    expect(harness.pageRequests).toHaveLength(2);
+    await settle(
+      harness.pageRequests[0]!.deferred,
+      page(rootA.id, "snapshot-old", [
+        makeRecord(
+          rootA,
+          "old",
+          "Stale first read.flp",
+          "Stale first read.flp",
+        ),
+      ]),
+    );
+    await waitFor(() => expect(harness.pageRequests).toHaveLength(3));
+    expect(harness.pageRequests[2]!.request.rootId).toBe(rootA.id);
+    await settle(
+      harness.pageRequests[2]!.deferred,
+      page(rootA.id, "snapshot-fresh", [
+        makeRecord(rootA, "fresh", "Fresh read.flp", "Fresh read.flp"),
+      ]),
+    );
+
+    await screen.findByRole("heading", { name: "Fresh read.flp" });
+    expect(
+      screen.queryByRole("heading", { name: "Stale first read.flp" }),
     ).toBeNull();
   });
 
@@ -914,7 +1232,7 @@ describe("LibraryPage", () => {
     await screen.findByRole("heading", { name: "Recovered.flp" });
   });
 
-  it("ignores an older status refresh that resolves after the newer one", async () => {
+  it("coalesces a burst of subscription events into one status refresh", async () => {
     const harness = makeDeferredAdapter([rootA]);
     renderLibrary(harness.adapter);
     await waitFor(() => {
@@ -932,12 +1250,11 @@ describe("LibraryPage", () => {
 
     harness.emit();
     harness.emit();
-    await waitFor(() => expect(harness.statusRequests).toHaveLength(3));
-    await settle(harness.statusRequests[2]!, [
+    await waitFor(() => expect(harness.statusRequests).toHaveLength(2));
+    await settle(harness.statusRequests[1]!, [
       makeStatus(rootA, "queued", "new-job", null),
     ]);
     await screen.findByText("Queued");
-    await settle(harness.statusRequests[1]!, [makeStatus(rootA)]);
 
     expect(screen.getByText("Queued")).toBeTruthy();
     expect(screen.queryByText("Not scanned yet")).toBeNull();
@@ -1122,7 +1439,17 @@ describe("LibraryPage", () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 500));
     });
+    const requestCountAfterFirstWindow = adapter.calls.pageRequests.length;
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
     const stableRequestCount = adapter.calls.pageRequests.length;
+    // A status refresh can request one final page reconciliation after the
+    // coalesced event refresh finishes. Allow that single follow-up, then
+    // require the page to remain stable through another full window.
+    expect(
+      stableRequestCount - requestCountAfterFirstWindow,
+    ).toBeLessThanOrEqual(1);
     expect(stableRequestCount).toBeLessThan(12);
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -1149,7 +1476,8 @@ describe("LibraryPage", () => {
       },
     ]);
     const adapter: LibraryScanAdapter = {
-      getConsoleState: () => Promise.resolve({ enabled: true }),
+      getConsoleState: () =>
+        Promise.resolve({ enabled: true, runtimeAvailable: true }),
       getLibraryPage: () => Promise.resolve(recordPage),
       listScanStatuses: () => Promise.resolve(statuses),
       scanNow: (rootId) =>
@@ -1173,7 +1501,10 @@ describe("LibraryPage", () => {
           runId: null,
           outcome: "queued" as const,
         }),
-      subscribe: () => () => {},
+      subscribe: (_listener, onStateChange) => {
+        onStateChange?.("attached");
+        return () => {};
+      },
     };
     renderLibrary(adapter);
 
