@@ -62,5 +62,9 @@ jobs:
           key: ${{ runner.os }}-rust-packaging-${{ hashFiles('Cargo.lock') }}
       - name: Install locked dependencies
         run: pnpm.cmd install --frozen-lockfile --ignore-scripts
+      - name: Check native development-package integration
+        run: |
+          cargo test -p fruitboard-desktop --features packaging-smoke --locked
+          cargo clippy -p fruitboard-desktop --features packaging-smoke --all-targets --locked -- -D warnings
       - name: Build, install, launch, and uninstall the development package
         run: pnpm.cmd smoke:windows:foundation:hosted

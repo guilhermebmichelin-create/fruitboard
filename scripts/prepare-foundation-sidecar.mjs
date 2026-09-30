@@ -26,6 +26,8 @@ if (process.platform !== "win32") {
       "--release",
       "--package",
       "fruitboard-foundation-sidecar-smoke",
+      "--package",
+      "fruitboard-flp-parser",
       "--target",
       policy.windowsRustTarget,
     ],
@@ -35,24 +37,26 @@ if (process.platform !== "win32") {
   if (cargo.status !== 0) {
     process.exitCode = cargo.status ?? 1;
   } else {
-    const source = join(
-      cargoTargetDirectory,
-      policy.windowsRustTarget,
-      "release",
-      "fruitboard-sidecar-smoke.exe",
-    );
-    const destination = join(
-      root,
-      "apps",
-      "desktop",
-      "src-tauri",
-      "binaries",
-      `fruitboard-sidecar-smoke-${policy.windowsRustTarget}.exe`,
-    );
-    mkdirSync(dirname(destination), { recursive: true });
-    copyFileSync(source, destination);
-    console.log(
-      `Prepared the inert sidecar for ${policy.windowsRustTarget} from locked Rust inputs.`,
-    );
+    for (const name of ["fruitboard-sidecar-smoke", "fruitboard-flp-parser"]) {
+      const source = join(
+        cargoTargetDirectory,
+        policy.windowsRustTarget,
+        "release",
+        `${name}.exe`,
+      );
+      const destination = join(
+        root,
+        "apps",
+        "desktop",
+        "src-tauri",
+        "binaries",
+        `${name}-${policy.windowsRustTarget}.exe`,
+      );
+      mkdirSync(dirname(destination), { recursive: true });
+      copyFileSync(source, destination);
+      console.log(
+        `Prepared ${name} for ${policy.windowsRustTarget} from locked Rust inputs.`,
+      );
+    }
   }
 }

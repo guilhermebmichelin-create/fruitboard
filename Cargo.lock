@@ -876,6 +876,7 @@ version = "0.1.0"
 dependencies = [
  "fruitboard-filesystem-enumeration",
  "fruitboard-filesystem-watcher",
+ "fruitboard-flp-parser",
  "fruitboard-scan-execution",
  "fruitboard-storage",
  "regex",

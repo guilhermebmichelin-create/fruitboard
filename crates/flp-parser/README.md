@@ -51,10 +51,17 @@ and termination are outside the request timer, and this slice does not qualify
 memory/CPU limits or descendant-process containment. Only the trusted parser
 executable is supported.
 
-This crate is not yet wired to the scanner or packaged into the desktop
-application. The existing filesystem-only scan path continues to avoid FLP
-content reads. Extended result validation, app integration, packaging, richer
-compatibility, and distribution qualification remain gates in ADR-002.
+Issue #234 includes this executable in the separate unsigned Windows desktop
+development package. Native lifecycle checks cover fixed installed resolution,
+validated health/capabilities, reuse, rejected requests, abrupt child exit and
+recovery, explicit shutdown, missing-binary containment and reinstall. The host
+owns the supervisor; the renderer receives no process permission. The native
+`process_id` accessor observes ownership, not liveness or termination authority.
+
+This crate is not yet wired to scanner analysis jobs. The existing
+filesystem-only scan path continues to avoid FLP content reads. Metadata
+persistence, app integration, richer compatibility, resource qualification and
+production distribution remain gates in ADR-002.
 
 ## Initial native result validation
 
@@ -85,9 +92,10 @@ fail closed. Unknown fields and the currently unvalidated pattern, generator
 and playlist/timing extensions are discarded from the initial projection.
 Validated metadata has no automatic Debug/Serialize implementation because
 names and raw references can contain private text. Raw references are neither
-resolved nor read. This module has no scanner/application call site, renderer
-command, persistence, or packaging effect. Extension validation and application
-integration remain separate slices.
+resolved nor read. The development package uses descriptor validation for
+lifecycle checks only. Project reply validation has no scanner/application
+publication call site, renderer command or persistence effect. Application
+integration remains a separate slice.
 
 ## Project facts
 

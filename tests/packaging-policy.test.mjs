@@ -16,6 +16,7 @@ test("the package smoke is isolated, unsigned, and current-user only", () => {
   assert.equal(config.bundle.createUpdaterArtifacts, false);
   assert.deepEqual(config.bundle.externalBin, [
     "binaries/fruitboard-sidecar-smoke",
+    "binaries/fruitboard-flp-parser",
   ]);
   assert.equal(config.bundle.windows.allowDowngrades, false);
   assert.deepEqual(config.bundle.windows.webviewInstallMode, {
@@ -68,6 +69,35 @@ test("the renderer receives no process or shell permission", () => {
   assert.match(desktopHost, /tauri_plugin_dialog::init\(\)/);
   assert.match(desktopHost, /blocking_pick_folder/);
   assert.doesNotMatch(capability, /dialog:/i);
+});
+
+test("real parser packaging stays optional and uses native installed authority", () => {
+  const manifest = readRootFile("apps/desktop/src-tauri/Cargo.toml");
+  const native = readRootFile(
+    "apps/desktop/src-tauri/src/foundation/packaged_parser.rs",
+  );
+  const preparer = readRootFile("scripts/prepare-foundation-sidecar.mjs");
+  const harness = readRootFile("scripts/windows-foundation-smoke.ps1");
+  const processGuard = readRootFile("scripts/parser-smoke-process.ps1");
+  assert.match(manifest, /packaging-smoke = .*dep:fruitboard-flp-parser/);
+  assert.match(manifest, /fruitboard-flp-parser = .*optional = true/);
+  assert.match(native, /std::env::current_exe\(\)/);
+  assert.match(native, /symlink_metadata/);
+  assert.match(native, /validate_descriptor/);
+  assert.match(native, /allowed_roots: Vec::new\(\)/);
+  assert.doesNotMatch(native, /std::env::var|Command::new|ShellExt/);
+  assert.match(preparer, /"fruitboard-flp-parser"/);
+  assert.match(preparer, /copyFileSync/);
+  assert.doesNotMatch(preparer, /linkSync/);
+  assert.match(harness, /CARGO_TARGET_DIR/);
+  assert.match(harness, /RetainedEvidenceRoot/);
+  assert.match(harness, /Mode "parser-missing"/);
+  assert.match(harness, /Assert-NoReparsePath -Candidate \$heldParserPath/);
+  assert.match(processGuard, /ParentProcessId=\$ApplicationPid/);
+  assert.match(processGuard, /MainModule.FileName/);
+  assert.match(processGuard, /ApplicationStartedUtc/);
+  assert.match(processGuard, /\$owned.Handle/);
+  assert.match(processGuard, /WaitForExit\(3000\)/);
 });
 
 test("the dialog dependency is exact, default-free, and locked", () => {
@@ -413,7 +443,18 @@ test("the installed smoke deadline covers the bounded sidecar budget", () => {
     durationMs("RESPOND_TIMEOUT", nativeSmoke) +
     durationMs("FAIL_TIMEOUT", nativeSmoke) +
     durationMs("WAIT_READY_TIMEOUT", nativeSmoke) +
-    durationMs("WAIT_TERMINATE_TIMEOUT", nativeSmoke);
+    durationMs("WAIT_TERMINATE_TIMEOUT", nativeSmoke) +
+    6 *
+      durationMs(
+        "REQUEST_TIMEOUT",
+        readRootFile(
+          "apps/desktop/src-tauri/src/foundation/packaged_parser.rs",
+        ),
+      ) +
+    durationMs(
+      "CRASH_ACK_TIMEOUT",
+      readRootFile("apps/desktop/src-tauri/src/foundation/packaged_parser.rs"),
+    );
 
   // The outer harness deadline must cover the worst-case inner sidecar
   // budget plus startup, storage setup, evidence sync, and exit margin. The

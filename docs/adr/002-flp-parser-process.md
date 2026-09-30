@@ -107,9 +107,13 @@ and shutdown. It discards subprocess stderr and returns fixed transport-error
 categories. Real-process and approved-corpus tests validate this component.
 
 Extended application validation and publication freshness checks, scanner
-integration, packaged binary resolution, resource-limit qualification, and
-distribution gates remain open. This component adds no renderer command,
-parser packaging, or automatic FLP content reads.
+integration, resource-limit qualification and distribution gates remain open.
+Issue #234 subsequently adds fixed installed binary resolution and packages
+the real parser in the separate unsigned development installer. Native tests
+validate capabilities, reuse, rejection containment, abrupt owned-child exit and
+recovery, shutdown, missing binary and reinstall. No renderer process permission
+or automatic FLP content read is added. Signing, public distribution, update
+rollback and broader compatibility/resource qualification remain open.
 
 Issue #230 adds the initial native result-validation component for five core
 metadata fields. It validates the selected descriptor, field/provenance and
