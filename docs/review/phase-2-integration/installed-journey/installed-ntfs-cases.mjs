@@ -2341,7 +2341,7 @@ async function main() {
       const capture = async (label, width) => {
         await app.send("Emulation.setDeviceMetricsOverride", {
           width,
-          height: 900,
+          height: width < 600 ? 1400 : 900,
           deviceScaleFactor: 1,
           mobile: false,
         });
@@ -2388,14 +2388,22 @@ async function main() {
         );
         // Preserve layout while hiding synthetic absolute paths in the
         // shareable image. Raw captures/AX records remain outside Git.
-        await evaluate(
+        const pathsHidden = await evaluate(
           app.call,
           `(() => {
-          const style = document.createElement("style");
-          style.id = "fruitboard-evidence-redaction";
-          style.textContent = ".library-scan-item__path{visibility:hidden!important}";
-          document.head.append(style);
+          const paths = [...document.querySelectorAll(".library-scan-item__path")];
+          for (const element of paths) {
+            element.dataset.evidenceVisibility = element.style.visibility;
+            element.style.visibility = "hidden";
+          }
+          return paths.length > 0 && paths.every(element => getComputedStyle(element).visibility === "hidden");
         })()`,
+        );
+        if (!pathsHidden)
+          throw new Error("evidence path redaction was not applied");
+        await evaluate(
+          app.call,
+          "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))",
         );
         const redactedPath = path.join(journeyRoot, `${label}-redacted.png`);
         try {
@@ -2411,7 +2419,12 @@ async function main() {
         } finally {
           await evaluate(
             app.call,
-            'document.getElementById("fruitboard-evidence-redaction")?.remove()',
+            `(() => {
+              for (const element of document.querySelectorAll(".library-scan-item__path")) {
+                element.style.visibility = element.dataset.evidenceVisibility ?? "";
+                delete element.dataset.evidenceVisibility;
+              }
+            })()`,
           );
         }
         const accessibility = await app.send("Accessibility.getFullAXTree", {});
