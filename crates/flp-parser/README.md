@@ -5,7 +5,7 @@ under [ADR-002](../../docs/adr/002-flp-parser-process.md). Its code derives from
 the bounded research parser at commit `080e825`. It reads one explicit FLP
 read-only, returns the four initial metadata fields plus channel and pattern
 counts, pattern names, playlist pattern clips and timing summaries, and the
-narrow generator-name field described below. It keeps typed failure/partial
+narrow generator-name field and project facts described below. It keeps typed failure/partial
 outcomes tested against the approved twelve-file corpus.
 
 The executable uses protocol version 1 and schema version 2 as newline-delimited
@@ -23,8 +23,7 @@ receive `UNSUPPORTED_SCHEMA_VERSION`.
 The only optional feature list is `["basic-metadata"]`. Every
 response carries the request ID; malformed requests receive a fixed error
 code. Requests are capped at 64 KiB and responses at 256 KiB. The parser caps
-files at 4 MiB, event payloads at 2 MiB, events at 100,000, and channels at
-256. Unique saved patterns and playlist clips are each capped at 1024. Only the three exact saved builds
+files at 4 MiB, event payloads at 2 MiB, events at 100,000, and channels at 256. Unique saved patterns and playlist clips are each capped at 1024. Only the three exact saved builds
 in the approved corpus currently return
 metadata; other build strings receive `UNSUPPORTED_SAVED_VERSION`.
 
@@ -90,6 +89,37 @@ resolved nor read. This module has no scanner/application call site, renderer
 command, persistence, or packaging effect. Extension validation and application
 integration remain separate slices.
 
+## Project facts
+
+Issue #232 adds `projectCreatedLocal` (the embedded creation date with an
+unspecified local timezone), `flStudioTimeSpentMs` (FL Studio's saved counter),
+and optional `filesystemCreatedAtMs` from the authorized file handle. The
+embedded project creation date is separate from the filesystem creation date.
+Missing, malformed or repeated project-info records keep explicit states;
+neither date nor time spent is guessed. The counter is never tracked work or
+automatically summed across project versions.
+
+`pluginReferences` retains bounded top-level saved class names and, for
+recognized Fruity Wrapper metadata records, factory name/vendor strings.
+Sampler defaults remain inferred; malformed/unknown metadata stays unsupported.
+Plugin paths/state are skipped and never returned or loaded. This is a saved
+reference list with incomplete nested-plugin coverage, not an installed-plugin
+inventory or general VST compatibility claim.
+
+`playlistPatternSpanBars` adds a low-confidence bar-span estimate on the same
+verified 96-PPQ, 4/4 pattern-clip layout as nominal seconds. Whole-arrangement
+span uses the maximum clip end, including overlap/gaps; it is not a sum of
+clip lengths or a rendered song duration.
+
+`validate_project_reply` adds a separate full typed projection containing these
+facts, authoritative request size/modified time, plugin references and checked
+arrangement end/bars/seconds. It preserves the initial validation and freshness
+checks, recomputes the maximum clip end and estimate formulas, and drops
+unrelated JSON. It requires an advertising descriptor. The initial-only
+`validate_reply` remains unchanged for its callers. No scanner/UI integration
+is enabled. [Format evidence and limits](../../docs/research/parser-project-facts-232.md)
+distinguish constructed tests from independent GUI compatibility qualification.
+
 `channelCount` is `extracted` only after the bounded channel-event walk agrees
 with the FLP header. A malformed file has a typed `failed` count, and an
 unverified saved build has an `unsupported` count. The approved valid projects
@@ -106,7 +136,9 @@ high-confidence inference from the approved 2026 minimal saves. A verified `3x O
 `medium` aggregate confidence when stored and inferred classes are mixed.
 Unknown classes or layouts are field-level `unsupported`, even if event 201
 contains a plausible string. The 2024/2025 builds are `unsupported` for this
-field. Mixer effects, VST identity/vendor, and plugin state are not decoded.
+field. This channel-only field does not decode mixer effects or VST identity;
+the separate `pluginReferences` field has the narrower metadata support above.
+Plugin state is not decoded.
 The owner approved the exact sanitized two-channel F14 file for corpus
 inclusion on 2026-09-29. Its ordinary test checks the class and editable
 label separately; it does not establish broader compatibility.

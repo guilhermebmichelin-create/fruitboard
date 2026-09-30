@@ -80,9 +80,10 @@ fn actual_parser_health_describe_and_approved_file_share_one_supervisor() {
 }
 
 #[test]
-fn actual_parser_corpus_replies_pass_initial_metadata_validation_without_mutation() {
+fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutation() {
     use fruitboard_flp_parser::validation::{
-        MetadataOutcome, ParseContext, ValidatedReply, validate_descriptor, validate_reply,
+        MetadataOutcome, ParseContext, ValidatedProjectReply, validate_descriptor,
+        validate_project_reply,
     };
     let mut supervisor = ParserSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_fruitboard-flp-parser")),
@@ -133,7 +134,7 @@ fn actual_parser_corpus_replies_pass_initial_metadata_validation_without_mutatio
                 &cancellation,
             )
             .unwrap();
-        let validated = validate_reply(reply, &capabilities, &context, &context).unwrap();
+        let validated = validate_project_reply(reply, &capabilities, &context, &context).unwrap();
         let name = path.file_name().unwrap().to_str().unwrap();
         let expected_failure = match name {
             "FIX-RB-TRUNC.flp" => Some("TRUNCATED_DATA_CHUNK"),
@@ -143,15 +144,15 @@ fn actual_parser_corpus_replies_pass_initial_metadata_validation_without_mutatio
         };
         if let Some(expected) = expected_failure {
             assert!(
-                matches!(validated, ValidatedReply::Failed(code) if code.as_str() == expected),
+                matches!(validated, ValidatedProjectReply::Failed(code) if code.as_str() == expected),
                 "{name}"
             );
         } else {
-            let ValidatedReply::Metadata(metadata) = validated else {
+            let ValidatedProjectReply::Metadata(metadata) = validated else {
                 panic!("approved valid fixture must retain metadata: {name}");
             };
             assert_eq!(
-                metadata.outcome(),
+                metadata.initial().outcome(),
                 if name == "FIX-RB-UNKNOWN.flp" {
                     MetadataOutcome::Partial
                 } else {
@@ -159,6 +160,10 @@ fn actual_parser_corpus_replies_pass_initial_metadata_validation_without_mutatio
                 },
                 "{name}"
             );
+            assert_eq!(metadata.file_size_bytes(), expected.size);
+            assert_eq!(metadata.file_modified_at_ms(), expected.modified_at_ms);
+            assert!(metadata.project_created_local().value().is_some());
+            assert!(metadata.fl_studio_time_spent_ms().value().is_some());
         }
         assert_eq!(
             fs::read(path).unwrap(),
