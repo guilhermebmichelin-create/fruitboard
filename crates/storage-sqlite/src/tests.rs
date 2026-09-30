@@ -8,15 +8,15 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 
-struct TestDirectory(PathBuf);
+pub(super) struct TestDirectory(PathBuf);
 impl TestDirectory {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let directory =
             std::env::temp_dir().join(format!("fruitboard-storage-{}", uuid::Uuid::now_v7()));
         fs::create_dir(&directory).unwrap();
         Self(directory)
     }
-    fn path(&self) -> &Path {
+    pub(super) fn path(&self) -> &Path {
         &self.0
     }
     fn database(&self) -> PathBuf {

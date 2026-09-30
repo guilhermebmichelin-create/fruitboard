@@ -39,6 +39,10 @@ pub(crate) const MIGRATIONS: &[Migration] = &[
         name: "009_root_identity_lookup",
         sql: include_str!("../migrations/009_root_identity_lookup.sql"),
     },
+    Migration {
+        name: "010_parser_metadata",
+        sql: include_str!("../migrations/010_parser_metadata.sql"),
+    },
 ];
 
 #[derive(Clone, Copy)]

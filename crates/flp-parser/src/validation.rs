@@ -44,8 +44,7 @@ pub struct ParserCapabilities {
 
 pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, ValidationError> {
     let invalid = ValidationError::InvalidCapabilities;
-    if value["adapter"] != "rust-flp-parser" || value["adapterVersion"] != env!("CARGO_PKG_VERSION")
-    {
+    if value["adapter"] != crate::ADAPTER_ID || value["adapterVersion"] != crate::ADAPTER_VERSION {
         return Err(invalid);
     }
     let fields = value["fields"].as_array().ok_or(invalid)?;

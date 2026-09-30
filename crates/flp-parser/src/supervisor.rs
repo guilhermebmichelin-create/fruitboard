@@ -307,7 +307,7 @@ fn absolute_without_parent(path: &Path) -> bool {
 }
 
 fn encode_request(request: ParserRequest, id: &str) -> Result<Vec<u8>, SupervisorError> {
-    let mut value = json!({"protocolVersion":1,"schemaVersion":2,"id":id});
+    let mut value = json!({"protocolVersion":crate::PROTOCOL_VERSION,"schemaVersion":crate::SCHEMA_VERSION,"id":id});
     match request {
         ParserRequest::Describe => value["method"] = json!("describe"),
         ParserRequest::HealthCheck => value["method"] = json!("healthCheck"),
@@ -383,8 +383,8 @@ fn decode_reply(bytes: &[u8], id: &str) -> Result<ProtocolReply, SupervisorError
     let value: Value =
         serde_json::from_slice(bytes).map_err(|_| SupervisorError::InvalidProtocol)?;
     let object = value.as_object().ok_or(SupervisorError::InvalidProtocol)?;
-    if value["protocolVersion"].as_u64() != Some(1)
-        || value["schemaVersion"].as_u64() != Some(2)
+    if value["protocolVersion"].as_u64() != Some(crate::PROTOCOL_VERSION)
+        || value["schemaVersion"].as_u64() != Some(crate::SCHEMA_VERSION)
         || value["id"].as_str() != Some(id)
         || object.contains_key("result") == object.contains_key("error")
     {
