@@ -102,16 +102,15 @@ fruitboard/
 │  └─ desktop/
 │     └─ src-tauri/           # Tauri configuration, commands, capabilities
 ├─ packages/
-│  ├─ domain/                 # pure TS models, validation, filters, sync operations
-│  ├─ ui/                     # tokens and accessible product components
-│  └─ test-support/           # builders, fake clocks, fixtures (no personal data)
+│  └─ ui/                     # shared accessible tokens (components stay app-local)
 ├─ crates/
-│  ├─ app-core/               # Rust use cases and ports
 │  ├─ storage-sqlite/         # repositories and embedded migrations/ (Issue #15)
-│  ├─ scanner/                # discovery, watching, reconciliation, matching signals
-│  └─ parser-protocol/        # sidecar protocol and normalized parser DTOs
-├─ services/
-│  └─ flp-parser/             # isolated Python package and packaging configuration
+│  ├─ filesystem-watcher/     # ReadDirectoryChangesW watcher with bounded coalescer
+│  ├─ filesystem-enumeration/ # bounded NTFS traversal and locator keys
+│  ├─ reconciliation/         # pure change-reconciliation core
+│  ├─ scan-execution/         # durable scan worker, leases, follow-ups
+│  ├─ flp-parser/             # bounded read-only FLP parser and JSONL sidecar
+│  └─ foundation-sidecar-smoke/ # inert packaging smoke sidecar
 ├─ fixtures/                  # manifest; approved synthetic/public fixtures only
 ├─ docs/
 │  ├─ adr/
@@ -148,8 +147,10 @@ contracts and an accessible Preferences control without exposing paths, SQL,
 connections, or recovery authority to the renderer.
 Phase 2 realized the scanner as the four crates mapped under
 [Scanner crate map](#scanner-crate-map) instead of the single proposed
-`crates/scanner`; `crates/parser-protocol` is still uncreated and waits for the
-bounded parser spike. The remaining proposed package/crate directories are
+`crates/scanner`. The parser boundary is now the Rust `crates/flp-parser`
+selected in ADR-002 (2026-09-28); the proposed `crates/parser-protocol` and the
+Python `services/flp-parser` were not created. The remaining proposed
+package/crate directories are
 still created only by the PR that first owns their behavior; empty
 architectural scaffolding remains deliberately avoided.
 

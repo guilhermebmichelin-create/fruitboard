@@ -3,7 +3,34 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Project status
+## Current status - 2026-09-29
+
+This block supersedes the dated status sections below; they remain as
+historical record.
+
+- **Phases**: Phase 0 accepted 2026-09-04, Phase 1 accepted 2026-09-06, and
+  Phase 2 accepted with known gaps on 2026-09-14
+  ([acceptance record](docs/review/phase-2-integration/acceptance-2026-09-14.md)).
+  Epic #33 is closed. Issues #38 and #40 remain open for the narrowed P2-08
+  evidence residual; P2-08 itself stays Partial.
+- **Parser**: the Rust FLP parser was selected on 2026-09-28
+  ([ADR-002](docs/adr/002-flp-parser-process.md)) and the `flp-parser` crate
+  landed with bounded extraction for three saved FL Studio builds. It is not
+  yet wired into the scanner or packaged with the app.
+- **Product surface**: the Tauri/React shell, the Rust-owned local SQLite
+  library, scan roots, durable scan execution (feature-gated behind
+  `scan-console`), and the Library list are implemented. Production scanning
+  stays inactive by default until an explicit owner action. Kanban, search,
+  project workflow, Google Drive sync, and the PWA are not implemented.
+- **Performance**: unqualified; the measured warm nearest-rank p95 was
+  10,173 ms against a 10,000 ms target on source `69f27f6`.
+- **Repository**: public since 2026-09-07 (visibility re-verified 2026-09-29),
+  branch protection with ten required checks, and the GitHub-native security
+  products activated 2026-09-29: secret scanning, push protection, and
+  Dependabot alerts, plus informational CodeQL and dependency review
+  workflows (#148).
+
+## Project status (superseded - see Current status above)
 
 Fruitboard's **Phase 0 architecture is accepted**; the manual governance
 exception recorded for the private GitHub Free repository was superseded on
@@ -12,8 +39,9 @@ enabled on `main` (2026-09-07; see [DEVELOPMENT.md](DEVELOPMENT.md#enforced-bran
 **Phase 1 is
 accepted**: the reproducible Tauri/React shell now includes Rust-owned local
 SQLite, one persisted startup-view preference, automated quality/security
-gates, and a Windows packaging smoke. It still has no parser, project workflow,
-sync, or PWA. Phase 2 proceeds under epic #33. The verified source baseline for
+gates, and a Windows packaging smoke. At that checkpoint the parser work,
+project workflow, sync, and PWA had not started, and Phase 2 was tracked
+under epic #33. The verified source baseline for
 the 2026-09-13/14 documentation refresh was
 `71848732216d4ab4e13e73c820b2b8e4d17bddbe`, which includes the squash merges
 of #110 (`e2948f1`), #111 (`914d7bd`), the merged #112 (`00884ba`), and #114
@@ -121,7 +149,7 @@ requests; agents prepare and review changes, while owner acceptance and
 decision authority remain separate. A documentation merge does not accept
 Phase 2 or authorize production scanning.
 
-## Post-#152 follow-up status — 2026-09-21
+## Post-#152 follow-up status — 2026-09-21 (superseded — see Current status above)
 
 The current publication boundary is `main` at
 `73775453e9e4021c7b6b4ade381fd87300f47c32`, the squash merge of #152. Its

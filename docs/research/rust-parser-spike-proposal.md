@@ -2,7 +2,8 @@
 
 - Status: **Approved and started on 2026-09-27 after fixture PR #168 merged.
   Research result: [spike #138 result](parser-spike-138-result-20260927.md).
-  Owner parser decision pending; no parser selected.**
+  Parser selection recorded 2026-09-28: Rust
+  ([ADR-002](../adr/002-flp-parser-process.md)); this spike is closed.**
 - Date: 2026-09-14
 - Execution update: 2026-09-27
 - Decision owner: product owner (spike approval, fixture approval, parser selection)

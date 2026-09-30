@@ -4,9 +4,9 @@
 into one bounded manual-scan journey: durable queueing, leasing and recovery
 from `fruitboard-storage`, bounded metadata traversal from
 `fruitboard-filesystem-enumeration`, and the deterministic per-path decision
-core from `fruitboard-reconciliation`. The worker is still completely hidden
-from the renderer: there is no Tauri dependency, no IPC surface, no renderer
-command, and no production scan entry point. The future desktop host owns the
+core from `fruitboard-reconciliation`. The worker is hidden from the renderer: there is
+no Tauri dependency, no IPC surface, and no renderer command in this crate.
+The desktop host (`apps/desktop/src-tauri`, `scan-console` feature) owns the
 single worker instance, the started process session and the poll loop.
 
 ## Watcher follow-up wiring (#37, P2-09 storage half)
@@ -32,7 +32,7 @@ coalesced hints and overflow signals to the durable follow-up queue:
 - Privacy: only opaque root ids, job ids and counters cross this boundary;
   no path data exists in the adapter's public types.
 
-The adapter is not wired into any host: the desktop host owns watcher
+The adapter is wired through the desktop host, which owns watcher
 lifecycle, the watcher→storage root mapping (`RootIdMapping`), the poll loop
 and activation behind its console flag. `tests.rs` provides a compiling fake
 consumer proving the exact trait shape the host binds.
