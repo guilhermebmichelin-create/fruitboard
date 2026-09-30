@@ -226,6 +226,14 @@ export interface ScanProgressCounters {
   readonly totalFiles: number | null;
 }
 
+export interface FinishedScanAttempt {
+  readonly jobId: string;
+  readonly runId: string;
+  readonly state: Exclude<ScanExecutionState, "idle" | "queued" | "running">;
+  readonly finishedAt: string;
+  readonly errorCode: ScanErrorCode | null;
+}
+
 export interface ScanStatus {
   readonly root: ScanRoot;
   readonly state: ScanExecutionState;
@@ -245,6 +253,8 @@ export interface ScanStatus {
   readonly lastSuccessfulScanAt: string | null;
   readonly lastOutcomeAt: string | null;
   readonly errorCode: ScanErrorCode | null;
+  /** Optional on older hosts; describes history, never the current job. */
+  readonly lastFinishedAttempt?: FinishedScanAttempt | null;
 }
 
 export type ScanStartOutcome = "queued" | "already_queued" | "already_running";

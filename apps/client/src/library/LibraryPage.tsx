@@ -275,6 +275,31 @@ function ConnectedLibraryPage({
   const scanButtonReferences = useRef(new Map<string, HTMLButtonElement>());
   const cancelButtonReferences = useRef(new Map<string, HTMLButtonElement>());
   const retryButtonReferences = useRef(new Map<string, HTMLButtonElement>());
+  const pendingCancelFocus = useRef<{
+    rootId: string;
+    requestId: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const pending = pendingCancelFocus.current;
+    if (
+      !pending ||
+      statusState.kind !== "ready" ||
+      actionState.kind === "working"
+    )
+      return;
+    if (actionSequence.current !== pending.requestId) {
+      pendingCancelFocus.current = null;
+      return;
+    }
+    const target =
+      retryButtonReferences.current.get(pending.rootId) ??
+      scanButtonReferences.current.get(pending.rootId);
+    if (target?.isConnected && !target.disabled) {
+      pendingCancelFocus.current = null;
+      target.focus();
+    }
+  }, [statusState, actionState]);
 
   const focusLater = useCallback((target: () => HTMLElement | null) => {
     let attempts = 0;
@@ -917,14 +942,9 @@ function ConnectedLibraryPage({
     try {
       await adapter.cancelScan(status.jobId);
       if (!isCurrentAction()) return;
+      pendingCancelFocus.current = { rootId, requestId };
       if (!(await refreshAfterAction(requestId))) return;
       setActionState({ kind: "idle" });
-      focusLater(
-        () =>
-          retryButtonReferences.current.get(rootId) ??
-          scanButtonReferences.current.get(rootId) ??
-          null,
-      );
     } catch {
       if (!isCurrentAction()) return;
       await refreshAfterAction(requestId);
@@ -1483,6 +1503,17 @@ function ScanStatusCard({
             <dt>Last successful results</dt>
             <dd>{formatDateTime(status.lastSuccessfulScanAt)}</dd>
           </div>
+          {status.lastFinishedAttempt && (
+            <div data-last-finished-attempt={status.lastFinishedAttempt.state}>
+              <dt>Last finished attempt</dt>
+              <dd>
+                {status.lastFinishedAttempt.state.charAt(0).toUpperCase() +
+                  status.lastFinishedAttempt.state.slice(1)}
+                {" · "}
+                {formatDateTime(status.lastFinishedAttempt.finishedAt)}
+              </dd>
+            </div>
+          )}
         </dl>
       </div>
 
@@ -1531,6 +1562,13 @@ function ScanStatusCard({
             : status.state === "interrupted"
               ? "The previous run was interrupted. Previous committed results were kept."
               : scanErrorMessages[status.errorCode ?? "internal"]}
+        </p>
+      )}
+
+      {isActive && status.lastFinishedAttempt?.state === "interrupted" && (
+        <p className="library-scan-outcome">
+          The last finished attempt was interrupted. The next scan is{" "}
+          {status.state}. Previous committed results were kept.
         </p>
       )}
 

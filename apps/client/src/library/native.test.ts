@@ -68,6 +68,69 @@ const baseRecord = {
   presence: "present",
 };
 
+describe("finished scan attempt validation", () => {
+  const interrupted = {
+    jobId: "previous-job",
+    runId: "previous-run",
+    state: "interrupted",
+    finishedAt: "2026-01-02T03:04:05.123Z",
+    errorCode: "conflict",
+  };
+
+  it("reads historical interruption separately from current queued/running work and older hosts", () => {
+    expect(parseScanStatus(baseStatus)).toEqual(baseStatus);
+    for (const current of [
+      baseStatus,
+      { ...baseStatus, state: "running", runId: "current-run" },
+    ]) {
+      expect(
+        parseScanStatus({ ...current, lastFinishedAttempt: interrupted })
+          .lastFinishedAttempt,
+      ).toEqual(interrupted);
+    }
+    // Cancelling a queued retry updates the job without replacing its failed run.
+    expect(
+      parseScanStatus({
+        ...baseStatus,
+        state: "cancelled",
+        runId: "previous-run",
+        jobId: "previous-job",
+        lastFinishedAttempt: {
+          ...interrupted,
+          state: "failed",
+          errorCode: "internal",
+        },
+      }).lastFinishedAttempt?.state,
+    ).toBe("failed");
+  });
+
+  it("rejects malformed history and a terminal summary that impersonates the active run", () => {
+    for (const invalid of [
+      false,
+      [],
+      { ...interrupted, state: "queued" },
+      { ...interrupted, runId: null },
+      { ...interrupted, jobId: null },
+      { ...interrupted, finishedAt: null },
+      { ...interrupted, finishedAt: "not-a-date" },
+      { ...interrupted, errorCode: "private/path.flp" },
+      { ...interrupted, state: "completed" },
+    ]) {
+      expect(() =>
+        parseScanStatus({ ...baseStatus, lastFinishedAttempt: invalid }),
+      ).toThrow(LibraryAdapterError);
+    }
+    expect(() =>
+      parseScanStatus({
+        ...baseStatus,
+        state: "running",
+        runId: "previous-run",
+        lastFinishedAttempt: interrupted,
+      }),
+    ).toThrow(LibraryAdapterError);
+  });
+});
+
 function transportWith(
   invokeImpl: () => unknown,
   listenImpl: NativeLibraryTransport["listen"] = () => () => {},

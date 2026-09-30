@@ -265,8 +265,27 @@ interface ScanStatus {
     "cancelled" | "failed" | "interrupted";
   cancellationRequested: boolean;
   retryAvailable: boolean;
+  lastFinishedAttempt?: {
+    jobId: string;
+    runId: string;
+    state: "completed" | "failed" | "cancelled" | "interrupted";
+    finishedAt: string; // RFC 3339 / UTC
+    errorCode: ScanErrorCode | null; // fixed client code, never raw diagnostics
+  } | null;
 }
 ```
+
+`lastFinishedAttempt` is a separate historical fact, not the current execution
+state or retry authority. It selects the newest terminal run by
+`(started_at_ms DESC, id DESC)` inside the same root, using the existing
+terminal-root index and `LIMIT 1`. A queued/running retry may belong to the
+same job as a previous failed run; a follow-up may belong to a different job.
+No active run is a finished attempt. Its completion time and terminal outcome
+come from that durable run. Missing history returns null; older hosts may omit
+the property. The renderer keeps the current queued/running state and controls
+while showing the prior interruption separately. A newly finished successor
+replaces the historical summary. History retention and publication are
+unchanged, and no scan is delayed to make a state visible.
 
 Queued cancellation addresses `jobId`: in one transaction it marks the job
 cancelled and no run or stage is created. After leasing, cancellation addresses

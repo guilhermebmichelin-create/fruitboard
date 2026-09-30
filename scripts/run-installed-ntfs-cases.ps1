@@ -23,6 +23,13 @@ if ([string]::IsNullOrWhiteSpace($env:TEMP)) {
 }
 
 $repositoryRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+$cargoTargetDirectory = if ([string]::IsNullOrWhiteSpace($env:CARGO_TARGET_DIR)) {
+    Join-Path $repositoryRoot "target"
+} elseif ([System.IO.Path]::IsPathRooted($env:CARGO_TARGET_DIR)) {
+    [System.IO.Path]::GetFullPath($env:CARGO_TARGET_DIR)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot $env:CARGO_TARGET_DIR))
+}
 $journeyRootFull = [System.IO.Path]::GetFullPath($JourneyRoot)
 $tempRootFull = [System.IO.Path]::GetFullPath($env:TEMP).TrimEnd("\") + "\"
 if (-not $journeyRootFull.StartsWith($tempRootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -345,7 +352,7 @@ try {
             Pop-Location
         }
         $buildStarted = [DateTime]::Parse($buildStartedUtc).ToUniversalTime()
-        $bundleDirectory = (Resolve-Path -LiteralPath (Join-Path $repositoryRoot "target\release\bundle\nsis")).Path
+        $bundleDirectory = (Resolve-Path -LiteralPath (Join-Path $cargoTargetDirectory "release\bundle\nsis")).Path
         $built = Get-ChildItem -LiteralPath $bundleDirectory -Filter "*.exe" -File |
             Where-Object { $_.LastWriteTimeUtc -ge $buildStarted } |
             Sort-Object LastWriteTimeUtc -Descending |
@@ -359,9 +366,9 @@ try {
         $installerFull = (Resolve-Path -LiteralPath $InstallerPath).Path
     }
 
-    $bundleDirectory = (Resolve-Path -LiteralPath (Join-Path $repositoryRoot "target\release\bundle\nsis")).Path.TrimEnd("\") + "\"
+    $bundleDirectory = (Resolve-Path -LiteralPath (Join-Path $cargoTargetDirectory "release\bundle\nsis")).Path.TrimEnd("\") + "\"
     if (-not $installerFull.StartsWith($bundleDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "InstallerPath must point inside this worktree's target\release\bundle\nsis directory."
+        throw "InstallerPath must point inside the selected Cargo target's release\bundle\nsis directory."
     }
     if (-not (Test-Path -LiteralPath $installerFull -PathType Leaf)) {
         throw "InstallerPath is not a file."
@@ -388,6 +395,7 @@ try {
         packageFeatures = @("packaging-smoke", "scan-console")
         buildMode = $buildMode
         buildStartedUtc = $buildStartedUtc
+        cargoTargetDirectory = $cargoTargetDirectory
         buildCommand = if ($buildMode -eq "reproducible-local-build") { "node scripts/prepare-foundation-sidecar.mjs; pnpm.cmd --filter @fruitboard/desktop exec tauri build --ci --no-sign --config src-tauri/tauri.package.conf.json --features packaging-smoke,scan-console --bundles nsis" } else { "provided exact installer; build performed previously and installer hash recorded" }
         toolVersions = $toolVersions
         toolPaths = [ordered]@{

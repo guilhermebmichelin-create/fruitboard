@@ -18,6 +18,7 @@ import {
   type ScanExecutionState,
   type ScanStartResult,
   type ScanStatus,
+  type FinishedScanAttempt,
 } from "./contracts";
 import { parseScanRoot } from "../platform/contracts";
 
@@ -258,6 +259,28 @@ function parseScanErrorCode(value: unknown): ScanErrorCode | null {
   throw new LibraryAdapterError("internal");
 }
 
+function parseFinishedAttempt(value: unknown): FinishedScanAttempt | null {
+  if (value === undefined || value === null) return null;
+  if (!isRecord(value)) throw new LibraryAdapterError("internal");
+  const jobId = parseOptionalId(value["jobId"]);
+  const runId = parseOptionalId(value["runId"]);
+  const state = value["state"];
+  const finishedAt = parseOptionalTimestamp(value["finishedAt"]);
+  const errorCode = parseScanErrorCode(value["errorCode"]);
+  if (
+    jobId === null ||
+    runId === null ||
+    finishedAt === null ||
+    (state !== "completed" &&
+      state !== "failed" &&
+      state !== "cancelled" &&
+      state !== "interrupted") ||
+    (state === "completed" && errorCode !== null)
+  )
+    throw new LibraryAdapterError("internal");
+  return { jobId, runId, state, finishedAt, errorCode };
+}
+
 export function parseScanStatus(value: unknown): ScanStatus {
   if (!isRecord(value)) throw new LibraryAdapterError("internal");
   const root = parseScanRootSafe(value["root"]);
@@ -314,6 +337,16 @@ export function parseScanStatus(value: unknown): ScanStatus {
   );
   const lastOutcomeAt = parseOptionalTimestamp(value["lastOutcomeAt"]);
   const errorCode = parseScanErrorCode(value["errorCode"]);
+  const lastFinishedAttempt = parseFinishedAttempt(
+    value["lastFinishedAttempt"],
+  );
+  if (
+    runId !== null &&
+    lastFinishedAttempt?.runId === runId &&
+    (lastFinishedAttempt.jobId !== jobId || state === "running")
+  ) {
+    throw new LibraryAdapterError("internal");
+  }
   // Queued/running/idle attempts have no outcome yet.
   if (
     (state === "queued" || state === "running" || state === "idle") &&
@@ -332,6 +365,9 @@ export function parseScanStatus(value: unknown): ScanStatus {
     lastSuccessfulScanAt,
     lastOutcomeAt,
     errorCode,
+    ...(Object.hasOwn(value, "lastFinishedAttempt")
+      ? { lastFinishedAttempt }
+      : {}),
   };
 }
 

@@ -157,6 +157,17 @@ pub(crate) struct ScanStatus {
     /// `unsupported` | `resource_limit` | `conflict` | `not_found` |
     /// `cancelled` | `internal`). Fixed mapping; raw diagnostics never leak.
     error_code: Option<ErrorCode>,
+    last_finished_attempt: Option<FinishedScanAttempt>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct FinishedScanAttempt {
+    job_id: String,
+    run_id: String,
+    state: ScanExecutionState,
+    finished_at: String,
+    error_code: Option<ErrorCode>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -720,7 +731,31 @@ impl ScanConsoleService {
             let run_id = selected
                 .as_ref()
                 .and_then(|status| status.run_id.as_deref());
-            statuses.push(build_scan_status(&database, &host, root, job, run_id));
+            let last_finished_attempt = database
+                .latest_finished_scan_run_for_root(&root.id)
+                .map_err(map_scan_storage_error)?
+                .map(|run| {
+                    use fruitboard_storage::ScanRunState;
+                    let state = match run.state {
+                        ScanRunState::Completed => ScanExecutionState::Completed,
+                        ScanRunState::Failed => ScanExecutionState::Failed,
+                        ScanRunState::Cancelled => ScanExecutionState::Cancelled,
+                        ScanRunState::Interrupted => ScanExecutionState::Interrupted,
+                        ScanRunState::Running => unreachable!("terminal-only query"),
+                    };
+                    FinishedScanAttempt {
+                        job_id: run.scan_job_id,
+                        run_id: run.id,
+                        state,
+                        finished_at: unix_ms_to_rfc3339(
+                            run.finished_at_ms.expect("validated finish"),
+                        ),
+                        error_code: map_job_error_code(run.error_code.as_deref()),
+                    }
+                });
+            let mut status = build_scan_status(&database, &host, root, job, run_id);
+            status.last_finished_attempt = last_finished_attempt;
+            statuses.push(status);
         }
         Ok(statuses)
     }
@@ -869,6 +904,7 @@ fn build_scan_status(
         last_successful_scan_at,
         last_outcome_at,
         error_code,
+        last_finished_attempt: None,
     }
 }
 
