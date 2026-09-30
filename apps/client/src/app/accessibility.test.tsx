@@ -58,6 +58,15 @@ async function expectNoAutomatedViolations(container: HTMLElement) {
       targets: nodes.map((node) => node.target),
     })),
   ).toEqual([]);
+  // "Needs review" (`incomplete`) results can hide real defects — for
+  // example `aria-prohibited-attr` when the element has descendant text —
+  // so they are triaged here instead of silently ignored.
+  expect(
+    results.incomplete.map(({ id, nodes }) => ({
+      id,
+      targets: nodes.map((node) => node.target),
+    })),
+  ).toEqual([]);
 }
 
 describe("application shell accessibility", () => {

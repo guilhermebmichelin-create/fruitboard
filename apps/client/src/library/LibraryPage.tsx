@@ -1321,7 +1321,7 @@ function LibraryRecord({
         <dl className="library-record-facts">
           <div>
             <dt>Root</dt>
-            <dd aria-label={`Root ${rootLabel}`}>{rootLabel}</dd>
+            <dd>{rootLabel}</dd>
           </div>
           <div>
             <dt>Relative path</dt>
