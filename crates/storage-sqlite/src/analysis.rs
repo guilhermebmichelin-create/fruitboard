@@ -118,10 +118,11 @@ struct Cell {
     attempt: i64,
     version: String,
     schema: i64,
+    due: i64,
 }
 fn cell(connection: &Connection, location: &str) -> Result<Option<Cell>> {
     connection.query_row("SELECT job_id,root_id,location_id,project_file_id,root_revision,file_revision,location_revision,
-        publication_revision,byte_size,modified_at_ns,state,attempt,adapter_version,parser_schema_version
+        publication_revision,byte_size,modified_at_ns,state,attempt,adapter_version,parser_schema_version,due_at_ms
         FROM analysis_job WHERE location_id=?1", [location], |row| {
         let size:i64=row.get(8)?;
         Ok(Cell {job_id:row.get(0)?,input:MetadataInput {
@@ -129,7 +130,7 @@ fn cell(connection: &Connection, location: &str) -> Result<Option<Cell>> {
             file_revision:row.get(5)?,location_revision:row.get(6)?,publication_revision:row.get(7)?,
             byte_size:u64::try_from(size).map_err(|_|rusqlite::Error::IntegralValueOutOfRange(8,size))?,modified_at_ns:row.get(9)?,
         },state:AnalysisState::parse(&row.get::<_,String>(10)?).map_err(|_|rusqlite::Error::InvalidQuery)?,
-            attempt:row.get(11)?,version:row.get(12)?,schema:row.get(13)?})
+            attempt:row.get(11)?,version:row.get(12)?,schema:row.get(13)?,due:row.get(14)?})
     }).optional().map_err(Into::into)
 }
 fn clear(
@@ -152,6 +153,13 @@ fn matches_source(connection: &Connection, input: &MetadataInput) -> Result<bool
         Err(StorageError::NotFound) => Ok(false),
         Err(error) => Err(error),
     }
+}
+fn same_desired_source(left: &MetadataInput, right: &MetadataInput) -> bool {
+    // Publication order is a commit fence, not a new source observation.
+    // Another alias's negative result must not revive unchanged terminal work.
+    let mut left = left.clone();
+    left.publication_revision = right.publication_revision;
+    left == *right
 }
 fn session_current(connection: &Connection, session: &str) -> Result<bool> {
     connection
@@ -251,20 +259,36 @@ impl Database {
                     params![input.project_file_id,ADAPTER_VERSION,SCHEMA_VERSION as i64],|r|r.get(0))?;
                 if fresh {continue;}
                 let old=cell(tx,location)?;
-                if old.as_ref().is_some_and(|old| old.input==input && old.version==ADAPTER_VERSION && old.schema==SCHEMA_VERSION as i64) {continue;}
+                let same_source=old.as_ref().is_some_and(|old| same_desired_source(&old.input,&input)
+                    && old.version==ADAPTER_VERSION && old.schema==SCHEMA_VERSION as i64);
+                if old.as_ref().is_some_and(|old| {
+                    let unchanged_terminal = matches!(old.state, AnalysisState::Complete|AnalysisState::Unsupported|AnalysisState::Failed|AnalysisState::Cancelled)
+                        && same_source;
+                    (old.input==input || unchanged_terminal) && old.version==ADAPTER_VERSION && old.schema==SCHEMA_VERSION as i64
+                }) {continue;}
                 let already_pending=old.as_ref().is_some_and(|old| matches!(old.state,AnalysisState::Queued|AnalysisState::Running));
                 if pending>=MAX_ANALYSIS_BATCH as i64 && !already_pending {continue;}
+                // Refresh a publication fence without resetting the same
+                // source's attempt budget or shortening a queued backoff.
+                let (attempt,due)=if same_source {
+                    let old=old.as_ref().ok_or(StorageError::InvalidSchema)?;
+                    (old.attempt,match old.state {
+                        AnalysisState::Queued=>old.due.max(now),
+                        AnalysisState::Running=>now.checked_add(1_000).ok_or(StorageError::InvalidSchema)?,
+                        _=>now,
+                    })
+                } else {(0,now)};
                 tx.execute("INSERT INTO analysis_job (location_id,job_id,root_id,project_file_id,root_revision,file_revision,location_revision,
                     publication_revision,byte_size,modified_at_ns,adapter_version,parser_schema_version,state,due_at_ms)
                     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,'queued',?13)
                     ON CONFLICT(location_id) DO UPDATE SET job_id=excluded.job_id,root_id=excluded.root_id,project_file_id=excluded.project_file_id,
                       root_revision=excluded.root_revision,file_revision=excluded.file_revision,location_revision=excluded.location_revision,
                       publication_revision=excluded.publication_revision,byte_size=excluded.byte_size,modified_at_ns=excluded.modified_at_ns,
-                      adapter_version=excluded.adapter_version,parser_schema_version=excluded.parser_schema_version,state='queued',attempt=0,
+                      adapter_version=excluded.adapter_version,parser_schema_version=excluded.parser_schema_version,state='queued',attempt=?14,
                       due_at_ms=excluded.due_at_ms,session_id=NULL,lease_token=NULL,lease_until_ms=NULL,snapshot_id=NULL,error_code=NULL",
                     params![input.location_id,uuid::Uuid::now_v7().to_string(),input.root_id,input.project_file_id,input.root_revision,
                         input.file_revision,input.location_revision,input.publication_revision,input.byte_size as i64,input.modified_at_ns,
-                        ADAPTER_VERSION,SCHEMA_VERSION as i64,now])?;
+                        ADAPTER_VERSION,SCHEMA_VERSION as i64,due,attempt])?;
                 if !already_pending {pending+=1;}
             }
             Ok(if locations.len()==limit {locations.last().map(|(id,_)|AnalysisCursor(id.clone()))} else {None})

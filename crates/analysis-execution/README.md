@@ -15,6 +15,9 @@ session fence old completions. Interrupted/transport attempts retry after one
 second, at most three attempts; an explicit cancel or unchanged terminal failure
 survives restart without an automatic retry loop. Changed sources supersede it.
 Terminal cells remain operational state, not an append-only attempt history.
+Publication ordering is a commit fence, not a source change: a negative result
+through another alias cannot revive failed/cancelled work. Refreshing that fence
+on pending work preserves its attempt budget and scheduled retry delay.
 
 The worker releases the database mutex before filesystem or parser operations.
 Its Windows authority opens the selected file and all ancestors without

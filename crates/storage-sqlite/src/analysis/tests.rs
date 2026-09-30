@@ -265,6 +265,85 @@ fn analysis_discovery_visits_bounded_location_pages_and_caps_pending_cells() {
 }
 
 #[test]
+fn analysis_negative_alias_publications_do_not_revive_failed_or_cancelled_work() {
+    for cancel_first in [false, true] {
+        let (_dir, mut db, input) = fixture();
+        db.connection.execute("INSERT INTO file_location(id,project_file_id,scan_root_id,normalized_path,locator_key,relative_path,byte_size,modified_at_ms,modified_at_ns,created_at_ms,updated_at_ms)
+            VALUES ('second','project',?1,'v1:i:alias.flp','v1:i:alias.flp','alias.flp',?2,42,42000123,1,1)",params![input.root_id,bytes().len() as i64]).unwrap();
+        let session = db.start_analysis_session(1).unwrap();
+        discover(&mut db, 2);
+        let cancelled_id = if cancel_first {
+            let status = db.analysis_status("location").unwrap().unwrap();
+            db.cancel_analysis_job(&status.job_id, 3).unwrap();
+            Some(status.job_id)
+        } else {
+            None
+        };
+        let mut published = 0;
+        for now in 4..16 {
+            discover(&mut db, now);
+            if let Some(lease) = db.claim_analysis_job(&session, now).unwrap() {
+                db.complete_analysis_job(
+                    &lease,
+                    &capabilities(),
+                    ProtocolReply::Result(parse_bytes(b"invalid")),
+                    &sha256_hex(&bytes()),
+                    now,
+                )
+                .unwrap();
+                published += 1;
+            }
+        }
+        assert_eq!(published, if cancel_first { 1 } else { 2 });
+        assert!(db.current_metadata_snapshot("project").unwrap().is_none());
+        assert!(db.claim_analysis_job(&session, 20).unwrap().is_none());
+        if let Some(cancelled_id) = cancelled_id {
+            let status = db.analysis_status("location").unwrap().unwrap();
+            assert_eq!(status.state, AnalysisState::Cancelled);
+            assert_eq!(status.job_id, cancelled_id);
+            assert_eq!(status.attempt, 0);
+        }
+    }
+}
+
+#[test]
+fn analysis_publication_fence_refresh_preserves_retry_budget_and_backoff() {
+    let (_dir, mut db, input) = fixture();
+    let session = db.start_analysis_session(1).unwrap();
+    discover(&mut db, 2);
+    for attempt in 1..=3 {
+        let now = attempt * 2_000;
+        let lease = db.claim_analysis_job(&session, now).unwrap().unwrap();
+        db.fail_analysis_job(&lease, AnalysisFailure::ParserTransport, now + 1)
+            .unwrap();
+        let current = db
+            .capture_metadata_input(&input.root_id, "location")
+            .unwrap();
+        db.publish_metadata_snapshot(
+            &current,
+            &capabilities(),
+            ProtocolReply::Result(parse_bytes(b"invalid")),
+            now + 2,
+        )
+        .unwrap();
+        discover(&mut db, now + 3);
+        let status = db.analysis_status("location").unwrap().unwrap();
+        assert_eq!(status.attempt, attempt);
+        assert_eq!(
+            status.state,
+            if attempt < 3 {
+                AnalysisState::Queued
+            } else {
+                AnalysisState::Failed
+            }
+        );
+        assert!(db.claim_analysis_job(&session, now + 4).unwrap().is_none());
+    }
+    discover(&mut db, 20_000);
+    assert!(db.claim_analysis_job(&session, 20_000).unwrap().is_none());
+}
+
+#[test]
 fn analysis_schema10_upgrade_backup_and_recovery_retain_inflight_queue() {
     let directory = TestDirectory::new();
     let (mut db, input) = setup(&directory, 10);
