@@ -216,20 +216,22 @@ fn malformed_wrapper_lengths_duplicates_and_text_do_not_leak_or_panic() {
             ProjectField::Unsupported(ProjectReason::VstMetadataUnsupported)
         ));
     }
-    let bytes = project(
-        vec![
-            event(64, &0_u16.to_le_bytes()),
-            event(21, &[0]),
-            event(65, &1_u16.to_le_bytes()),
-            event(201, &utf16("")),
-        ],
-        1,
-    );
-    assert_eq!(
-        metadata(reply(&bytes), &bytes).plugins().len(),
-        0,
-        "empty mixer/pattern slot must not inherit Sampler identity"
-    );
+    for boundary in [65, 100] {
+        let bytes = project(
+            vec![
+                event(64, &0_u16.to_le_bytes()),
+                event(21, &[0]),
+                event(boundary, &1_u16.to_le_bytes()),
+                event(201, &utf16("")),
+            ],
+            1,
+        );
+        assert_eq!(
+            metadata(reply(&bytes), &bytes).plugins().len(),
+            0,
+            "empty mixer/pattern slot must not inherit Sampler identity"
+        );
+    }
 }
 
 #[test]

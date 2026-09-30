@@ -529,7 +529,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         }
         if id == 64 {
             plugin_channel_scope = true;
-        } else if matches!(id, 65 | 233 | 236) {
+        } else if matches!(id, 65 | 100 | 233 | 236) {
             plugin_channel_scope = false;
         }
         if id == 201 {
