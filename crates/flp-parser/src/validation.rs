@@ -9,6 +9,8 @@ use crate::supervisor::ProtocolReply;
 use crate::{ExpectedFingerprint, MAX_FILE_BYTES};
 use serde_json::Value;
 use std::collections::BTreeSet;
+mod project_facts;
+pub use project_facts::*;
 
 const INITIAL_FIELDS: [&str; 5] = [
     "savedVersion",
@@ -36,6 +38,8 @@ pub struct ParserCapabilities {
     max_file_bytes: u64,
     max_events: u64,
     max_channels: usize,
+    max_playlist_clips: usize,
+    project_facts: bool,
 }
 
 pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, ValidationError> {
@@ -69,11 +73,15 @@ pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, Validati
     let max_channels = limit("maxChannels", u64::from(crate::MAX_CHANNELS))? as usize;
     limit("maxEventBytes", crate::MAX_EVENT_BYTES as u64)?;
     limit("maxPatterns", crate::MAX_PATTERNS as u64)?;
-    limit("maxPlaylistClips", crate::MAX_PLAYLIST_CLIPS as u64)?;
+    let max_playlist_clips = limit("maxPlaylistClips", crate::MAX_PLAYLIST_CLIPS as u64)? as usize;
     Ok(ParserCapabilities {
         max_file_bytes,
         max_events,
         max_channels,
+        max_playlist_clips,
+        project_facts: project_facts::FIELDS
+            .iter()
+            .all(|field| names.contains(field)),
     })
 }
 
@@ -200,6 +208,7 @@ fn parser_code(value: &str) -> Result<ParserCode, ValidationError> {
         "PATTERN_NAME_WITHOUT_ID",
         "PLAYLIST_CLIP_LIMIT",
         "PLAYLIST_POSITION_OVERFLOW",
+        "PLUGIN_REFERENCE_LIMIT",
         "TRUNCATED_DATA_CHUNK",
         "RESPONSE_LIMIT",
         "INVALID_REQUEST",

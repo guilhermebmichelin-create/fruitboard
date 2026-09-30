@@ -119,6 +119,14 @@ wire the parser into the scanner or storage. Extended metadata validation and
 transactional publication freshness checks remain open with application
 integration, packaging and qualification.
 
+Issue #232 subsequently adds project dates, the saved FL time counter, bounded
+top-level plugin references and a verified pattern-clip bar span. Its separate
+full typed projection checks these facts and exposes authoritative request
+size/modified time without activating parsing in the app. Embedded/local and
+filesystem dates stay separate, and saved FL time never becomes tracked work.
+Constructed metadata tests do not expand independent GUI-qualified compatibility;
+see [the format/evidence record](../research/parser-project-facts-232.md).
+
 ## References
 
 - [Detailed parser design](../../FLP_PARSER.md)

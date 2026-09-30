@@ -1,6 +1,8 @@
 //! Bounded, read-only FLP metadata parser selected under ADR-002.
 //! Event interpretation derives from research source commit 080e825.
 mod authorized_input;
+mod plugin_references;
+mod project_info;
 pub mod supervisor;
 pub mod validation;
 
@@ -41,9 +43,13 @@ pub fn failed(code: &str) -> Value {
         "playlistPatternClips":field("failed",Value::Null,Some(code)),
         "playlistPatternEndTick":field("failed",Value::Null,Some(code)),
         "playlistPatternNominalSeconds":field("failed",Value::Null,Some(code)),
+        "playlistPatternSpanBars":field("failed",Value::Null,Some(code)),
         "channelNames":field("failed",Value::Null,Some(code)),
         "channelGeneratorNames":field("failed",Value::Null,Some(code)),
         "sampleReferences":field("failed",Value::Null,Some(code)),
+        "projectCreatedLocal":field("failed",Value::Null,Some(code)),
+        "flStudioTimeSpentMs":field("failed",Value::Null,Some(code)),
+        "pluginReferences":field("failed",Value::Null,Some(code)),
         "diagnostics":[]
     })
 }
@@ -306,9 +312,13 @@ fn unsupported_version(version: &str) -> Value {
         "playlistPatternClips":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "playlistPatternEndTick":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "playlistPatternNominalSeconds":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "playlistPatternSpanBars":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelGeneratorNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "sampleReferences":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "projectCreatedLocal":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "flStudioTimeSpentMs":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "pluginReferences":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "diagnostics":[]
     })
 }
@@ -465,6 +475,9 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     let mut playlist_payload: Option<Vec<u8>> = None;
     let mut multiple_playlist_payloads = false;
     let mut event_count = 0usize;
+    let mut project_info = project_info::ProjectInfo::default();
+    let mut plugins = plugin_references::PluginReferences::default();
+    let mut plugin_channel_scope = false;
     while cursor < bytes.len() {
         if event_count == MAX_EVENTS {
             return failed("EVENT_COUNT_LIMIT");
@@ -509,6 +522,29 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         }
         let data = &bytes[cursor..end];
         cursor = end;
+        if matches!(id, 64 | 65 | 100 | 233 | 236)
+            && let Err(code) = plugins.boundary()
+        {
+            return failed(code);
+        }
+        if id == 64 {
+            plugin_channel_scope = true;
+        } else if matches!(id, 65 | 100 | 233 | 236) {
+            plugin_channel_scope = false;
+        }
+        if id == 201 {
+            let sampler_channel = current_channel
+                .filter(|_| plugin_channel_scope && known_sampler_default_build(version.as_deref()))
+                .and_then(|context| context.resolve(&channels))
+                .filter(|index| channels[*index].channel_type == ChannelType::Sampler);
+            if let Err(code) = plugins.name(data, sampler_channel) {
+                return failed(code);
+            }
+        } else if id == 213 {
+            plugins.data(data);
+        } else if id == 237 {
+            project_info.observe(data);
+        }
         match id {
             17 if known_pattern_build(version.as_deref()) => {
                 multiple_timing_events |= timing_numerator.replace(data[0]).is_some();
@@ -663,6 +699,15 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         return failed("CHANNEL_COUNT_MISMATCH");
     }
     let channel_count = channels.len();
+    let (project_created_local, fl_studio_time_spent_ms) = project_info.into_fields();
+    let plugin_references = match plugins.into_field(|index| {
+        channels
+            .get(index)
+            .is_some_and(|channel| channel.channel_type == ChannelType::Sampler)
+    }) {
+        Ok(value) => value,
+        Err(code) => return failed(code),
+    };
     let channel_types = channels
         .iter()
         .map(|channel| channel.channel_type)
@@ -740,6 +785,19 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
             playlist_clips["reason"].as_str(),
         ),
     };
+    let playlist_bars = match playlist_end_tick {
+        None => playlist_end.clone(),
+        Some(_) if header_ppq != 96 => field("unsupported", Value::Null, Some("PPQ_UNVERIFIED")),
+        Some(_)
+            if timing_numerator != Some(4)
+                || timing_denominator != Some(4)
+                || multiple_timing_events =>
+        {
+            field("unsupported", Value::Null, Some("METER_UNVERIFIED"))
+        }
+        Some(end_tick) => json!({"status":"inferred","value":f64::from(end_tick)/384.0,
+            "method":"pattern-clip-span-at-verified-meter","confidence":"low"}),
+    };
     let playlist_nominal_seconds = match playlist_end_tick {
         None => playlist_end.clone(),
         Some(_) if header_ppq != 96 => field("unsupported", Value::Null, Some("PPQ_UNVERIFIED")),
@@ -797,9 +855,13 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         "playlistPatternClips":playlist_clips,
         "playlistPatternEndTick":playlist_end,
         "playlistPatternNominalSeconds":playlist_nominal_seconds,
+        "playlistPatternSpanBars":playlist_bars,
         "channelNames":channel_names,
         "channelGeneratorNames":channel_generator_names,
         "sampleReferences":sample_references,
+        "projectCreatedLocal":project_created_local,
+        "flStudioTimeSpentMs":fl_studio_time_spent_ms,
+        "pluginReferences":plugin_references,
         "diagnostics":diagnostics,
         "eventCount":event_count
     })
@@ -933,6 +995,19 @@ fn parse_open_file_with(
         "modifiedAtMs": expected.modified_at_ms,
         "hash": {"algorithm": "sha256", "value": digest_before}
     });
+    result["filesystemCreatedAtMs"] = match before
+        .created()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .and_then(|duration| u64::try_from(duration.as_millis()).ok())
+    {
+        Some(value) => field("extracted", json!(value), None),
+        None => field(
+            "unavailable",
+            Value::Null,
+            Some("FILESYSTEM_CREATION_TIME_UNAVAILABLE"),
+        ),
+    };
     result
 }
 

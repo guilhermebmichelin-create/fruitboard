@@ -223,6 +223,17 @@ authority and recheck freshness in its publication transaction. Pattern,
 generator and playlist/timing validation, packaging and resource qualification
 remain separate steps. See the crate README for the precise projection limits.
 
+Issue #232 extends the native parser with embedded project creation/local-time
+and saved FL time spent, optional filesystem creation time, bounded saved plugin
+references and a verified pattern-clip bar-span estimate. A separate full typed
+validator exposes these plus authoritative native size/modified time and checked
+timeline end/seconds. This is the whole arrangement's maximum clip end, not
+summed clip lengths; it still does not include unknown clips, tempo automation
+or rendered tails. Plugin references do not claim exhaustive nested or installed
+plugin coverage. [The format/evidence record](docs/research/parser-project-facts-232.md)
+states exact behavior, provenance and qualification limits. Scanner/application
+integration and publication freshness remain open.
+
 ## Packaging recommendation
 
 If Python/PyFLP is selected, its candidate package is a PyInstaller **one-directory**
