@@ -119,6 +119,8 @@ jobs:
           cargo fmt --all --check
           cargo clippy -p fruitboard-storage --all-targets --locked -- -D warnings
           cargo test -p fruitboard-storage --locked
+          cargo clippy -p fruitboard-storage --features parser-metadata --all-targets --locked -- -D warnings
+          cargo test -p fruitboard-storage --features parser-metadata --locked
           cargo clippy -p fruitboard-reconciliation --all-targets --locked -- -D warnings
           cargo test -p fruitboard-reconciliation --locked
       - name: Check parser authorization on Linux
@@ -178,6 +180,7 @@ jobs:
           cargo test -p fruitboard-storage --locked migration_quarantines_legacy_keys_and_first_v1_scan_retains_projects
           cargo test -p fruitboard-storage --locked killed_migration_recovers_the_original_committed_database
           cargo test -p fruitboard-storage --locked backup_recovers_committed_state_after_original_corruption_without_overwriting_it
+          cargo test -p fruitboard-storage --features parser-metadata --locked metadata
 
   flp-parser-portable:
     name: flp-parser-portable
@@ -258,6 +261,10 @@ jobs:
           key: ${{ runner.os }}-rust-windows-${{ hashFiles('Cargo.lock') }}
       - name: Install locked dependencies
         run: pnpm.cmd install --frozen-lockfile --ignore-scripts
+      - name: Check native parser metadata storage
+        run: |
+          cargo clippy -p fruitboard-storage --features parser-metadata --all-targets --locked -- -D warnings
+          cargo test -p fruitboard-storage --features parser-metadata --locked
       - name: Run the integrated Windows gate
         run: pnpm.cmd check
       - name: Run the enabled scan-console suite

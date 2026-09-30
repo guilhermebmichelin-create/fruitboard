@@ -6,6 +6,11 @@ mod project_info;
 pub mod supervisor;
 pub mod validation;
 
+pub const PROTOCOL_VERSION: u64 = 1;
+pub const SCHEMA_VERSION: u64 = 2;
+pub const ADAPTER_ID: &str = "rust-flp-parser";
+pub const ADAPTER_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};

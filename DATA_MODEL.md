@@ -9,12 +9,14 @@ bundled SQLite 3.53.2. Native startup opens
 `app_local_data_dir()/storage/fruitboard.db`; Windows resolves this below the
 current user's local application data, outside roaming/Drive locations.
 
-The executable schema is version 8. Migration 005 is the shared Phase 2
+The executable schema is version 10. Migration 005 is the shared Phase 2
 integration boundary; its exact locator, timestamp, identity, job/run, and
 root-scoped pagination contract is documented in
 [`docs/PHASE_2_INTEGRATION_CONTRACT.md`](docs/PHASE_2_INTEGRATION_CONTRACT.md).
 Migration 006 adds retry/status indexes, migration 007 adds the root mode, and
 migration 008 adds indexes for incremental terminal-history maintenance.
+Migration 009 indexes root-local live identity lookup. Migration 010 adds
+immutable parser snapshots and source/publication revision fences.
 
 | Table | Fields and constraints | Classification |
 | --- | --- | --- |
@@ -28,6 +30,7 @@ migration 008 adds indexes for incremental terminal-history maintenance.
 | `file_location` | Per-locator-key/display-relative location, bounded decimal identity, nanosecond metadata, present or missing state, last-seen run, and detached-root history | Device-local committed read model |
 | `scan_stage` | Run-owned captured fences, bounded counters, and open/published/discarded state | Device-local staging ledger |
 | `scan_stage_observation` | Bounded locator-key/display-relative metadata observations keyed by run and locator | Device-local staging data |
+| `metadata_snapshot` | Immutable completed parser outcomes, source revisions/fingerprint, adapter/protocol/schema provenance, bounded validated payload | Device-local private parser history |
 
 All shipped tables are STRICT. The preference defaults to Home. The execution
 tables use partial and due-time indexes for one active job per root and bounded
@@ -44,7 +47,9 @@ behavior chosen per relationship, and the execution ledger (`scan_job`,
 operational history survives root removal. Foreign-key enforcement is enabled
 on every connection and tested with temporary relational tables. The broader
 logical product tables below remain proposals; migrations 004 and 005 only ship
-the small device-local execution/publication subset listed above.
+the small device-local execution/publication subset listed above. Parser
+snapshots reference their project file without cascading deletion; historical
+root/location IDs remain bare strings so removing a root retains the history.
 
 Rust exposes typed preference methods and keeps the connection and transaction
 closure private. Issue #16 connects them to exact `get_startup_view` and
@@ -64,7 +69,7 @@ Migrations are embedded from `crates/storage-sqlite/migrations/`. The runner
 checks the application ID, `user_version`, and the complete ordered ledger,
 then commits all pending SQL, seeds, ledger rows, and the version in one
 IMMEDIATE transaction. Changed history, unrelated databases, and newer schemas
-are refused. Tests upgrade fixtures from every shipped version, v0 through v8,
+are refused. Tests upgrade fixtures from every shipped version, v0 through v10,
 and cover preserving roots/preferences, converting legacy publication fields
 with checked bounds, and rolling back after a later failure.
 
@@ -93,12 +98,54 @@ regressions verify refusal and preservation of each destination artifact; a
 real hot-journal fixture proves that stale pages can replace Library with Home
 if recovery ignores the companion. Process
 termination evidence is not a hardware power-loss qualification.
-Projects, workflows, parser snapshots, tombstones, notes, and FTS remain
+Projects, workflows, tombstones, notes, and FTS remain
 deferred to their owning slices. Migrations 003-005 provide durable execution,
 a fenced staging/publication boundary, and the locator-key/identity integration
 contract; none of them activates production scanning. The Rust FLP parser
 selected in [ADR-002](docs/adr/002-flp-parser-process.md) lives in
-`crates/flp-parser` and is not yet wired into the scanner or the host.
+`crates/flp-parser`. A separate development package exercises its installed
+process lifecycle; production scanning and metadata publication are not active.
+
+### Implemented parser snapshot boundary
+
+The storage crate's optional `parser-metadata` feature provides native capture,
+publication, current-result lookup, and indexed history pagination. The default
+desktop does not enable it. Migration 010 runs independently of the feature.
+Each attempt is stored as a completed `complete`, `partial`, `unsupported`,
+`failed`, or `rejected` snapshot. Snapshot UPDATE/DELETE operations are refused.
+There are no mutable running records or analysis jobs in this slice.
+
+Capture seals database-owned root, location, and file IDs, root configuration
+revision, file/location source revisions, publication revision, size, and
+nanosecond modification time. Publication rechecks all of them under an
+IMMEDIATE transaction and validates the selected parser reply before inserting
+the snapshot and advancing the file's current pointer together. Changed or
+restored sources, disabled/removed roots, foreign locations, invalid replies,
+and older overlapping attempts cannot publish. Source revision triggers ignore
+unchanged observations; integer overflow fails closed. Publication order uses
+a monotonic counter, independent of wall-clock timestamps.
+
+Current reads require the same enabled local NTFS root, present associated
+location, source revisions, size, and nanosecond timestamp. A stale pointer
+returns no current result while immutable history remains readable. History
+pages contain at most 100 headers and use a file-scoped timestamp/ID cursor;
+payloads are loaded individually with a 256 KiB byte ceiling.
+
+Projection version 1 stores only validated saved version, base tempo, channel
+count/names, sample references, embedded local creation date, saved FL Studio
+time counter, filesystem creation time, top-level saved plugin references,
+and supported playlist pattern endpoint/span/estimate. Per-field availability,
+unsupported reasons, inference method, confidence, assumptions, and closed
+diagnostic codes survive persistence. The FL time counter is not tracked work;
+pattern estimates are not total song duration. No raw extension fields or
+tracebacks are retained. The payload is private local JSON, not a renderer DTO
+or a new validated parser capability. A future UI requires an explicit adapter.
+
+The stored digest is a parser claim, not independent hash authority. Database
+freshness cannot prove filesystem freshness: the eventual analysis worker must
+re-observe an authorized file handle before publication. No storage method
+opens an FLP or logs private metadata. Schema-9 upgrades, backup/recovery,
+rollback, and real process termination before publication commit are tested.
 
 ## Modeling principles
 
@@ -265,11 +312,12 @@ denied, partial, or resource-limited enumerations.
 
 ### Parser snapshots and dependencies
 
-`metadata_snapshot` — immutable after completion
+`metadata_snapshot` — migration 010 ships the subset described above; additional
+logical fields below remain proposals
 
 - `id`, `project_file_id`
 - input fingerprint, parser adapter ID/version, protocol version, schema version
-- `outcome` check `success|partial|unsupported|failed`
+- shipped `outcome` check `complete|partial|unsupported|failed|rejected`
 - parsed timestamps and duration; failure category and safe diagnostic code
 - extracted project title/comments/author/genre where available
 - FL Studio version/build, BPM, PPQ, time signature

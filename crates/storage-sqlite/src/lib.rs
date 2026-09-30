@@ -2,7 +2,14 @@
 mod error;
 mod execution;
 mod files;
+#[cfg(feature = "parser-metadata")]
+mod metadata;
 mod migrations;
+#[cfg(feature = "parser-metadata")]
+pub use metadata::{
+    MAX_METADATA_JSON_BYTES, MAX_METADATA_PAGE_SIZE, MetadataCursor, MetadataInput,
+    MetadataOutcome, MetadataPage, MetadataSnapshot, MetadataSnapshotHeader,
+};
 mod publication;
 
 pub use error::{DatabaseDetail, Result, StorageError};

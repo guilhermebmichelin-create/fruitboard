@@ -9,8 +9,7 @@ use serde_json::{Value, json};
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
-const PROTOCOL_VERSION: u64 = 1;
-const SCHEMA_VERSION: u64 = 2;
+use fruitboard_flp_parser::{ADAPTER_ID, ADAPTER_VERSION, PROTOCOL_VERSION, SCHEMA_VERSION};
 const MAX_REQUEST_BYTES: usize = 64 * 1024;
 const MAX_RESPONSE_BYTES: usize = 256 * 1024;
 
@@ -113,7 +112,7 @@ fn respond(line: &[u8]) -> Value {
     }
     let result = match request.method.as_str() {
         "describe" if request.params.is_none() => json!({
-            "adapter":"rust-flp-parser", "adapterVersion":env!("CARGO_PKG_VERSION"),
+            "adapter":ADAPTER_ID, "adapterVersion":ADAPTER_VERSION,
             "fields":["savedVersion","baseTempoBpm","channelCount","patternCount","patternNames","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","pluginReferences","filesystemCreatedAtMs"],
             "maxFileBytes":MAX_FILE_BYTES, "maxEvents":100_000,
             "maxChannels":256, "maxPatterns":MAX_PATTERNS, "maxPlaylistClips":MAX_PLAYLIST_CLIPS,
