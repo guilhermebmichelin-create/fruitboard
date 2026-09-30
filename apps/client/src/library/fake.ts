@@ -10,6 +10,7 @@ import {
   type PublishedFileLocation,
   type LibraryErrorCode,
   type ScanProgressCounters,
+  type ScanConsoleState,
   type ScanStartResult,
   type ScanStatus,
   type CancelScanResult,
@@ -21,6 +22,10 @@ export interface FakeLibraryAdapterOptions {
   readonly pageLimit?: number;
   readonly initialStatuses?: readonly ScanStatus[];
   readonly progressAfterMs?: number | null;
+  /** Answer of `getConsoleState`; default `true` (scanning enabled). */
+  readonly consoleEnabled?: boolean;
+  /** Make the console-state probe reject instead of answering. */
+  readonly consoleProbeFails?: boolean;
 }
 
 export interface FakeLibraryScanAdapter extends LibraryScanAdapter {
@@ -314,6 +319,14 @@ export function createFakeLibraryScanAdapter(
   };
 
   const adapter: FakeLibraryScanAdapter = {
+    async getConsoleState(): Promise<ScanConsoleState> {
+      await Promise.resolve();
+      if (options.consoleProbeFails === true) {
+        throw new LibraryAdapterError("unavailable");
+      }
+      return { enabled: options.consoleEnabled ?? true };
+    },
+
     async getLibraryPage(request): Promise<LibraryPage> {
       await Promise.resolve();
       calls.pages.push(request.limit);

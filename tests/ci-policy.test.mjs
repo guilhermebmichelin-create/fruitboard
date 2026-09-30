@@ -29,6 +29,7 @@ test("foundation CI exposes stable, always-present checks", () => {
     "client",
     "rust-portable",
     "migration",
+    "flp-parser-portable",
     "windows-foundation",
     "security",
   ]) {
@@ -78,7 +79,7 @@ test("workflow permissions and third-party execution fail closed", () => {
   const disabledCredentialCount = (
     workflow.match(/^\s+persist-credentials: false$/gm) ?? []
   ).length;
-  assert.equal(checkoutCount, 9);
+  assert.equal(checkoutCount, 10);
   assert.equal(disabledCredentialCount, checkoutCount);
 });
 
@@ -237,4 +238,14 @@ test("issue forms require scoped, privacy-aware reports", () => {
   assert.match(bug, /Minimal reproduction/);
   assert.match(feature, /Non-goals and deferrals/);
   assert.match(feature, /Accessibility and application states/);
+});
+
+test("portable CI exercises parser filesystem authorization on Linux", () => {
+  const portable = workflowJob("rust-portable");
+  assert.match(portable, /runs-on: ubuntu-latest/);
+  assert.match(
+    portable,
+    /cargo clippy -p fruitboard-flp-parser --all-targets --locked -- -D warnings/,
+  );
+  assert.match(portable, /cargo test -p fruitboard-flp-parser --locked/);
 });

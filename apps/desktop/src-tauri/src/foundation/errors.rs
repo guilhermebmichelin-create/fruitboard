@@ -68,6 +68,14 @@ pub(crate) enum DiagnosticCode {
     InvalidLibraryCursor,
     /// A library cursor/snapshot refers to a replaced committed snapshot.
     StaleLibraryCursor,
+    /// The scan-console poll-loop thread panicked and was contained; the
+    /// host stopped claiming work.
+    #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
+    ScanConsoleThreadPanicked,
+    /// The watcher supervisor thread panicked and was contained; the host
+    /// stopped claiming work.
+    #[cfg_attr(not(all(feature = "scan-console", windows)), allow(dead_code))]
+    WatcherSupervisorThreadPanicked,
     #[allow(
         dead_code,
         reason = "reserved for adapters added after the command foundation"
@@ -89,6 +97,8 @@ impl DiagnosticCode {
             Self::UnknownScanJob => "unknown_scan_job",
             Self::InvalidLibraryCursor => "invalid_library_cursor",
             Self::StaleLibraryCursor => "stale_library_cursor",
+            Self::ScanConsoleThreadPanicked => "scan_console_thread_panicked",
+            Self::WatcherSupervisorThreadPanicked => "watcher_supervisor_thread_panicked",
             Self::UnexpectedFailure => "unexpected_failure",
         }
     }

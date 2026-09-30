@@ -47,6 +47,62 @@ const startupViews = [
   ["preferences", "Preferences"],
 ];
 
+// The library seam's hand-maintained catalog: every code, message, and
+// retryable classification must match `errors.rs` or the client silently
+// degrades native errors to `internal`.
+const libraryErrors = [
+  {
+    code: "access_denied",
+    rustVariant: "AccessDenied",
+    message: "The requested location could not be accessed.",
+  },
+  {
+    code: "unavailable",
+    rustVariant: "Unavailable",
+    message: "The requested service is temporarily unavailable.",
+  },
+  {
+    code: "unsupported",
+    rustVariant: "Unsupported",
+    message: "The requested operation is not supported for this location.",
+  },
+  {
+    code: "resource_limit",
+    rustVariant: "ResourceLimit",
+    message: "The operation exceeded a resource limit.",
+  },
+  {
+    code: "conflict",
+    rustVariant: "Conflict",
+    message: "The request could not be completed because its state changed.",
+  },
+  {
+    code: "not_found",
+    rustVariant: "NotFound",
+    message: "The requested item is no longer available.",
+  },
+  {
+    code: "cancelled",
+    rustVariant: "Cancelled",
+    message: "The operation was cancelled.",
+  },
+  {
+    code: "internal",
+    rustVariant: "Internal",
+    message: "Fruitboard could not complete the request.",
+  },
+  {
+    code: "invalid_cursor",
+    rustVariant: "InvalidCursor",
+    message: "The page continuation is not valid; start from the first page.",
+  },
+  {
+    code: "stale_cursor",
+    rustVariant: "StaleCursor",
+    message: "The list changed; start again from the first page.",
+  },
+];
+
 test("desktop capability exposes only health, preference, scan-root, and scan-console commands", () => {
   const capability = JSON.parse(
     readRootFile("apps/desktop/src-tauri/capabilities/main.json"),
@@ -292,6 +348,80 @@ test("native command contract stays aligned across Rust and TypeScript", () => {
       clientContracts,
       new RegExp(`${code}:\\s*"${escapeRegExp(message)}"`),
       `TypeScript mapping for ${code}`,
+    );
+  }
+});
+
+test("library error catalog stays aligned with the Rust vocabulary", () => {
+  const rustErrors = readRootFile(
+    "apps/desktop/src-tauri/src/foundation/errors.rs",
+  );
+  const nativeLibrary = readRootFile("apps/client/src/library/native.ts");
+
+  for (const { code, rustVariant, message } of libraryErrors) {
+    assert.equal(
+      rustVariant.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase(),
+      code,
+    );
+    assert.match(
+      rustErrors,
+      new RegExp(`Self::${rustVariant}\\s*=>\\s*"${escapeRegExp(message)}"`),
+      `Rust mapping for ${code}`,
+    );
+    assert.match(
+      nativeLibrary,
+      new RegExp(`${code}:\\s*"${escapeRegExp(message)}"`),
+      `TypeScript library mapping for ${code}`,
+    );
+  }
+
+  // Retryable classification must match `ErrorCode::retryable`.
+  assert.match(
+    rustErrors,
+    /matches!\(self, Self::Conflict \| Self::Unavailable\)/,
+  );
+  assert.match(
+    nativeLibrary,
+    /const LIBRARY_RETRYABLE = new Set<LibraryErrorCode>\(\[\s*"conflict",\s*"unavailable",?\s*\]\)/,
+  );
+
+  // The runtime code gate must cover exactly the documented catalog.
+  const codesBlock =
+    nativeLibrary.match(
+      /const LIBRARY_ERROR_CODES = new Set<string>\(\[([\s\S]*?)\]\);/,
+    )?.[1] ?? "";
+  const declaredCodes = [...codesBlock.matchAll(/"([a-z_]+)"/g)].map(
+    ([, declared]) => declared,
+  );
+  assert.deepEqual(
+    [...declaredCodes].sort(),
+    libraryErrors.map(({ code }) => code).sort(),
+  );
+
+  // Completeness in the other direction: every Rust user-facing message is
+  // pinned by one of the two TypeScript catalogs, so adding or rewording a
+  // Rust code cannot silently surface as `internal` to the client.
+  const rustImpl = rustErrors.slice(
+    rustErrors.indexOf("impl ErrorCode"),
+    rustErrors.indexOf("pub(crate) enum DiagnosticCode"),
+  );
+  const rustMappings = [...rustImpl.matchAll(/Self::(\w+) => "([^"]+)"/g)].map(
+    ([, variant, mapped]) => [variant, mapped],
+  );
+  assert.equal(
+    rustMappings.length,
+    11,
+    "the Rust user-facing vocabulary is exactly the 11 documented codes",
+  );
+  const pinned = new Map();
+  for (const { rustVariant, message } of [...nativeErrors, ...libraryErrors]) {
+    pinned.set(rustVariant, message);
+  }
+  for (const [variant, mapped] of rustMappings) {
+    assert.equal(
+      pinned.get(variant),
+      mapped,
+      `both TypeScript catalogs must pin the Rust mapping for ${variant}`,
     );
   }
 });
