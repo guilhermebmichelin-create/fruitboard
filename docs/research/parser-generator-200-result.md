@@ -22,12 +22,14 @@ outside Git because application chrome displays account information.
 
 ## Event evidence and privacy boundary
 
-The controlled save has two channel-kind events. The Sampler is kind 0 with an
-empty UTF-16 event 201. The 3x Osc channel is kind 1 with event 201 containing
-`3x Osc`; a separate event 203 contains its editable label
-`Fixture Synth A`. That separation supports a generator-name field distinct
-from channel names. It does not establish the meaning of event 201 for other
-plugins or saved builds.
+The controlled save has two Event 64 channel identifiers, followed in each
+channel context by an Event 21 type. The Sampler has Event 64 ID 0 and Event 21
+type 0 with an empty UTF-16 event 201. The 3x Osc channel has Event 64 ID 1 and
+Event 21 type 2, with event 201 containing `3x Osc`; a separate event 203
+contains its editable label `Fixture Synth A`. Event 64 identifies a channel;
+Event 21 carries its type. This separation supports a generator-name field
+distinct from channel names. It does not establish the meaning of event 201
+for other plugins or saved builds.
 
 The sanitized candidate is 47,881 bytes with SHA-256
 `d4acf044b447ff578a59070c2020aeacf5a473de2ce97821e8d2dc25a5904ec5`.
@@ -44,8 +46,8 @@ and screenshots remain outside Git. The owner approved only the exact
 ## Parser behavior and local validation
 
 `channelGeneratorNames` is available for the exact verified 2026 build. It
-labels the kind-0 Sampler as an inference and extracts `3x Osc` from event 201.
-An editable channel label from event 203 cannot replace the generator class.
+labels the Event 21 type-0 Sampler as an inference and extracts `3x Osc` from
+event 201. An editable channel label from event 203 cannot replace the generator class.
 The aggregate array retains each item's provenance; mixing the inferred
 Sampler and extracted synth yields medium confidence. Other generator classes,
 malformed/multiple class events, zero-channel projects, and the 2024/2025
