@@ -1042,12 +1042,13 @@ describe("LibraryPage", () => {
     const fake = createFakeLibraryScanAdapter({ roots: [rootA] });
     const adapter: LibraryScanAdapter = {
       ...fake,
-      cancelScan: async (jobId) => ({
-        rootId: rootA.id,
-        jobId,
-        runId: "fake-run-1",
-        outcome: "cancellation_requested",
-      }),
+      cancelScan: (jobId) =>
+        Promise.resolve({
+          rootId: rootA.id,
+          jobId,
+          runId: "fake-run-1",
+          outcome: "cancellation_requested" as const,
+        }),
     };
     renderLibrary(adapter);
     await screen.findByRole("heading", { name: "No committed files yet" });
