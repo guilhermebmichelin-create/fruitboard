@@ -3,6 +3,7 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 
@@ -244,6 +245,7 @@ fn parse_refuses_paths_outside_the_allowed_roots() {
 }
 
 struct PathFixture(PathBuf);
+static NEXT_PATH_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
 impl PathFixture {
     fn new() -> Self {
@@ -251,8 +253,13 @@ impl PathFixture {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
+        Self::at_timestamp(unique)
+    }
+
+    fn at_timestamp(unique: u128) -> Self {
+        let sequence = NEXT_PATH_FIXTURE.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!(
-            "fruitboard-parser-path-{}-{unique}",
+            "fruitboard-parser-path-{}-{unique}-{sequence}",
             std::process::id()
         ));
         fs::create_dir(&path).unwrap();
@@ -277,6 +284,25 @@ impl PathFixture {
 impl Drop for PathFixture {
     fn drop(&mut self) {
         fs::remove_dir_all(&self.0).unwrap();
+    }
+}
+
+#[test]
+fn concurrent_path_fixtures_are_isolated_when_the_clock_collides() {
+    let fixtures = std::thread::scope(|scope| {
+        let threads: Vec<_> = (0..8)
+            .map(|_| scope.spawn(|| PathFixture::at_timestamp(0)))
+            .collect();
+        threads
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    let paths: std::collections::HashSet<_> = fixtures.iter().map(|fixture| &fixture.0).collect();
+    assert_eq!(paths.len(), 8);
+    for fixture in &fixtures {
+        assert!(fixture.0.join("allowed/nested/inside.flp").is_file());
+        assert!(fixture.0.join("outside/outside.flp").is_file());
     }
 }
 
