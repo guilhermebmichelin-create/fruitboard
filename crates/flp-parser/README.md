@@ -44,9 +44,9 @@ pre-registered fixture coverage before they are claimed.
 `channelGeneratorNames` is distinct from editable `channelNames`. For the exact
 26.1.0.5530 build, a controlled GUI save identified native generator class
 `3x Osc` in UTF-16 event 201, while its editable channel name
-`Fixture Synth A` was in event 203. A kind-0 channel with an explicitly empty
-event 201 is reported as built-in `Sampler` by a labeled, high-confidence
-inference from the approved 2026 minimal saves. A verified `3x Osc` class is
+`Fixture Synth A` was in event 203. A channel with Event 21 type 0 and an
+explicitly empty event 201 is reported as built-in `Sampler` by a labeled,
+high-confidence inference from the approved 2026 minimal saves. A verified `3x Osc` class is
 `extracted`. The array retains per-channel provenance in `items` and reports
 `medium` aggregate confidence when stored and inferred classes are mixed.
 Unknown classes or layouts are field-level `unsupported`, even if event 201

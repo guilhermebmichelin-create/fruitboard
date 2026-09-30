@@ -134,8 +134,9 @@ Generator names are separate from editable channel labels. A controlled
 FL Studio 2026 save shows built-in `3x Osc` stored in event 201, while the
 renamed channel label is stored in event 203. The draft
 `channelGeneratorNames` field extracts that verified built-in class and
-labels the 2026 kind-0 Sampler default as an inference. Unverified generator
-classes, mixer effects, external VST identity, and other saved builds remain
+labels the 2026 Event 21 type-0 Sampler default as an inference. Event 64
+identifies the channel; it does not encode the channel type. Unverified
+generator classes, mixer effects, external VST identity, and other saved builds remain
 `unsupported` for this field. The owner approved the exact sanitized
 two-channel F14 save for corpus inclusion on 2026-09-29 under the
 [fixture rules](DEVELOPMENT.md#parser-fixture-rules).

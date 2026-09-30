@@ -13,12 +13,13 @@
 
 ## Method
 
-F06 and F11 each contain one channel-open event with type value zero and no
-explicit channel-name event. Matching FL Studio 2025 (25.1.3.4922) and 2026
+F06 and F11 each contain one Event 64 channel-open event with ID 0, followed
+by an Event 21 type value of 0, and no explicit channel-name event. Matching
+FL Studio 2025 (25.1.3.4922) and 2026
 (26.1.0.5530) GUI reviews showed that channel as `Sampler`. The research
 adapter now infers the displayed default only when **all** of these conditions
-hold: the name event is absent, the channel type is zero, and the saved build
-matches one of those two verified builds. It returns `status: inferred`, method
+hold: the name event is absent, Event 21's channel type is zero, and the saved
+build matches one of those two verified builds. It returns `status: inferred`, method
 `sampler-default-for-known-build`, and `confidence: high`, including item-level
 provenance. Other unstored names remain `unavailable`. Explicit name events,
 including F12's `Fixture Sample A`, remain `extracted`.
