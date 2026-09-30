@@ -94,6 +94,9 @@ const cloneStatus = (status: ScanStatus): ScanStatus => ({
   ...status,
   root: { ...status.root },
   counters: { ...status.counters },
+  ...(status.lastFinishedAttempt
+    ? { lastFinishedAttempt: { ...status.lastFinishedAttempt } }
+    : {}),
 });
 
 interface FakeCursorPayload {
@@ -391,6 +394,16 @@ export function createFakeLibraryScanAdapter(
           retryAvailable: false,
           lastOutcomeAt: now(),
           errorCode: "cancelled",
+          lastFinishedAttempt:
+            current.runId && current.jobId
+              ? {
+                  jobId: current.jobId,
+                  runId: current.runId,
+                  state: "cancelled",
+                  finishedAt: now(),
+                  errorCode: "cancelled",
+                }
+              : (current.lastFinishedAttempt ?? null),
         });
         emit();
         return {
@@ -489,6 +502,16 @@ export function createFakeLibraryScanAdapter(
         lastSuccessfulScanAt: now(),
         lastOutcomeAt: now(),
         errorCode: null,
+        lastFinishedAttempt:
+          current.runId && current.jobId
+            ? {
+                jobId: current.jobId,
+                runId: current.runId,
+                state: "completed",
+                finishedAt: now(),
+                errorCode: null,
+              }
+            : (current.lastFinishedAttempt ?? null),
       });
       emit();
     },
@@ -504,6 +527,16 @@ export function createFakeLibraryScanAdapter(
         retryAvailable: current.root.enabled,
         lastOutcomeAt: now(),
         errorCode: code,
+        lastFinishedAttempt:
+          current.runId && current.jobId
+            ? {
+                jobId: current.jobId,
+                runId: current.runId,
+                state: "failed",
+                finishedAt: now(),
+                errorCode: code,
+              }
+            : (current.lastFinishedAttempt ?? null),
       });
       emit();
     },
@@ -515,7 +548,17 @@ export function createFakeLibraryScanAdapter(
         state: "interrupted",
         retryAvailable: false,
         lastOutcomeAt: now(),
-        errorCode: "internal",
+        errorCode: "conflict",
+        lastFinishedAttempt:
+          current.runId && current.jobId
+            ? {
+                jobId: current.jobId,
+                runId: current.runId,
+                state: "interrupted",
+                finishedAt: now(),
+                errorCode: "conflict",
+              }
+            : (current.lastFinishedAttempt ?? null),
       });
       emit();
     },

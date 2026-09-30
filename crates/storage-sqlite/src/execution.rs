@@ -375,6 +375,15 @@ pub(crate) fn list_scan_runs_query() -> String {
     format!("SELECT {RUN_COLUMNS} FROM scan_run ORDER BY started_at_ms, id")
 }
 
+pub(crate) fn latest_finished_scan_run_query() -> String {
+    format!(
+        "SELECT {RUN_COLUMNS} FROM scan_run
+         WHERE scan_root_id = ?1
+           AND state IN ('completed', 'failed', 'cancelled', 'interrupted')
+         ORDER BY started_at_ms DESC, id DESC LIMIT 1"
+    )
+}
+
 /// The default retention policy: each root keeps its most recent
 /// [`MAX_TERMINAL_RUNS_PER_ROOT`] terminal runs and every terminal run newer
 /// than [`TERMINAL_HISTORY_MAX_AGE_MS`]. Queued/running rows, active
@@ -2113,6 +2122,28 @@ impl Database {
             )
             .optional()?;
         raw.map(run_from_raw).transpose()
+    }
+
+    /// Read one finished attempt independently of the root's active job.
+    /// The terminal-root index supplies the newest attempt in a bounded seek;
+    /// recovery/retry can change the current job without erasing its history.
+    pub fn latest_finished_scan_run_for_root(&self, root_id: &str) -> Result<Option<ScanRun>> {
+        let raw = self
+            .connection
+            .query_row(
+                &latest_finished_scan_run_query(),
+                [root_id],
+                raw_run_from_row,
+            )
+            .optional()?;
+        let run = raw.map(run_from_raw).transpose()?;
+        if run.as_ref().is_some_and(|run| {
+            run.finished_at_ms.is_none()
+                || run.outcome.map(ScanRunOutcome::as_str) != Some(run.state.as_str())
+        }) {
+            return Err(StorageError::InvalidSchema);
+        }
+        Ok(run)
     }
 
     pub fn list_scan_jobs(&self) -> Result<Vec<ScanJob>> {

@@ -72,6 +72,31 @@ async function expectNoViolations(container: HTMLElement) {
 }
 
 describe("LibraryPage accessibility", () => {
+  it("exposes recovery history without taking focus from current scan controls", async () => {
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [root],
+      files: [record],
+    });
+    const view = renderLibrary(adapter);
+    await screen.findByRole("heading", { name: "Accessible.flp" });
+    await adapter.scanNow(root.id);
+    adapter.advanceRun(root.id);
+    adapter.interruptScan(root.id);
+    await screen.findByText("Interrupted");
+    await adapter.scanNow(root.id);
+    await screen.findByText("Queued");
+    const cancel = screen.getByRole("button", {
+      name: "Cancel scan Accessible Projects",
+    });
+    cancel.focus();
+    await expectNoViolations(view.container);
+    adapter.advanceRun(root.id);
+    await screen.findByText("Running");
+    expect(document.activeElement).toBe(cancel);
+    expect(screen.getByText("Last finished attempt")).toBeTruthy();
+    await expectNoViolations(view.container);
+  });
+
   it("has no automated violations in queued, running, cancelled, retry, and unavailable states", async () => {
     const user = userEvent.setup();
     const adapter = createFakeLibraryScanAdapter({

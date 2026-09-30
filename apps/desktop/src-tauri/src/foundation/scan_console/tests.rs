@@ -489,6 +489,7 @@ fn scan_now_runs_to_completion_and_statuses_report_contract_fields() {
             "lastSuccessfulScanAt",
             "lastOutcomeAt",
             "errorCode",
+            "lastFinishedAttempt",
         ]
         .into_iter()
         .collect()
@@ -1946,6 +1947,11 @@ fn restart_marks_interrupted_work_and_resumes_it_through_recovery() {
     assert_eq!(data[0]["retryAvailable"], false);
 
     harness.clock.advance(1_300);
+    assert_eq!(data[0]["lastFinishedAttempt"]["state"], "interrupted");
+    assert_eq!(data[0]["lastFinishedAttempt"]["jobId"], job_id);
+    assert_eq!(data[0]["lastFinishedAttempt"]["runId"], run_id);
+    assert_eq!(data[0]["lastFinishedAttempt"]["errorCode"], "conflict");
+    assert!(data[0]["lastFinishedAttempt"]["finishedAt"].is_string());
     harness.tick(tree(vec![file_entry("a.flp", 101)]));
     let data = ok_data(handle_list_scan_statuses(
         &runtime,
@@ -1953,6 +1959,8 @@ fn restart_marks_interrupted_work_and_resumes_it_through_recovery() {
         statuses_request(),
     ));
     assert_eq!(data[0]["state"], "completed");
+    assert_eq!(data[0]["lastFinishedAttempt"]["state"], "completed");
+    assert_eq!(data[0]["lastFinishedAttempt"]["runId"], data[0]["runId"]);
     assert!(
         data[0]["runId"].as_str().expect("run id") != run_id,
         "the recovery allocated a fresh run for the resumed attempt"

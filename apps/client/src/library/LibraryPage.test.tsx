@@ -777,6 +777,44 @@ describe("LibraryPage", () => {
     expect(screen.getByRole("heading", { name: "Kept.flp" })).toBeTruthy();
   });
 
+  it("keeps the interrupted attempt visible while its successor queues and runs", async () => {
+    const user = userEvent.setup();
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      files: [makeRecord(rootA, "kept-recovery", "Kept.flp", "Kept.flp")],
+    });
+    renderLibrary(adapter);
+    await screen.findByRole("heading", { name: "Kept.flp" });
+    await user.click(screen.getByRole("button", { name: "Scan now Projects" }));
+    adapter.advanceRun(rootA.id);
+    adapter.interruptScan(rootA.id);
+    await screen.findByText("Interrupted");
+    const finished = (await adapter.listScanStatuses())[0]!.lastFinishedAttempt;
+    await user.click(screen.getByRole("button", { name: "Scan now Projects" }));
+    await screen.findByText("Queued");
+    expect(
+      screen.getByText(
+        /last finished attempt was interrupted.*next scan is queued/i,
+      ),
+    ).toBeTruthy();
+    expect((await adapter.listScanStatuses())[0]!.lastFinishedAttempt).toEqual(
+      finished,
+    );
+    adapter.advanceRun(rootA.id);
+    await screen.findByText("Running");
+    expect(
+      screen.getByText(
+        /last finished attempt was interrupted.*next scan is running/i,
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Kept.flp" })).toBeTruthy();
+    adapter.completeScan(rootA.id);
+    await screen.findByText("Completed");
+    expect(
+      screen.queryByText(/last finished attempt was interrupted/i),
+    ).toBeNull();
+  });
+
   it("starts a fresh scan for an exhausted failed chain and keeps its page", async () => {
     const user = userEvent.setup();
     const exhausted = makeStatus(

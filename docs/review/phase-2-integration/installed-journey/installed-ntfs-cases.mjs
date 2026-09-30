@@ -472,6 +472,7 @@ function compactStatus(status) {
     counters: status.counters,
     lastSuccessfulScanAt: status.lastSuccessfulScanAt,
     errorCode: status.errorCode,
+    lastFinishedAttempt: status.lastFinishedAttempt ?? null,
   };
 }
 
@@ -2280,6 +2281,169 @@ async function main() {
         method: "native",
         relativePath: relativeArtifact(eventPath),
       });
+    });
+
+    await runCase("interrupted-follow-up-presentation", failures, async () => {
+      await clickVisibleSelector(
+        app,
+        'a[href="#/library"]',
+        "recovery-library",
+      );
+      await waitForUiText(app.call, "Scan status");
+      await app.call("Emulation.setDeviceMetricsOverride", {
+        width: 1280,
+        height: 900,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      const baselinePage = await pageFor(app.call, roots.resource.id);
+      const active = await scanNowToRunning(
+        app.call,
+        roots.resource.id,
+        "visible-recovery",
+        300000,
+      );
+      const coalesced = await invoke(app.call, "scan_now", {
+        schemaVersion: 1,
+        rootId: roots.resource.id,
+      });
+      if (
+        !coalesced.ok ||
+        coalesced.response.data?.outcome !== "already_running"
+      ) {
+        throw new Error(
+          "the recovery trigger did not interrupt a running attempt",
+        );
+      }
+      const recovered = await waitForStatus(
+        app.call,
+        roots.resource.id,
+        (status) =>
+          ["queued", "running"].includes(status?.state) &&
+          status.lastFinishedAttempt?.runId === active.running.runId &&
+          status.lastFinishedAttempt?.state === "interrupted",
+        300000,
+        "visible-recovery",
+      );
+      if (
+        !recovered?.lastFinishedAttempt ||
+        recovered.lastFinishedAttempt.errorCode !== "conflict"
+      ) {
+        throw new Error("the recovery status lost its finished interruption");
+      }
+      const attempt = recovered.lastFinishedAttempt;
+      const keptPage = await pageFor(app.call, roots.resource.id);
+      if (JSON.stringify(keptPage) !== JSON.stringify(baselinePage)) {
+        throw new Error(
+          "the interrupted attempt changed committed Library results",
+        );
+      }
+      const capture = async (label, width) => {
+        await app.call("Emulation.setDeviceMetricsOverride", {
+          width,
+          height: 900,
+          deviceScaleFactor: 1,
+          mobile: false,
+        });
+        await waitForUiText(
+          app.call,
+          "The last finished attempt was interrupted.",
+        );
+        const nativeStatus = await statusFor(app.call, roots.resource.id);
+        if (
+          nativeStatus?.lastFinishedAttempt?.runId !== attempt.runId ||
+          !["queued", "running"].includes(nativeStatus.state)
+        ) {
+          throw new Error(
+            "the recovery capture no longer refers to the interrupted attempt",
+          );
+        }
+        const snapshot = await evaluate(
+          app.call,
+          `(() => {
+          const card = document.querySelector('[data-root-id="${roots.resource.id}"]');
+          if (!card) throw new Error("recovery card missing");
+          card.scrollIntoView({block:"center"});
+          return {body:card.innerText, history:card.querySelector("[data-last-finished-attempt]")?.getAttribute("data-last-finished-attempt"),
+            execution:card.querySelector("[data-scan-progress]")?.getAttribute("data-scan-progress"), activeElement:document.activeElement?.tagName};
+        })()`,
+        );
+        if (
+          snapshot.history !== "interrupted" ||
+          !["queued", "running"].includes(snapshot.execution)
+        ) {
+          throw new Error(
+            "recovery history and current execution were not visible together",
+          );
+        }
+        const screenshot = await app.call("Page.captureScreenshot", {
+          format: "png",
+          fromSurface: true,
+          captureBeyondViewport: false,
+        });
+        const screenshotPath = path.join(journeyRoot, `${label}.png`);
+        fs.writeFileSync(
+          screenshotPath,
+          Buffer.from(screenshot.data, "base64"),
+        );
+        // Preserve layout while hiding synthetic absolute paths in the
+        // shareable image. Raw captures/AX records remain outside Git.
+        await evaluate(
+          app.call,
+          `(() => {
+          const style = document.createElement("style");
+          style.id = "fruitboard-evidence-redaction";
+          style.textContent = ".library-scan-item__path{visibility:hidden!important}";
+          document.head.append(style);
+        })()`,
+        );
+        const redactedPath = path.join(journeyRoot, `${label}-redacted.png`);
+        try {
+          const redacted = await app.call("Page.captureScreenshot", {
+            format: "png",
+            fromSurface: true,
+            captureBeyondViewport: false,
+          });
+          fs.writeFileSync(redactedPath, Buffer.from(redacted.data, "base64"));
+        } finally {
+          await evaluate(
+            app.call,
+            'document.getElementById("fruitboard-evidence-redaction")?.remove()',
+          );
+        }
+        const accessibility = await app.call("Accessibility.getFullAXTree", {});
+        fs.writeFileSync(
+          path.join(journeyRoot, `${label}-accessibility.json`),
+          JSON.stringify(accessibility, null, 2),
+        );
+        log({
+          kind: "interrupted-recovery-presentation",
+          method: "UI",
+          label,
+          width,
+          attempt,
+          nativeStatus: compactStatus(nativeStatus),
+          snapshot,
+          screenshotSha256: hashFile(screenshotPath),
+          redactedScreenshotSha256: hashFile(redactedPath),
+        });
+      };
+      try {
+        await capture("recovery-desktop", 1280);
+        await capture("recovery-narrow", 390);
+      } finally {
+        await app.call("Emulation.clearDeviceMetricsOverride", {});
+      }
+      await installedKeyboardTrace(app, "interrupted-recovery", 4);
+      await visibleUiSnapshot(app.call, "interrupted-recovery");
+      const terminal = await waitForExistingTerminal(
+        app.call,
+        roots.resource.id,
+        "visible-recovery",
+        300000,
+      );
+      if (terminal.status.state !== "completed")
+        throw new Error("the recovery successor did not complete");
     });
 
     await runCase("explicit-ordering-and-retry", failures, async () => {

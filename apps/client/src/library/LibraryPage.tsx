@@ -1483,6 +1483,17 @@ function ScanStatusCard({
             <dt>Last successful results</dt>
             <dd>{formatDateTime(status.lastSuccessfulScanAt)}</dd>
           </div>
+          {status.lastFinishedAttempt && (
+            <div data-last-finished-attempt={status.lastFinishedAttempt.state}>
+              <dt>Last finished attempt</dt>
+              <dd>
+                {status.lastFinishedAttempt.state.charAt(0).toUpperCase() +
+                  status.lastFinishedAttempt.state.slice(1)}
+                {" · "}
+                {formatDateTime(status.lastFinishedAttempt.finishedAt)}
+              </dd>
+            </div>
+          )}
         </dl>
       </div>
 
@@ -1531,6 +1542,13 @@ function ScanStatusCard({
             : status.state === "interrupted"
               ? "The previous run was interrupted. Previous committed results were kept."
               : scanErrorMessages[status.errorCode ?? "internal"]}
+        </p>
+      )}
+
+      {isActive && status.lastFinishedAttempt?.state === "interrupted" && (
+        <p className="library-scan-outcome">
+          The last finished attempt was interrupted. The next scan is{" "}
+          {status.state}. Previous committed results were kept.
         </p>
       )}
 

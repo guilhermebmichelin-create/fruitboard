@@ -6628,6 +6628,20 @@ fn targeted_retry_and_status_reads_bound_history_without_dropping_rows() {
         .unwrap();
     assert_eq!(terminal_status.job.id, "terminal-status");
     assert_eq!(terminal_status.run_id.as_deref(), Some("terminal-run-new"));
+    assert!(
+        database
+            .latest_finished_scan_run_for_root(&active_root.id)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        database
+            .latest_finished_scan_run_for_root(&terminal_root.id)
+            .unwrap()
+            .unwrap()
+            .id,
+        "terminal-run-new"
+    );
     assert_eq!(
         database
             .latest_scan_run_for_job("terminal-status")
@@ -6645,13 +6659,16 @@ fn targeted_retry_and_status_reads_bound_history_without_dropping_rows() {
     let _ = database.scan_root_status(&active_root.id).unwrap();
     let _ = database.scan_root_status(&terminal_root.id).unwrap();
     let _ = database.latest_scan_run_for_job("terminal-status").unwrap();
+    let _ = database
+        .latest_finished_scan_run_for_root(&terminal_root.id)
+        .unwrap();
     let targeted_rows = crate::execution::test_read_counts();
     println!(
         "history-independent read evidence: legacy job/run objects = {:?}; targeted job/run objects = {:?}",
         legacy_rows, targeted_rows
     );
     assert_eq!(legacy_rows, (130, 2));
-    assert_eq!(targeted_rows, (2, 1));
+    assert_eq!(targeted_rows, (2, 2));
 
     // Retry candidates are returned as one bounded page, while the keyset
     // reaches a later root on the next page instead of materializing all
@@ -7386,6 +7403,22 @@ fn history_and_retention_queries_stay_set_based_and_index_seeking() {
     println!("list_scan_runs plan: {runs_plan:?}");
     assert!(jobs_plan.iter().all(|detail| !detail.contains("SEARCH")));
     assert!(runs_plan.iter().all(|detail| !detail.contains("SEARCH")));
+
+    let latest_finished_plan = explain(
+        crate::execution::latest_finished_scan_run_query(),
+        &[&root.id],
+    );
+    assert!(
+        latest_finished_plan
+            .iter()
+            .any(|detail| detail.contains("SEARCH scan_run USING INDEX scan_run_retention_root")),
+        "latest finished attempt must seek the root's terminal index: {latest_finished_plan:?}"
+    );
+    assert!(
+        latest_finished_plan
+            .iter()
+            .all(|detail| !detail.contains("TEMP B-TREE") && !detail.starts_with("SCAN"))
+    );
 
     // The retention run selection is index-assisted on the terminal-state
     // subset instead of scanning every run.
