@@ -290,6 +290,13 @@ export interface ScanConsoleState {
 }
 
 export interface LibraryScanAdapter {
+  /** Optional for older/review adapters. Never parses or opens a source. */
+  getProjectDetails?(
+    record: Pick<
+      PublishedFileLocation,
+      "rootId" | "locationId" | "byteSize" | "modifiedAt"
+    >,
+  ): Promise<import("./projectDetails").ProjectDetails>;
   getConsoleState(): Promise<ScanConsoleState>;
   getLibraryPage(request: LibraryPageRequest): Promise<LibraryPage>;
   listScanStatuses(): Promise<readonly ScanStatus[]>;

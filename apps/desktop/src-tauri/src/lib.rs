@@ -653,6 +653,18 @@ fn get_library_page(
 }
 
 #[tauri::command]
+fn get_project_details(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<foundation::project_details::ProjectDetails> {
+    foundation::project_details::handle_get_project_details(
+        &state.commands,
+        &state.preferences.database,
+        request,
+    )
+}
+
+#[tauri::command]
 fn get_scan_console_state(
     request: Option<Value>,
     state: tauri::State<'_, NativeFoundation>,
@@ -753,6 +765,7 @@ pub fn run() -> tauri::Result<()> {
             retry_scan,
             list_scan_statuses,
             get_library_page,
+            get_project_details,
             get_scan_console_state
         ])
         .build(tauri::generate_context!())?;

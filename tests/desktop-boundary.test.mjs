@@ -138,6 +138,7 @@ test("desktop capability exposes only health, preference, scan-root, and scan-co
     "allow-retry-scan",
     "allow-list-scan-statuses",
     "allow-get-library-page",
+    "allow-get-project-details",
     "allow-get-scan-console-state",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
@@ -170,6 +171,7 @@ test("desktop capability exposes only health, preference, scan-root, and scan-co
     "retry_scan",
     "list_scan_statuses",
     "get_library_page",
+    "get_project_details",
     "get_scan_console_state",
   ]) {
     assert.match(

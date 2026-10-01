@@ -267,10 +267,40 @@ last good snapshot. No raw embedded reference is opened or executed.
 
 The installed development smoke exercises native enumeration through durable
 metadata and verifies snapshot preservation across reinstall. The default
-desktop and renderer do not enable parsing or expose metadata yet. See the
+desktop does not enable parsing. Issue #240 adds an explicit local display
+projection for current saved metadata in the development composition. See the
 [worker documentation](crates/analysis-execution/README.md) for limits, checks
 and the exact native boundary. Production enablement, broader compatibility,
-metadata presentation and performance qualification remain open.
+extended metadata presentation and performance qualification remain open.
+
+### Library saved project details
+
+The expandable Library view reads nine selected scalar facts through
+`get_project_details`: saved version, base tempo, channel count, local project
+creation time, filesystem creation time, FL Studio's saved time counter and
+verified playlist pattern endpoint, bar span and nominal seconds. It preserves
+extracted, inferred, unavailable and unsupported labels, fixed reason copy and
+low-confidence inference assumptions. Saved local time retains milliseconds and
+has no invented timezone. Playlist estimates are not finished-song duration;
+the saved FL counter is not independently measured work.
+
+The read-only command accepts only opaque root/location IDs and the displayed
+row's size/time fingerprint. It resolves an enabled, present local NTFS source,
+uses storage's current-snapshot fences, checks the displayed fingerprint and
+projects bounded version-1 scalar data under the native database guard. It
+returns no raw JSON, source paths, sample/plugin references or arbitrary
+extensions, and grants no parse/file/process authority. The renderer validates
+identity, fact keys/statuses, numeric bounds, date shape and inference copy.
+Large integer values remain decimal strings. Missing, changed, detached,
+disabled and not-yet-analyzed sources return no current details; default builds
+report details unavailable. Expanding/refreshing does not trigger parsing.
+
+Facts describe a saved result current for the last native scan/read, not a live
+file check. Changed row fingerprints and disabled/unsupported roots clear the
+open panel; Refresh details rechecks authority and freshness. Negative parse
+attempts preserve a still-current last good result. Channel/plugin/sample name
+lists, history and retry controls remain deferred. See the
+[review packet](docs/review/library-project-details-240/README.md).
 
 Issue #232 extends the native parser with embedded project creation/local-time
 and saved FL time spent, optional filesystem creation time, bounded saved plugin

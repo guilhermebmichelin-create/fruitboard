@@ -10,6 +10,7 @@ mod logging;
 mod packaged_parser;
 #[cfg(feature = "packaging-smoke")]
 pub(crate) mod packaging_smoke;
+pub(crate) mod project_details;
 pub(crate) mod scan_console;
 #[cfg(feature = "scan-console")]
 pub(crate) mod scan_console_host;

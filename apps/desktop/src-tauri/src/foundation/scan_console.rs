@@ -1107,7 +1107,7 @@ fn parse_canonical_i64(value: &str) -> Result<i64, ()> {
 /// UTC RFC 3339 from Unix nanoseconds, retaining up to nine fractional digits
 /// with trailing zeroes trimmed (matching the client's `modifiedAt` parser).
 #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
-fn unix_ns_to_rfc3339(nanoseconds: i64) -> String {
+pub(crate) fn unix_ns_to_rfc3339(nanoseconds: i64) -> String {
     let seconds = nanoseconds.div_euclid(1_000_000_000);
     let nanos = nanoseconds.rem_euclid(1_000_000_000);
     let days = seconds.div_euclid(86_400);
