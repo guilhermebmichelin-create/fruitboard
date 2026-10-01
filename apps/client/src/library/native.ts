@@ -1,4 +1,5 @@
 import { NATIVE_COMMAND_SCHEMA_VERSION } from "../platform/contracts";
+import { parseProjectDetails } from "./projectDetails";
 import {
   LibraryAdapterError,
   MAX_LIBRARY_PAGE_LIMIT,
@@ -639,6 +640,26 @@ export function createNativeLibraryScanAdapter(
   };
 
   return {
+    async getProjectDetails(
+      record: Pick<
+        PublishedFileLocation,
+        "rootId" | "locationId" | "byteSize" | "modifiedAt"
+      >,
+    ) {
+      return execute(
+        "get_project_details",
+        {
+          request: {
+            schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION,
+            rootId: record.rootId,
+            locationId: record.locationId,
+            expectedByteSize: record.byteSize,
+            expectedModifiedAt: record.modifiedAt,
+          },
+        },
+        (value) => parseProjectDetails(value, record),
+      );
+    },
     async getConsoleState(): Promise<ScanConsoleState> {
       return execute(
         GET_SCAN_CONSOLE_STATE_COMMAND,

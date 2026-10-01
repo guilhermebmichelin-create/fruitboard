@@ -16,7 +16,12 @@ Issue #238 implements the optional native development analysis composition:
 durable bounded jobs, fixed installed Rust parser, freshly authorized local
 NTFS source, independent digest validation and transactional snapshot/job
 publication. This remains behind `analysis-jobs`, outside the default desktop
-and renderer. See the [worker boundary](../../crates/analysis-execution/README.md).
+build. Issue #240 adds a read-only local Library projection of nine scalar
+saved facts with explicit status/reasons and inference assumptions. Native
+authority/freshness checks precede display; the renderer receives no raw JSON,
+paths or parse authority. Default builds return unavailable. See the
+[worker boundary](../../crates/analysis-execution/README.md) and
+[display review](../review/library-project-details-240/README.md).
 It does not close compatibility, distribution or performance qualification gates.
 
 ## Decision

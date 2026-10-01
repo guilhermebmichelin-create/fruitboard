@@ -1,4 +1,5 @@
 import type { ScanRoot } from "../platform/contracts";
+import type { ProjectDetails } from "./projectDetails";
 import {
   LIBRARY_PAGE_LIMIT,
   LibraryAdapterError,
@@ -17,6 +18,7 @@ import {
 } from "./contracts";
 
 export interface FakeLibraryAdapterOptions {
+  readonly projectDetails?: Readonly<Record<string, ProjectDetails>>;
   readonly roots?: readonly ScanRoot[];
   readonly files?: readonly PublishedFileLocation[];
   readonly pageLimit?: number;
@@ -322,6 +324,15 @@ export function createFakeLibraryScanAdapter(
   };
 
   const adapter: FakeLibraryScanAdapter = {
+    getProjectDetails(record) {
+      return Promise.resolve(
+        options.projectDetails?.[record.locationId] ?? {
+          rootId: record.rootId,
+          locationId: record.locationId,
+          state: "disabled" as const,
+        },
+      );
+    },
     async getConsoleState(): Promise<ScanConsoleState> {
       await Promise.resolve();
       if (options.consoleProbeFails === true) {

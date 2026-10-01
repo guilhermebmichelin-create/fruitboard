@@ -415,6 +415,87 @@ fn error_code<T: Serialize>(envelope: crate::foundation::CommandEnvelope<T>) -> 
 }
 
 #[test]
+#[cfg(feature = "analysis-jobs")]
+fn project_details_resolves_authorized_current_metadata_and_fences_displayed_rows() {
+    use crate::foundation::project_details::handle_get_project_details;
+    use fruitboard_flp_parser::supervisor::ProtocolReply;
+    use fruitboard_flp_parser::validation::validate_descriptor;
+    use fruitboard_flp_parser::{ADAPTER_ID, ADAPTER_VERSION, parse_bytes, sha256_hex};
+    let harness = Harness::new("project-details");
+    let (runtime, _) = test_runtime();
+    let bytes = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/parser-corpus/FIX-FL2026-SAMPLE.flp"),
+    )
+    .unwrap();
+    handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    );
+    let mut entry = file_entry("sample.flp", 800);
+    entry.size = bytes.len() as u64;
+    harness.tick(tree(vec![entry.clone()]));
+    let page = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    let row = &page["records"][0];
+    let request = json!({"schemaVersion":1,"rootId":harness.root_id,"locationId":row["locationId"],"expectedByteSize":row["byteSize"],"expectedModifiedAt":row["modifiedAt"]});
+    let read = |request: Value| {
+        ok_data(handle_get_project_details(
+            &runtime,
+            &harness.database,
+            Some(request),
+        ))
+    };
+    assert_eq!(read(request.clone())["state"], "no_current");
+    {
+        let mut db = harness.database.lock().unwrap();
+        let input = db
+            .capture_metadata_input(&harness.root_id, row["locationId"].as_str().unwrap())
+            .unwrap();
+        let capabilities = validate_descriptor(&json!({"adapter":ADAPTER_ID,"adapterVersion":ADAPTER_VERSION,
+            "fields":["savedVersion","baseTempoBpm","channelCount","channelNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],
+            "maxFileBytes":4194304,"maxEvents":100000,"maxChannels":256,"maxEventBytes":2097152,"maxPatterns":1024,"maxPlaylistClips":1024})).unwrap();
+        let mut reply = parse_bytes(&bytes);
+        reply["filesystemCreatedAtMs"] =
+            json!({"status":"unavailable","reason":"FILESYSTEM_CREATION_TIME_UNAVAILABLE"});
+        reply["inputFingerprint"] = json!({"size":bytes.len(),"modifiedAtMs":DEFAULT_MTIME_NS / 1_000_000,"hash":{"algorithm":"sha256","value":sha256_hex(&bytes)}});
+        db.publish_metadata_snapshot(&input, &capabilities, ProtocolReply::Result(reply), T0_MS)
+            .unwrap();
+    }
+    let details = read(request.clone());
+    assert_eq!(details["state"], "available");
+    assert_eq!(details["facts"].as_array().unwrap().len(), 9);
+    assert_eq!(details["facts"][0]["value"], "26.1.0.5530");
+    assert!(details.get("payloadJson").is_none());
+    assert!(!details.to_string().contains("synthetic-root"));
+    let mut mismatched = request.clone();
+    mismatched["rootId"] = json!(harness.add_root("Other", "D:\\Other"));
+    assert_eq!(read(mismatched)["state"], "no_current");
+    let mut mismatched = request.clone();
+    mismatched["expectedByteSize"] = json!("1");
+    assert_eq!(read(mismatched)["state"], "no_current");
+    let mut mismatched = request.clone();
+    mismatched["expectedModifiedAt"] = json!("2026-01-02T00:00:00Z");
+    assert_eq!(read(mismatched)["state"], "no_current");
+    harness.set_root_enabled(&harness.root_id, false);
+    assert_eq!(read(request.clone())["state"], "no_current");
+    harness.set_root_enabled(&harness.root_id, true);
+    assert_eq!(read(request.clone())["state"], "no_current");
+    handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    );
+    entry.size += 1;
+    harness.tick(tree(vec![entry]));
+    assert_eq!(read(request)["state"], "no_current");
+}
+
+#[test]
 fn scan_now_runs_to_completion_and_statuses_report_contract_fields() {
     let harness = Harness::new("queued-running-completed");
     let (runtime, _) = test_runtime();

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 import {
   LIBRARY_PAGE_LIMIT,
   LibraryAdapterError,
@@ -1258,6 +1259,14 @@ function ConnectedLibraryPage({
           >
             {page.records.map((record) => (
               <LibraryRecord
+                adapter={adapter}
+                sourceSnapshotId={page.snapshotId}
+                sourceEligible={statuses.some(
+                  (status) =>
+                    status.root.id === record.rootId &&
+                    status.root.enabled &&
+                    status.root.mode === "localNtfs",
+                )}
                 duplicateDisplayNames={duplicateDisplayNames}
                 key={record.locationId}
                 record={record}
@@ -1638,9 +1647,15 @@ function ScanStatusCard({
 }
 
 function LibraryRecord({
+  adapter,
+  sourceSnapshotId,
+  sourceEligible,
   duplicateDisplayNames,
   record,
 }: {
+  readonly adapter: LibraryScanAdapter;
+  readonly sourceSnapshotId: string;
+  readonly sourceEligible: boolean;
   readonly duplicateDisplayNames: ReadonlySet<string>;
   readonly record: PublishedFileLocation;
 }) {
@@ -1681,6 +1696,20 @@ function LibraryRecord({
             <dd>{formatDateTime(record.modifiedAt)}</dd>
           </div>
         </dl>
+        <ProjectDetailsPanel
+          adapter={adapter}
+          record={record}
+          sourceEligible={sourceEligible}
+          key={JSON.stringify([
+            sourceSnapshotId,
+            record.rootId,
+            record.byteSize,
+            record.modifiedAt,
+            record.presence,
+            record.relativePath,
+            sourceEligible,
+          ])}
+        />
       </article>
     </li>
   );

@@ -26,6 +26,11 @@ description = "Allows the local main window to read one per-root committed Libra
 commands.allow = ["get_library_page"]
 
 [[permission]]
+identifier = "allow-get-project-details"
+description = "Allows the local main window to read selected typed facts for one current Library location."
+commands.allow = ["get_project_details"]
+
+[[permission]]
 identifier = "allow-get-scan-console-state"
 description = "Allows the local main window to read whether the scan console is enabled."
 commands.allow = ["get_scan_console_state"]

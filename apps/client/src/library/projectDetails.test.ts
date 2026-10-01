@@ -1,0 +1,128 @@
+import { describe, expect, it, vi } from "vitest";
+import { formatProjectFact, parseProjectDetails } from "./projectDetails";
+import { createNativeLibraryScanAdapter } from "./native";
+import { identity, savedDetails } from "./projectDetails.fixture";
+
+describe("typed project details", () => {
+  it("projects only allowed facts and keeps integers exact", () => {
+    const details = savedDetails();
+    const input = JSON.parse(JSON.stringify(details)) as Record<
+      string,
+      unknown
+    >;
+    const result = parseProjectDetails(
+      { ...input, rawPrivateExtension: "private" },
+      identity,
+    );
+    expect(result).toEqual(details);
+    expect(
+      formatProjectFact({
+        key: "flStudioTimeSpentMs",
+        status: "extracted",
+        value: "3661000",
+        explanation: null,
+      }),
+    ).toBe("1 h 1 min 1 s");
+    expect(
+      formatProjectFact({
+        key: "filesystemCreatedAtMs",
+        status: "extracted",
+        value: "18446744073709551615",
+        explanation: null,
+      }),
+    ).toBe("Outside the supported date range");
+    expect(formatProjectFact(details.facts[3]!)).toBe(
+      "2026-01-02 03:04:05.123 (local)",
+    );
+  });
+
+  it.each([
+    (v: Record<string, unknown>) => {
+      v["rootId"] = "different-root";
+    },
+    (v: Record<string, unknown>) => {
+      v["locationId"] = "different-file";
+    },
+    (v: Record<string, unknown>) => {
+      v["outcome"] = "failed";
+    },
+    (v: Record<string, unknown>) => {
+      v["state"] = "disabled";
+    },
+    (v: Record<string, unknown>) => {
+      v["facts"] = [];
+    },
+  ])("rejects malformed or mismatched responses", (change) => {
+    const value = { ...savedDetails() };
+    change(value);
+    expect(() => parseProjectDetails(value, identity)).toThrow("internal");
+  });
+
+  it.each([
+    ["baseTempoBpm", "0"],
+    ["channelCount", "9007199254740993"],
+    ["filesystemCreatedAtMs", "18446744073709551616"],
+    ["projectCreatedLocal", "2026-02-30T00:00:00.000"],
+    ["playlistPatternNominalSeconds", "Infinity"],
+    ["flStudioTimeSpentMs", "01"],
+  ])("rejects invalid %s values", (key, value) => {
+    const details = savedDetails();
+    const facts = details.facts.map((fact) =>
+      fact.key === key ? { ...fact, value } : fact,
+    );
+    expect(() => parseProjectDetails({ ...details, facts }, identity)).toThrow(
+      "internal",
+    );
+  });
+
+  it("requires inference explanation and unavailable fields to have no value", () => {
+    const details = savedDetails();
+    for (const replacement of [
+      { explanation: null },
+      { status: "extracted", explanation: null },
+      { status: "unavailable" },
+    ]) {
+      expect(() =>
+        parseProjectDetails(
+          {
+            ...details,
+            facts: details.facts.map((f) =>
+              f.key === "playlistPatternSpanBars"
+                ? { ...f, ...replacement }
+                : f,
+            ),
+          },
+          identity,
+        ),
+      ).toThrow("internal");
+    }
+  });
+
+  it("invokes a bounded read with IDs and the displayed fingerprint only", async () => {
+    const invoke = vi.fn().mockResolvedValue({
+      schemaVersion: 1,
+      correlationId: `correlation_${"0".repeat(32)}`,
+      status: "ok",
+      data: savedDetails(),
+    });
+    const adapter = createNativeLibraryScanAdapter({
+      invoke,
+      listen: () => () => undefined,
+    });
+    await expect(
+      adapter.getProjectDetails?.({
+        ...identity,
+        byteSize: "1024",
+        modifiedAt: "2026-01-02T00:00:00Z",
+      }),
+    ).resolves.toEqual(savedDetails());
+    expect(invoke).toHaveBeenCalledWith("get_project_details", {
+      request: {
+        schemaVersion: 1,
+        ...identity,
+        expectedByteSize: "1024",
+        expectedModifiedAt: "2026-01-02T00:00:00Z",
+      },
+    });
+  });
+});
