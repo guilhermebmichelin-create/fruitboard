@@ -39,6 +39,12 @@ impl MetadataInput {
     pub fn location_id(&self) -> &str {
         &self.location_id
     }
+    pub fn byte_size(&self) -> u64 {
+        self.byte_size
+    }
+    pub fn modified_at_ns(&self) -> i64 {
+        self.modified_at_ns
+    }
     pub fn parse_context(&self) -> ParseContext {
         ParseContext {
             root_id: self.root_id.clone(),

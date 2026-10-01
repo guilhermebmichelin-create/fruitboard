@@ -22,6 +22,8 @@ export function savedDetails(): Extract<
     state: "available",
     snapshotId: "12345678-1234-1234-1234-123456789abc",
     outcome: "partial",
+    analysis: { state: "complete", attempts: 1, reason: null },
+    warnings: ["unverified_events"],
     channels: [
       {
         position: 1,

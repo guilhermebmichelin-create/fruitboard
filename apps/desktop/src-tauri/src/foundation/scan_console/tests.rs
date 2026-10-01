@@ -450,7 +450,44 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
             Some(request),
         ))
     };
-    assert_eq!(read(request.clone())["state"], "no_current");
+    let empty = read(request.clone());
+    assert_eq!(empty["state"], "no_current");
+    assert_eq!(
+        empty["analysis"],
+        json!({"state":"not_reported","attempts":null,"reason":null})
+    );
+    {
+        let mut db = harness.database.lock().unwrap();
+        let session = db.start_analysis_session(T0_MS).unwrap();
+        db.discover_analysis_jobs(None, fruitboard_storage::MAX_ANALYSIS_BATCH, T0_MS)
+            .unwrap();
+        drop(db);
+        assert_eq!(
+            read(request.clone())["analysis"],
+            json!({"state":"queued","attempts":0,"reason":null})
+        );
+        let mut mismatch = request.clone();
+        mismatch["expectedByteSize"] = json!("1");
+        assert_eq!(read(mismatch)["analysis"]["state"], "not_current");
+        let mut db = harness.database.lock().unwrap();
+        let lease = db.claim_analysis_job(&session, T0_MS).unwrap().unwrap();
+        drop(db);
+        assert_eq!(read(request.clone())["analysis"]["state"], "running");
+        harness
+            .database
+            .lock()
+            .unwrap()
+            .fail_analysis_job(
+                &lease,
+                fruitboard_storage::AnalysisFailure::SourceUnavailable,
+                T0_MS,
+            )
+            .unwrap();
+        assert_eq!(
+            read(request.clone())["analysis"],
+            json!({"state":"failed","attempts":1,"reason":"source_unavailable"})
+        );
+    }
     {
         let mut db = harness.database.lock().unwrap();
         let input = db
@@ -468,6 +505,14 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
     }
     let details = read(request.clone());
     assert_eq!(details["state"], "available");
+    assert_eq!(
+        details["analysis"],
+        json!({"state":"failed","attempts":1,"reason":"source_unavailable"})
+    );
+    assert!(details["warnings"].is_array());
+    assert!(details["analysis"].get("jobId").is_none());
+    assert!(details["analysis"].get("snapshotId").is_none());
+    assert!(!details.to_string().contains("SOURCE_UNAVAILABLE"));
     assert_eq!(details["facts"].as_array().unwrap().len(), 9);
     assert_eq!(details["facts"][0]["value"], "26.1.0.5530");
     assert_eq!(details["channels"].as_array().unwrap().len(), 2);
@@ -479,15 +524,15 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
     assert!(!details.to_string().contains("synthetic-root"));
     let mut mismatched = request.clone();
     mismatched["rootId"] = json!(harness.add_root("Other", "D:\\Other"));
-    assert_eq!(read(mismatched)["state"], "no_current");
+    assert_eq!(read(mismatched)["analysis"]["state"], "not_current");
     let mut mismatched = request.clone();
     mismatched["expectedByteSize"] = json!("1");
-    assert_eq!(read(mismatched)["state"], "no_current");
+    assert_eq!(read(mismatched)["analysis"]["state"], "not_current");
     let mut mismatched = request.clone();
     mismatched["expectedModifiedAt"] = json!("2026-01-02T00:00:00Z");
-    assert_eq!(read(mismatched)["state"], "no_current");
+    assert_eq!(read(mismatched)["analysis"]["state"], "not_current");
     harness.set_root_enabled(&harness.root_id, false);
-    assert_eq!(read(request.clone())["state"], "no_current");
+    assert_eq!(read(request.clone())["analysis"]["state"], "not_current");
     harness.set_root_enabled(&harness.root_id, true);
     assert_eq!(read(request.clone())["state"], "no_current");
     handle_scan_now(
@@ -498,6 +543,85 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
     entry.size += 1;
     harness.tick(tree(vec![entry]));
     assert_eq!(read(request)["state"], "no_current");
+}
+
+#[test]
+#[cfg(feature = "analysis-jobs")]
+fn project_analysis_explains_negative_parser_snapshots_without_raw_codes() {
+    use crate::foundation::project_details::handle_get_project_details;
+    use fruitboard_flp_parser::supervisor::ProtocolReply;
+    use fruitboard_flp_parser::validation::validate_descriptor;
+    use fruitboard_flp_parser::{ADAPTER_ID, ADAPTER_VERSION, parse_bytes, sha256_hex};
+    for unsupported in [false, true] {
+        let harness = Harness::new("negative-project-analysis");
+        let (runtime, _) = test_runtime();
+        let mut bytes = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../fixtures/parser-corpus/FIX-FL2026-3XOSC.flp"),
+        )
+        .unwrap();
+        if unsupported {
+            let at = bytes
+                .windows(b"26.1.0.5530".len())
+                .position(|v| v == b"26.1.0.5530")
+                .unwrap();
+            bytes[at..at + 2].copy_from_slice(b"99");
+        }
+        handle_scan_now(
+            &runtime,
+            &harness.service,
+            scan_now_request(&harness.root_id),
+        );
+        let mut entry = file_entry("sample.flp", 800);
+        entry.size = bytes.len() as u64;
+        harness.tick(tree(vec![entry]));
+        let page = ok_data(handle_get_library_page(
+            &runtime,
+            &harness.service,
+            page_request(&harness.root_id, 10, None, None),
+        ));
+        let row = &page["records"][0];
+        let capabilities = validate_descriptor(&json!({"adapter":ADAPTER_ID,"adapterVersion":ADAPTER_VERSION,"fields":["savedVersion","baseTempoBpm","channelCount","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],"maxFileBytes":4194304,"maxEvents":100000,"maxChannels":256,"maxEventBytes":2097152,"maxPatterns":1024,"maxPlaylistClips":1024})).unwrap();
+        {
+            let mut db = harness.database.lock().unwrap();
+            let session = db.start_analysis_session(T0_MS).unwrap();
+            db.discover_analysis_jobs(None, fruitboard_storage::MAX_ANALYSIS_BATCH, T0_MS)
+                .unwrap();
+            let lease = db.claim_analysis_job(&session, T0_MS).unwrap().unwrap();
+            let mut reply = if unsupported {
+                parse_bytes(&bytes)
+            } else {
+                parse_bytes(b"invalid")
+            };
+            if unsupported {
+                reply["inputFingerprint"] = json!({"size":bytes.len(),"modifiedAtMs":DEFAULT_MTIME_NS / 1_000_000,"hash":{"algorithm":"sha256","value":sha256_hex(&bytes)}});
+            }
+            db.complete_analysis_job(
+                &lease,
+                &capabilities,
+                ProtocolReply::Result(reply),
+                &sha256_hex(&bytes),
+                T0_MS,
+            )
+            .unwrap();
+        }
+        let details = ok_data(handle_get_project_details(
+            &runtime,
+            &harness.database,
+            Some(
+                json!({"schemaVersion":1,"rootId":harness.root_id,"locationId":row["locationId"],"expectedByteSize":row["byteSize"],"expectedModifiedAt":row["modifiedAt"]}),
+            ),
+        ));
+        assert_eq!(details["state"], "no_current");
+        assert_eq!(
+            details["analysis"],
+            json!({"state":if unsupported {"unsupported"} else {"failed"},"attempts":1,"reason":if unsupported {"unsupported_version"} else {"invalid_file"}})
+        );
+        assert!(details.get("facts").is_none());
+        assert!(!details.to_string().contains("INVALID_HEADER"));
+        assert!(!details.to_string().contains("UNSUPPORTED_SAVED_VERSION"));
+        assert!(!details.to_string().contains("99.1.0.5530"));
+    }
 }
 
 #[test]

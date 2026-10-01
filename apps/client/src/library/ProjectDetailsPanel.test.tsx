@@ -10,6 +10,7 @@ import type { ProjectDetails } from "./projectDetails";
 import { MemoryRouter } from "react-router";
 import { LibraryPage } from "./LibraryPage";
 import type { ScanRoot } from "../platform/contracts";
+import { ANALYSIS_LABELS, type ProjectAnalysis } from "./projectAnalysis";
 
 const record: PublishedFileLocation = {
   ...identity,
@@ -23,6 +24,95 @@ const record: PublishedFileLocation = {
 };
 
 describe("Project details panel", () => {
+  it.each([
+    "not_reported",
+    "not_current",
+    "queued",
+    "running",
+    "complete",
+    "unsupported",
+    "failed",
+    "cancelled",
+    "stale",
+  ] as const)(
+    "explains the recorded %s state without inventing facts",
+    async (state) => {
+      const user = userEvent.setup();
+      const analysis: ProjectAnalysis = {
+        state,
+        attempts:
+          state === "not_reported" || state === "not_current" ? null : 1,
+        reason: null,
+      };
+      render(
+        <ProjectDetailsPanel
+          record={record}
+          adapter={{
+            ...createFakeLibraryScanAdapter(),
+            getProjectDetails: () =>
+              Promise.resolve({ ...identity, state: "no_current", analysis }),
+          }}
+        />,
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Project details Example.flp" }),
+      );
+      await screen.findByText(ANALYSIS_LABELS[state]);
+      expect(screen.queryByText("120 BPM")).toBeNull();
+      expect(
+        screen.getByText(/does not start another analysis attempt/),
+      ).toBeTruthy();
+      if (analysis.attempts === null)
+        expect(screen.queryByText(/Attempts started/)).toBeNull();
+      else expect(screen.getByText("Attempts started: 1 of 3.")).toBeTruthy();
+    },
+  );
+  it("refreshes waiting status into a result and keeps valid facts alongside a later problem", async () => {
+    const user = userEvent.setup();
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ...identity,
+        state: "no_current",
+        analysis: { state: "queued", attempts: 0, reason: null },
+      })
+      .mockResolvedValueOnce(savedDetails())
+      .mockResolvedValueOnce({
+        ...savedDetails(),
+        analysis: {
+          state: "failed",
+          attempts: 3,
+          reason: "parser_unavailable",
+        },
+      });
+    render(
+      <ProjectDetailsPanel
+        record={record}
+        adapter={{ ...createFakeLibraryScanAdapter(), getProjectDetails: read }}
+      />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Project details Example.flp" }),
+    );
+    await screen.findByText("Waiting for analysis");
+    const refresh = screen.getByRole("button", {
+      name: "Refresh project details Example.flp",
+    });
+    await user.click(refresh);
+    await screen.findByText("Analysis finished");
+    await screen.findByText("120 BPM");
+    expect(
+      screen.getByText(/Some saved events are not understood/),
+    ).toBeTruthy();
+    await user.click(refresh);
+    await screen.findByText("Analysis failed");
+    expect(screen.getByText("120 BPM")).toBeTruthy();
+    expect(
+      screen.getByText(/separate from this recorded attempt/),
+    ).toBeTruthy();
+    expect(screen.getByText(/could not complete its response/)).toBeTruthy();
+    expect(read).toHaveBeenCalledTimes(3);
+  });
   it("clears details on a new scan snapshot even when displayed file attributes are identical", async () => {
     const user = userEvent.setup();
     const root: ScanRoot = {
@@ -90,6 +180,7 @@ describe("Project details panel", () => {
     });
     expect(screen.queryByText("120 BPM")).toBeNull();
     expect(screen.queryByText("Fixture Synth A")).toBeNull();
+    expect(screen.queryByText("Analysis finished")).toBeNull();
   });
   it("clears displayed facts when the selected root becomes disabled", async () => {
     const user = userEvent.setup();
@@ -134,6 +225,7 @@ describe("Project details panel", () => {
       window.dispatchEvent(new Event("focus"));
     });
     await waitFor(() => expect(screen.queryByText("120 BPM")).toBeNull());
+    expect(screen.queryByText("Analysis finished")).toBeNull();
     expect(
       screen
         .getByRole("button", { name: "Project details Example.flp" })
@@ -162,6 +254,7 @@ describe("Project details panel", () => {
     expect(screen.getAllByText("Inferred")).toHaveLength(5);
     expect(screen.getByText("Fixture Synth A")).toBeTruthy();
     expect(screen.getByText("3x Osc")).toBeTruthy();
+    expect(screen.getByText("Analysis finished")).toBeTruthy();
     expect(screen.getByText(/not the finished song/)).toBeTruthy();
     expect(screen.getByText(/has not measured your work time/)).toBeTruthy();
     const accessibility = await axe.run(view.container, {

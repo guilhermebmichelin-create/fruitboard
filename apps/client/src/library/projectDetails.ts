@@ -1,4 +1,5 @@
 import { LibraryAdapterError, type PublishedFileLocation } from "./contracts";
+import { parseProjectAnalysis, type ProjectAnalysis } from "./projectAnalysis";
 
 export const PROJECT_FACT_KEYS = [
   "savedVersion",
@@ -35,13 +36,15 @@ export type ProjectDetails = {
   readonly locationId: string;
 } & (
   | { readonly state: "disabled" }
-  | { readonly state: "no_current" }
+  | { readonly state: "no_current"; readonly analysis?: ProjectAnalysis }
   | {
       readonly state: "available";
       readonly snapshotId: string;
       readonly outcome: "complete" | "partial";
       readonly facts: readonly ProjectFact[];
       readonly channels: readonly ProjectChannel[];
+      readonly analysis?: ProjectAnalysis;
+      readonly warnings?: readonly "unverified_events"[];
     }
 );
 
@@ -68,10 +71,18 @@ export function parseProjectDetails(
     if (
       value["facts"] !== undefined ||
       value["snapshotId"] !== undefined ||
-      value["channels"] !== undefined
+      value["channels"] !== undefined ||
+      value["warnings"] !== undefined ||
+      (state === "disabled" && value["analysis"] !== undefined)
     )
       return fail();
-    return { ...identity, state };
+    return state === "no_current" && value["analysis"] !== undefined
+      ? {
+          ...identity,
+          state,
+          analysis: parseProjectAnalysis(value["analysis"]),
+        }
+      : { ...identity, state };
   }
   if (
     state !== "available" ||
@@ -202,6 +213,14 @@ export function parseProjectDetails(
       return { position: index + 1, name, instrument };
     },
   );
+  const warnings = value["warnings"];
+  if (
+    warnings !== undefined &&
+    (!Array.isArray(warnings) ||
+      warnings.length > 1 ||
+      warnings.some((v: unknown) => v !== "unverified_events"))
+  )
+    return fail();
   return {
     ...identity,
     state,
@@ -209,6 +228,12 @@ export function parseProjectDetails(
     outcome: value["outcome"] as "complete" | "partial",
     facts,
     channels: selectedChannels,
+    ...(value["analysis"] === undefined
+      ? {}
+      : { analysis: parseProjectAnalysis(value["analysis"]) }),
+    ...(warnings === undefined
+      ? {}
+      : { warnings: warnings as "unverified_events"[] }),
   };
 }
 

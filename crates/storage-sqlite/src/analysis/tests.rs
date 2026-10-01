@@ -18,6 +18,176 @@ fn discover(db: &mut Database, now: i64) {
 }
 
 #[test]
+fn current_status_reads_recorded_states_without_mutating_or_reviving_work() {
+    let (_dir, mut db, input) = fixture();
+    assert!(db.current_analysis_status(&input).unwrap().is_none());
+    let session = db.start_analysis_session(1).unwrap();
+    discover(&mut db, 2);
+    let queued = db.current_analysis_status(&input).unwrap().unwrap();
+    assert_eq!(queued.state, AnalysisState::Queued);
+    assert_eq!(queued.attempt, 0);
+    let lease = db.claim_analysis_job(&session, 3).unwrap().unwrap();
+    assert_eq!(
+        db.current_analysis_status(&input).unwrap().unwrap().state,
+        AnalysisState::Running
+    );
+    db.fail_analysis_job(&lease, AnalysisFailure::SourceUnavailable, 4)
+        .unwrap();
+    let failed = db.current_analysis_status(&input).unwrap().unwrap();
+    assert_eq!(failed.state, AnalysisState::Failed);
+    assert_eq!(failed.attempt, 1);
+    assert_eq!(failed.error_code.as_deref(), Some("SOURCE_UNAVAILABLE"));
+    // A separate valid publication can coexist with this terminal attempt.
+    let good = db
+        .publish_metadata_snapshot(&input, &capabilities(), reply(), 5)
+        .unwrap();
+    assert!(db.current_analysis_status(&input).unwrap().is_none());
+    let fresh = db
+        .capture_metadata_input(&input.root_id, "location")
+        .unwrap();
+    assert_eq!(
+        db.current_analysis_status(&fresh).unwrap().unwrap().job_id,
+        failed.job_id
+    );
+    assert_eq!(
+        db.current_metadata_snapshot("project")
+            .unwrap()
+            .unwrap()
+            .header()
+            .id,
+        good.id
+    );
+    discover(&mut db, 6);
+    assert!(db.claim_analysis_job(&session, 7).unwrap().is_none());
+}
+
+#[test]
+fn current_status_fences_revisions_aliases_and_adapter_version() {
+    for transition in 0..5 {
+        let (_dir, mut db, input) = fixture();
+        db.start_analysis_session(1).unwrap();
+        discover(&mut db, 2);
+        match transition {
+            0 => {
+                db.set_scan_root_enabled_at(&input.root_id, false, 3)
+                    .unwrap();
+                db.set_scan_root_enabled_at(&input.root_id, true, 4)
+                    .unwrap();
+            }
+            1 => {
+                db.connection.execute_batch("UPDATE file_location SET modified_at_ns=modified_at_ns+1; UPDATE file_location SET modified_at_ns=modified_at_ns-1;").unwrap();
+            }
+            2 => {
+                db.connection.execute_batch("UPDATE project_file SET byte_size=byte_size+1; UPDATE project_file SET byte_size=byte_size-1;").unwrap();
+            }
+            3 => {
+                db.connection
+                    .execute_batch("UPDATE analysis_job SET adapter_version='older';")
+                    .unwrap();
+            }
+            _ => {
+                db.connection
+                    .execute_batch(
+                        "UPDATE analysis_job SET parser_schema_version=parser_schema_version+1;",
+                    )
+                    .unwrap();
+            }
+        }
+        let fresh = db
+            .capture_metadata_input(&input.root_id, "location")
+            .unwrap();
+        assert!(
+            db.current_analysis_status(&fresh).unwrap().is_none(),
+            "transition {transition}"
+        );
+    }
+    let (_dir, mut db, input) = fixture();
+    db.start_analysis_session(1).unwrap();
+    discover(&mut db, 2);
+    db.connection.execute("INSERT INTO file_location(id,project_file_id,scan_root_id,normalized_path,locator_key,relative_path,byte_size,modified_at_ms,modified_at_ns,created_at_ms,updated_at_ms) VALUES ('alias','project',?1,'v1:i:alias.flp','v1:i:alias.flp','alias.flp',?2,42,42000123,1,1)", params![input.root_id, bytes().len() as i64]).unwrap();
+    let alias = db.capture_metadata_input(&input.root_id, "alias").unwrap();
+    assert!(db.current_analysis_status(&alias).unwrap().is_none());
+}
+
+#[test]
+fn current_terminal_status_validates_snapshot_ownership_and_outcome() {
+    let (_dir, mut db, input) = fixture();
+    let session = db.start_analysis_session(1).unwrap();
+    discover(&mut db, 2);
+    let lease = db.claim_analysis_job(&session, 3).unwrap().unwrap();
+    db.complete_analysis_job(&lease, &capabilities(), reply(), &sha256_hex(&bytes()), 4)
+        .unwrap();
+    let fresh = db
+        .capture_metadata_input(&input.root_id, "location")
+        .unwrap();
+    assert_eq!(
+        db.current_analysis_status(&fresh).unwrap().unwrap().state,
+        AnalysisState::Complete
+    );
+    // Snapshot identity is verified independently of the location's job row.
+    let own_id = db
+        .analysis_status("location")
+        .unwrap()
+        .unwrap()
+        .snapshot_id
+        .unwrap();
+    db.connection.execute("INSERT INTO file_location(id,project_file_id,scan_root_id,normalized_path,locator_key,relative_path,byte_size,modified_at_ms,modified_at_ns,created_at_ms,updated_at_ms) VALUES ('alias','project',?1,'v1:i:alias.flp','v1:i:alias.flp','alias.flp',?2,42,42000123,1,1)", params![input.root_id, bytes().len() as i64]).unwrap();
+    let alias = db.capture_metadata_input(&input.root_id, "alias").unwrap();
+    let alien = db
+        .publish_metadata_snapshot(&alias, &capabilities(), reply(), 5)
+        .unwrap();
+    let fresh = db
+        .capture_metadata_input(&input.root_id, "location")
+        .unwrap();
+    db.connection
+        .execute("UPDATE analysis_job SET snapshot_id=?1", [&alien.id])
+        .unwrap();
+    assert!(db.current_analysis_status(&fresh).is_err());
+    db.connection
+        .execute("UPDATE analysis_job SET snapshot_id=?1", [&own_id])
+        .unwrap();
+    db.connection
+        .execute_batch("UPDATE analysis_job SET state='failed';")
+        .unwrap();
+    assert!(db.current_analysis_status(&fresh).is_err());
+    db.connection
+        .execute_batch("UPDATE analysis_job SET state='complete',snapshot_id=NULL;")
+        .unwrap();
+    assert!(db.current_analysis_status(&fresh).is_err());
+}
+
+#[test]
+fn current_failed_status_reads_its_negative_snapshot_without_exposing_payload() {
+    let (_dir, mut db, input) = fixture();
+    let session = db.start_analysis_session(1).unwrap();
+    discover(&mut db, 2);
+    let lease = db.claim_analysis_job(&session, 3).unwrap().unwrap();
+    let negative = db
+        .complete_analysis_job(
+            &lease,
+            &capabilities(),
+            ProtocolReply::Result(parse_bytes(b"invalid")),
+            &sha256_hex(&bytes()),
+            4,
+        )
+        .unwrap();
+    let fresh = db
+        .capture_metadata_input(&input.root_id, "location")
+        .unwrap();
+    let status = db.current_analysis_status(&fresh).unwrap().unwrap();
+    assert_eq!(status.state, AnalysisState::Failed);
+    assert_eq!(status.snapshot_id.as_deref(), Some(negative.id.as_str()));
+    assert!(db.current_metadata_snapshot("project").unwrap().is_none());
+    assert!(
+        db.metadata_snapshot(&negative.id)
+            .unwrap()
+            .unwrap()
+            .payload_json()
+            .is_none()
+    );
+}
+
+#[test]
 fn analysis_coalesces_bounds_ownership_and_atomically_publishes() {
     let (_dir, mut db, input) = fixture();
     let session = db.start_analysis_session(1).unwrap();
