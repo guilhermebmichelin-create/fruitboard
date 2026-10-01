@@ -168,18 +168,17 @@ describe("Project details panel", () => {
     expect(read).toHaveBeenCalledTimes(3);
   });
 
-  it("does not request metadata for missing files and invalidates changed rows", async () => {
+  it("does not request metadata for missing files", async () => {
     const user = userEvent.setup();
     const read = vi.fn().mockResolvedValue(savedDetails());
     const adapter = {
       ...createFakeLibraryScanAdapter(),
       getProjectDetails: read,
     };
-    const view = render(
+    render(
       <ProjectDetailsPanel
         adapter={adapter}
         record={{ ...record, presence: "missing" }}
-        key="missing"
       />,
     );
     await user.click(
@@ -187,25 +186,82 @@ describe("Project details panel", () => {
     );
     await screen.findByText(/No current saved/);
     expect(read).not.toHaveBeenCalled();
-    view.rerender(
-      <ProjectDetailsPanel adapter={adapter} record={record} key="present" />,
+  });
+
+  it("clears a changed Library row and ignores a pending reply for its earlier version", async () => {
+    const user = userEvent.setup();
+    const root: ScanRoot = {
+      id: identity.rootId,
+      displayName: "Projects",
+      canonicalPath: record.rootCanonicalPath,
+      mode: "localNtfs",
+      enabled: true,
+      availability: "available",
+      lastErrorCode: null,
+    };
+    let currentRecord = record;
+    let finish!: (details: ProjectDetails) => void;
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce(savedDetails())
+      .mockImplementationOnce(
+        () =>
+          new Promise<ProjectDetails>((resolve) => {
+            finish = resolve;
+          }),
+      )
+      .mockResolvedValue({ ...identity, state: "no_current" });
+    const adapter = {
+      ...createFakeLibraryScanAdapter({ roots: [root], files: [record] }),
+      getLibraryPage: () =>
+        Promise.resolve({
+          rootId: identity.rootId,
+          snapshotId: `snapshot-${currentRecord.byteSize}`,
+          records: [currentRecord],
+          nextCursor: null,
+        }),
+      getProjectDetails: read,
+    };
+    render(
+      <MemoryRouter>
+        <LibraryPage adapter={adapter} />
+      </MemoryRouter>,
     );
     await user.click(
-      screen.getByRole("button", { name: "Project details Example.flp" }),
+      await screen.findByRole("button", {
+        name: "Project details Example.flp",
+      }),
     );
     await screen.findByText("120 BPM");
-    view.rerender(
-      <ProjectDetailsPanel
-        adapter={adapter}
-        record={{ ...record, byteSize: "2048" }}
-        key="changed"
-      />,
+    await user.click(
+      screen.getByRole("button", {
+        name: "Refresh project details Example.flp",
+      }),
     );
+    await screen.findByText("Loading saved project details…");
+    currentRecord = { ...record, byteSize: "2048" };
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await screen.findByText("2,048 bytes");
+    await act(async () => {
+      finish(savedDetails());
+      await Promise.resolve();
+    });
     await waitFor(() => expect(screen.queryByText("120 BPM")).toBeNull());
     expect(
       screen
         .getByRole("button", { name: "Project details Example.flp" })
         .getAttribute("aria-expanded"),
     ).toBe("false");
+    await user.click(
+      screen.getByRole("button", { name: "Project details Example.flp" }),
+    );
+    await screen.findByText(/No current saved/);
+    expect(read).toHaveBeenLastCalledWith({
+      ...identity,
+      byteSize: "2048",
+      modifiedAt: record.modifiedAt,
+    });
   });
 });

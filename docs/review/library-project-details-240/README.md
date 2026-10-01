@@ -85,9 +85,12 @@ normal suite, and warning-denied feature Clippy. The ignored test was separately
 invoked and passed against the independent installed snapshot copy; the
 262,144-byte database retained its SHA-256 before/after. Rendered desktop/narrow
 states, keyboard, reduced motion, 200% text and contrast/accessibility passed.
-All approved corpus Git objects match the baseline. This validation summary
-changes documentation only. The normal final-head CI remains required before
-owner merge.
+All 12 approved FLP byte hashes and corpus Git objects match the baseline.
+A final test change exercises row invalidation and a late reply through the
+actual Library page instead of assigning a component key directly. The full
+client suite then passed 179 tests, lint and typecheck. Application/native/bundle
+inputs are unchanged from the compiled implementation; only tests and review
+Markdown differ. The normal final-head CI remains required before owner merge.
 
 ## Limits and handoff
 
