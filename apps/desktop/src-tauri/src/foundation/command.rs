@@ -45,6 +45,11 @@ struct CommandLog {
 }
 
 impl CommandRuntime {
+    #[cfg(feature = "analysis-jobs")]
+    pub(crate) fn now_millis(&self) -> u64 {
+        self.clock.now_millis()
+    }
+
     pub(crate) fn new(
         clock: Arc<dyn Clock>,
         ids: Arc<dyn IdGenerator>,

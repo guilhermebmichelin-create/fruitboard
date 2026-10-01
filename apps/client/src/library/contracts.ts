@@ -290,6 +290,14 @@ export interface ScanConsoleState {
 }
 
 export interface LibraryScanAdapter {
+  /** Explicit native request; IDs, displayed fingerprint and opaque key only. */
+  requestProjectAnalysis?(
+    record: Pick<
+      PublishedFileLocation,
+      "rootId" | "locationId" | "byteSize" | "modifiedAt"
+    >,
+    requestKey: string,
+  ): Promise<import("./projectAnalysisRequest").ProjectAnalysisRequestResult>;
   /** Optional for older/review adapters. Never parses or opens a source. */
   getProjectDetails?(
     record: Pick<

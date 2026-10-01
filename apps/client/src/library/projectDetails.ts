@@ -1,5 +1,9 @@
 import { LibraryAdapterError, type PublishedFileLocation } from "./contracts";
 import { parseProjectAnalysis, type ProjectAnalysis } from "./projectAnalysis";
+import {
+  parseProjectAnalysisRequest,
+  type ProjectAnalysisRequest,
+} from "./projectAnalysisRequest";
 
 export const PROJECT_FACT_KEYS = [
   "savedVersion",
@@ -36,7 +40,11 @@ export type ProjectDetails = {
   readonly locationId: string;
 } & (
   | { readonly state: "disabled" }
-  | { readonly state: "no_current"; readonly analysis?: ProjectAnalysis }
+  | {
+      readonly state: "no_current";
+      readonly analysis?: ProjectAnalysis;
+      readonly analysisRequest?: ProjectAnalysisRequest;
+    }
   | {
       readonly state: "available";
       readonly snapshotId: string;
@@ -45,6 +53,7 @@ export type ProjectDetails = {
       readonly channels: readonly ProjectChannel[];
       readonly analysis?: ProjectAnalysis;
       readonly warnings?: readonly "unverified_events"[];
+      readonly analysisRequest?: ProjectAnalysisRequest;
     }
 );
 
@@ -73,16 +82,25 @@ export function parseProjectDetails(
       value["snapshotId"] !== undefined ||
       value["channels"] !== undefined ||
       value["warnings"] !== undefined ||
-      (state === "disabled" && value["analysis"] !== undefined)
+      (state === "disabled" && value["analysis"] !== undefined) ||
+      (state === "disabled" && value["analysisRequest"] !== undefined)
     )
       return fail();
-    return state === "no_current" && value["analysis"] !== undefined
-      ? {
-          ...identity,
-          state,
-          analysis: parseProjectAnalysis(value["analysis"]),
-        }
-      : { ...identity, state };
+    if (state === "disabled") return { ...identity, state };
+    return {
+      ...identity,
+      state,
+      ...(value["analysis"] === undefined
+        ? {}
+        : { analysis: parseProjectAnalysis(value["analysis"]) }),
+      ...(value["analysisRequest"] === undefined
+        ? {}
+        : {
+            analysisRequest: parseProjectAnalysisRequest(
+              value["analysisRequest"],
+            ),
+          }),
+    };
   }
   if (
     state !== "available" ||
@@ -228,6 +246,13 @@ export function parseProjectDetails(
     outcome: value["outcome"] as "complete" | "partial",
     facts,
     channels: selectedChannels,
+    ...(value["analysisRequest"] === undefined
+      ? {}
+      : {
+          analysisRequest: parseProjectAnalysisRequest(
+            value["analysisRequest"],
+          ),
+        }),
     ...(value["analysis"] === undefined
       ? {}
       : { analysis: parseProjectAnalysis(value["analysis"]) }),

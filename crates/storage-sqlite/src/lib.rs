@@ -4,8 +4,8 @@ mod analysis;
 mod error;
 #[cfg(feature = "analysis-jobs")]
 pub use analysis::{
-    AnalysisCursor, AnalysisFailure, AnalysisLease, AnalysisSource, AnalysisState, AnalysisStatus,
-    MAX_ANALYSIS_BATCH,
+    AnalysisCursor, AnalysisFailure, AnalysisLease, AnalysisRequest, AnalysisRequestBlock,
+    AnalysisRequestOutcome, AnalysisSource, AnalysisState, AnalysisStatus, MAX_ANALYSIS_BATCH,
 };
 mod execution;
 mod files;

@@ -657,10 +657,32 @@ fn get_project_details(
     request: Option<Value>,
     state: tauri::State<'_, NativeFoundation>,
 ) -> CommandEnvelope<foundation::project_details::ProjectDetails> {
+    #[cfg(feature = "analysis-jobs")]
+    let runtime_available = state.analysis.is_available();
+    #[cfg(not(feature = "analysis-jobs"))]
+    let runtime_available = false;
     foundation::project_details::handle_get_project_details(
         &state.commands,
         &state.preferences.database,
         request,
+        runtime_available,
+    )
+}
+
+#[tauri::command]
+fn request_project_analysis(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<foundation::project_analysis::Response> {
+    #[cfg(feature = "analysis-jobs")]
+    let runtime_available = state.analysis.is_available();
+    #[cfg(not(feature = "analysis-jobs"))]
+    let runtime_available = false;
+    foundation::project_analysis::handle_request_project_analysis(
+        &state.commands,
+        &state.preferences.database,
+        request,
+        runtime_available,
     )
 }
 
@@ -766,6 +788,7 @@ pub fn run() -> tauri::Result<()> {
             list_scan_statuses,
             get_library_page,
             get_project_details,
+            request_project_analysis,
             get_scan_console_state
         ])
         .build(tauri::generate_context!())?;
