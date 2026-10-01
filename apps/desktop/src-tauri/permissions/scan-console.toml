@@ -34,3 +34,8 @@ commands.allow = ["get_project_details"]
 identifier = "allow-get-scan-console-state"
 description = "Allows the local main window to read whether the scan console is enabled."
 commands.allow = ["get_scan_console_state"]
+
+[[permission]]
+identifier = "allow-request-project-analysis"
+description = "Allows the local main window to request one current authorized project's analysis, subject to native source and attempt checks."
+commands.allow = ["request_project_analysis"]

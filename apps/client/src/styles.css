@@ -920,6 +920,15 @@
     color: var(--color-text-muted);
     font-size: var(--font-size-small);
   }
+  .project-analysis-action {
+    margin-block-start: var(--space-4);
+    max-inline-size: 70ch;
+    overflow-wrap: anywhere;
+  }
+  .project-analysis-action p {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-small);
+  }
   .project-details__facts {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));

@@ -212,6 +212,80 @@ fn worker_runs_only_authorized_fresh_input_and_publishes_a_validated_snapshot() 
 }
 
 #[test]
+fn worker_reanalyzes_current_good_facts_after_an_explicit_bounded_request() {
+    let directory = Directory::new();
+    let (db, root, location, session) = seed(&directory.0, "C:\\Synthetic", &observation());
+    let first_lease = lease(&db, &session);
+    let mut worker = worker(vec![observation()]);
+    worker
+        .execute(
+            &db,
+            &first_lease,
+            &Clock(AtomicI64::new(9)),
+            &CancellationToken::default(),
+        )
+        .unwrap();
+    let old_snapshot = {
+        let mut database = db.lock().unwrap();
+        let old = database
+            .analysis_status(&location)
+            .unwrap()
+            .unwrap()
+            .snapshot_id
+            .unwrap();
+        let input = database
+            .capture_metadata_input(&root.id, &location)
+            .unwrap();
+        let fruitboard_storage::AnalysisRequest::Ready { key } =
+            database.analysis_request(&input).unwrap()
+        else {
+            panic!("explicit request should be eligible");
+        };
+        database.request_analysis_job(&input, &key, 10).unwrap();
+        database.discover_analysis_jobs(None, 128, 11).unwrap();
+        assert_eq!(
+            database
+                .current_metadata_snapshot(input.project_file_id())
+                .unwrap()
+                .unwrap()
+                .header()
+                .id,
+            old
+        );
+        old
+    };
+    let second = db
+        .lock()
+        .unwrap()
+        .claim_analysis_job(&session, 12)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        worker
+            .execute(
+                &db,
+                &second,
+                &Clock(AtomicI64::new(13)),
+                &CancellationToken::default()
+            )
+            .unwrap(),
+        ExecutionOutcome::Complete
+    );
+    let database = db.lock().unwrap();
+    let status = database.analysis_status(&location).unwrap().unwrap();
+    assert_eq!(status.attempt, 2);
+    assert_ne!(status.snapshot_id.as_deref(), Some(old_snapshot.as_str()));
+    assert!(
+        database
+            .metadata_snapshot(&old_snapshot)
+            .unwrap()
+            .unwrap()
+            .payload_json()
+            .is_some()
+    );
+}
+
+#[test]
 fn worker_denied_open_mismatched_metadata_and_changed_bytes_never_publish() {
     for scenario in 0..4 {
         let directory = Directory::new();

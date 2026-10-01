@@ -1,6 +1,10 @@
 import { NATIVE_COMMAND_SCHEMA_VERSION } from "../platform/contracts";
 import { parseProjectDetails } from "./projectDetails";
 import {
+  parseProjectAnalysisRequestResult,
+  validAnalysisRequestKey,
+} from "./projectAnalysisRequest";
+import {
   LibraryAdapterError,
   MAX_LIBRARY_PAGE_LIMIT,
   MIN_LIBRARY_PAGE_LIMIT,
@@ -640,6 +644,24 @@ export function createNativeLibraryScanAdapter(
   };
 
   return {
+    async requestProjectAnalysis(record, requestKey) {
+      if (!validAnalysisRequestKey(requestKey))
+        throw new LibraryAdapterError("internal");
+      return execute(
+        "request_project_analysis",
+        {
+          request: {
+            schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION,
+            rootId: record.rootId,
+            locationId: record.locationId,
+            expectedByteSize: record.byteSize,
+            expectedModifiedAt: record.modifiedAt,
+            requestKey,
+          },
+        },
+        (value) => parseProjectAnalysisRequestResult(value, record),
+      );
+    },
     async getProjectDetails(
       record: Pick<
         PublishedFileLocation,

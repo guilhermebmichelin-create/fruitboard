@@ -1,5 +1,5 @@
 //! Explicit development-only analysis composition. One worker and one parser;
-//! source/transport operations release the native DB mutex. No new IPC surface.
+//! source/transport operations release the native DB mutex.
 use fruitboard_analysis_execution::{
     AnalysisClock, AnalysisWorker, ParserPort, SystemClock, native::WindowsAuthority,
 };
@@ -67,6 +67,13 @@ pub(crate) struct AnalysisHost {
     running: Mutex<Option<Running>>,
 }
 impl AnalysisHost {
+    pub(crate) fn is_available(&self) -> bool {
+        self.running.lock().ok().is_some_and(|running| {
+            running.as_ref().is_some_and(|active| {
+                !active.stop.load(Ordering::Acquire) && !active.join.is_finished()
+            })
+        })
+    }
     pub(crate) fn new(database: Arc<Mutex<Database>>) -> Self {
         Self {
             database,
@@ -299,13 +306,16 @@ mod tests {
             std::env::temp_dir().join(format!("fruitboard-analysis-host-{}", uuid::Uuid::now_v7()));
         let database = Arc::new(Mutex::new(Database::open(&directory).unwrap()));
         let host = AnalysisHost::new(database.clone());
+        assert!(!host.is_available());
         let application = directory.join("application.exe");
         host.start(&application).unwrap();
+        assert!(host.is_available());
         assert!(matches!(
             host.start(&application),
             Err(StorageError::Conflict)
         ));
         host.shutdown();
+        assert!(!host.is_available());
         host.shutdown();
         host.start(&application).unwrap();
         host.shutdown();

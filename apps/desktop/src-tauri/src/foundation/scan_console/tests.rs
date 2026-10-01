@@ -448,6 +448,7 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
             &runtime,
             &harness.database,
             Some(request),
+            true,
         ))
     };
     let empty = read(request.clone());
@@ -611,8 +612,13 @@ fn project_analysis_explains_negative_parser_snapshots_without_raw_codes() {
             Some(
                 json!({"schemaVersion":1,"rootId":harness.root_id,"locationId":row["locationId"],"expectedByteSize":row["byteSize"],"expectedModifiedAt":row["modifiedAt"]}),
             ),
+            true,
         ));
         assert_eq!(details["state"], "no_current");
+        assert_eq!(
+            details["analysisRequest"]["state"],
+            if unsupported { "unsupported" } else { "ready" }
+        );
         assert_eq!(
             details["analysis"],
             json!({"state":if unsupported {"unsupported"} else {"failed"},"attempts":1,"reason":if unsupported {"unsupported_version"} else {"invalid_file"}})
@@ -622,6 +628,121 @@ fn project_analysis_explains_negative_parser_snapshots_without_raw_codes() {
         assert!(!details.to_string().contains("UNSUPPORTED_SAVED_VERSION"));
         assert!(!details.to_string().contains("99.1.0.5530"));
     }
+}
+
+#[test]
+#[cfg(feature = "analysis-jobs")]
+fn explicit_analysis_command_fences_displayed_actions_and_preserves_good_facts() {
+    use crate::foundation::project_analysis::handle_request_project_analysis;
+    use crate::foundation::project_details::handle_get_project_details;
+    use fruitboard_flp_parser::supervisor::ProtocolReply;
+    use fruitboard_flp_parser::validation::validate_descriptor;
+    use fruitboard_flp_parser::{ADAPTER_ID, ADAPTER_VERSION, parse_bytes, sha256_hex};
+    let harness = Harness::new("request-project-analysis");
+    let (runtime, _) = test_runtime();
+    let bytes = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/parser-corpus/FIX-FL2026-3XOSC.flp"),
+    )
+    .unwrap();
+    handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    );
+    let mut entry = file_entry("sample.flp", 800);
+    entry.size = bytes.len() as u64;
+    harness.tick(tree(vec![entry]));
+    let page = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    let row = &page["records"][0];
+    let read_request = json!({"schemaVersion":1,"rootId":harness.root_id,"locationId":row["locationId"],"expectedByteSize":row["byteSize"],"expectedModifiedAt":row["modifiedAt"]});
+    let read = |available| {
+        ok_data(handle_get_project_details(
+            &runtime,
+            &harness.database,
+            Some(read_request.clone()),
+            available,
+        ))
+    };
+    assert_eq!(
+        read(false)["analysisRequest"]["state"],
+        "runtime_unavailable"
+    );
+    let mut request = read_request.clone();
+    request["requestKey"] = read(true)["analysisRequest"]["requestKey"].clone();
+    assert_eq!(
+        ok_data(handle_request_project_analysis(
+            &runtime,
+            &harness.database,
+            Some(request.clone()),
+            false
+        ))["reason"],
+        "runtime_unavailable"
+    );
+    let mut mismatched = request.clone();
+    mismatched["expectedByteSize"] = json!("1");
+    let result = serde_json::to_value(handle_request_project_analysis(
+        &runtime,
+        &harness.database,
+        Some(mismatched),
+        true,
+    ))
+    .unwrap();
+    assert_eq!(result["error"]["code"], "conflict");
+    harness.set_root_enabled(&harness.root_id, false);
+    harness.set_root_enabled(&harness.root_id, true);
+    let result = serde_json::to_value(handle_request_project_analysis(
+        &runtime,
+        &harness.database,
+        Some(request),
+        true,
+    ))
+    .unwrap();
+    assert_eq!(result["error"]["code"], "conflict");
+    let capabilities=validate_descriptor(&json!({"adapter":ADAPTER_ID,"adapterVersion":ADAPTER_VERSION,"fields":["savedVersion","baseTempoBpm","channelCount","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],"maxFileBytes":4194304,"maxEvents":100000,"maxChannels":256,"maxEventBytes":2097152,"maxPatterns":1024,"maxPlaylistClips":1024})).unwrap();
+    {
+        let mut db = harness.database.lock().unwrap();
+        let input = db
+            .capture_metadata_input(&harness.root_id, row["locationId"].as_str().unwrap())
+            .unwrap();
+        let mut reply = parse_bytes(&bytes);
+        reply["filesystemCreatedAtMs"] =
+            json!({"status":"unavailable","reason":"FILESYSTEM_CREATION_TIME_UNAVAILABLE"});
+        reply["inputFingerprint"] = json!({"size":bytes.len(),"modifiedAtMs":DEFAULT_MTIME_NS/1_000_000,"hash":{"algorithm":"sha256","value":sha256_hex(&bytes)}});
+        db.publish_metadata_snapshot(&input, &capabilities, ProtocolReply::Result(reply), T0_MS)
+            .unwrap();
+    }
+    let before = read(true);
+    let mut request = read_request.clone();
+    request["requestKey"] = before["analysisRequest"]["requestKey"].clone();
+    assert_eq!(
+        ok_data(handle_request_project_analysis(
+            &runtime,
+            &harness.database,
+            Some(request.clone()),
+            true
+        ))["state"],
+        "queued"
+    );
+    let queued = read(true);
+    assert_eq!(queued["analysisRequest"]["state"], "pending");
+    assert_eq!(queued["snapshotId"], before["snapshotId"]);
+    assert_eq!(queued["facts"], before["facts"]);
+    let replay = serde_json::to_value(handle_request_project_analysis(
+        &runtime,
+        &harness.database,
+        Some(request),
+        true,
+    ))
+    .unwrap();
+    assert_eq!(replay["error"]["code"], "conflict");
+    assert!(!queued.to_string().contains("jobId"));
+    assert!(!queued.to_string().contains("lease"));
+    assert!(!queued.to_string().contains("synthetic-root"));
 }
 
 #[test]

@@ -6,6 +6,8 @@ use fruitboard_flp_parser::validation::ParserCapabilities;
 use fruitboard_flp_parser::{ADAPTER_VERSION, MAX_FILE_BYTES, SCHEMA_VERSION};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::path::{Path, PathBuf};
+mod request;
+pub use request::{AnalysisRequest, AnalysisRequestBlock, AnalysisRequestOutcome};
 
 pub const MAX_ANALYSIS_BATCH: usize = 128;
 const MAX_ATTEMPTS: i64 = 3;

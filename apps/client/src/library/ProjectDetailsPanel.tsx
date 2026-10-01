@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { LibraryScanAdapter, PublishedFileLocation } from "./contracts";
 import { ProjectChannels } from "./ProjectChannels";
 import { ProjectAnalysisStatus } from "./ProjectAnalysisStatus";
+import { ProjectAnalysisAction } from "./ProjectAnalysisAction";
 import {
   FACT_LABELS,
   FACT_NOTES,
@@ -118,6 +119,22 @@ export function ProjectDetailsPanel({
               Project details could not be read safely. Refresh details to try
               again.
             </p>
+          )}
+          {state.kind === "ready" && state.details.state !== "disabled" && (
+            <ProjectAnalysisAction
+              key={`${rootId}:${locationId}:${byteSize}:${modifiedAt}:${sourceEligible}`}
+              adapter={adapter}
+              record={record}
+              request={state.details.analysisRequest}
+              hasFacts={state.details.state === "available"}
+              failed={
+                state.details.analysis?.state === "failed" ||
+                state.details.analysis?.state === "cancelled"
+              }
+              onQueued={() => {
+                setRefresh((count) => count + 1);
+              }}
+            />
           )}
           {state.kind === "ready" && state.details.state !== "disabled" && (
             <ProjectAnalysisStatus

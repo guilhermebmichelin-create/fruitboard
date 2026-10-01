@@ -38,7 +38,11 @@ enum Content {
     #[cfg(not(feature = "analysis-jobs"))]
     Disabled,
     #[cfg(feature = "analysis-jobs")]
-    NoCurrent { analysis: analysis::Summary },
+    #[serde(rename_all = "camelCase")]
+    NoCurrent {
+        analysis: analysis::Summary,
+        analysis_request: super::project_analysis::RequestInfo,
+    },
     #[cfg(feature = "analysis-jobs")]
     #[serde(rename_all = "camelCase")]
     Available {
@@ -48,6 +52,7 @@ enum Content {
         channels: Vec<channels::Channel>,
         analysis: analysis::Summary,
         warnings: Vec<&'static str>,
+        analysis_request: super::project_analysis::RequestInfo,
     },
 }
 
@@ -64,6 +69,7 @@ pub(crate) fn handle_get_project_details(
     commands: &CommandRuntime,
     database: &Arc<Mutex<Database>>,
     request: Option<Value>,
+    runtime_available: bool,
 ) -> CommandEnvelope<ProjectDetails> {
     commands.execute("get_project_details", || {
         let request: Request = decode_request(request)?;
@@ -82,20 +88,24 @@ pub(crate) fn handle_get_project_details(
         {
             return Err(invalid_request());
         }
-        read(database, request)
+        read(database, request, runtime_available)
     })
 }
 
-fn read(database: &Arc<Mutex<Database>>, request: Request) -> Result<ProjectDetails, AppError> {
+fn read(
+    database: &Arc<Mutex<Database>>,
+    request: Request,
+    runtime_available: bool,
+) -> Result<ProjectDetails, AppError> {
     #[cfg(not(feature = "analysis-jobs"))]
     let content = {
-        let _ = database;
+        let _ = (database, runtime_available);
         Content::Disabled
     };
     #[cfg(feature = "analysis-jobs")]
     let content = {
         let db = database.lock().map_err(|_| storage_failed())?;
-        current(&db, &request).map_err(|_| storage_failed())?
+        current(&db, &request, runtime_available).map_err(|_| storage_failed())?
     };
     Ok(ProjectDetails {
         root_id: request.root_id,
@@ -105,7 +115,7 @@ fn read(database: &Arc<Mutex<Database>>, request: Request) -> Result<ProjectDeta
 }
 
 #[cfg(feature = "analysis-jobs")]
-fn current(db: &Database, request: &Request) -> Result<Content, ()> {
+fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<Content, ()> {
     // Resolve opaque IDs together, checking enabled local root and present
     // location under the shared database guard. No renderer path/file I/O.
     let input = match db.capture_metadata_input(&request.root_id, &request.location_id) {
@@ -113,6 +123,7 @@ fn current(db: &Database, request: &Request) -> Result<Content, ()> {
         Err(fruitboard_storage::StorageError::NotFound) => {
             return Ok(Content::NoCurrent {
                 analysis: analysis::Summary::not_current(),
+                analysis_request: super::project_analysis::RequestInfo::blocked("source_changed"),
             });
         }
         Err(_) => return Err(()),
@@ -123,14 +134,19 @@ fn current(db: &Database, request: &Request) -> Result<Content, ()> {
     {
         return Ok(Content::NoCurrent {
             analysis: analysis::Summary::not_current(),
+            analysis_request: super::project_analysis::RequestInfo::blocked("source_changed"),
         });
     }
     let analysis = analysis::read(db, &input)?;
+    let analysis_request = super::project_analysis::info(db, &input, runtime_available)?;
     let Some(snapshot) = db
         .current_metadata_snapshot(input.project_file_id())
         .map_err(|_| ())?
     else {
-        return Ok(Content::NoCurrent { analysis });
+        return Ok(Content::NoCurrent {
+            analysis,
+            analysis_request,
+        });
     };
     let header = snapshot.header();
     // Also fence against the displayed Library row. A later result must never
@@ -141,6 +157,7 @@ fn current(db: &Database, request: &Request) -> Result<Content, ()> {
     {
         return Ok(Content::NoCurrent {
             analysis: analysis::Summary::not_current(),
+            analysis_request: super::project_analysis::RequestInfo::blocked("source_changed"),
         });
     }
     if header.projection_version != 1 {
@@ -154,6 +171,7 @@ fn current(db: &Database, request: &Request) -> Result<Content, ()> {
         channels,
         analysis,
         warnings,
+        analysis_request,
     })
 }
 
@@ -452,6 +470,7 @@ mod tests {
             &runtime,
             &db,
             Some(valid.clone()),
+            true,
         ))
         .unwrap();
         assert_eq!(result["status"], "ok");
@@ -468,9 +487,13 @@ mod tests {
         ] {
             let mut request = valid.clone();
             request[key] = value;
-            let result =
-                serde_json::to_value(handle_get_project_details(&runtime, &db, Some(request)))
-                    .unwrap();
+            let result = serde_json::to_value(handle_get_project_details(
+                &runtime,
+                &db,
+                Some(request),
+                true,
+            ))
+            .unwrap();
             assert_eq!(result["error"]["code"], "invalid_request");
             assert!(!result.to_string().contains("Private"));
         }
@@ -660,8 +683,13 @@ mod tests {
             Arc::new(FakeIdGenerator::new(1)),
             Arc::new(RecordingLogSink::default()),
         );
-        let result =
-            serde_json::to_value(handle_get_project_details(&runtime, &db, Some(request))).unwrap();
+        let result = serde_json::to_value(handle_get_project_details(
+            &runtime,
+            &db,
+            Some(request),
+            false,
+        ))
+        .unwrap();
         assert_eq!(result["status"], "ok");
         let details = &result["data"];
         assert_eq!(details["state"], "available");
