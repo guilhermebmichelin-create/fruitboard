@@ -12,7 +12,7 @@ type State =
   | { readonly kind: "error" }
   | { readonly kind: "ready"; readonly details: ProjectDetails };
 
-/** Parent keys this component by row fingerprint; a changed row clears facts. */
+/** Parent keys by scan snapshot and row fingerprint; new results clear facts. */
 export function ProjectDetailsPanel({
   adapter,
   record,
@@ -134,8 +134,8 @@ export function ProjectDetailsPanel({
                   {state.details.outcome === "partial"
                     ? "Partial coverage"
                     : "Supported fields read"}
-                  . Current for the last scanned file; this is not a live file
-                  check.
+                  . Matched the scanned file when these details were read.
+                  Refresh details to check again.
                 </p>
                 <dl className="project-details__facts">
                   {state.details.facts.map((fact) => (

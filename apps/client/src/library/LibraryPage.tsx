@@ -1260,6 +1260,7 @@ function ConnectedLibraryPage({
             {page.records.map((record) => (
               <LibraryRecord
                 adapter={adapter}
+                sourceSnapshotId={page.snapshotId}
                 sourceEligible={statuses.some(
                   (status) =>
                     status.root.id === record.rootId &&
@@ -1647,11 +1648,13 @@ function ScanStatusCard({
 
 function LibraryRecord({
   adapter,
+  sourceSnapshotId,
   sourceEligible,
   duplicateDisplayNames,
   record,
 }: {
   readonly adapter: LibraryScanAdapter;
+  readonly sourceSnapshotId: string;
   readonly sourceEligible: boolean;
   readonly duplicateDisplayNames: ReadonlySet<string>;
   readonly record: PublishedFileLocation;
@@ -1698,6 +1701,7 @@ function LibraryRecord({
           record={record}
           sourceEligible={sourceEligible}
           key={JSON.stringify([
+            sourceSnapshotId,
             record.rootId,
             record.byteSize,
             record.modifiedAt,

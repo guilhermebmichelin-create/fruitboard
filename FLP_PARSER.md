@@ -295,9 +295,10 @@ Large integer values remain decimal strings. Missing, changed, detached,
 disabled and not-yet-analyzed sources return no current details; default builds
 report details unavailable. Expanding/refreshing does not trigger parsing.
 
-Facts describe a saved result current for the last native scan/read, not a live
-file check. Changed row fingerprints and disabled/unsupported roots clear the
-open panel; Refresh details rechecks authority and freshness. Negative parse
+Facts describe a saved result that matched the scanned file when read, not a
+live file check. New Library scan snapshots, changed row fingerprints and
+disabled/unsupported roots clear the open panel, including replacements that
+retain size/time/path. Refresh details rechecks authority and freshness. Negative parse
 attempts preserve a still-current last good result. Channel/plugin/sample name
 lists, history and retry controls remain deferred. See the
 [review packet](docs/review/library-project-details-240/README.md).

@@ -23,6 +23,73 @@ const record: PublishedFileLocation = {
 };
 
 describe("Project details panel", () => {
+  it("clears details on a new scan snapshot even when displayed file attributes are identical", async () => {
+    const user = userEvent.setup();
+    const root: ScanRoot = {
+      id: identity.rootId,
+      displayName: "Projects",
+      canonicalPath: record.rootCanonicalPath,
+      mode: "localNtfs",
+      enabled: true,
+      availability: "available",
+      lastErrorCode: null,
+    };
+    let generation = 1;
+    let finish!: (details: ProjectDetails) => void;
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce(savedDetails())
+      .mockImplementationOnce(
+        () =>
+          new Promise<ProjectDetails>((resolve) => {
+            finish = resolve;
+          }),
+      );
+    const adapter = {
+      ...createFakeLibraryScanAdapter({ roots: [root], files: [record] }),
+      getLibraryPage: () =>
+        Promise.resolve({
+          rootId: identity.rootId,
+          snapshotId: `snapshot-${generation}`,
+          records: [record],
+          nextCursor: null,
+        }),
+      getProjectDetails: read,
+    };
+    render(
+      <MemoryRouter>
+        <LibraryPage adapter={adapter} />
+      </MemoryRouter>,
+    );
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Project details Example.flp",
+      }),
+    );
+    await screen.findByText("120 BPM");
+    await user.click(
+      screen.getByRole("button", {
+        name: "Refresh project details Example.flp",
+      }),
+    );
+    await screen.findByText("Loading saved project details…");
+    generation = 2;
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("button", { name: "Project details Example.flp" })
+          .getAttribute("aria-expanded"),
+      ).toBe("false"),
+    );
+    await act(async () => {
+      finish(savedDetails());
+      await Promise.resolve();
+    });
+    expect(screen.queryByText("120 BPM")).toBeNull();
+  });
   it("clears displayed facts when the selected root becomes disabled", async () => {
     const user = userEvent.setup();
     const root: ScanRoot = {

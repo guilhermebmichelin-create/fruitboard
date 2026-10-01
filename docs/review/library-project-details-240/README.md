@@ -16,8 +16,9 @@ clips, and the saved counter does not measure independently tracked work.
 
 Loading, unavailable-build, no-current-result and read-failure states explain
 what happened. Refresh details rechecks saved data without triggering parsing.
-Closing/unmounting ignores pending replies. Changed file/path fingerprints or
-disabled/unsupported roots clear the open panel and discard earlier requests.
+Closing/unmounting ignores pending replies. A new Library scan snapshot, changed
+file/path fingerprints or disabled/unsupported roots clear the open panel and
+discard earlier requests, including file replacement with identical attributes.
 Expansion and closure preserve keyboard focus.
 
 ## Native and privacy boundary
@@ -86,11 +87,11 @@ invoked and passed against the independent installed snapshot copy; the
 262,144-byte database retained its SHA-256 before/after. Rendered desktop/narrow
 states, keyboard, reduced motion, 200% text and contrast/accessibility passed.
 All 12 approved FLP byte hashes and corpus Git objects match the baseline.
-A final test change exercises row invalidation and a late reply through the
-actual Library page instead of assigning a component key directly. The full
-client suite then passed 179 tests, lint and typecheck. Application/native/bundle
-inputs are unchanged from the compiled implementation; only tests and review
-Markdown differ. The normal final-head CI remains required before owner merge.
+A final review added the Library scan snapshot to the detail-panel fence so a
+replacement with identical displayed attributes also clears prior facts and
+replies. The actual Library page tests cover both changed fingerprints and new
+scan snapshots. Updated application validation and final-head CI are required
+before owner merge.
 
 ## Limits and handoff
 
