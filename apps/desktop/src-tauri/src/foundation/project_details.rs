@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 #[cfg(feature = "analysis-jobs")]
+mod analysis;
+#[cfg(feature = "analysis-jobs")]
 mod channels;
 
 #[derive(Deserialize)]
@@ -36,7 +38,7 @@ enum Content {
     #[cfg(not(feature = "analysis-jobs"))]
     Disabled,
     #[cfg(feature = "analysis-jobs")]
-    NoCurrent,
+    NoCurrent { analysis: analysis::Summary },
     #[cfg(feature = "analysis-jobs")]
     #[serde(rename_all = "camelCase")]
     Available {
@@ -44,6 +46,8 @@ enum Content {
         outcome: &'static str,
         facts: Vec<Fact>,
         channels: Vec<channels::Channel>,
+        analysis: analysis::Summary,
+        warnings: Vec<&'static str>,
     },
 }
 
@@ -106,14 +110,27 @@ fn current(db: &Database, request: &Request) -> Result<Content, ()> {
     // location under the shared database guard. No renderer path/file I/O.
     let input = match db.capture_metadata_input(&request.root_id, &request.location_id) {
         Ok(input) => input,
-        Err(fruitboard_storage::StorageError::NotFound) => return Ok(Content::NoCurrent),
+        Err(fruitboard_storage::StorageError::NotFound) => {
+            return Ok(Content::NoCurrent {
+                analysis: analysis::Summary::not_current(),
+            });
+        }
         Err(_) => return Err(()),
     };
+    if input.byte_size().to_string() != request.expected_byte_size
+        || super::scan_console::unix_ns_to_rfc3339(input.modified_at_ns())
+            != request.expected_modified_at
+    {
+        return Ok(Content::NoCurrent {
+            analysis: analysis::Summary::not_current(),
+        });
+    }
+    let analysis = analysis::read(db, &input)?;
     let Some(snapshot) = db
         .current_metadata_snapshot(input.project_file_id())
         .map_err(|_| ())?
     else {
-        return Ok(Content::NoCurrent);
+        return Ok(Content::NoCurrent { analysis });
     };
     let header = snapshot.header();
     // Also fence against the displayed Library row. A later result must never
@@ -122,22 +139,29 @@ fn current(db: &Database, request: &Request) -> Result<Content, ()> {
         || super::scan_console::unix_ns_to_rfc3339(header.input_modified_at_ns)
             != request.expected_modified_at
     {
-        return Ok(Content::NoCurrent);
+        return Ok(Content::NoCurrent {
+            analysis: analysis::Summary::not_current(),
+        });
     }
     if header.projection_version != 1 {
         return Err(());
     }
-    let (facts, channels) = project(snapshot.payload_json().ok_or(())?)?;
+    let (facts, channels, warnings) = project(snapshot.payload_json().ok_or(())?)?;
     Ok(Content::Available {
         snapshot_id: header.id.clone(),
         outcome: header.outcome.as_str(),
         facts,
         channels,
+        analysis,
+        warnings,
     })
 }
 
 #[cfg(feature = "analysis-jobs")]
-fn project(payload: &str) -> Result<(Vec<Fact>, Vec<channels::Channel>), ()> {
+type DisplayProjection = (Vec<Fact>, Vec<channels::Channel>, Vec<&'static str>);
+
+#[cfg(feature = "analysis-jobs")]
+fn project(payload: &str) -> Result<DisplayProjection, ()> {
     if payload.len() > fruitboard_storage::MAX_METADATA_JSON_BYTES {
         return Err(());
     }
@@ -184,7 +208,21 @@ fn project(payload: &str) -> Result<(Vec<Fact>, Vec<channels::Channel>), ()> {
         facts.push(scalar(key, &value[key])?);
     }
     let channels = channels::project(&value, version, channels as usize)?;
-    Ok((facts, channels))
+    let warnings = match value.get("diagnostics") {
+        None => Vec::new(),
+        Some(value) => {
+            let codes = value.as_array().filter(|v| v.len() <= 1024).ok_or(())?;
+            if codes.iter().any(|v| v != "UNSUPPORTED_EVENT_255") {
+                return Err(());
+            }
+            if codes.is_empty() {
+                Vec::new()
+            } else {
+                vec!["unverified_events"]
+            }
+        }
+    };
+    Ok((facts, channels, warnings))
 }
 
 #[cfg(feature = "analysis-jobs")]
@@ -458,7 +496,7 @@ mod tests {
     #[test]
     #[cfg(feature = "analysis-jobs")]
     fn projection_preserves_status_assumptions_and_exact_integers_without_raw_extensions() {
-        let (facts, _) = project(&payload().to_string()).unwrap();
+        let (facts, _, _) = project(&payload().to_string()).unwrap();
         let serialized = serde_json::to_value(facts).unwrap();
         assert_eq!(serialized.as_array().unwrap().len(), 9);
         assert_eq!(serialized[4]["value"], u64::MAX.to_string());
@@ -484,9 +522,28 @@ mod tests {
 
     #[test]
     #[cfg(feature = "analysis-jobs")]
+    fn diagnostic_projection_collapses_known_warnings_and_contains_unknown_text() {
+        let mut raw = payload();
+        assert!(project(&raw.to_string()).unwrap().2.is_empty());
+        raw["diagnostics"] = json!(["UNSUPPORTED_EVENT_255", "UNSUPPORTED_EVENT_255"]);
+        assert_eq!(project(&raw.to_string()).unwrap().2, ["unverified_events"]);
+        for invalid in [
+            json!(["C:\\Private\\project.flp"]),
+            json!([{"code":"UNSUPPORTED_EVENT_255"}]),
+            json!([null]),
+            json!("UNSUPPORTED_EVENT_255"),
+            json!(vec!["UNSUPPORTED_EVENT_255"; 1025]),
+        ] {
+            raw["diagnostics"] = invalid;
+            assert!(project(&raw.to_string()).is_err());
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "analysis-jobs")]
     fn channel_projection_reads_old_snapshots_and_rejects_invalid_names_or_instrument_claims() {
         let raw = payload();
-        let (_, channels) = project(&raw.to_string()).unwrap();
+        let (_, channels, _) = project(&raw.to_string()).unwrap();
         let channels = serde_json::to_value(channels).unwrap();
         assert_eq!(channels[0]["name"]["value"], "Kick");
         assert_eq!(channels[0]["instrument"]["status"], "unsupported");

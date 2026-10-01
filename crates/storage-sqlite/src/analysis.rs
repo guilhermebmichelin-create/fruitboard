@@ -407,6 +407,76 @@ impl Database {
             Ok(AnalysisStatus {job_id:r.get(0)?,location_id:r.get(1)?,state:AnalysisState::parse(&r.get::<_,String>(2)?).map_err(|_|rusqlite::Error::InvalidQuery)?,attempt:r.get(3)?,snapshot_id:r.get(4)?,error_code:r.get(5)?})
         }).optional().map_err(Into::into)
     }
+
+    /// Read only the selected current source's operational status. A location
+    /// alone is insufficient: old jobs and another alias must not be presented
+    /// as this input's analysis. This performs no scheduling or file access.
+    pub fn current_analysis_status(&self, input: &MetadataInput) -> Result<Option<AnalysisStatus>> {
+        if !matches_source(&self.connection, input)? {
+            return Ok(None);
+        }
+        let Some(cell) = cell(&self.connection, &input.location_id)? else {
+            return Ok(None);
+        };
+        if !same_desired_source(&cell.input, input)
+            || cell.version != ADAPTER_VERSION
+            || cell.schema != SCHEMA_VERSION as i64
+        {
+            return Ok(None);
+        }
+        let status = self
+            .analysis_status(&input.location_id)?
+            .ok_or(StorageError::InvalidSchema)?;
+        if !(0..=MAX_ATTEMPTS).contains(&status.attempt)
+            || (matches!(
+                status.state,
+                AnalysisState::Running | AnalysisState::Complete | AnalysisState::Unsupported
+            ) && status.attempt == 0)
+        {
+            return Err(StorageError::InvalidSchema);
+        }
+        if let Some(id) = &status.snapshot_id {
+            let snapshot = self
+                .metadata_snapshot(id)?
+                .ok_or(StorageError::InvalidSchema)?;
+            let header = snapshot.header();
+            if header.project_file_id != input.project_file_id
+                || header.input_root_id != input.root_id
+                || header.input_location_id != input.location_id
+                || header.input_root_revision != input.root_revision
+                || header.input_file_revision != input.file_revision
+                || header.input_location_revision != input.location_revision
+                || header.input_byte_size != input.byte_size
+                || header.input_modified_at_ns != input.modified_at_ns
+                || header.adapter_id != fruitboard_flp_parser::ADAPTER_ID
+                || header.adapter_version != ADAPTER_VERSION
+                || header.parser_schema_version != SCHEMA_VERSION
+            {
+                return Err(StorageError::InvalidSchema);
+            }
+            let consistent = match status.state {
+                AnalysisState::Complete => matches!(
+                    header.outcome,
+                    crate::MetadataOutcome::Complete | crate::MetadataOutcome::Partial
+                ),
+                AnalysisState::Unsupported => header.outcome == crate::MetadataOutcome::Unsupported,
+                AnalysisState::Failed => matches!(
+                    header.outcome,
+                    crate::MetadataOutcome::Failed | crate::MetadataOutcome::Rejected
+                ),
+                _ => false,
+            };
+            if !consistent {
+                return Err(StorageError::InvalidSchema);
+            }
+        } else if matches!(
+            status.state,
+            AnalysisState::Complete | AnalysisState::Unsupported
+        ) {
+            return Err(StorageError::InvalidSchema);
+        }
+        Ok(Some(status))
+    }
 }
 
 #[cfg(test)]

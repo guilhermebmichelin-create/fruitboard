@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { LibraryScanAdapter, PublishedFileLocation } from "./contracts";
 import { ProjectChannels } from "./ProjectChannels";
+import { ProjectAnalysisStatus } from "./ProjectAnalysisStatus";
 import {
   FACT_LABELS,
   FACT_NOTES,
@@ -39,6 +40,7 @@ export function ProjectDetailsPanel({
             rootId,
             locationId,
             state: "no_current",
+            analysis: { state: "not_current", attempts: null, reason: null },
           })
         : Promise.resolve().then<ProjectDetails>(
             () =>
@@ -117,6 +119,12 @@ export function ProjectDetailsPanel({
               again.
             </p>
           )}
+          {state.kind === "ready" && state.details.state !== "disabled" && (
+            <ProjectAnalysisStatus
+              analysis={state.details.analysis}
+              hasFacts={state.details.state === "available"}
+            />
+          )}
           {state.kind === "ready" &&
             (state.details.state === "disabled" ? (
               <p>
@@ -125,8 +133,7 @@ export function ProjectDetailsPanel({
             ) : state.details.state === "no_current" ? (
               <p>
                 No current saved project details. The file may be missing,
-                changed, not yet analyzed, or unsupported. Refresh details after
-                analysis finishes.
+                changed, not yet analyzed, or unsupported.
               </p>
             ) : (
               <>
@@ -138,6 +145,12 @@ export function ProjectDetailsPanel({
                   . Matched the scanned file when these details were read.
                   Refresh details to check again.
                 </p>
+                {state.details.warnings?.includes("unverified_events") && (
+                  <p>
+                    Some saved events are not understood. Supported fields are
+                    still shown.
+                  </p>
+                )}
                 <dl className="project-details__facts">
                   {state.details.facts.map((fact) => (
                     <div key={fact.key} data-fact-status={fact.status}>
