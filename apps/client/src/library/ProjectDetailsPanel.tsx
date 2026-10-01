@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { LibraryScanAdapter, PublishedFileLocation } from "./contracts";
+import { ProjectChannels } from "./ProjectChannels";
 import {
   FACT_LABELS,
   FACT_NOTES,
@@ -157,6 +158,7 @@ export function ProjectDetailsPanel({
                     </div>
                   ))}
                 </dl>
+                <ProjectChannels channels={state.details.channels} />
               </>
             ))}
         </section>

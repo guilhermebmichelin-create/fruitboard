@@ -158,6 +158,7 @@ pub(super) fn encode(metadata: &ValidatedProjectMetadata) -> Result<String> {
         "baseTempoBpm":field(initial.base_tempo_bpm()),
         "channelCount":initial.channel_count(),
         "channelNames":list(initial.channel_names()),
+        "channelGeneratorNames":generators(metadata.channel_generators()),
         "sampleReferences":list(initial.sample_references()),
         "projectCreatedLocal":project(metadata.project_created_local()),
         "flStudioTimeSpentMs":project(metadata.fl_studio_time_spent_ms()),
@@ -171,4 +172,17 @@ pub(super) fn encode(metadata: &ValidatedProjectMetadata) -> Result<String> {
     let mut writer = BoundedJson(Vec::new());
     serde_json::to_writer(&mut writer, &value).map_err(|_| StorageError::InvalidSchema)?;
     String::from_utf8(writer.0).map_err(|_| StorageError::InvalidSchema)
+}
+
+fn generators(value: &ChannelGenerators) -> Value {
+    match value {
+        ChannelGenerators::Unsupported(reason) => {
+            json!({"status":"unsupported","reason":reason.as_str()})
+        }
+        ChannelGenerators::Items(items) => json!({"items":items.iter().map(|item| match item {
+            ChannelGenerator::ExtractedOsc => json!({"status":"extracted","value":"3x Osc"}),
+            ChannelGenerator::InferredSampler => json!({"status":"inferred","value":"Sampler","method":"sampler-generator-default-for-known-build","confidence":"high"}),
+            ChannelGenerator::Unsupported(reason) => json!({"status":"unsupported","reason":reason.as_str()}),
+        }).collect::<Vec<_>>()}),
+    }
 }

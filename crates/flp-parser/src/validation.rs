@@ -11,6 +11,8 @@ use serde_json::Value;
 use std::collections::BTreeSet;
 mod project_facts;
 pub use project_facts::*;
+mod channel_generators;
+pub use channel_generators::*;
 
 const INITIAL_FIELDS: [&str; 5] = [
     "savedVersion",
@@ -40,6 +42,7 @@ pub struct ParserCapabilities {
     max_channels: usize,
     max_playlist_clips: usize,
     project_facts: bool,
+    channel_generators: bool,
 }
 
 pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, ValidationError> {
@@ -81,6 +84,7 @@ pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, Validati
         project_facts: project_facts::FIELDS
             .iter()
             .all(|field| names.contains(field)),
+        channel_generators: names.contains("channelGeneratorNames"),
     })
 }
 

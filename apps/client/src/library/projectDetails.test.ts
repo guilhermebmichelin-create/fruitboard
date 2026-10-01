@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { formatProjectFact, parseProjectDetails } from "./projectDetails";
+import {
+  channelLabel,
+  formatProjectFact,
+  parseProjectDetails,
+} from "./projectDetails";
 import { createNativeLibraryScanAdapter } from "./native";
 import { identity, savedDetails } from "./projectDetails.fixture";
 
@@ -97,6 +101,104 @@ describe("typed project details", () => {
       ).toThrow("internal");
     }
   });
+
+  it("selects channel values without retaining paths or arbitrary response extensions", () => {
+    const details = savedDetails();
+    const result = parseProjectDetails(
+      {
+        ...details,
+        channels: details.channels.map((channel) => ({
+          ...channel,
+          privatePath: "private",
+          name: { ...channel.name, raw: "private" },
+        })),
+      },
+      identity,
+    );
+    expect(result).toEqual(details);
+    expect(channelLabel("")).toBe("Empty saved label");
+    expect(channelLabel("Lead\n\u202eName")).toBe("Lead\\u000a\\u202eName");
+    expect(channelLabel("鼓 / Bass 🎵")).toBe("鼓 / Bass 🎵");
+    const empty = {
+      ...details,
+      facts: details.facts.map((fact) =>
+        fact.key === "channelCount" ? { ...fact, value: "0" } : fact,
+      ),
+      channels: [],
+    };
+    expect(parseProjectDetails(empty, identity)).toEqual(empty);
+  });
+
+  it.each([
+    (v: Record<string, unknown>) => {
+      v["channels"] = [];
+    },
+    (v: Record<string, unknown>) => {
+      v["channels"] = Array(257).fill(savedDetails().channels[0]);
+    },
+    (v: Record<string, unknown>) => {
+      v["channels"] = savedDetails().channels.map((channel) => ({
+        ...channel,
+        position: 1,
+      }));
+    },
+    (v: Record<string, unknown>) => {
+      v["channels"] = savedDetails().channels.map((channel) => ({
+        ...channel,
+        name: { ...channel.name, value: "\0" },
+      }));
+    },
+    (v: Record<string, unknown>) => {
+      v["channels"] = savedDetails().channels.map((channel) => ({
+        ...channel,
+        name: { ...channel.name, value: "a".repeat(4096) },
+      }));
+    },
+    (v: Record<string, unknown>) => {
+      v["channels"] = savedDetails().channels.map((channel) => ({
+        ...channel,
+        instrument: {
+          status: "extracted",
+          value: "Unverified Plugin",
+          explanation: null,
+        },
+      }));
+    },
+    (v: Record<string, unknown>) => {
+      v["channels"] = savedDetails().channels.map((channel) => ({
+        ...channel,
+        instrument: {
+          status: "unsupported",
+          value: "3x Osc",
+          explanation: "Unknown",
+        },
+      }));
+    },
+    (v: Record<string, unknown>) => {
+      v["channels"] = savedDetails().channels.map((channel) => ({
+        ...channel,
+        name: { status: "inferred", value: "Sampler 99", explanation: "Guess" },
+      }));
+    },
+    (v: Record<string, unknown>) => {
+      v["channels"] = savedDetails().channels.map((channel) => ({
+        ...channel,
+        instrument: { status: "inferred", value: "Sampler", explanation: null },
+      }));
+    },
+    (v: Record<string, unknown>) => {
+      v["facts"] = savedDetails().facts.map((fact) =>
+        fact.key === "savedVersion" ? { ...fact, value: "25.1.3.4922" } : fact,
+      );
+    },
+  ])(
+    "rejects malformed channel ordering, bounds and identity claims",
+    (change) => {
+      const value = { ...savedDetails() };
+      change(value);
+      expect(() => parseProjectDetails(value, identity)).toThrow("internal");
+    },
+  );
 
   it("invokes a bounded read with IDs and the displayed fingerprint only", async () => {
     const invoke = vi.fn().mockResolvedValue({

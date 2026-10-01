@@ -144,7 +144,15 @@ high-confidence inference from the approved 2026 minimal saves. A verified `3x O
 `medium` aggregate confidence when stored and inferred classes are mixed.
 Unknown classes or layouts are field-level `unsupported`, even if event 201
 contains a plausible string. The 2024/2025 builds are `unsupported` for this
-field. This channel-only field does not decode mixer effects or VST identity;
+field. The full `validate_project_reply` projection now retains this extension
+only when advertised by the selected descriptor, after checking build/class
+allowlists, cardinality, dense parser order, item/aggregate values and inference
+method/confidence. It preserves verified siblings of unsupported classes and
+returns typed reasons without arbitrary plugin text. Descriptors without the
+extension produce unsupported instrument details; the initial-only projection
+still discards generator metadata.
+
+This channel-only field does not decode mixer effects or VST identity;
 the separate `pluginReferences` field has the narrower metadata support above.
 Plugin state is not decoded.
 The owner approved the exact sanitized two-channel F14 file for corpus

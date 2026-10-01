@@ -63,7 +63,7 @@ fn context(bytes: &[u8]) -> ParseContext {
     }
 }
 fn descriptor() -> Value {
-    json!({"adapter":"rust-flp-parser","adapterVersion":env!("CARGO_PKG_VERSION"),"fields":["savedVersion","baseTempoBpm","channelCount","channelNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],"maxFileBytes":4194304,"maxEvents":100000,"maxChannels":256,"maxEventBytes":2097152,"maxPatterns":1024,"maxPlaylistClips":1024})
+    json!({"adapter":"rust-flp-parser","adapterVersion":env!("CARGO_PKG_VERSION"),"fields":["savedVersion","baseTempoBpm","channelCount","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],"maxFileBytes":4194304,"maxEvents":100000,"maxChannels":256,"maxEventBytes":2097152,"maxPatterns":1024,"maxPlaylistClips":1024})
 }
 fn reply(bytes: &[u8]) -> Value {
     let mut value = parse_bytes(bytes);
