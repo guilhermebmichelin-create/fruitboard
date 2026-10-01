@@ -1,3 +1,5 @@
+#[cfg(feature = "analysis-jobs")]
+pub(crate) mod analysis_host;
 mod clock;
 mod command;
 mod errors;

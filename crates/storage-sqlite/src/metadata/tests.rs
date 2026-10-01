@@ -8,12 +8,12 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 
-fn capabilities() -> ParserCapabilities {
+pub(crate) fn capabilities() -> ParserCapabilities {
     validate_descriptor(&json!({"adapter":ADAPTER_ID,"adapterVersion":ADAPTER_VERSION,
         "fields":["savedVersion","baseTempoBpm","channelCount","channelNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],
         "maxFileBytes":4194304,"maxEvents":100000,"maxChannels":256,"maxEventBytes":2097152,"maxPatterns":1024,"maxPlaylistClips":1024})).unwrap()
 }
-fn bytes() -> Vec<u8> {
+pub(crate) fn bytes() -> Vec<u8> {
     fs::read(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../fixtures/parser-corpus/FIX-FL2026-SAMPLE.flp"),
@@ -27,7 +27,7 @@ fn raw_reply() -> Value {
     value["filesystemCreatedAtMs"] = json!({"status":"extracted","value":u64::MAX});
     value
 }
-fn reply() -> ProtocolReply {
+pub(crate) fn reply() -> ProtocolReply {
     ProtocolReply::Result(raw_reply())
 }
 fn unsupported_reply() -> ProtocolReply {
@@ -46,7 +46,7 @@ fn unsupported_reply() -> ProtocolReply {
     value["diagnostics"] = json!([]);
     ProtocolReply::Result(value)
 }
-fn setup(directory: &TestDirectory, version: usize) -> (Database, MetadataInput) {
+pub(crate) fn setup(directory: &TestDirectory, version: usize) -> (Database, MetadataInput) {
     let mut database =
         Database::open_with_migrations(directory.path(), &MIGRATIONS[..version]).unwrap();
     let root = database
@@ -427,7 +427,7 @@ fn metadata_snapshot_insert_and_latest_pointer_roll_back_together() {
 fn metadata_upgrade_v9_backup_and_recovery_preserve_source_and_snapshots() {
     let directory = TestDirectory::new();
     let (mut database, input) = setup(&directory, 9);
-    assert_eq!(database.schema_version().unwrap(), 10);
+    assert_eq!(database.schema_version().unwrap(), MIGRATIONS.len());
     let backups: Vec<_> = fs::read_dir(directory.path().join("storage/backups"))
         .unwrap()
         .map(|entry| entry.unwrap().path())

@@ -100,7 +100,7 @@ authorized handle checks the digest, size, and modified timestamp again;
 a difference fails `INPUT_CHANGED`. This detects observed changes even when
 size and timestamp were preserved. It is a before/after observation, not a
 guarantee against a change-and-restore between observations or a change
-after the response; the future supervisor still owns result freshness:
+after the response; native analysis therefore also owns publication freshness:
 
 ```json
 {
@@ -241,11 +241,36 @@ match; otherwise the digest is a structurally validated parser claim.
 Unknown/unvalidated extensions are discarded rather than carried as raw JSON.
 The unchanged approved corpus is exercised through the real supervised parser.
 
-No scanner FLP reads, metadata persistence or renderer command is enabled.
-The eventual application integration must obtain current state from native
-authority and recheck freshness in its publication transaction. Pattern,
+This initial validation component alone enables no scanner reads or renderer
+command. The optional native analysis integration described below obtains
+current state from native authority and rechecks freshness in its publication
+transaction. Pattern,
 generator and playlist/timing validation, production packaging and resource qualification
 remain separate steps. See the crate README for the precise projection limits.
+
+### Native development analysis integration
+
+Issue #238 adds the desktop's explicit `analysis-jobs` feature. Migration 011
+persists a bounded scheduling cell per location and one running lease globally,
+with three attempts, process-session fencing and restart recovery. A single
+worker selects only enabled local NTFS inputs from native storage, verifies
+the opened file identity, rejects reparses and offline/recall attributes, and
+independently checks size, nanosecond time and digest before and after parsing.
+The selected file and ancestor handles remain held through publication.
+
+Filesystem/parser operations release the database mutex. The fixed installed
+sibling runs under the existing supervisor; cancellation, root/source changes
+and shutdown interrupt work. The final transaction validates the reply and
+rechecks source, publication and lease authority, then inserts an immutable
+snapshot and completes the job together. Negative results preserve a still-fresh
+last good snapshot. No raw embedded reference is opened or executed.
+
+The installed development smoke exercises native enumeration through durable
+metadata and verifies snapshot preservation across reinstall. The default
+desktop and renderer do not enable parsing or expose metadata yet. See the
+[worker documentation](crates/analysis-execution/README.md) for limits, checks
+and the exact native boundary. Production enablement, broader compatibility,
+metadata presentation and performance qualification remain open.
 
 Issue #232 extends the native parser with embedded project creation/local-time
 and saved FL time spent, optional filesystem creation time, bounded saved plugin

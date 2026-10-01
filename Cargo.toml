@@ -8,6 +8,7 @@ members = [
   "crates/filesystem-enumeration",
   "crates/scan-execution",
   "crates/flp-parser",
+  "crates/analysis-execution",
 ]
 resolver = "3"
 

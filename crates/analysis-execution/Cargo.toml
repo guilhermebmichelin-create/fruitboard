@@ -1,0 +1,17 @@
+[package]
+name = "fruitboard-analysis-execution"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+fruitboard-storage = { workspace = true, features = ["analysis-jobs"] }
+fruitboard-flp-parser = { path = "../flp-parser" }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+uuid.workspace = true

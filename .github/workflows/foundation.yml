@@ -121,6 +121,8 @@ jobs:
           cargo test -p fruitboard-storage --locked
           cargo clippy -p fruitboard-storage --features parser-metadata --all-targets --locked -- -D warnings
           cargo test -p fruitboard-storage --features parser-metadata --locked
+          cargo clippy -p fruitboard-analysis-execution --all-targets --locked -- -D warnings
+          cargo test -p fruitboard-analysis-execution --locked
           cargo clippy -p fruitboard-reconciliation --all-targets --locked -- -D warnings
           cargo test -p fruitboard-reconciliation --locked
       - name: Check parser authorization on Linux
@@ -181,6 +183,7 @@ jobs:
           cargo test -p fruitboard-storage --locked killed_migration_recovers_the_original_committed_database
           cargo test -p fruitboard-storage --locked backup_recovers_committed_state_after_original_corruption_without_overwriting_it
           cargo test -p fruitboard-storage --features parser-metadata --locked metadata
+          cargo test -p fruitboard-storage --features analysis-jobs --locked analysis
 
   flp-parser-portable:
     name: flp-parser-portable
@@ -271,6 +274,16 @@ jobs:
         run: cargo test -p fruitboard-desktop --features scan-console --locked
       - name: Lint enabled scan-console code
         run: cargo clippy -p fruitboard-desktop --features scan-console --all-targets --locked -- -D warnings
+      - name: Test enabled native analysis jobs
+        run: cargo test -p fruitboard-desktop --features analysis-jobs --locked
+      - name: Lint enabled native analysis jobs
+        run: cargo clippy -p fruitboard-desktop --features analysis-jobs --all-targets --locked -- -D warnings
+      - name: Exercise native analysis with the freshly built parser
+        run: |
+          cargo build -p fruitboard-flp-parser --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:FRUITBOARD_ANALYSIS_TEST_PARSER = (Resolve-Path target/debug/fruitboard-flp-parser.exe).Path
+          cargo test -p fruitboard-analysis-execution --locked native_analysis -- --ignored
 
   security:
     name: security

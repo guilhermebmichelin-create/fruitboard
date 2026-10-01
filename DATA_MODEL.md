@@ -9,7 +9,7 @@ bundled SQLite 3.53.2. Native startup opens
 `app_local_data_dir()/storage/fruitboard.db`; Windows resolves this below the
 current user's local application data, outside roaming/Drive locations.
 
-The executable schema is version 10. Migration 005 is the shared Phase 2
+The executable schema is version 11. Migration 005 is the shared Phase 2
 integration boundary; its exact locator, timestamp, identity, job/run, and
 root-scoped pagination contract is documented in
 [`docs/PHASE_2_INTEGRATION_CONTRACT.md`](docs/PHASE_2_INTEGRATION_CONTRACT.md).
@@ -17,6 +17,7 @@ Migration 006 adds retry/status indexes, migration 007 adds the root mode, and
 migration 008 adds indexes for incremental terminal-history maintenance.
 Migration 009 indexes root-local live identity lookup. Migration 010 adds
 immutable parser snapshots and source/publication revision fences.
+Migration 011 adds the bounded native analysis queue and process-session fence.
 
 | Table | Fields and constraints | Classification |
 | --- | --- | --- |
@@ -31,6 +32,7 @@ immutable parser snapshots and source/publication revision fences.
 | `scan_stage` | Run-owned captured fences, bounded counters, and open/published/discarded state | Device-local staging ledger |
 | `scan_stage_observation` | Bounded locator-key/display-relative metadata observations keyed by run and locator | Device-local staging data |
 | `metadata_snapshot` | Immutable completed parser outcomes, source revisions/fingerprint, adapter/protocol/schema provenance, bounded validated payload | Device-local private parser history |
+| `analysis_job` | One desired input per location, opaque job ID, captured source/publication revisions, parser versions, bounded attempt/lease, terminal snapshot reference | Device-local private analysis queue |
 
 All shipped tables are STRICT. The preference defaults to Home. The execution
 tables use partial and due-time indexes for one active job per root and bounded
@@ -69,7 +71,7 @@ Migrations are embedded from `crates/storage-sqlite/migrations/`. The runner
 checks the application ID, `user_version`, and the complete ordered ledger,
 then commits all pending SQL, seeds, ledger rows, and the version in one
 IMMEDIATE transaction. Changed history, unrelated databases, and newer schemas
-are refused. Tests upgrade fixtures from every shipped version, v0 through v10,
+are refused. Tests upgrade fixtures from every shipped version, v0 through v11,
 and cover preserving roots/preferences, converting legacy publication fields
 with checked bounds, and rolling back after a later failure.
 
@@ -104,7 +106,8 @@ a fenced staging/publication boundary, and the locator-key/identity integration
 contract; none of them activates production scanning. The Rust FLP parser
 selected in [ADR-002](docs/adr/002-flp-parser-process.md) lives in
 `crates/flp-parser`. A separate development package exercises its installed
-process lifecycle; production scanning and metadata publication are not active.
+process lifecycle. An explicit development `analysis-jobs` feature now connects
+native scanning to parsing and publication; the default desktop does not enable it.
 
 ### Implemented parser snapshot boundary
 
@@ -113,13 +116,15 @@ publication, current-result lookup, and indexed history pagination. The default
 desktop does not enable it. Migration 010 runs independently of the feature.
 Each attempt is stored as a completed `complete`, `partial`, `unsupported`,
 `failed`, or `rejected` snapshot. Snapshot UPDATE/DELETE operations are refused.
-There are no mutable running records or analysis jobs in this slice.
+Running work belongs to the separate analysis queue, never to these snapshots.
 
 Capture seals database-owned root, location, and file IDs, root configuration
 revision, file/location source revisions, publication revision, size, and
 nanosecond modification time. Publication rechecks all of them under an
 IMMEDIATE transaction and validates the selected parser reply before inserting
-the snapshot and advancing the file's current pointer together. Changed or
+the snapshot and advancing the publication fence together. Only a `complete`
+or `partial` snapshot replaces the current pointer; a negative attempt preserves
+the last good snapshot, which must still pass source freshness checks. Changed or
 restored sources, disabled/removed roots, foreign locations, invalid replies,
 and older overlapping attempts cannot publish. Source revision triggers ignore
 unchanged observations; integer overflow fails closed. Publication order uses
@@ -141,11 +146,38 @@ pattern estimates are not total song duration. No raw extension fields or
 tracebacks are retained. The payload is private local JSON, not a renderer DTO
 or a new validated parser capability. A future UI requires an explicit adapter.
 
-The stored digest is a parser claim, not independent hash authority. Database
-freshness cannot prove filesystem freshness: the eventual analysis worker must
-re-observe an authorized file handle before publication. No storage method
+Direct snapshot publication treats the digest as a parser claim. The optional
+analysis worker independently hashes and re-observes the authorized file handle
+and requires digest agreement before publication. Database freshness alone
+cannot prove filesystem freshness. No storage method
 opens an FLP or logs private metadata. Schema-9 upgrades, backup/recovery,
 rollback, and real process termination before publication commit are tested.
+
+### Implemented native analysis queue
+
+The optional `analysis-jobs` storage feature and migration 011 add a mutable
+scheduling cell per location, with one global running job, at most 128 pending
+cells and 128 source rows visited per discovery page. Each desired input seals
+the same source/publication revisions and selected parser versions. A new
+input supersedes the opaque job ID; a still-current good snapshot serves all
+aliases of its physical project file. Unchanged terminal inputs do not requeue.
+
+The native host rotates `app_settings.analysis_session_id` at startup and
+recovers interrupted leases without resetting their three-attempt budget.
+Leases last 60 seconds; transport/interruption retries wait one second. Explicit
+cancellation survives restart. Source/root/session changes fence old callbacks.
+One IMMEDIATE transaction publishes a validated snapshot and completes the
+owning job together. Transport/invalid replies create no metadata snapshot.
+Queue root/location/project identifiers are bare history IDs; the terminal
+snapshot reference is a foreign key. Root removal preserves operational state.
+
+The explicit development desktop feature wires this queue to native local
+NTFS authority and the fixed installed parser. Drive virtual roots, legacy
+unqualified identity and files beyond the existing parser cap fail closed.
+Filesystem/parser work releases the shared database mutex; held Windows source
+and ancestor handles cover independent observation through commit. See the
+[worker documentation](crates/analysis-execution/README.md). Metadata UI,
+retry controls, production activation and performance qualification remain open.
 
 ## Modeling principles
 

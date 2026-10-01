@@ -2,7 +2,8 @@
 param(
     [string]$EvidencePath = "docs/review/issue-18/windows-smoke.json",
     [string]$RetainedEvidenceRoot = "",
-    [switch]$NonInteractive
+    [switch]$NonInteractive,
+    [switch]$AnalysisJobs
 )
 
 Set-StrictMode -Version Latest
@@ -165,6 +166,7 @@ function Invoke-AppSmokeMode {
     # Diagnostics report only the mode, elapsed milliseconds, exit state, and
     # evidence presence/size: never absolute paths or file contents.
     $timeoutSeconds = 60
+    if ($AnalysisJobs) { $timeoutSeconds = 100 }
     if (Test-Path -LiteralPath $OutputPath) {
         throw "The raw evidence destination must not already exist."
     }
@@ -270,6 +272,15 @@ Assert-ContainedPath -Candidate $installDirectory -Parent $runRoot
 Assert-ContainedPath -Candidate $syntheticDataDirectory -Parent $env:LOCALAPPDATA
 
 New-Item -ItemType Directory -Force -Path $runRoot, $rawEvidenceDirectory | Out-Null
+if ($AnalysisJobs) {
+    $analysisFixtureDirectory = Join-Path $runRoot "Analysis Fixture"
+    New-Item -ItemType Directory -Path $analysisFixtureDirectory | Out-Null
+    $analysisFixturePath = Join-Path $analysisFixtureDirectory "sample.flp"
+    $approvedFixture = Join-Path $resolvedRepositoryRoot "fixtures\parser-corpus\FIX-FL2026-SAMPLE.flp"
+    Copy-Item -LiteralPath $approvedFixture -Destination $analysisFixturePath
+    $analysisFixtureHash = (Get-FileHash -LiteralPath $approvedFixture -Algorithm SHA256).Hash
+    if ((Get-FileHash -LiteralPath $analysisFixturePath -Algorithm SHA256).Hash -ne $analysisFixtureHash) { throw "Approved analysis fixture copy differs." }
+}
 
 # Exclusive host lock first: a second run fails here before launching,
 # installing, archiving data, or uninstalling another run's package.
@@ -294,7 +305,8 @@ if (Test-Path -LiteralPath $syntheticDataDirectory -PathType Container) {
 $buildTimer = [System.Diagnostics.Stopwatch]::StartNew()
 Push-Location $resolvedRepositoryRoot
 try {
-    & pnpm.cmd package:windows:smoke
+    if ($AnalysisJobs) { & pnpm.cmd package:windows:analysis-smoke }
+    else { & pnpm.cmd package:windows:smoke }
     if ($LASTEXITCODE -ne 0) {
         throw "The locked NSIS package build failed."
     }
@@ -350,6 +362,9 @@ if (-not $NonInteractive) {
 }
 $seedEvidencePath = Join-Path $rawEvidenceDirectory "seed.json"
 $seedEvidence = Invoke-AppSmokeMode -ApplicationPath $applicationPath -Mode "seed" -OutputPath $seedEvidencePath
+if ($AnalysisJobs -and (-not $seedEvidence.analysis.parsedAndPersisted -or $seedEvidence.analysis.sourceSha256 -ne $analysisFixtureHash)) {
+    throw "The installed native analysis did not persist the approved fixture."
+}
 
 # Hold only this verified synthetic installation's parser. Restore it even
 # when the missing-file test fails; no source or application data is removed.
@@ -390,11 +405,25 @@ $verifyEvidence = Invoke-AppSmokeMode -ApplicationPath $applicationPath -Mode "v
 if ($verifyEvidence.storage.startupViewBefore -ne "library" -or $verifyEvidence.storage.startupViewAfter -ne "library") {
     throw "The reinstalled app did not recover the persisted startup preference."
 }
-if ((Get-FileHash -LiteralPath $databasePath -Algorithm SHA256).Hash -ne $databaseHashBeforeUninstall) {
-    throw "Reinstall or relaunch changed the persisted database unexpectedly."
+if ($AnalysisJobs) {
+    # Native scanner/analysis sessions legitimately change operational rows on
+    # restart. Keep byte preservation for BOTH uninstalls and independently
+    # require immutable snapshot/payload/source preservation across relaunch.
+    if (-not $verifyEvidence.analysis.parsedAndPersisted -or
+        $verifyEvidence.analysis.snapshotId -ne $seedEvidence.analysis.snapshotId -or
+        $verifyEvidence.analysis.payloadSha256 -ne $seedEvidence.analysis.payloadSha256 -or
+        $verifyEvidence.analysis.sourceSha256 -ne $analysisFixtureHash -or
+        (Get-FileHash -LiteralPath $analysisFixturePath -Algorithm SHA256).Hash -ne $analysisFixtureHash) {
+        throw "Reinstall did not preserve the validated metadata or source bytes."
+    }
+} else {
+    if ((Get-FileHash -LiteralPath $databasePath -Algorithm SHA256).Hash -ne $databaseHashBeforeUninstall) {
+        throw "Reinstall or relaunch changed the persisted database unexpectedly."
+    }
 }
+$databaseHashBeforeSecondUninstall = (Get-FileHash -LiteralPath $databasePath -Algorithm SHA256).Hash
 Uninstall-SmokePackage
-if ((Get-FileHash -LiteralPath $databasePath -Algorithm SHA256).Hash -ne $databaseHashBeforeUninstall) {
+if ((Get-FileHash -LiteralPath $databasePath -Algorithm SHA256).Hash -ne $databaseHashBeforeSecondUninstall) {
     throw "The second uninstall changed the synthetic user database."
 }
 
@@ -491,7 +520,10 @@ $evidence = [ordered]@{
         reinstallRestoredStartupView = $true
         secondUninstallPreservedDatabase = $true
         syntheticStateRetainedForReview = $true
+        analysisSnapshotPreservedAcrossReinstall = if ($AnalysisJobs) { $true } else { $null }
+        relaunchDatabaseBytesUnchanged = ($databaseHashBeforeUninstall -eq $databaseHashBeforeSecondUninstall)
     }
+    analysis = if ($AnalysisJobs) { [ordered]@{ seed = $seedEvidence.analysis; reinstall = $verifyEvidence.analysis; sourceBytesUnchanged = $true } } else { $null }
     isolation = [ordered]@{
         mode = "exclusive-host-lock"
         lockFile = "com.fruitboard.desktop.foundation-smoke.lock.json"
@@ -507,7 +539,7 @@ $evidence = [ordered]@{
         "Audio results are WebView2 canPlayType capability signals, not decoded playback tests.",
         "Launch readiness separates WebView target appearance from rendered-shell observation; blank, loading, or error pages fail the probe closed.",
         "The download-bootstrapper installer requires network access when WebView2 is absent.",
-        "The real parser is packaged for native lifecycle validation only; no scanner analysis job or player is enabled."
+        $(if ($AnalysisJobs) { "Native analysis is an explicit development feature, tested on one approved fixture; production activation and throughput qualification remain open." } else { "The real parser is packaged for native lifecycle validation only; no scanner analysis job or player is enabled." })
         "Concurrent installed validation runs share one test identity and are serialized by the exclusive host lock; a second run fails before side effects."
     )
 }

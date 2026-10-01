@@ -1,6 +1,27 @@
 //! Bounded, read-only FLP metadata parser selected under ADR-002.
 //! Event interpretation derives from research source commit 080e825.
 mod authorized_input;
+/// Held read-only source authority for native pre/post observations. Contains
+/// no parsing operation, Debug/Serialize implementation, or renderer surface.
+pub struct AuthorizedSource(authorized_input::AuthorizedInput);
+impl AuthorizedSource {
+    pub fn file(&self) -> &std::fs::File {
+        &self.0.file
+    }
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SourceAuthorizationError {
+    Unavailable,
+}
+pub fn authorize_source(
+    path: &std::path::Path,
+    root: &std::path::Path,
+) -> Result<AuthorizedSource, SourceAuthorizationError> {
+    let root = root.to_str().ok_or(SourceAuthorizationError::Unavailable)?;
+    authorized_input::open(path, &[root.to_owned()])
+        .map(AuthorizedSource)
+        .map_err(|_| SourceAuthorizationError::Unavailable)
+}
 mod plugin_references;
 mod project_info;
 pub mod supervisor;
