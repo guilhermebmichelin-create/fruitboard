@@ -77,8 +77,17 @@ before/after hash is checked in private evidence. Existing installed parser,
 queue and package evidence from PR #239 applies to unchanged implementation.
 No new installed-window or performance qualification is claimed.
 
-The final command/check results and source provenance are added after local
-validation. The normal final-head CI remains required before owner merge.
+Local validation passed at implementation
+`5f3f96677142921930103299beea1e94ab23f388`: full pinned `pnpm check`
+(178 client tests, workspace tests/lint/typechecks and desktop release build),
+enabled desktop 122 tests with one explicit private-data test ignored by the
+normal suite, and warning-denied feature Clippy. The ignored test was separately
+invoked and passed against the independent installed snapshot copy; the
+262,144-byte database retained its SHA-256 before/after. Rendered desktop/narrow
+states, keyboard, reduced motion, 200% text and contrast/accessibility passed.
+All approved corpus Git objects match the baseline. This validation summary
+changes documentation only. The normal final-head CI remains required before
+owner merge.
 
 ## Limits and handoff
 
