@@ -937,17 +937,17 @@
     border: 1px solid currentColor;
   }
   .project-details__badge--extracted {
-    color: #166534;
-    background: #dcfce7;
+    color: var(--color-accent-strong);
+    background: var(--color-accent-soft);
   }
   .project-details__badge--inferred {
-    color: #854d0e;
-    background: #fef9c3;
+    color: var(--color-warning);
+    background: var(--color-surface);
   }
   .project-details__badge--unavailable,
   .project-details__badge--unsupported {
-    color: #475569;
-    background: #f1f5f9;
+    color: var(--color-text-muted);
+    background: var(--color-surface-subtle);
   }
 
   .library-scan-facts {
