@@ -7,6 +7,8 @@ use fruitboard_storage::Database;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "analysis-jobs")]
+mod channels;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -41,6 +43,7 @@ enum Content {
         snapshot_id: String,
         outcome: &'static str,
         facts: Vec<Fact>,
+        channels: Vec<channels::Channel>,
     },
 }
 
@@ -124,16 +127,17 @@ fn current(db: &Database, request: &Request) -> Result<Content, ()> {
     if header.projection_version != 1 {
         return Err(());
     }
-    let facts = project(snapshot.payload_json().ok_or(())?)?;
+    let (facts, channels) = project(snapshot.payload_json().ok_or(())?)?;
     Ok(Content::Available {
         snapshot_id: header.id.clone(),
         outcome: header.outcome.as_str(),
         facts,
+        channels,
     })
 }
 
 #[cfg(feature = "analysis-jobs")]
-fn project(payload: &str) -> Result<Vec<Fact>, ()> {
+fn project(payload: &str) -> Result<(Vec<Fact>, Vec<channels::Channel>), ()> {
     if payload.len() > fruitboard_storage::MAX_METADATA_JSON_BYTES {
         return Err(());
     }
@@ -179,7 +183,8 @@ fn project(payload: &str) -> Result<Vec<Fact>, ()> {
     ] {
         facts.push(scalar(key, &value[key])?);
     }
-    Ok(facts)
+    let channels = channels::project(&value, version, channels as usize)?;
+    Ok((facts, channels))
 }
 
 #[cfg(feature = "analysis-jobs")]
@@ -446,13 +451,14 @@ mod tests {
             "playlistPatternEndTick":{"status":"extracted","value":768},
             "playlistPatternSpanBars":{"status":"inferred","value":2.0,"method":"pattern-clip-span-at-verified-meter","confidence":"low"},
             "playlistPatternNominalSeconds":{"status":"inferred","value":4.0,"method":"constant-base-tempo-over-pattern-clips","confidence":"low","assumptions":["tempo remains at base BPM","only verified pattern clips define span"]},
+            "channelNames":{"status":"extracted","items":[{"status":"extracted","value":"Kick"},{"status":"extracted","value":"Bass"},{"status":"extracted","value":"Lead"}]},
             "sampleReferences":{"items":["C:\\Private\\sample.wav"]},"untrustedExtension":"must not escape"})
     }
 
     #[test]
     #[cfg(feature = "analysis-jobs")]
     fn projection_preserves_status_assumptions_and_exact_integers_without_raw_extensions() {
-        let facts = project(&payload().to_string()).unwrap();
+        let (facts, _) = project(&payload().to_string()).unwrap();
         let serialized = serde_json::to_value(facts).unwrap();
         assert_eq!(serialized.as_array().unwrap().len(), 9);
         assert_eq!(serialized[4]["value"], u64::MAX.to_string());
@@ -470,10 +476,54 @@ mod tests {
             json!({"status":"unavailable","reason":"PROJECT_INFO_NOT_STORED"});
         value["playlistPatternSpanBars"] =
             json!({"status":"unsupported","reason":"METER_UNVERIFIED"});
-        let facts = serde_json::to_value(project(&value.to_string()).unwrap()).unwrap();
+        let facts = serde_json::to_value(project(&value.to_string()).unwrap().0).unwrap();
         assert_eq!(facts[3]["status"], "unavailable");
         assert!(facts[3]["value"].is_null());
         assert_eq!(facts[7]["status"], "unsupported");
+    }
+
+    #[test]
+    #[cfg(feature = "analysis-jobs")]
+    fn channel_projection_reads_old_snapshots_and_rejects_invalid_names_or_instrument_claims() {
+        let raw = payload();
+        let (_, channels) = project(&raw.to_string()).unwrap();
+        let channels = serde_json::to_value(channels).unwrap();
+        assert_eq!(channels[0]["name"]["value"], "Kick");
+        assert_eq!(channels[0]["instrument"]["status"], "unsupported");
+        assert!(
+            channels[0]["instrument"]["explanation"]
+                .as_str()
+                .unwrap()
+                .contains("not saved")
+        );
+        assert!(!channels.to_string().contains("Private"));
+        let mut raw = payload();
+        raw["channelGeneratorNames"] = json!({"items":[{"status":"extracted","value":"3x Osc"},{"status":"inferred","value":"Sampler","method":"sampler-generator-default-for-known-build","confidence":"high"},{"status":"unsupported","reason":"GENERATOR_CLASS_UNVERIFIED"}]});
+        let channels = serde_json::to_value(project(&raw.to_string()).unwrap().1).unwrap();
+        assert_eq!(channels[0]["instrument"]["value"], "3x Osc");
+        assert_eq!(channels[1]["instrument"]["status"], "inferred");
+        assert_eq!(channels[2]["instrument"]["status"], "unsupported");
+        for (pointer, bad) in [
+            ("/channelNames/items/0/value", json!("bad\u{0000}")),
+            (
+                "/channelGeneratorNames/items/0/value",
+                json!("Private Plugin"),
+            ),
+            ("/channelGeneratorNames/items/1/confidence", json!("medium")),
+            ("/channelGeneratorNames/items", json!([])),
+            ("/channelNames/items", json!([])),
+        ] {
+            let mut bad_raw = raw.clone();
+            *bad_raw.pointer_mut(pointer).unwrap() = bad;
+            assert!(project(&bad_raw.to_string()).is_err(), "{pointer}");
+        }
+        raw["channelNames"]["status"] = json!("unavailable");
+        raw["channelNames"]["reason"] = json!("CHANNEL_NAME_NOT_STORED");
+        raw["channelNames"]["items"][1] =
+            json!({"status":"unavailable","reason":"CHANNEL_NAME_NOT_STORED"});
+        let channels = serde_json::to_value(project(&raw.to_string()).unwrap().1).unwrap();
+        assert_eq!(channels[0]["name"]["value"], "Kick");
+        assert_eq!(channels[1]["name"]["status"], "unavailable");
     }
 
     #[test]
@@ -563,6 +613,24 @@ mod tests {
         assert_eq!(details["facts"][0]["value"], "26.1.0.5530");
         assert_eq!(details["facts"][3]["status"], "extracted");
         assert_eq!(details["facts"][3]["value"].as_str().unwrap().len(), 23);
+        assert_eq!(
+            details["channels"].as_array().unwrap().len(),
+            details["facts"][2]["value"]
+                .as_str()
+                .unwrap()
+                .parse::<usize>()
+                .unwrap()
+        );
+        assert_eq!(
+            details["channels"][0]["instrument"]["status"],
+            "unsupported"
+        );
+        assert!(
+            details["channels"][0]["instrument"]["explanation"]
+                .as_str()
+                .unwrap()
+                .contains("not saved")
+        );
         assert!(details.get("payloadJson").is_none());
         assert!(!details.to_string().contains("Analysis Fixture"));
     }

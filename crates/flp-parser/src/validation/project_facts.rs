@@ -117,6 +117,7 @@ pub struct ValidatedProjectMetadata {
     project_created_local: ProjectField<String>,
     fl_studio_time_spent_ms: ProjectField<u64>,
     plugins: Vec<PluginReference>,
+    channel_generators: ChannelGenerators,
     arrangement_end_tick: ProjectField<u32>,
     arrangement_span_bars: ProjectField<f64>,
     arrangement_estimated_seconds: ProjectField<f64>,
@@ -145,6 +146,9 @@ impl ValidatedProjectMetadata {
     /// Top-level saved references; not an exhaustive nested/installed inventory.
     pub fn plugins(&self) -> &[PluginReference] {
         &self.plugins
+    }
+    pub fn channel_generators(&self) -> &ChannelGenerators {
+        &self.channel_generators
     }
     pub fn arrangement_end_tick(&self) -> &ProjectField<u32> {
         &self.arrangement_end_tick
@@ -547,6 +551,12 @@ pub fn validate_project_reply(
         ValidatedReply::Rejected(code) => return Ok(ValidatedProjectReply::Rejected(code)),
     };
     let raw = raw.ok_or(ValidationError::InvalidReply)?;
+    let channel_generators = channel_generators::validate(
+        &raw["channelGeneratorNames"],
+        capabilities.channel_generators,
+        initial.saved_version(),
+        initial.channel_count() as usize,
+    )?;
     let project_created_local = project_created(&raw["projectCreatedLocal"])?;
     let fl_studio_time_spent_ms = integer(
         &raw["flStudioTimeSpentMs"],
@@ -627,6 +637,7 @@ pub fn validate_project_reply(
             project_created_local,
             fl_studio_time_spent_ms,
             plugins,
+            channel_generators,
             arrangement_end_tick,
             arrangement_span_bars,
             arrangement_estimated_seconds,

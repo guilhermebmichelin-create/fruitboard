@@ -19,6 +19,17 @@ export interface ProjectFact {
   readonly value: string | null;
   readonly explanation: string | null;
 }
+export interface ChannelDetail {
+  readonly status: "extracted" | "inferred" | "unavailable" | "unsupported";
+  readonly value: string | null;
+  readonly explanation: string | null;
+}
+export interface ProjectChannel {
+  /** One-based parser order, not FL Studio's saved numeric channel ID. */
+  readonly position: number;
+  readonly name: ChannelDetail;
+  readonly instrument: ChannelDetail;
+}
 export type ProjectDetails = {
   readonly rootId: string;
   readonly locationId: string;
@@ -30,6 +41,7 @@ export type ProjectDetails = {
       readonly snapshotId: string;
       readonly outcome: "complete" | "partial";
       readonly facts: readonly ProjectFact[];
+      readonly channels: readonly ProjectChannel[];
     }
 );
 
@@ -53,7 +65,11 @@ export function parseProjectDetails(
   const identity = { rootId: file.rootId, locationId: file.locationId };
   const state = value["state"];
   if (state === "disabled" || state === "no_current") {
-    if (value["facts"] !== undefined || value["snapshotId"] !== undefined)
+    if (
+      value["facts"] !== undefined ||
+      value["snapshotId"] !== undefined ||
+      value["channels"] !== undefined
+    )
       return fail();
     return { ...identity, state };
   }
@@ -159,13 +175,108 @@ export function parseProjectDetails(
       };
     },
   );
+  const channels = value["channels"];
+  const count = Number(
+    facts.find((fact) => fact.key === "channelCount")?.value,
+  );
+  const build = facts.find((fact) => fact.key === "savedVersion")?.value;
+  if (!Array.isArray(channels) || channels.length !== count) return fail();
+  let inferredNames = 0;
+  const selectedChannels = channels.map(
+    (entry: unknown, index: number): ProjectChannel => {
+      if (!record(entry) || entry["position"] !== index + 1) return fail();
+      const name = parseChannelDetail(entry["name"], false);
+      const instrument = parseChannelDetail(entry["instrument"], true);
+      if (name.status === "inferred") {
+        inferredNames++;
+        const expected =
+          inferredNames === 1 ? "Sampler" : `Sampler ${inferredNames}`;
+        if (
+          !["25.1.3.4922", "26.1.0.5530"].includes(build ?? "") ||
+          name.value !== expected
+        )
+          return fail();
+      }
+      if (instrument.status !== "unsupported" && build !== "26.1.0.5530")
+        return fail();
+      return { position: index + 1, name, instrument };
+    },
+  );
   return {
     ...identity,
     state,
     snapshotId: value["snapshotId"],
     outcome: value["outcome"] as "complete" | "partial",
     facts,
+    channels: selectedChannels,
   };
+}
+
+function parseChannelDetail(
+  value: unknown,
+  instrument: boolean,
+): ChannelDetail {
+  if (!record(value)) return fail();
+  const status = value["status"];
+  const text = value["value"];
+  const explanation = value["explanation"];
+  if (
+    explanation !== null &&
+    (typeof explanation !== "string" ||
+      explanation.length === 0 ||
+      explanation.length > 320 ||
+      [...explanation].some(displayControl))
+  )
+    return fail();
+  if (status === "unavailable" || status === "unsupported") {
+    if (
+      (instrument ? status !== "unsupported" : status !== "unavailable") ||
+      text !== null ||
+      explanation === null
+    )
+      return fail();
+    return { status, value: null, explanation };
+  }
+  if (
+    (status !== "extracted" && status !== "inferred") ||
+    typeof text !== "string" ||
+    text.length > 4095 ||
+    new TextEncoder().encode(text).length > 12285 ||
+    text.includes("\0") ||
+    (status === "inferred" ? explanation === null : explanation !== null)
+  )
+    return fail();
+  if (
+    instrument &&
+    (status === "extracted" ? text !== "3x Osc" : text !== "Sampler")
+  )
+    return fail();
+  return { status, value: text, explanation };
+}
+
+/** Keep control/bidi characters visible rather than letting them alter labels. */
+export function channelLabel(value: string): string {
+  if (value.length === 0) return "Empty saved label";
+  return [...value]
+    .map((char) =>
+      displayControl(char)
+        ? `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`
+        : char,
+    )
+    .join("");
+}
+
+function displayControl(char: string): boolean {
+  const code = char.charCodeAt(0);
+  return (
+    code < 32 ||
+    (code >= 127 && code <= 159) ||
+    code === 1564 ||
+    code === 8206 ||
+    code === 8207 ||
+    (code >= 8232 && code <= 8238) ||
+    (code >= 8294 && code <= 8297)
+  );
 }
 
 function validLocalDate(value: string): boolean {

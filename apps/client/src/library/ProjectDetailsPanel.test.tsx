@@ -89,6 +89,7 @@ describe("Project details panel", () => {
       await Promise.resolve();
     });
     expect(screen.queryByText("120 BPM")).toBeNull();
+    expect(screen.queryByText("Fixture Synth A")).toBeNull();
   });
   it("clears displayed facts when the selected root becomes disabled", async () => {
     const user = userEvent.setup();
@@ -158,7 +159,9 @@ describe("Project details panel", () => {
     await screen.findByText("120 BPM");
     expect(document.activeElement).toBe(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getAllByText("Inferred")).toHaveLength(2);
+    expect(screen.getAllByText("Inferred")).toHaveLength(5);
+    expect(screen.getByText("Fixture Synth A")).toBeTruthy();
+    expect(screen.getByText("3x Osc")).toBeTruthy();
     expect(screen.getByText(/not the finished song/)).toBeTruthy();
     expect(screen.getByText(/has not measured your work time/)).toBeTruthy();
     const accessibility = await axe.run(view.container, {

@@ -287,8 +287,8 @@ the saved FL counter is not independently measured work.
 The read-only command accepts only opaque root/location IDs and the displayed
 row's size/time fingerprint. It resolves an enabled, present local NTFS source,
 uses storage's current-snapshot fences, checks the displayed fingerprint and
-projects bounded version-1 scalar data under the native database guard. It
-returns no raw JSON, source paths, sample/plugin references or arbitrary
+projects bounded version-1 display data under the native database guard. It
+returns no raw JSON, source paths, sample paths or unrelated plugin references or arbitrary
 extensions, and grants no parse/file/process authority. The renderer validates
 identity, fact keys/statuses, numeric bounds, date shape and inference copy.
 Large integer values remain decimal strings. Missing, changed, detached,
@@ -299,9 +299,34 @@ Facts describe a saved result that matched the scanned file when read, not a
 live file check. New Library scan snapshots, changed row fingerprints and
 disabled/unsupported roots clear the open panel, including replacements that
 retain size/time/path. Refresh details rechecks authority and freshness. Negative parse
-attempts preserve a still-current last good result. Channel/plugin/sample name
-lists, history and retry controls remain deferred. See the
+attempts preserve a still-current last good result. Plugin/sample reference lists,
+history and retry controls remain deferred. See the
 [review packet](docs/review/library-project-details-240/README.md).
+
+Issue #242 adds channel labels and verified built-in instrument names to this
+same authorized view. `validate_project_reply` now checks the advertised
+`channelGeneratorNames` extension before persistence: exactly saved build
+26.1.0.5530, `3x Osc` extracted and `Sampler` inferred, consistent list/item
+statuses, dense indexes, values and confidence. Unknown classes retain a fixed
+unsupported reason alongside verified siblings. A descriptor without the
+extension cannot grant authority to store its raw contents.
+
+The private projection adds `channelGeneratorNames` within version 1; existing
+immutable snapshots remain readable and show unsupported instruments when the
+field was not saved. Reading them does not reparse or rewrite them. Future
+analysis results can contain the new field; Refresh details only rereads stored
+data. No database migration or parser decoding change is needed.
+
+Channel position is one-based parser order, not the FL numeric channel ID.
+Editable labels and instrument class names are separate, with per-item
+extracted/inferred/unavailable/unsupported copy. Up to 256 channels are returned;
+the renderer shows 20 at a time with keyboard controls. Empty labels are explicit,
+and control/bidi characters appear as visible escape codes. Names are inert
+local text, never filesystem/plugin capabilities, logs or sync data. This list
+does not inventory mixer effects, nested plugins, external VST identities or
+installed instruments. Default builds remain unavailable; broader production
+activation and qualification gates remain open. See the
+[channel review packet](docs/review/library-channels-242/README.md).
 
 Issue #232 extends the native parser with embedded project creation/local-time
 and saved FL time spent, optional filesystem creation time, bounded saved plugin

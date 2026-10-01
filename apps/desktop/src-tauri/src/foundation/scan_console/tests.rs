@@ -425,7 +425,7 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
     let (runtime, _) = test_runtime();
     let bytes = std::fs::read(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../fixtures/parser-corpus/FIX-FL2026-SAMPLE.flp"),
+            .join("../../../fixtures/parser-corpus/FIX-FL2026-3XOSC.flp"),
     )
     .unwrap();
     handle_scan_now(
@@ -457,7 +457,7 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
             .capture_metadata_input(&harness.root_id, row["locationId"].as_str().unwrap())
             .unwrap();
         let capabilities = validate_descriptor(&json!({"adapter":ADAPTER_ID,"adapterVersion":ADAPTER_VERSION,
-            "fields":["savedVersion","baseTempoBpm","channelCount","channelNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],
+            "fields":["savedVersion","baseTempoBpm","channelCount","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],
             "maxFileBytes":4194304,"maxEvents":100000,"maxChannels":256,"maxEventBytes":2097152,"maxPatterns":1024,"maxPlaylistClips":1024})).unwrap();
         let mut reply = parse_bytes(&bytes);
         reply["filesystemCreatedAtMs"] =
@@ -470,6 +470,11 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
     assert_eq!(details["state"], "available");
     assert_eq!(details["facts"].as_array().unwrap().len(), 9);
     assert_eq!(details["facts"][0]["value"], "26.1.0.5530");
+    assert_eq!(details["channels"].as_array().unwrap().len(), 2);
+    assert_eq!(details["channels"][0]["name"]["status"], "inferred");
+    assert_eq!(details["channels"][0]["instrument"]["value"], "Sampler");
+    assert_eq!(details["channels"][1]["name"]["value"], "Fixture Synth A");
+    assert_eq!(details["channels"][1]["instrument"]["value"], "3x Osc");
     assert!(details.get("payloadJson").is_none());
     assert!(!details.to_string().contains("synthetic-root"));
     let mut mismatched = request.clone();

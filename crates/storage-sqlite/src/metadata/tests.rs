@@ -10,7 +10,7 @@ use std::process::{Command, Stdio};
 
 pub(crate) fn capabilities() -> ParserCapabilities {
     validate_descriptor(&json!({"adapter":ADAPTER_ID,"adapterVersion":ADAPTER_VERSION,
-        "fields":["savedVersion","baseTempoBpm","channelCount","channelNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],
+        "fields":["savedVersion","baseTempoBpm","channelCount","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],
         "maxFileBytes":4194304,"maxEvents":100000,"maxChannels":256,"maxEventBytes":2097152,"maxPatterns":1024,"maxPlaylistClips":1024})).unwrap()
 }
 pub(crate) fn bytes() -> Vec<u8> {
@@ -106,6 +106,14 @@ fn metadata_round_trip_keeps_only_validated_fields_provenance_and_immutable_hist
     );
     assert_eq!(payload["channelNames"]["items"][0]["status"], "extracted");
     assert_eq!(
+        payload["channelGeneratorNames"]["items"][0]["value"],
+        "Sampler"
+    );
+    assert_eq!(
+        payload["channelGeneratorNames"]["items"][0]["status"],
+        "inferred"
+    );
+    assert_eq!(
         payload["pluginReferences"]["coverage"],
         "top-level-saved-references"
     );
@@ -150,6 +158,45 @@ fn metadata_round_trip_keeps_only_validated_fields_provenance_and_immutable_hist
             .unwrap()
             .byte_size,
         bytes().len() as u64
+    );
+}
+
+#[test]
+fn invalid_generator_claim_cannot_replace_a_valid_snapshot_or_store_extension_text() {
+    let directory = TestDirectory::new();
+    let (mut database, input) = setup(&directory, MIGRATIONS.len());
+    let mut valid = raw_reply();
+    valid["channelGeneratorNames"] = json!({"status":"unsupported","reason":"GENERATOR_CLASS_UNVERIFIED","items":[{"channelIndex":0,"name":{"status":"unsupported","reason":"GENERATOR_CLASS_UNVERIFIED","private":"unvalidated plugin text"}}]});
+    let saved = database
+        .publish_metadata_snapshot(
+            &input,
+            &capabilities(),
+            ProtocolReply::Result(valid.clone()),
+            1,
+        )
+        .unwrap();
+    let payload = database
+        .current_metadata_snapshot("project")
+        .unwrap()
+        .unwrap();
+    let raw = payload.payload_json().unwrap();
+    assert!(!raw.contains("unvalidated plugin text"));
+    assert!(raw.contains("GENERATOR_CLASS_UNVERIFIED"));
+    valid["channelGeneratorNames"]["items"][0]["name"] =
+        json!({"status":"extracted","value":"Private Unverified Plugin"});
+    assert!(
+        database
+            .publish_metadata_snapshot(&input, &capabilities(), ProtocolReply::Result(valid), 2)
+            .is_err()
+    );
+    assert_eq!(
+        database
+            .current_metadata_snapshot("project")
+            .unwrap()
+            .unwrap()
+            .header()
+            .id,
+        saved.id
     );
 }
 

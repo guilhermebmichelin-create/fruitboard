@@ -22,6 +22,47 @@ export function savedDetails(): Extract<
     state: "available",
     snapshotId: "12345678-1234-1234-1234-123456789abc",
     outcome: "partial",
+    channels: [
+      {
+        position: 1,
+        name: {
+          status: "extracted",
+          value: "Fixture Synth A",
+          explanation: null,
+        },
+        instrument: { status: "extracted", value: "3x Osc", explanation: null },
+      },
+      {
+        position: 2,
+        name: {
+          status: "inferred",
+          value: "Sampler",
+          explanation:
+            "High confidence. FL Studio's default Sampler label for this verified build; no channel label was stored.",
+        },
+        instrument: {
+          status: "inferred",
+          value: "Sampler",
+          explanation:
+            "High confidence. Built-in Sampler inferred from the verified saved channel type and empty generator class.",
+        },
+      },
+      {
+        position: 3,
+        name: {
+          status: "inferred",
+          value: "Sampler 2",
+          explanation:
+            "Medium confidence. Default Sampler numbering follows FL Studio's display convention; no channel label was stored.",
+        },
+        instrument: {
+          status: "unsupported",
+          value: null,
+          explanation:
+            "This instrument class is not verified. The channel label does not identify its plugin.",
+        },
+      },
+    ],
     facts: PROJECT_FACT_KEYS.map((key, index) => ({
       key,
       status: index >= 7 ? "inferred" : "extracted",
