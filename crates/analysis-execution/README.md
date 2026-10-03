@@ -24,7 +24,7 @@ Its Windows authority opens the selected file and all ancestors without
 reparses, verifies fixed local NTFS and the recorded volume/file identity, and
 rejects offline/recall attributes before content reads. Legacy observations
 without qualified identity fail closed until an authoritative scan supplies it.
-Only files within the selected enabled `local_ntfs` root and the existing 4 MiB
+Only files within the selected enabled `local_ntfs` root and the shared 64 MiB
 parser cap qualify. Drive virtual roots never qualify. Other platforms use
 portable injected ports in tests and have no native content-reading authority.
 

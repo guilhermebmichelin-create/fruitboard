@@ -60,6 +60,11 @@ fn versioned_protocol_handles_multiple_requests_without_stderr() {
             .contains(&json!("patternCount"))
     );
     assert_eq!(responses[0]["result"]["maxPatterns"], 1024);
+    assert_eq!(responses[0]["result"]["maxFileBytes"], 67_108_864);
+    assert_eq!(responses[0]["result"]["maxEventBytes"], 67_108_864);
+    assert!(
+        fruitboard_flp_parser::validation::validate_descriptor(&responses[0]["result"]).is_ok()
+    );
     assert_eq!(responses[0]["result"]["maxPlaylistClips"], 1024);
     for field in ["playlistPatternEndTick", "playlistPatternNominalSeconds"] {
         assert!(

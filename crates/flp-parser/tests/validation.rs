@@ -78,10 +78,16 @@ fn capabilities_require_known_identity_initial_fields_and_safe_resource_ceilings
                 "savedVersion"
             ]),
         ),
-        ("maxFileBytes", json!(4194305)),
+        (
+            "maxFileBytes",
+            json!(fruitboard_flp_parser::MAX_FILE_BYTES + 1),
+        ),
         ("maxEvents", json!(100001)),
         ("maxChannels", json!(257)),
-        ("maxEventBytes", json!(2097153)),
+        (
+            "maxEventBytes",
+            json!(fruitboard_flp_parser::MAX_EVENT_BYTES + 1),
+        ),
         ("maxPatterns", json!(1025)),
         ("maxPlaylistClips", json!(1025)),
         ("maxChannels", json!(0)),

@@ -116,7 +116,7 @@ fn respond(line: &[u8]) -> Value {
             "fields":["savedVersion","baseTempoBpm","channelCount","patternCount","patternNames","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","pluginReferences","filesystemCreatedAtMs"],
             "maxFileBytes":MAX_FILE_BYTES, "maxEvents":100_000,
             "maxChannels":256, "maxPatterns":MAX_PATTERNS, "maxPlaylistClips":MAX_PLAYLIST_CLIPS,
-            "maxEventBytes":2 * 1024 * 1024
+            "maxEventBytes":fruitboard_flp_parser::MAX_EVENT_BYTES
         }),
         "healthCheck" if request.params.is_none() => json!({"status":"ok"}),
         "parse" => {

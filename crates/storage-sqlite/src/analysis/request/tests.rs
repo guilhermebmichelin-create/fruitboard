@@ -252,6 +252,54 @@ fn unqualified_and_oversized_sources_cannot_be_requested() {
 }
 
 #[test]
+fn ordinary_sizes_and_exact_ceiling_can_be_discovered_or_explicitly_requested() {
+    for size in [4_601_596, 25_000_000, MAX_FILE_BYTES] {
+        for explicit in [false, true] {
+            let (_dir, mut db, input) = fixture();
+            db.connection
+                .execute("UPDATE file_location SET byte_size=?1", [size as i64])
+                .unwrap();
+            db.connection
+                .execute("UPDATE project_file SET byte_size=?1", [size as i64])
+                .unwrap();
+            let input = fresh(&db, &input);
+            let key = ready(&db, &input);
+            if explicit {
+                assert_eq!(
+                    db.request_analysis_job(&input, &key, 2).unwrap(),
+                    AnalysisRequestOutcome::Queued
+                );
+            } else {
+                db.discover_analysis_jobs(None, 128, 2).unwrap();
+            }
+            let queued = db.analysis_status("location").unwrap().unwrap();
+            assert_eq!(queued.state, AnalysisState::Queued);
+            assert_eq!(queued.attempt, 0);
+        }
+    }
+    let (_dir, mut db, input) = fixture();
+    db.connection
+        .execute(
+            "UPDATE file_location SET byte_size=?1",
+            [MAX_FILE_BYTES as i64 + 1],
+        )
+        .unwrap();
+    db.connection
+        .execute(
+            "UPDATE project_file SET byte_size=?1",
+            [MAX_FILE_BYTES as i64 + 1],
+        )
+        .unwrap();
+    let input = fresh(&db, &input);
+    db.discover_analysis_jobs(None, 128, 2).unwrap();
+    assert!(db.analysis_status("location").unwrap().is_none());
+    assert!(matches!(
+        db.analysis_request(&input).unwrap(),
+        AnalysisRequest::Blocked(AnalysisRequestBlock::TooLarge)
+    ));
+}
+
+#[test]
 fn explicit_cancellation_retry_does_not_reset_started_attempts() {
     let (_dir, mut db, input) = fixture();
     let session = db.start_analysis_session(1).unwrap();

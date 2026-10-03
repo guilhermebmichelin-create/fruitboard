@@ -23,7 +23,12 @@ receive `UNSUPPORTED_SCHEMA_VERSION`.
 The only optional feature list is `["basic-metadata"]`. Every
 response carries the request ID; malformed requests receive a fixed error
 code. Requests are capped at 64 KiB and responses at 256 KiB. The parser caps
-files at 4 MiB, event payloads at 2 MiB, events at 100,000, and channels at 256. Unique saved patterns and playlist clips are each capped at 1024. Only the three exact saved builds
+files at 64 MiB (67,108,864 bytes), events at 100,000, and channels at 256.
+Event 213 (saved plugin data) may occupy the file budget: opaque state and path
+subrecords are skipped by checked lengths, with at most 1024 wrapper subrecords
+and unchanged name/vendor text bounds. Other event payloads remain capped at
+2 MiB. No plugin state is loaded or returned. Unique saved patterns and playlist
+clips are each capped at 1024. Only the three exact saved builds
 in the approved corpus currently return
 metadata; other build strings receive `UNSUPPORTED_SAVED_VERSION`.
 

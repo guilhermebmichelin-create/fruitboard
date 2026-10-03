@@ -30,6 +30,14 @@ must therefore be treated as evolving and partially understood.
 
 ## Non-destructive contract
 
+The selected parser accepts files up to 64 MiB (67,108,864 bytes). This replaces
+the initial 4 MiB development ceiling, which blocked the owner's 4.6 MB project
+before an attempt could start. Saved plugin-data event 213 can occupy the file
+budget; opaque state is skipped by checked lengths. Other event payloads retain
+their 2 MiB ceiling, and count, text, output, authorization and freshness bounds
+remain in force. Constructed large-input tests verify this resource policy;
+they do not extend the GUI-verified saved-build compatibility matrix.
+
 The production parser surface contains no `save`, mutate, repair, zip, plugin
 load, DLL load, or script execution operation.
 

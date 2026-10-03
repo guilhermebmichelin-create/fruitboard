@@ -424,13 +424,41 @@ fn worker_transport_failure_requeues_once_and_shutdown_cancellation_stops_before
 #[test]
 #[ignore = "requires freshly built FRUITBOARD_ANALYSIS_TEST_PARSER; run by Windows feature CI and local validation"]
 fn native_analysis_uses_real_parser_and_holds_source_through_publication() {
+    run_native_analysis(bytes());
+}
+
+#[cfg(windows)]
+#[test]
+#[ignore = "requires freshly built FRUITBOARD_ANALYSIS_TEST_PARSER; run by Windows feature CI and local validation"]
+fn native_analysis_accepts_ordinary_project_sizes_through_publication() {
+    for size in [4_601_596, 25_000_000] {
+        let mut payload = bytes();
+        let state_length = size - payload.len() - 5;
+        payload.push(213);
+        let mut length = state_length;
+        loop {
+            let byte = (length & 127) as u8;
+            length >>= 7;
+            payload.push(byte | if length == 0 { 0 } else { 128 });
+            if length == 0 {
+                break;
+            }
+        }
+        payload.resize(size, 0xa5);
+        payload[18..22].copy_from_slice(&((size - 22) as u32).to_le_bytes());
+        run_native_analysis(payload);
+    }
+}
+
+#[cfg(windows)]
+fn run_native_analysis(payload: Vec<u8>) {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Storage::FileSystem::GetFileInformationByHandleEx;
     let directory = Directory::new();
     let root = directory.0.join("Projects 音");
     std::fs::create_dir(&root).unwrap();
     let path = root.join("sample.flp");
-    std::fs::write(&path, bytes()).unwrap();
+    std::fs::write(&path, &payload).unwrap();
     let file = std::fs::File::open(&path).unwrap();
     let metadata = file.metadata().unwrap();
     #[repr(C)]
@@ -466,9 +494,9 @@ fn native_analysis_uses_real_parser_and_holds_source_through_publication() {
         )
         .unwrap(),
         identity: Some((id.volume, u128::from_le_bytes(id.id))),
-        sha256: sha256_hex(&bytes()),
+        sha256: sha256_hex(&payload),
     };
-    let (db, _, location, session) = seed(&directory.0, root.to_str().unwrap(), &observed);
+    let (db, scan_root, location, session) = seed(&directory.0, root.to_str().unwrap(), &observed);
     let lease = lease(&db, &session);
     let token = CancellationToken::default();
     let mut guard = native::WindowsAuthority
@@ -493,7 +521,7 @@ fn native_analysis_uses_real_parser_and_holds_source_through_publication() {
         ExecutionOutcome::Complete
     );
     worker.shutdown().unwrap();
-    assert_eq!(std::fs::read(&path).unwrap(), bytes());
+    assert_eq!(std::fs::read(&path).unwrap(), payload);
     assert_eq!(
         db.lock()
             .unwrap()
@@ -503,5 +531,24 @@ fn native_analysis_uses_real_parser_and_holds_source_through_publication() {
             .state,
         AnalysisState::Complete
     );
+    {
+        let database = db.lock().unwrap();
+        let input = database
+            .capture_metadata_input(&scan_root.id, &location)
+            .unwrap();
+        let snapshot = database
+            .current_metadata_snapshot(input.project_file_id())
+            .unwrap()
+            .unwrap();
+        assert_eq!(snapshot.header().input_byte_size, observed.byte_size);
+        assert_eq!(
+            snapshot.header().input_content_sha256.as_deref(),
+            Some(observed.sha256.as_str())
+        );
+        let saved: serde_json::Value =
+            serde_json::from_str(snapshot.payload_json().unwrap()).unwrap();
+        assert_eq!(saved["savedVersion"], "26.1.0.5530");
+        assert_eq!(saved["channelCount"], 1);
+    }
     std::fs::rename(&root, directory.0.join("Moved")).unwrap();
 }
