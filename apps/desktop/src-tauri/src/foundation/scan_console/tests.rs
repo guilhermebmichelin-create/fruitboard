@@ -416,6 +416,74 @@ fn error_code<T: Serialize>(envelope: crate::foundation::CommandEnvelope<T>) -> 
 
 #[test]
 #[cfg(feature = "analysis-jobs")]
+fn project_details_displays_approved_saved_sample_text_without_file_resolution_or_logging() {
+    use crate::foundation::project_details::handle_get_project_details;
+    use fruitboard_flp_parser::supervisor::ProtocolReply;
+    use fruitboard_flp_parser::validation::validate_descriptor;
+    use fruitboard_flp_parser::{ADAPTER_ID, ADAPTER_VERSION, parse_bytes, sha256_hex};
+    let harness = Harness::new("saved-sample-reference");
+    let (runtime, logs) = test_runtime();
+    let bytes = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../fixtures/parser-corpus/FIX-FL2026-SAMPLE.flp"),
+    )
+    .unwrap();
+    handle_scan_now(
+        &runtime,
+        &harness.service,
+        scan_now_request(&harness.root_id),
+    );
+    let mut entry = file_entry("sample.flp", 800);
+    entry.size = bytes.len() as u64;
+    harness.tick(tree(vec![entry]));
+    let page = ok_data(handle_get_library_page(
+        &runtime,
+        &harness.service,
+        page_request(&harness.root_id, 10, None, None),
+    ));
+    let row = &page["records"][0];
+    let request = json!({"schemaVersion":1,"rootId":harness.root_id,"locationId":row["locationId"],"expectedByteSize":row["byteSize"],"expectedModifiedAt":row["modifiedAt"]});
+    {
+        let mut db = harness.database.lock().unwrap();
+        let input = db
+            .capture_metadata_input(&harness.root_id, row["locationId"].as_str().unwrap())
+            .unwrap();
+        let capabilities = validate_descriptor(&json!({"adapter":ADAPTER_ID,"adapterVersion":ADAPTER_VERSION,"fields":["savedVersion","baseTempoBpm","channelCount","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars"],"maxFileBytes":4194304,"maxEvents":100000,"maxChannels":256,"maxEventBytes":2097152,"maxPatterns":1024,"maxPlaylistClips":1024})).unwrap();
+        let mut reply = parse_bytes(&bytes);
+        reply["filesystemCreatedAtMs"] =
+            json!({"status":"unavailable","reason":"FILESYSTEM_CREATION_TIME_UNAVAILABLE"});
+        reply["inputFingerprint"] = json!({"size":bytes.len(),"modifiedAtMs":DEFAULT_MTIME_NS / 1_000_000,"hash":{"algorithm":"sha256","value":sha256_hex(&bytes)}});
+        db.publish_metadata_snapshot(&input, &capabilities, ProtocolReply::Result(reply), T0_MS)
+            .unwrap();
+    }
+    let read = |request| {
+        ok_data(handle_get_project_details(
+            &runtime,
+            &harness.database,
+            Some(request),
+            true,
+        ))
+    };
+    let first = read(request.clone());
+    let expected = "C:\\Users\\Public\\Documents\\FruitboardFixtures\\F12\\fixture-silence.wav";
+    assert_eq!(
+        first["sampleReferences"],
+        json!([{ "position":1,"status":"extracted","value":expected }])
+    );
+    assert_eq!(read(request.clone())["snapshotId"], first["snapshotId"]);
+    assert!(first["sampleReferences"][0].get("exists").is_none());
+    assert!(first["sampleReferences"][0].get("resolvedPath").is_none());
+    let mut mismatched = request.clone();
+    mismatched["expectedByteSize"] = json!("1");
+    assert!(read(mismatched).get("sampleReferences").is_none());
+    harness.set_root_enabled(&harness.root_id, false);
+    assert!(read(request).get("sampleReferences").is_none());
+    assert!(!format!("{:?}", logs.events()).contains(expected));
+    assert!(!format!("{:?}", logs.events()).contains("fixture-silence"));
+}
+
+#[test]
+#[cfg(feature = "analysis-jobs")]
 fn project_details_resolves_authorized_current_metadata_and_fences_displayed_rows() {
     use crate::foundation::project_details::handle_get_project_details;
     use fruitboard_flp_parser::supervisor::ProtocolReply;

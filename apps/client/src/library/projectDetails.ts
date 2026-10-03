@@ -1,6 +1,10 @@
 import { LibraryAdapterError, type PublishedFileLocation } from "./contracts";
 import { parseProjectAnalysis, type ProjectAnalysis } from "./projectAnalysis";
 import {
+  parseProjectSamples,
+  type ProjectSampleReference,
+} from "./sampleReferences";
+import {
   parseProjectAnalysisRequest,
   type ProjectAnalysisRequest,
 } from "./projectAnalysisRequest";
@@ -51,6 +55,7 @@ export type ProjectDetails = {
       readonly outcome: "complete" | "partial";
       readonly facts: readonly ProjectFact[];
       readonly channels: readonly ProjectChannel[];
+      readonly sampleReferences?: readonly ProjectSampleReference[];
       readonly analysis?: ProjectAnalysis;
       readonly warnings?: readonly "unverified_events"[];
       readonly analysisRequest?: ProjectAnalysisRequest;
@@ -81,6 +86,7 @@ export function parseProjectDetails(
       value["facts"] !== undefined ||
       value["snapshotId"] !== undefined ||
       value["channels"] !== undefined ||
+      value["sampleReferences"] !== undefined ||
       value["warnings"] !== undefined ||
       (state === "disabled" && value["analysis"] !== undefined) ||
       (state === "disabled" && value["analysisRequest"] !== undefined)
@@ -246,6 +252,14 @@ export function parseProjectDetails(
     outcome: value["outcome"] as "complete" | "partial",
     facts,
     channels: selectedChannels,
+    ...(value["sampleReferences"] === undefined
+      ? {}
+      : {
+          sampleReferences: parseProjectSamples(
+            value["sampleReferences"],
+            selectedChannels.length,
+          ),
+        }),
     ...(value["analysisRequest"] === undefined
       ? {}
       : {

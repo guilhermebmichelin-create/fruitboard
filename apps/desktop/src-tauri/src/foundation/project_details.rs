@@ -11,6 +11,8 @@ use std::sync::{Arc, Mutex};
 mod analysis;
 #[cfg(feature = "analysis-jobs")]
 mod channels;
+#[cfg(feature = "analysis-jobs")]
+mod samples;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -53,6 +55,8 @@ enum Content {
         analysis: analysis::Summary,
         warnings: Vec<&'static str>,
         analysis_request: super::project_analysis::RequestInfo,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sample_references: Option<Vec<samples::SampleReference>>,
     },
 }
 
@@ -163,7 +167,8 @@ fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<
     if header.projection_version != 1 {
         return Err(());
     }
-    let (facts, channels, warnings) = project(snapshot.payload_json().ok_or(())?)?;
+    let (facts, channels, warnings, sample_references) =
+        project(snapshot.payload_json().ok_or(())?)?;
     Ok(Content::Available {
         snapshot_id: header.id.clone(),
         outcome: header.outcome.as_str(),
@@ -172,11 +177,17 @@ fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<
         analysis,
         warnings,
         analysis_request,
+        sample_references,
     })
 }
 
 #[cfg(feature = "analysis-jobs")]
-type DisplayProjection = (Vec<Fact>, Vec<channels::Channel>, Vec<&'static str>);
+type DisplayProjection = (
+    Vec<Fact>,
+    Vec<channels::Channel>,
+    Vec<&'static str>,
+    Option<Vec<samples::SampleReference>>,
+);
 
 #[cfg(feature = "analysis-jobs")]
 fn project(payload: &str) -> Result<DisplayProjection, ()> {
@@ -225,6 +236,7 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
     ] {
         facts.push(scalar(key, &value[key])?);
     }
+    let sample_references = samples::project(value.get("sampleReferences"), channels as usize)?;
     let channels = channels::project(&value, version, channels as usize)?;
     let warnings = match value.get("diagnostics") {
         None => Vec::new(),
@@ -240,7 +252,7 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
             }
         }
     };
-    Ok((facts, channels, warnings))
+    Ok((facts, channels, warnings, sample_references))
 }
 
 #[cfg(feature = "analysis-jobs")]
@@ -513,13 +525,13 @@ mod tests {
             "playlistPatternSpanBars":{"status":"inferred","value":2.0,"method":"pattern-clip-span-at-verified-meter","confidence":"low"},
             "playlistPatternNominalSeconds":{"status":"inferred","value":4.0,"method":"constant-base-tempo-over-pattern-clips","confidence":"low","assumptions":["tempo remains at base BPM","only verified pattern clips define span"]},
             "channelNames":{"status":"extracted","items":[{"status":"extracted","value":"Kick"},{"status":"extracted","value":"Bass"},{"status":"extracted","value":"Lead"}]},
-            "sampleReferences":{"items":["C:\\Private\\sample.wav"]},"untrustedExtension":"must not escape"})
+            "untrustedExtension":"must not escape"})
     }
 
     #[test]
     #[cfg(feature = "analysis-jobs")]
     fn projection_preserves_status_assumptions_and_exact_integers_without_raw_extensions() {
-        let (facts, _, _) = project(&payload().to_string()).unwrap();
+        let (facts, _, _, _) = project(&payload().to_string()).unwrap();
         let serialized = serde_json::to_value(facts).unwrap();
         assert_eq!(serialized.as_array().unwrap().len(), 9);
         assert_eq!(serialized[4]["value"], u64::MAX.to_string());
@@ -566,7 +578,7 @@ mod tests {
     #[cfg(feature = "analysis-jobs")]
     fn channel_projection_reads_old_snapshots_and_rejects_invalid_names_or_instrument_claims() {
         let raw = payload();
-        let (_, channels, _) = project(&raw.to_string()).unwrap();
+        let (_, channels, _, _) = project(&raw.to_string()).unwrap();
         let channels = serde_json::to_value(channels).unwrap();
         assert_eq!(channels[0]["name"]["value"], "Kick");
         assert_eq!(channels[0]["instrument"]["status"], "unsupported");
