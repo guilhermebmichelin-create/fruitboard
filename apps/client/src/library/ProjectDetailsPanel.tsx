@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { LibraryScanAdapter, PublishedFileLocation } from "./contracts";
 import { ProjectChannels } from "./ProjectChannels";
+import { ProjectSamples } from "./ProjectSamples";
 import { ProjectAnalysisStatus } from "./ProjectAnalysisStatus";
 import { ProjectAnalysisAction } from "./ProjectAnalysisAction";
 import {
@@ -189,6 +190,10 @@ export function ProjectDetailsPanel({
                   ))}
                 </dl>
                 <ProjectChannels channels={state.details.channels} />
+                <ProjectSamples
+                  key={state.details.snapshotId}
+                  samples={state.details.sampleReferences}
+                />
               </>
             ))}
         </section>
