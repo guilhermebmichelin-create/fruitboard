@@ -71,12 +71,28 @@ read; rendered checks above; all final-head CI before owner manual merge.
 Local native tests pass 132 tests and client tests pass 278 tests. The native
 integration displays the exact pre-registered reference from the approved F12
 fixture without resolving it and verifies it stays out of logs. No new fixture,
-dependency, migration, parser support or production activation is added.
+runtime dependency, migration, parser support or production activation is added.
 The full pinned Windows `pnpm check` and enabled all-target warning-denied
 Clippy pass. The independent older database read also passes; its 262,144-byte
 hash and all 12 approved FLP hashes are unchanged. Rendered checks pass.
 Sample resolution, audio actions, Plugin Explorer, broader compatibility and
 installed/performance qualification remain separate work.
+
+### Required security-check prerequisite
+
+The first CI run failed its unchanged high-severity npm audit on the
+[braces stack-exhaustion advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm),
+reviewed on 2026-10-02 with no patched release listed. A separate prerequisite
+commit replaces the development-only `markdownlint-cli2` 0.23.2 wrapper with
+`markdownlint-cli` 0.49.1, removing `braces` and `micromatch` from the lockfile.
+The Markdown engine remains 0.41.1, MD013 remains disabled, dot directories are
+included and dependency/tool/cache exclusions remain the same. The root
+configuration moves to `.markdownlint.json` using the replacement tool's format.
+The application dependency resolutions, CI commands, audit threshold and branch
+protection remain unchanged. Before/after enumeration covers the identical 123
+documents; positive/negative fixtures verify long-line configuration, root,
+nested and hidden heading failures and all exclusions. Frozen installation,
+the high-severity audit and the full project checks pass after the replacement.
 
 Codex `/root` owns the existing reusable temporary cache and its sequential
 heavyweight window. The private handoff records absolute paths, hashes and
