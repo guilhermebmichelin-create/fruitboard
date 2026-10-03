@@ -12,6 +12,8 @@ mod analysis;
 #[cfg(feature = "analysis-jobs")]
 mod channels;
 #[cfg(feature = "analysis-jobs")]
+mod plugins;
+#[cfg(feature = "analysis-jobs")]
 mod samples;
 
 #[derive(Deserialize)]
@@ -57,6 +59,8 @@ enum Content {
         analysis_request: super::project_analysis::RequestInfo,
         #[serde(skip_serializing_if = "Option::is_none")]
         sample_references: Option<Vec<samples::SampleReference>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        plugin_references: Option<plugins::PluginReferences>,
     },
 }
 
@@ -167,7 +171,7 @@ fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<
     if header.projection_version != 1 {
         return Err(());
     }
-    let (facts, channels, warnings, sample_references) =
+    let (facts, channels, warnings, sample_references, plugin_references) =
         project(snapshot.payload_json().ok_or(())?)?;
     Ok(Content::Available {
         snapshot_id: header.id.clone(),
@@ -178,6 +182,7 @@ fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<
         warnings,
         analysis_request,
         sample_references,
+        plugin_references,
     })
 }
 
@@ -187,6 +192,7 @@ type DisplayProjection = (
     Vec<channels::Channel>,
     Vec<&'static str>,
     Option<Vec<samples::SampleReference>>,
+    Option<plugins::PluginReferences>,
 );
 
 #[cfg(feature = "analysis-jobs")]
@@ -237,6 +243,7 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
         facts.push(scalar(key, &value[key])?);
     }
     let sample_references = samples::project(value.get("sampleReferences"), channels as usize)?;
+    let plugin_references = plugins::project(value.get("pluginReferences"), version)?;
     let channels = channels::project(&value, version, channels as usize)?;
     let warnings = match value.get("diagnostics") {
         None => Vec::new(),
@@ -252,7 +259,13 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
             }
         }
     };
-    Ok((facts, channels, warnings, sample_references))
+    Ok((
+        facts,
+        channels,
+        warnings,
+        sample_references,
+        plugin_references,
+    ))
 }
 
 #[cfg(feature = "analysis-jobs")]
@@ -531,7 +544,7 @@ mod tests {
     #[test]
     #[cfg(feature = "analysis-jobs")]
     fn projection_preserves_status_assumptions_and_exact_integers_without_raw_extensions() {
-        let (facts, _, _, _) = project(&payload().to_string()).unwrap();
+        let (facts, _, _, _, _) = project(&payload().to_string()).unwrap();
         let serialized = serde_json::to_value(facts).unwrap();
         assert_eq!(serialized.as_array().unwrap().len(), 9);
         assert_eq!(serialized[4]["value"], u64::MAX.to_string());
@@ -578,7 +591,7 @@ mod tests {
     #[cfg(feature = "analysis-jobs")]
     fn channel_projection_reads_old_snapshots_and_rejects_invalid_names_or_instrument_claims() {
         let raw = payload();
-        let (_, channels, _, _) = project(&raw.to_string()).unwrap();
+        let (_, channels, _, _, _) = project(&raw.to_string()).unwrap();
         let channels = serde_json::to_value(channels).unwrap();
         assert_eq!(channels[0]["name"]["value"], "Kick");
         assert_eq!(channels[0]["instrument"]["status"], "unsupported");

@@ -980,6 +980,7 @@
   }
 
   .project-channels,
+  .project-plugins,
   .project-samples {
     margin-block-start: var(--space-6);
     min-inline-size: 0;
@@ -987,16 +988,20 @@
   .project-channels h5,
   .project-channels h6,
   .project-samples h5,
+  .project-plugins h5,
+  .project-plugins h6,
   .project-samples h6 {
     margin: 0;
     font-size: var(--font-size-body);
   }
   .project-channels__note,
+  .project-plugins__note,
   .project-samples__note {
     max-inline-size: 70ch;
     color: var(--color-text-muted);
   }
   .project-channels__list,
+  .project-plugins__list,
   .project-samples__list {
     list-style: none;
     padding: 0;
@@ -1005,17 +1010,20 @@
     gap: var(--space-4);
   }
   .project-channels__list > li,
+  .project-plugins__list > li,
   .project-samples__list > li {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-medium);
     padding: var(--space-4);
     min-inline-size: 0;
   }
-  .project-channels__list .project-details__facts {
+  .project-channels__list .project-details__facts,
+  .project-plugins__list .project-details__facts {
     margin-block-start: var(--space-3);
   }
 
-  .project-samples__reference {
+  .project-samples__reference,
+  .project-plugins__text {
     overflow-wrap: anywhere;
     white-space: pre-wrap;
     min-inline-size: 0;

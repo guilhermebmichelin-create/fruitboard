@@ -490,7 +490,7 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
     use fruitboard_flp_parser::validation::validate_descriptor;
     use fruitboard_flp_parser::{ADAPTER_ID, ADAPTER_VERSION, parse_bytes, sha256_hex};
     let harness = Harness::new("project-details");
-    let (runtime, _) = test_runtime();
+    let (runtime, logs) = test_runtime();
     let bytes = std::fs::read(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../../fixtures/parser-corpus/FIX-FL2026-3XOSC.flp"),
@@ -572,12 +572,44 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
         db.publish_metadata_snapshot(&input, &capabilities, ProtocolReply::Result(reply), T0_MS)
             .unwrap();
     }
+    let saved_payload = || {
+        let db = harness.database.lock().unwrap();
+        let input = db
+            .capture_metadata_input(&harness.root_id, row["locationId"].as_str().unwrap())
+            .unwrap();
+        db.current_metadata_snapshot(input.project_file_id())
+            .unwrap()
+            .unwrap()
+            .payload_json()
+            .unwrap()
+            .to_owned()
+    };
+    let before = saved_payload();
     let details = read(request.clone());
+    assert_eq!(before, saved_payload());
     assert_eq!(details["state"], "available");
     assert_eq!(
         details["analysis"],
         json!({"state":"failed","attempts":1,"reason":"source_unavailable"})
     );
+    let plugins = &details["pluginReferences"];
+    assert_eq!(plugins["coverage"], "top-level-saved-references");
+    assert_eq!(plugins["items"].as_array().unwrap().len(), 2);
+    assert_eq!(plugins["items"][0]["position"], 1);
+    assert_eq!(
+        plugins["items"][0]["name"],
+        json!({"status":"inferred","value":"Sampler","method":"sampler-default-for-known-build","confidence":"high"})
+    );
+    assert_eq!(plugins["items"][1]["className"]["value"], "3x Osc");
+    assert_eq!(plugins["items"][1]["name"]["value"], "3x Osc");
+    assert_eq!(
+        plugins["items"][1]["vendor"],
+        json!({"status":"unavailable","value":null,"reason":"PLUGIN_VENDOR_NOT_STORED"})
+    );
+    assert!(!plugins.to_string().contains("path"));
+    let events = format!("{:?}", logs.events());
+    assert!(!events.contains("3x Osc"));
+    assert!(!events.contains("Sampler"));
     assert!(details["warnings"].is_array());
     assert!(details["analysis"].get("jobId").is_none());
     assert!(details["analysis"].get("snapshotId").is_none());
@@ -596,12 +628,16 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
     assert_eq!(read(mismatched)["analysis"]["state"], "not_current");
     let mut mismatched = request.clone();
     mismatched["expectedByteSize"] = json!("1");
-    assert_eq!(read(mismatched)["analysis"]["state"], "not_current");
+    let stale = read(mismatched);
+    assert_eq!(stale["analysis"]["state"], "not_current");
+    assert!(stale.get("pluginReferences").is_none());
     let mut mismatched = request.clone();
     mismatched["expectedModifiedAt"] = json!("2026-01-02T00:00:00Z");
     assert_eq!(read(mismatched)["analysis"]["state"], "not_current");
     harness.set_root_enabled(&harness.root_id, false);
-    assert_eq!(read(request.clone())["analysis"]["state"], "not_current");
+    let disabled = read(request.clone());
+    assert_eq!(disabled["analysis"]["state"], "not_current");
+    assert!(disabled.get("pluginReferences").is_none());
     harness.set_root_enabled(&harness.root_id, true);
     assert_eq!(read(request.clone())["state"], "no_current");
     handle_scan_now(
