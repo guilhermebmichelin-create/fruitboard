@@ -103,3 +103,11 @@ deletion; reuse the same cache for subsequent work.
 Installed-app workflow/compatibility review, performance qualification,
 production activation, Plugin Explorer, installed-plugin discovery and broader
 parser support remain separate work.
+
+## Installed integration follow-up
+
+The [installed Library workflow report](../installed-library-details-252/README.md)
+records the bounded integration run on merged PR #251 source `2d5c769`.
+It adds actual installed evidence for the approved fixture workflow and recovery;
+the constructed wrapper examples above remain browser/validator evidence.
+Performance qualification, production activation and Plugin Explorer remain open.
