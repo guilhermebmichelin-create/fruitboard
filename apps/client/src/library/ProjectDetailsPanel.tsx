@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { LibraryScanAdapter, PublishedFileLocation } from "./contracts";
 import { ProjectChannels } from "./ProjectChannels";
 import { ProjectSamples } from "./ProjectSamples";
+import { ProjectPlugins } from "./ProjectPlugins";
 import { ProjectAnalysisStatus } from "./ProjectAnalysisStatus";
 import { ProjectAnalysisAction } from "./ProjectAnalysisAction";
 import {
@@ -193,6 +194,10 @@ export function ProjectDetailsPanel({
                 <ProjectSamples
                   key={state.details.snapshotId}
                   samples={state.details.sampleReferences}
+                />
+                <ProjectPlugins
+                  key={state.details.snapshotId}
+                  plugins={state.details.pluginReferences}
                 />
               </>
             ))}
