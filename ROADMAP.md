@@ -243,6 +243,15 @@ parser implementation as incidental scanner work.
 
 ## Phase 3 proposed issues and PRs
 
+The [FLP intelligence readiness packet](docs/review/flp-intelligence-readiness/README.md)
+maps the delivered bounded development workflow through merged PR261 to the
+proposed scope below. Its maintained field matrix distinguishes parser-only
+extensions, app-visible facts and independently verified compatibility. Resource
+budgets and the full Phase 3 exit remain unaccepted; no roadmap item is silently
+removed and no later-phase entry is authorized by merging that packet. The next
+focused implementation proposal is validated, persisted and displayed pattern
+count/names using the unchanged approved F13 fixture.
+
 ### Epic: Phase 3 — FLP intelligence
 
 1. Parser compatibility matrix and approved fixture manifest as a maintained
