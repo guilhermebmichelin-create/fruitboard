@@ -81,3 +81,8 @@ and recovery are tested from schema 10 to 11. No new corpus data is committed.
 Metadata presentation, explicit retry controls, production enablement,
 compatibility coverage, signing/distribution, and performance qualification
 remain later slices. This implementation makes no throughput claim.
+
+Opt-in native release resource probes and their explicitly limited measurements
+are documented in [the issue #258 resource report](../../docs/review/metadata-resources-258/README.md).
+These probes use constructed fixtures and fresh databases; they do not accept a
+performance budget or replace installed-app qualification.

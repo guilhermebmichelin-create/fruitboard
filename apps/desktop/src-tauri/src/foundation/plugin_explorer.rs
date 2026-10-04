@@ -212,3 +212,6 @@ fn project(read: ExplorerRead) -> Result<Content, ()> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(all(test, windows, feature = "analysis-jobs"))]
+mod resource_probe;
