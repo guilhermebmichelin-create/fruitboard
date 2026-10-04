@@ -82,7 +82,8 @@ pub(crate) fn capture(
     location_id: &str,
 ) -> Result<MetadataInput> {
     let input = connection
-        .query_row(SELECT_INPUT, params![root_id, location_id], |row| {
+        .prepare_cached(SELECT_INPUT)?
+        .query_row(params![root_id, location_id], |row| {
             Ok(MetadataInput {
                 root_id: row.get(0)?,
                 location_id: row.get(1)?,
@@ -270,8 +271,9 @@ impl Database {
         })
     }
     pub fn metadata_snapshot(&self, id: &str) -> Result<Option<MetadataSnapshot>> {
-        let selected = self.connection.query_row(
+        let selected = self.connection.prepare_cached(
             &format!("SELECT {HEADER_COLUMNS}, CASE WHEN length(CAST(snapshot.payload_json AS BLOB)) <= {MAX_METADATA_JSON_BYTES} THEN snapshot.payload_json ELSE NULL END FROM metadata_snapshot AS snapshot WHERE snapshot.id = ?1"),
+        )?.query_row(
             [id], |row| Ok(MetadataSnapshot { header: read_header(row)?, payload_json: row.get(19)? }),
         ).optional()?;
         if let Some(snapshot) = &selected {
@@ -305,7 +307,9 @@ impl Database {
         &self,
         project_file_id: &str,
     ) -> Result<Option<MetadataSnapshot>> {
-        let id: Option<String> = self.connection.query_row("SELECT snapshot.id
+        // Cache the prepared SQL, never a snapshot or freshness result. Bind
+        // the selected file and recheck every source fence on every read.
+        let id: Option<String> = self.connection.prepare_cached("SELECT snapshot.id
             FROM project_file AS file
             JOIN metadata_snapshot AS snapshot ON snapshot.id = file.current_metadata_snapshot_id
             JOIN file_location AS location ON location.id = snapshot.input_location_id
@@ -317,7 +321,7 @@ impl Database {
               AND file.metadata_revision = snapshot.input_file_revision
               AND location.metadata_revision = snapshot.input_location_revision
               AND file.byte_size = snapshot.input_byte_size AND location.byte_size = snapshot.input_byte_size
-              AND file.modified_at_ns = snapshot.input_modified_at_ns AND location.modified_at_ns = snapshot.input_modified_at_ns", [project_file_id], |row| row.get(0)).optional()?;
+              AND file.modified_at_ns = snapshot.input_modified_at_ns AND location.modified_at_ns = snapshot.input_modified_at_ns")?.query_row([project_file_id], |row| row.get(0)).optional()?;
         id.map(|id| self.metadata_snapshot(&id))
             .transpose()
             .map(Option::flatten)
@@ -339,7 +343,7 @@ impl Database {
         let (time, id) = after.map_or((i64::MAX, "\u{10ffff}"), |cursor| {
             (cursor.parsed_at_ms, cursor.id.as_str())
         });
-        let mut statement = self.connection.prepare(&format!("SELECT {HEADER_COLUMNS} FROM metadata_snapshot AS snapshot
+        let mut statement = self.connection.prepare_cached(&format!("SELECT {HEADER_COLUMNS} FROM metadata_snapshot AS snapshot
             WHERE snapshot.project_file_id = ?1 AND (snapshot.parsed_at_ms, snapshot.id COLLATE BINARY) < (?2, ?3)
             ORDER BY snapshot.parsed_at_ms DESC, snapshot.id COLLATE BINARY DESC LIMIT ?4"))?;
         let mut items = statement
