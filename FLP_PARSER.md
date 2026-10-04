@@ -1,7 +1,8 @@
 # FLP parser architecture and feasibility
 
-Status: **Rust selected for the next production implementation on 2026-09-28;
-compatibility and packaging gates remain open**
+Status: **Rust selected on 2026-09-28; read-only parser and opt-in Windows
+development analysis delivered. Broader compatibility, qualification and
+production distribution gates remain open.**
 
 ## Conclusion
 
@@ -15,6 +16,16 @@ The [corpus manifest](fixtures/parser-corpus/manifest.md) and
 [research results](docs/research/parser-spike-138-inferred-default-result-20260928.md)
 provide the tested source boundary. Arrangements, plugin-state decoding, and
 duration remain outside the initial implementation slice.
+
+Subsequent slices deliver selected pattern-clip estimates, immutable validated
+metadata, native analysis jobs, Library details/retry controls and saved Plugin
+Explorer in the `analysis-jobs` development composition. The default desktop
+remains without automatic FLP parsing. The maintained
+[readiness packet](docs/review/flp-intelligence-readiness/README.md) maps current
+field reliability, merged evidence, proposed resource budgets and remaining
+roadmap work. These deliveries do not accept the full Phase 3 exit or public
+distribution. The component/research notes below retain their original scope;
+the readiness matrix distinguishes parser-only fields from application support.
 
 PyFLP was tested as the comparison candidate. Its stable release returned no
 complete parse on the approved corpus. It remains outside the product, and the
@@ -177,8 +188,9 @@ and channel events, and a bounded version-1 JSON-lines process. Its verified
 saved builds are exactly 24.1.0.4225, 25.1.3.4922, and 26.1.0.5530; other saved
 builds return typed `UNSUPPORTED_SAVED_VERSION` until approved fixtures expand
 coverage. Issue #234 packages the parser in the separate unsigned Windows
-development installer and exercises native lifecycle/recovery checks. The crate
-is not yet wired to scanner analysis jobs or metadata storage.
+development installer and exercises native lifecycle/recovery checks. The opt-in
+development composition now connects it to durable analysis jobs and immutable
+metadata storage; default production activation remains outside this delivery.
 
 The merged pattern-count extension counts distinct stored pattern IDs in
 26.1.0.5530, with a 1024-pattern resource bound. Repeated note/property markers
