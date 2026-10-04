@@ -268,6 +268,17 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
     ))
 }
 
+/// Reuse the complete allowlisted display validation; raw saved JSON is never
+/// passed to Explorer. Only the validated plugin projection leaves this seam.
+#[cfg(feature = "analysis-jobs")]
+pub(super) fn explorer_plugins(payload: &str) -> Result<Option<Value>, ()> {
+    let (_, _, _, _, plugins) = project(payload)?;
+    plugins
+        .map(serde_json::to_value)
+        .transpose()
+        .map_err(|_| ())
+}
+
 #[cfg(feature = "analysis-jobs")]
 fn scalar(key: &'static str, field: &Value) -> Result<Fact, ()> {
     let status = field["status"].as_str().ok_or(())?;

@@ -290,6 +290,10 @@ export interface ScanConsoleState {
 }
 
 export interface LibraryScanAdapter {
+  /** Read-only saved-reference aggregate. Never opens sources or plugins. */
+  getPluginExplorer?(
+    rootId: string,
+  ): Promise<import("./pluginExplorer").PluginExplorerResult>;
   /** Explicit native request; IDs, displayed fingerprint and opaque key only. */
   requestProjectAnalysis?(
     record: Pick<

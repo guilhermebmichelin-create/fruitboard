@@ -17,7 +17,13 @@ pub use metadata::{
     MAX_METADATA_JSON_BYTES, MAX_METADATA_PAGE_SIZE, MetadataCursor, MetadataInput,
     MetadataOutcome, MetadataPage, MetadataSnapshot, MetadataSnapshotHeader,
 };
+#[cfg(feature = "parser-metadata")]
+mod plugin_explorer;
 mod publication;
+#[cfg(feature = "parser-metadata")]
+pub use plugin_explorer::{
+    ExplorerEntry, ExplorerMetadata, ExplorerRead, MAX_EXPLORER_ENTRIES, MAX_EXPLORER_INPUT_BYTES,
+};
 
 pub use error::{DatabaseDetail, Result, StorageError};
 pub use execution::{

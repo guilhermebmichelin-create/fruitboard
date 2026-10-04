@@ -6,7 +6,7 @@ import {
   type ProjectPluginReferences,
 } from "./pluginReferences";
 
-function PluginField({
+export function PluginField({
   label,
   detail,
 }: {

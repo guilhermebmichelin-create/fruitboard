@@ -1,5 +1,6 @@
 import { NATIVE_COMMAND_SCHEMA_VERSION } from "../platform/contracts";
 import { parseProjectDetails } from "./projectDetails";
+import { parsePluginExplorer } from "./pluginExplorer";
 import {
   parseProjectAnalysisRequestResult,
   validAnalysisRequestKey,
@@ -475,7 +476,7 @@ export function parseCancelScanResult(value: unknown): CancelScanResult {
   };
 }
 
-function parseRecord(value: unknown): PublishedFileLocation {
+export function parseRecord(value: unknown): PublishedFileLocation {
   if (!isRecord(value)) throw new LibraryAdapterError("internal");
   const locationId: unknown = value["locationId"];
   const rootId: unknown = value["rootId"];
@@ -660,6 +661,17 @@ export function createNativeLibraryScanAdapter(
           },
         },
         (value) => parseProjectAnalysisRequestResult(value, record),
+      );
+    },
+    async getPluginExplorer(rootId) {
+      if (rootId.length === 0 || rootId.length > 128 || rootId.includes("\0"))
+        throw new LibraryAdapterError("internal");
+      return execute(
+        "get_plugin_explorer",
+        {
+          request: { schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION, rootId },
+        },
+        (value) => parsePluginExplorer(value, rootId, parseRecord),
       );
     },
     async getProjectDetails(

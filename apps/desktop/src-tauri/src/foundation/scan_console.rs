@@ -929,7 +929,7 @@ fn map_job_error_code(code: Option<&str>) -> Option<ErrorCode> {
 }
 
 #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
-fn to_published_file_location(
+pub(super) fn to_published_file_location(
     location: &PublishedLocation,
     root: &ScanRoot,
 ) -> PublishedFileLocation {

@@ -20,6 +20,7 @@
     "allow-list-scan-statuses",
     "allow-get-library-page",
     "allow-get-project-details",
+    "allow-get-plugin-explorer",
     "allow-request-project-analysis",
     "allow-get-scan-console-state",
     "core:event:allow-listen",

@@ -670,6 +670,18 @@ fn get_project_details(
 }
 
 #[tauri::command]
+fn get_plugin_explorer(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<foundation::plugin_explorer::Response> {
+    foundation::plugin_explorer::handle_get_plugin_explorer(
+        &state.commands,
+        &state.preferences.database,
+        request,
+    )
+}
+
+#[tauri::command]
 fn request_project_analysis(
     request: Option<Value>,
     state: tauri::State<'_, NativeFoundation>,
@@ -788,6 +800,7 @@ pub fn run() -> tauri::Result<()> {
             list_scan_statuses,
             get_library_page,
             get_project_details,
+            get_plugin_explorer,
             request_project_analysis,
             get_scan_console_state
         ])

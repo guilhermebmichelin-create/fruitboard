@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
+import { PluginExplorerPanel } from "./PluginExplorerPanel";
 import {
   LIBRARY_PAGE_LIMIT,
   LibraryAdapterError,
@@ -1127,6 +1128,16 @@ function ConnectedLibraryPage({
             ))}
           </select>
         </section>
+      )}
+
+      {selectedStatus !== null && resolvedRootId !== null && (
+        <PluginExplorerPanel
+          key={`${resolvedRootId}:${selectedStatus.root.enabled}:${selectedStatus.root.mode}`}
+          adapter={adapter}
+          rootId={resolvedRootId}
+          rootLabel={selectedStatus.root.displayName}
+          sourceSnapshotId={page?.snapshotId ?? "no-page"}
+        />
       )}
 
       {pageState.kind === "error" && (

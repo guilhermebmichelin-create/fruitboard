@@ -139,6 +139,7 @@ test("desktop capability exposes only health, preference, scan-root, and scan-co
     "allow-list-scan-statuses",
     "allow-get-library-page",
     "allow-get-project-details",
+    "allow-get-plugin-explorer",
     "allow-request-project-analysis",
     "allow-get-scan-console-state",
     "core:event:allow-listen",
@@ -173,6 +174,7 @@ test("desktop capability exposes only health, preference, scan-root, and scan-co
     "list_scan_statuses",
     "get_library_page",
     "get_project_details",
+    "get_plugin_explorer",
     "request_project_analysis",
     "get_scan_console_state",
   ]) {
