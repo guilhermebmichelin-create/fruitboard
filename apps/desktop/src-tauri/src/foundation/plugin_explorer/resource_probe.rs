@@ -153,7 +153,42 @@ fn explorer_resource_probe() {
             samples.push(elapsed);
         }
     }
-    let report = json!({"schema":"fruitboard/native-resource-result/1","probe":"plugin-explorer","entries":count,"state":if count<=2_000 {"ready"}else{"limited"},"baselineMemory":baseline,"runs":runs,"warmCommandAndSerialization":probe::warm_summary(&samples),"savedQueryComparisonMs":200,"completeCountsOrNoPartialResults":true});
+    let mut report = json!({"schema":"fruitboard/native-resource-result/1","probe":"plugin-explorer","entries":count,"state":if count<=2_000 {"ready"}else{"limited"},"baselineMemory":baseline,"runs":runs,"warmCommandAndSerialization":probe::warm_summary(&samples),"savedQueryComparisonMs":200,"completeCountsOrNoPartialResults":true});
+    if std::env::var_os("FRUITBOARD_RESOURCE_EXPLORER_PROFILE").is_some() {
+        // A separate subsequent series: never perturb or replace the full
+        // command samples above. Projection includes its response-budget check.
+        let mut rows = Vec::new();
+        let mut storage_samples = Vec::new();
+        let mut projection_samples = Vec::new();
+        let mut serialization_samples = Vec::new();
+        for index in 0..12 {
+            let start = Instant::now();
+            let read = db.lock().unwrap().read_plugin_explorer(&root.id).unwrap();
+            let storage_ms = start.elapsed().as_secs_f64() * 1_000.0;
+            let start = Instant::now();
+            let content = project(read).unwrap();
+            let projection_ms = start.elapsed().as_secs_f64() * 1_000.0;
+            let envelope = commands.execute("get_plugin_explorer", || {
+                Ok(Response {
+                    root_id: root.id.clone(),
+                    content,
+                })
+            });
+            let start = Instant::now();
+            let serialized = serde_json::to_vec(&envelope).unwrap();
+            let serialization_ms = start.elapsed().as_secs_f64() * 1_000.0;
+            let value: Value = serde_json::from_slice(&serialized).unwrap();
+            assert_eq!(value["status"], "ok");
+            assert_eq!(value["data"]["state"], report["state"]);
+            rows.push(json!({"phase":match index {0=>"first_profile",1=>"warm_up",_=>"measured"},"storageMs":storage_ms,"projectionAndBudgetSerializationMs":projection_ms,"envelopeSerializationMs":serialization_ms}));
+            if index >= 2 {
+                storage_samples.push(storage_ms);
+                projection_samples.push(projection_ms);
+                serialization_samples.push(serialization_ms);
+            }
+        }
+        report["subsequentComponentProfile"] = json!({"runs":rows,"warmStorage":probe::warm_summary(&storage_samples),"warmProjectionAndBudgetSerialization":probe::warm_summary(&projection_samples),"warmEnvelopeSerialization":probe::warm_summary(&serialization_samples)});
+    }
     use std::io::Write;
     let mut file = std::fs::OpenOptions::new()
         .write(true)
