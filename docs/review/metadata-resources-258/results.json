@@ -1,0 +1,2950 @@
+{
+  "schema": "fruitboard/native-resource-characterization/1",
+  "issue": 258,
+  "sourceBase": "249a72ac71e972d6f5b0338befb0ad7f51a2c417",
+  "status": "characterization_only",
+  "idleWindowPass": false,
+  "noise": {
+    "preflightReportedCPUPercent": 2,
+    "otherBuildTestWorkloads": "quiescent",
+    "ownerAppRemainedOpen": true,
+    "residentParserRemainedOpen": true,
+    "fullWindowOwnerCPUGuardSeconds": 0.5,
+    "fullWindowOwnerCPUGuard": "failed",
+    "qualificationPass": false
+  },
+  "host": {
+    "cpu": "Intel Core i7-10750H",
+    "logicalProcessors": 12,
+    "totalPhysicalMemoryBytes": 17041244160,
+    "os": "Windows 11 Home Single Language",
+    "build": "26200",
+    "powerPlan": "High performance",
+    "filesystem": "local NTFS",
+    "osCacheFlushed": false
+  },
+  "method": {
+    "requestsPerCase": 12,
+    "recordedFirstRequests": 1,
+    "excludedWarmUps": 1,
+    "measuredSamples": 10,
+    "p95": "nearest rank; maximum for ten samples",
+    "memoryPeaks": "process lifetime including setup; parent and child separately",
+    "parserVersion": "0.1.1",
+    "parserSource": "unchanged from PR257; independently retained",
+    "workerTimerIncludesProbeMemoryObservation": true,
+    "savedQueryComparisonMs": 200,
+    "approvedParserMemoryThroughputBudget": false,
+    "approvedExplorerSerializationBudget": false
+  },
+  "sourceHashes": [
+    {
+      "file": "crates/analysis-execution/examples/resource_probe.rs",
+      "sha256": "61cb966d115d49c025f8109f2a18acce0b601b1df4b0439dea995a5fe7f1adb5"
+    },
+    {
+      "file": "scripts/native-resource-probe.rs",
+      "sha256": "83ef640c0eb39baddc1e1bcfc3baa798caa57032bf9d4feb0a83b5cb92be8a45"
+    },
+    {
+      "file": "apps/desktop/src-tauri/src/foundation/plugin_explorer/resource_probe.rs",
+      "sha256": "9f4cf5bd67e8dc06ab6eabf4481d4a580dde46c88ced77dd81f6487ade8bb782"
+    },
+    {
+      "file": "apps/desktop/src-tauri/src/foundation/plugin_explorer.rs",
+      "sha256": "0e498734f71502744579a8b13c89074f2dcc574c6101cc795a6ff80f28c98fc4"
+    },
+    {
+      "file": "scripts/prepare-native-resource-fixtures.mjs",
+      "sha256": "16188608ac9f8755705e5fe8a0ae3a4db8f3e56d3050562e378d1fe49f4f713c"
+    }
+  ],
+  "artifactHashes": [
+    {
+      "name": "worker-probe.exe",
+      "sha256": "f3022cf92da57f87e65d1b529ce0d1cdf9db6a951a3aa2439d433a3cf870eaad",
+      "bytes": 2942976
+    },
+    {
+      "name": "explorer-probe.exe",
+      "sha256": "586231a58804a5215433fd2131d40d07c149f2b2e977778d4846a95b4cfaff6b",
+      "bytes": 7843328
+    },
+    {
+      "name": "fruitboard-flp-parser.exe",
+      "sha256": "412a87fc4fa425d0cc93eb9cbe15b789c9c211e03009ae974b1b66f901f39093",
+      "bytes": 523264
+    },
+    {
+      "name": "explorer-probe-v2.exe",
+      "sha256": "4c6dfa82014b3c823b22bcad6d1a32f5e2badccc3abd0e160486710f72dfeb8b",
+      "bytes": 7844864
+    }
+  ],
+  "fixtures": [
+    {
+      "schema": "fruitboard/native-resource-fixture/1",
+      "case": "sample",
+      "bytes": 46703,
+      "copies": 12,
+      "savedBuild": "26.1.0.5530",
+      "approvedSourceHash": "dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39",
+      "sha256": "dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39"
+    },
+    {
+      "schema": "fruitboard/native-resource-fixture/1",
+      "case": "reported",
+      "bytes": 4601596,
+      "copies": 12,
+      "savedBuild": "26.1.0.5530",
+      "approvedSourceHash": "dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39",
+      "sha256": "d5166465e0765dfb3a6b5957cd78295d02cc0f1db8caa78484157f76a61db9f0"
+    },
+    {
+      "schema": "fruitboard/native-resource-fixture/1",
+      "case": "25mb",
+      "bytes": 25000000,
+      "copies": 12,
+      "savedBuild": "26.1.0.5530",
+      "approvedSourceHash": "dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39",
+      "sha256": "7f29010a8bc9d2fc9a01c488fd61e94e2d45fbc127e4004c3ed85f452fe67b66"
+    },
+    {
+      "schema": "fruitboard/native-resource-fixture/1",
+      "case": "64mib",
+      "bytes": 67108864,
+      "copies": 12,
+      "savedBuild": "26.1.0.5530",
+      "approvedSourceHash": "dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39",
+      "sha256": "e198d10917d195f7c3f600cc883389796bf9811cd48761fa69653d744bc2770f"
+    }
+  ],
+  "nativeAnalysis": [
+    {
+      "baselineMemory": {
+        "lifetimePeakCommitBytes": 1880064,
+        "lifetimePeakWorkingSetBytes": 6832128,
+        "privateCommitBytes": 1880064,
+        "workingSetBytes": 6832128
+      },
+      "bytes": 46703,
+      "case": "sample",
+      "copies": 12,
+      "probe": "native-analysis",
+      "runs": [
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2027520,
+            "lifetimePeakWorkingSetBytes": 7700480,
+            "privateCommitBytes": 2015232,
+            "workingSetBytes": 7700480
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 729088,
+            "lifetimePeakWorkingSetBytes": 4341760,
+            "privateCommitBytes": 729088,
+            "workingSetBytes": 4341760
+          },
+          "parserReportedMs": 1.302,
+          "phase": "first_run",
+          "supervisedParseMs": 1.4396,
+          "workerMs": 24.776200000000003
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2027520,
+            "lifetimePeakWorkingSetBytes": 7720960,
+            "privateCommitBytes": 2015232,
+            "workingSetBytes": 7720960
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 778240,
+            "lifetimePeakWorkingSetBytes": 4386816,
+            "privateCommitBytes": 679936,
+            "workingSetBytes": 4292608
+          },
+          "parserReportedMs": 1.151,
+          "phase": "warm_up",
+          "supervisedParseMs": 1.2714,
+          "workerMs": 6.9046
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2359296,
+            "lifetimePeakWorkingSetBytes": 7827456,
+            "privateCommitBytes": 2359296,
+            "workingSetBytes": 7827456
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 778240,
+            "lifetimePeakWorkingSetBytes": 4386816,
+            "privateCommitBytes": 684032,
+            "workingSetBytes": 4296704
+          },
+          "parserReportedMs": 1.144,
+          "phase": "measured",
+          "supervisedParseMs": 1.2579,
+          "workerMs": 7.3432
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2359296,
+            "lifetimePeakWorkingSetBytes": 7839744,
+            "privateCommitBytes": 2359296,
+            "workingSetBytes": 7839744
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 778240,
+            "lifetimePeakWorkingSetBytes": 4386816,
+            "privateCommitBytes": 692224,
+            "workingSetBytes": 4304896
+          },
+          "parserReportedMs": 1.125,
+          "phase": "measured",
+          "supervisedParseMs": 1.2501,
+          "workerMs": 6.7427
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2359296,
+            "lifetimePeakWorkingSetBytes": 7892992,
+            "privateCommitBytes": 2359296,
+            "workingSetBytes": 7892992
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 778240,
+            "lifetimePeakWorkingSetBytes": 4386816,
+            "privateCommitBytes": 704512,
+            "workingSetBytes": 4317184
+          },
+          "parserReportedMs": 1.129,
+          "phase": "measured",
+          "supervisedParseMs": 1.2777,
+          "workerMs": 7.1951
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2359296,
+            "lifetimePeakWorkingSetBytes": 7892992,
+            "privateCommitBytes": 2359296,
+            "workingSetBytes": 7892992
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 778240,
+            "lifetimePeakWorkingSetBytes": 4386816,
+            "privateCommitBytes": 716800,
+            "workingSetBytes": 4329472
+          },
+          "parserReportedMs": 1.128,
+          "phase": "measured",
+          "supervisedParseMs": 1.2792000000000001,
+          "workerMs": 6.876099999999999
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2359296,
+            "lifetimePeakWorkingSetBytes": 7905280,
+            "privateCommitBytes": 2359296,
+            "workingSetBytes": 7905280
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 827392,
+            "lifetimePeakWorkingSetBytes": 4407296,
+            "privateCommitBytes": 765952,
+            "workingSetBytes": 4366336
+          },
+          "parserReportedMs": 1.137,
+          "phase": "measured",
+          "supervisedParseMs": 1.2934999999999999,
+          "workerMs": 8.1535
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2359296,
+            "lifetimePeakWorkingSetBytes": 7905280,
+            "privateCommitBytes": 2359296,
+            "workingSetBytes": 7905280
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 888832,
+            "lifetimePeakWorkingSetBytes": 4464640,
+            "privateCommitBytes": 839680,
+            "workingSetBytes": 4448256
+          },
+          "parserReportedMs": 1.178,
+          "phase": "measured",
+          "supervisedParseMs": 1.3134,
+          "workerMs": 8.8111
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2359296,
+            "lifetimePeakWorkingSetBytes": 7909376,
+            "privateCommitBytes": 2359296,
+            "workingSetBytes": 7909376
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 888832,
+            "lifetimePeakWorkingSetBytes": 4493312,
+            "privateCommitBytes": 831488,
+            "workingSetBytes": 4440064
+          },
+          "parserReportedMs": 1.137,
+          "phase": "measured",
+          "supervisedParseMs": 1.2518,
+          "workerMs": 7.5911
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2359296,
+            "lifetimePeakWorkingSetBytes": 7909376,
+            "privateCommitBytes": 2359296,
+            "workingSetBytes": 7909376
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 937984,
+            "lifetimePeakWorkingSetBytes": 4501504,
+            "privateCommitBytes": 860160,
+            "workingSetBytes": 4456448
+          },
+          "parserReportedMs": 1.201,
+          "phase": "measured",
+          "supervisedParseMs": 1.3137999999999999,
+          "workerMs": 6.8731
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2359296,
+            "lifetimePeakWorkingSetBytes": 7909376,
+            "privateCommitBytes": 2359296,
+            "workingSetBytes": 7909376
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 937984,
+            "lifetimePeakWorkingSetBytes": 4501504,
+            "privateCommitBytes": 843776,
+            "workingSetBytes": 4452352
+          },
+          "parserReportedMs": 1.267,
+          "phase": "measured",
+          "supervisedParseMs": 1.3843,
+          "workerMs": 7.3596
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 2359296,
+            "lifetimePeakWorkingSetBytes": 7909376,
+            "privateCommitBytes": 2359296,
+            "workingSetBytes": 7909376
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 937984,
+            "lifetimePeakWorkingSetBytes": 4501504,
+            "privateCommitBytes": 868352,
+            "workingSetBytes": 4452352
+          },
+          "parserReportedMs": 1.194,
+          "phase": "measured",
+          "supervisedParseMs": 1.3243,
+          "workerMs": 6.715999999999999
+        }
+      ],
+      "schema": "fruitboard/native-resource-result/1",
+      "sourceHashesMatch": true,
+      "supervisedRequestDeadlineMs": 10000,
+      "warmWorker": {
+        "maxMs": 8.8111,
+        "medianMs": 7.26915,
+        "nearestRankP95Ms": 8.8111,
+        "samples": [
+          7.3432, 6.7427, 7.1951, 6.876099999999999, 8.1535, 8.8111, 7.5911,
+          6.8731, 7.3596, 6.715999999999999
+        ]
+      }
+    },
+    {
+      "baselineMemory": {
+        "lifetimePeakCommitBytes": 1880064,
+        "lifetimePeakWorkingSetBytes": 6787072,
+        "privateCommitBytes": 1646592,
+        "workingSetBytes": 6774784
+      },
+      "bytes": 4601596,
+      "case": "reported",
+      "copies": 12,
+      "probe": "native-analysis",
+      "runs": [
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6684672,
+            "lifetimePeakWorkingSetBytes": 12111872,
+            "privateCommitBytes": 2015232,
+            "workingSetBytes": 7610368
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5279744,
+            "lifetimePeakWorkingSetBytes": 8880128,
+            "privateCommitBytes": 688128,
+            "workingSetBytes": 4304896
+          },
+          "parserReportedMs": 35.951,
+          "phase": "first_run",
+          "supervisedParseMs": 36.13,
+          "workerMs": 99.9631
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6684672,
+            "lifetimePeakWorkingSetBytes": 12222464,
+            "privateCommitBytes": 2015232,
+            "workingSetBytes": 7634944
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5345280,
+            "lifetimePeakWorkingSetBytes": 8908800,
+            "privateCommitBytes": 708608,
+            "workingSetBytes": 4321280
+          },
+          "parserReportedMs": 36.479,
+          "phase": "warm_up",
+          "supervisedParseMs": 36.6795,
+          "workerMs": 80.7779
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6684672,
+            "lifetimePeakWorkingSetBytes": 12251136,
+            "privateCommitBytes": 2015232,
+            "workingSetBytes": 7655424
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5345280,
+            "lifetimePeakWorkingSetBytes": 8925184,
+            "privateCommitBytes": 708608,
+            "workingSetBytes": 4321280
+          },
+          "parserReportedMs": 35.506,
+          "phase": "measured",
+          "supervisedParseMs": 35.7191,
+          "workerMs": 80.6235
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6692864,
+            "lifetimePeakWorkingSetBytes": 12271616,
+            "privateCommitBytes": 2015232,
+            "workingSetBytes": 7667712
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5373952,
+            "lifetimePeakWorkingSetBytes": 8925184,
+            "privateCommitBytes": 708608,
+            "workingSetBytes": 4325376
+          },
+          "parserReportedMs": 34.955,
+          "phase": "measured",
+          "supervisedParseMs": 35.2189,
+          "workerMs": 78.4236
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6692864,
+            "lifetimePeakWorkingSetBytes": 12271616,
+            "privateCommitBytes": 2015232,
+            "workingSetBytes": 7667712
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5386240,
+            "lifetimePeakWorkingSetBytes": 8929280,
+            "privateCommitBytes": 708608,
+            "workingSetBytes": 4325376
+          },
+          "parserReportedMs": 41.943,
+          "phase": "measured",
+          "supervisedParseMs": 42.195299999999996,
+          "workerMs": 91.92999999999999
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6692864,
+            "lifetimePeakWorkingSetBytes": 12271616,
+            "privateCommitBytes": 2015232,
+            "workingSetBytes": 7634944
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5386240,
+            "lifetimePeakWorkingSetBytes": 8929280,
+            "privateCommitBytes": 708608,
+            "workingSetBytes": 4325376
+          },
+          "parserReportedMs": 37.753,
+          "phase": "measured",
+          "supervisedParseMs": 37.910199999999996,
+          "workerMs": 86.1793
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6692864,
+            "lifetimePeakWorkingSetBytes": 12271616,
+            "privateCommitBytes": 2015232,
+            "workingSetBytes": 7634944
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5386240,
+            "lifetimePeakWorkingSetBytes": 8941568,
+            "privateCommitBytes": 745472,
+            "workingSetBytes": 4362240
+          },
+          "parserReportedMs": 36.861,
+          "phase": "measured",
+          "supervisedParseMs": 37.0617,
+          "workerMs": 84.63629999999999
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6967296,
+            "lifetimePeakWorkingSetBytes": 12328960,
+            "privateCommitBytes": 2289664,
+            "workingSetBytes": 7737344
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5386240,
+            "lifetimePeakWorkingSetBytes": 8978432,
+            "privateCommitBytes": 811008,
+            "workingSetBytes": 4423680
+          },
+          "parserReportedMs": 36.371,
+          "phase": "measured",
+          "supervisedParseMs": 36.629000000000005,
+          "workerMs": 82.8072
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6967296,
+            "lifetimePeakWorkingSetBytes": 12353536,
+            "privateCommitBytes": 2289664,
+            "workingSetBytes": 7753728
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5472256,
+            "lifetimePeakWorkingSetBytes": 9039872,
+            "privateCommitBytes": 819200,
+            "workingSetBytes": 4419584
+          },
+          "parserReportedMs": 35.56,
+          "phase": "measured",
+          "supervisedParseMs": 35.7769,
+          "workerMs": 81.1357
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6967296,
+            "lifetimePeakWorkingSetBytes": 12357632,
+            "privateCommitBytes": 2289664,
+            "workingSetBytes": 7761920
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5472256,
+            "lifetimePeakWorkingSetBytes": 9043968,
+            "privateCommitBytes": 856064,
+            "workingSetBytes": 4456448
+          },
+          "parserReportedMs": 37.311,
+          "phase": "measured",
+          "supervisedParseMs": 37.550399999999996,
+          "workerMs": 82.3184
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6967296,
+            "lifetimePeakWorkingSetBytes": 12365824,
+            "privateCommitBytes": 2289664,
+            "workingSetBytes": 7761920
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5525504,
+            "lifetimePeakWorkingSetBytes": 9060352,
+            "privateCommitBytes": 811008,
+            "workingSetBytes": 4423680
+          },
+          "parserReportedMs": 34.965,
+          "phase": "measured",
+          "supervisedParseMs": 35.224199999999996,
+          "workerMs": 77.1993
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 6967296,
+            "lifetimePeakWorkingSetBytes": 12378112,
+            "privateCommitBytes": 2289664,
+            "workingSetBytes": 7786496
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 5525504,
+            "lifetimePeakWorkingSetBytes": 9060352,
+            "privateCommitBytes": 811008,
+            "workingSetBytes": 4423680
+          },
+          "parserReportedMs": 34.701,
+          "phase": "measured",
+          "supervisedParseMs": 34.946600000000004,
+          "workerMs": 78.4583
+        }
+      ],
+      "schema": "fruitboard/native-resource-result/1",
+      "sourceHashesMatch": true,
+      "supervisedRequestDeadlineMs": 10000,
+      "warmWorker": {
+        "maxMs": 91.92999999999999,
+        "medianMs": 81.72704999999999,
+        "nearestRankP95Ms": 91.92999999999999,
+        "samples": [
+          80.6235, 78.4236, 91.92999999999999, 86.1793, 84.63629999999999,
+          82.8072, 81.1357, 82.3184, 77.1993, 78.4583
+        ]
+      }
+    },
+    {
+      "baselineMemory": {
+        "lifetimePeakCommitBytes": 1978368,
+        "lifetimePeakWorkingSetBytes": 6840320,
+        "privateCommitBytes": 1822720,
+        "workingSetBytes": 6840320
+      },
+      "bytes": 25000000,
+      "case": "25mb",
+      "copies": 12,
+      "probe": "native-analysis",
+      "runs": [
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27054080,
+            "lifetimePeakWorkingSetBytes": 32567296,
+            "privateCommitBytes": 2113536,
+            "workingSetBytes": 7671808
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25739264,
+            "lifetimePeakWorkingSetBytes": 29290496,
+            "privateCommitBytes": 708608,
+            "workingSetBytes": 4317184
+          },
+          "parserReportedMs": 208.559,
+          "phase": "first_run",
+          "supervisedParseMs": 208.7911,
+          "workerMs": 441.7408
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27226112,
+            "lifetimePeakWorkingSetBytes": 32681984,
+            "privateCommitBytes": 2113536,
+            "workingSetBytes": 7688192
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25817088,
+            "lifetimePeakWorkingSetBytes": 29319168,
+            "privateCommitBytes": 729088,
+            "workingSetBytes": 4333568
+          },
+          "parserReportedMs": 189.809,
+          "phase": "warm_up",
+          "supervisedParseMs": 190.00420000000003,
+          "workerMs": 393.8268
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27226112,
+            "lifetimePeakWorkingSetBytes": 32702464,
+            "privateCommitBytes": 2113536,
+            "workingSetBytes": 7712768
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25817088,
+            "lifetimePeakWorkingSetBytes": 29335552,
+            "privateCommitBytes": 729088,
+            "workingSetBytes": 4333568
+          },
+          "parserReportedMs": 189.298,
+          "phase": "measured",
+          "supervisedParseMs": 189.53539999999998,
+          "workerMs": 398.4686
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27226112,
+            "lifetimePeakWorkingSetBytes": 32727040,
+            "privateCommitBytes": 2113536,
+            "workingSetBytes": 7725056
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25837568,
+            "lifetimePeakWorkingSetBytes": 29335552,
+            "privateCommitBytes": 737280,
+            "workingSetBytes": 4345856
+          },
+          "parserReportedMs": 194.176,
+          "phase": "measured",
+          "supervisedParseMs": 194.43640000000002,
+          "workerMs": 397.0074
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27234304,
+            "lifetimePeakWorkingSetBytes": 32727040,
+            "privateCommitBytes": 2113536,
+            "workingSetBytes": 7725056
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25837568,
+            "lifetimePeakWorkingSetBytes": 29347840,
+            "privateCommitBytes": 737280,
+            "workingSetBytes": 4345856
+          },
+          "parserReportedMs": 193.564,
+          "phase": "measured",
+          "supervisedParseMs": 193.7869,
+          "workerMs": 396.0416
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27234304,
+            "lifetimePeakWorkingSetBytes": 32727040,
+            "privateCommitBytes": 2113536,
+            "workingSetBytes": 7725056
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25837568,
+            "lifetimePeakWorkingSetBytes": 29347840,
+            "privateCommitBytes": 737280,
+            "workingSetBytes": 4345856
+          },
+          "parserReportedMs": 191.608,
+          "phase": "measured",
+          "supervisedParseMs": 191.7509,
+          "workerMs": 393.5414
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27234304,
+            "lifetimePeakWorkingSetBytes": 32727040,
+            "privateCommitBytes": 2113536,
+            "workingSetBytes": 7725056
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25845760,
+            "lifetimePeakWorkingSetBytes": 29356032,
+            "privateCommitBytes": 794624,
+            "workingSetBytes": 4403200
+          },
+          "parserReportedMs": 195.777,
+          "phase": "measured",
+          "supervisedParseMs": 196.0094,
+          "workerMs": 395.7142
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27234304,
+            "lifetimePeakWorkingSetBytes": 32727040,
+            "privateCommitBytes": 2088960,
+            "workingSetBytes": 7700480
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25911296,
+            "lifetimePeakWorkingSetBytes": 29405184,
+            "privateCommitBytes": 864256,
+            "workingSetBytes": 4464640
+          },
+          "parserReportedMs": 184.247,
+          "phase": "measured",
+          "supervisedParseMs": 184.47459999999998,
+          "workerMs": 391.58480000000003
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27234304,
+            "lifetimePeakWorkingSetBytes": 32727040,
+            "privateCommitBytes": 2113536,
+            "workingSetBytes": 7725056
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25968640,
+            "lifetimePeakWorkingSetBytes": 29470720,
+            "privateCommitBytes": 864256,
+            "workingSetBytes": 4468736
+          },
+          "parserReportedMs": 188.838,
+          "phase": "measured",
+          "supervisedParseMs": 189.102,
+          "workerMs": 397.3332
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27496448,
+            "lifetimePeakWorkingSetBytes": 32817152,
+            "privateCommitBytes": 2392064,
+            "workingSetBytes": 7823360
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25972736,
+            "lifetimePeakWorkingSetBytes": 29470720,
+            "privateCommitBytes": 884736,
+            "workingSetBytes": 4489216
+          },
+          "parserReportedMs": 192.263,
+          "phase": "measured",
+          "supervisedParseMs": 192.4797,
+          "workerMs": 396.4473
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27496448,
+            "lifetimePeakWorkingSetBytes": 32837632,
+            "privateCommitBytes": 2392064,
+            "workingSetBytes": 7835648
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25972736,
+            "lifetimePeakWorkingSetBytes": 29491200,
+            "privateCommitBytes": 884736,
+            "workingSetBytes": 4489216
+          },
+          "parserReportedMs": 188.582,
+          "phase": "measured",
+          "supervisedParseMs": 188.76100000000002,
+          "workerMs": 393.72659999999996
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 27496448,
+            "lifetimePeakWorkingSetBytes": 32837632,
+            "privateCommitBytes": 2392064,
+            "workingSetBytes": 7835648
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 25972736,
+            "lifetimePeakWorkingSetBytes": 29491200,
+            "privateCommitBytes": 884736,
+            "workingSetBytes": 4489216
+          },
+          "parserReportedMs": 201.493,
+          "phase": "measured",
+          "supervisedParseMs": 201.6502,
+          "workerMs": 405.3312
+        }
+      ],
+      "schema": "fruitboard/native-resource-result/1",
+      "sourceHashesMatch": true,
+      "supervisedRequestDeadlineMs": 10000,
+      "warmWorker": {
+        "maxMs": 405.3312,
+        "medianMs": 396.24445000000003,
+        "nearestRankP95Ms": 405.3312,
+        "samples": [
+          398.4686, 397.0074, 396.0416, 393.5414, 395.7142, 391.58480000000003,
+          397.3332, 396.4473, 393.72659999999996, 405.3312
+        ]
+      }
+    },
+    {
+      "baselineMemory": {
+        "lifetimePeakCommitBytes": 1937408,
+        "lifetimePeakWorkingSetBytes": 6868992,
+        "privateCommitBytes": 1839104,
+        "workingSetBytes": 6868992
+      },
+      "bytes": 67108864,
+      "case": "64mib",
+      "copies": 12,
+      "probe": "native-analysis",
+      "runs": [
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69230592,
+            "lifetimePeakWorkingSetBytes": 74706944,
+            "privateCommitBytes": 2072576,
+            "workingSetBytes": 7700480
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 67928064,
+            "lifetimePeakWorkingSetBytes": 71397376,
+            "privateCommitBytes": 700416,
+            "workingSetBytes": 4313088
+          },
+          "parserReportedMs": 582.549,
+          "phase": "first_run",
+          "supervisedParseMs": 583.0358,
+          "workerMs": 1187.3527
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69349376,
+            "lifetimePeakWorkingSetBytes": 74829824,
+            "privateCommitBytes": 2076672,
+            "workingSetBytes": 7733248
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 67952640,
+            "lifetimePeakWorkingSetBytes": 71426048,
+            "privateCommitBytes": 720896,
+            "workingSetBytes": 4329472
+          },
+          "parserReportedMs": 526.842,
+          "phase": "warm_up",
+          "supervisedParseMs": 527.0598,
+          "workerMs": 1067.9503
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69386240,
+            "lifetimePeakWorkingSetBytes": 74874880,
+            "privateCommitBytes": 2150400,
+            "workingSetBytes": 7774208
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 67981312,
+            "lifetimePeakWorkingSetBytes": 71442432,
+            "privateCommitBytes": 720896,
+            "workingSetBytes": 4329472
+          },
+          "parserReportedMs": 502.019,
+          "phase": "measured",
+          "supervisedParseMs": 502.24769999999995,
+          "workerMs": 1036.7178999999999
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69451776,
+            "lifetimePeakWorkingSetBytes": 74887168,
+            "privateCommitBytes": 2150400,
+            "workingSetBytes": 7782400
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 68001792,
+            "lifetimePeakWorkingSetBytes": 71442432,
+            "privateCommitBytes": 729088,
+            "workingSetBytes": 4341760
+          },
+          "parserReportedMs": 516.431,
+          "phase": "measured",
+          "supervisedParseMs": 516.5927,
+          "workerMs": 1045.2211
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69730304,
+            "lifetimePeakWorkingSetBytes": 74973184,
+            "privateCommitBytes": 2424832,
+            "workingSetBytes": 7868416
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 68034560,
+            "lifetimePeakWorkingSetBytes": 71454720,
+            "privateCommitBytes": 729088,
+            "workingSetBytes": 4341760
+          },
+          "parserReportedMs": 522.447,
+          "phase": "measured",
+          "supervisedParseMs": 522.6244,
+          "workerMs": 1060.9258
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69730304,
+            "lifetimePeakWorkingSetBytes": 74989568,
+            "privateCommitBytes": 2424832,
+            "workingSetBytes": 7876608
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 68034560,
+            "lifetimePeakWorkingSetBytes": 71454720,
+            "privateCommitBytes": 729088,
+            "workingSetBytes": 4341760
+          },
+          "parserReportedMs": 517.506,
+          "phase": "measured",
+          "supervisedParseMs": 517.6610000000001,
+          "workerMs": 1048.9213
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69730304,
+            "lifetimePeakWorkingSetBytes": 74989568,
+            "privateCommitBytes": 2424832,
+            "workingSetBytes": 7876608
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 68034560,
+            "lifetimePeakWorkingSetBytes": 71462912,
+            "privateCommitBytes": 786432,
+            "workingSetBytes": 4399104
+          },
+          "parserReportedMs": 510.995,
+          "phase": "measured",
+          "supervisedParseMs": 511.20770000000005,
+          "workerMs": 1059.5893999999998
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69730304,
+            "lifetimePeakWorkingSetBytes": 75014144,
+            "privateCommitBytes": 2424832,
+            "workingSetBytes": 7901184
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 68079616,
+            "lifetimePeakWorkingSetBytes": 71512064,
+            "privateCommitBytes": 856064,
+            "workingSetBytes": 4460544
+          },
+          "parserReportedMs": 504.326,
+          "phase": "measured",
+          "supervisedParseMs": 504.5133000000001,
+          "workerMs": 1040.6637999999998
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69730304,
+            "lifetimePeakWorkingSetBytes": 75014144,
+            "privateCommitBytes": 2424832,
+            "workingSetBytes": 7901184
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 68132864,
+            "lifetimePeakWorkingSetBytes": 71577600,
+            "privateCommitBytes": 856064,
+            "workingSetBytes": 4464640
+          },
+          "parserReportedMs": 505.891,
+          "phase": "measured",
+          "supervisedParseMs": 506.11569999999995,
+          "workerMs": 1050.5093000000002
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69730304,
+            "lifetimePeakWorkingSetBytes": 75038720,
+            "privateCommitBytes": 2424832,
+            "workingSetBytes": 7933952
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 68149248,
+            "lifetimePeakWorkingSetBytes": 71577600,
+            "privateCommitBytes": 876544,
+            "workingSetBytes": 4485120
+          },
+          "parserReportedMs": 594.859,
+          "phase": "measured",
+          "supervisedParseMs": 595.0604000000001,
+          "workerMs": 1147.4442000000001
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69734400,
+            "lifetimePeakWorkingSetBytes": 75046912,
+            "privateCommitBytes": 2424832,
+            "workingSetBytes": 7933952
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 68182016,
+            "lifetimePeakWorkingSetBytes": 71598080,
+            "privateCommitBytes": 876544,
+            "workingSetBytes": 4485120
+          },
+          "parserReportedMs": 516.052,
+          "phase": "measured",
+          "supervisedParseMs": 516.2614,
+          "workerMs": 1089.2185000000002
+        },
+        {
+          "parentMemory": {
+            "lifetimePeakCommitBytes": 69734400,
+            "lifetimePeakWorkingSetBytes": 75046912,
+            "privateCommitBytes": 2424832,
+            "workingSetBytes": 7933952
+          },
+          "parserMemory": {
+            "lifetimePeakCommitBytes": 68182016,
+            "lifetimePeakWorkingSetBytes": 71598080,
+            "privateCommitBytes": 876544,
+            "workingSetBytes": 4485120
+          },
+          "parserReportedMs": 515.805,
+          "phase": "measured",
+          "supervisedParseMs": 516.0981,
+          "workerMs": 1058.5691
+        }
+      ],
+      "schema": "fruitboard/native-resource-result/1",
+      "sourceHashesMatch": true,
+      "supervisedRequestDeadlineMs": 10000,
+      "warmWorker": {
+        "maxMs": 1147.4442000000001,
+        "medianMs": 1054.5392000000002,
+        "nearestRankP95Ms": 1147.4442000000001,
+        "samples": [
+          1036.7178999999999, 1045.2211, 1060.9258, 1048.9213,
+          1059.5893999999998, 1040.6637999999998, 1050.5093000000002,
+          1147.4442000000001, 1089.2185000000002, 1058.5691
+        ]
+      }
+    }
+  ],
+  "pluginExplorer": [
+    {
+      "baselineMemory": {
+        "lifetimePeakCommitBytes": 2506752,
+        "lifetimePeakWorkingSetBytes": 14651392,
+        "privateCommitBytes": 2506752,
+        "workingSetBytes": 14651392
+      },
+      "completeCountsOrNoPartialResults": true,
+      "entries": 100,
+      "probe": "plugin-explorer",
+      "runs": [
+        {
+          "commandAndSerializationMs": 16.183,
+          "memory": {
+            "lifetimePeakCommitBytes": 2891776,
+            "lifetimePeakWorkingSetBytes": 14938112,
+            "privateCommitBytes": 2891776,
+            "workingSetBytes": 14938112
+          },
+          "phase": "first_run",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 15.683499999999999,
+          "memory": {
+            "lifetimePeakCommitBytes": 3198976,
+            "lifetimePeakWorkingSetBytes": 15089664,
+            "privateCommitBytes": 3198976,
+            "workingSetBytes": 15089664
+          },
+          "phase": "warm_up",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 16.2803,
+          "memory": {
+            "lifetimePeakCommitBytes": 3293184,
+            "lifetimePeakWorkingSetBytes": 15220736,
+            "privateCommitBytes": 3223552,
+            "workingSetBytes": 15151104
+          },
+          "phase": "measured",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 15.5327,
+          "memory": {
+            "lifetimePeakCommitBytes": 3301376,
+            "lifetimePeakWorkingSetBytes": 15237120,
+            "privateCommitBytes": 3219456,
+            "workingSetBytes": 15159296
+          },
+          "phase": "measured",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 15.642799999999998,
+          "memory": {
+            "lifetimePeakCommitBytes": 3350528,
+            "lifetimePeakWorkingSetBytes": 15298560,
+            "privateCommitBytes": 3272704,
+            "workingSetBytes": 15212544
+          },
+          "phase": "measured",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 16.6783,
+          "memory": {
+            "lifetimePeakCommitBytes": 3358720,
+            "lifetimePeakWorkingSetBytes": 15306752,
+            "privateCommitBytes": 3305472,
+            "workingSetBytes": 15212544
+          },
+          "phase": "measured",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 15.5371,
+          "memory": {
+            "lifetimePeakCommitBytes": 3403776,
+            "lifetimePeakWorkingSetBytes": 15310848,
+            "privateCommitBytes": 3309568,
+            "workingSetBytes": 15212544
+          },
+          "phase": "measured",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 15.479700000000001,
+          "memory": {
+            "lifetimePeakCommitBytes": 3424256,
+            "lifetimePeakWorkingSetBytes": 15343616,
+            "privateCommitBytes": 3297280,
+            "workingSetBytes": 15204352
+          },
+          "phase": "measured",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 20.7495,
+          "memory": {
+            "lifetimePeakCommitBytes": 3424256,
+            "lifetimePeakWorkingSetBytes": 15343616,
+            "privateCommitBytes": 3231744,
+            "workingSetBytes": 15171584
+          },
+          "phase": "measured",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 14.9476,
+          "memory": {
+            "lifetimePeakCommitBytes": 3424256,
+            "lifetimePeakWorkingSetBytes": 15343616,
+            "privateCommitBytes": 3260416,
+            "workingSetBytes": 15200256
+          },
+          "phase": "measured",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 15.125,
+          "memory": {
+            "lifetimePeakCommitBytes": 3424256,
+            "lifetimePeakWorkingSetBytes": 15343616,
+            "privateCommitBytes": 3289088,
+            "workingSetBytes": 15224832
+          },
+          "phase": "measured",
+          "responseBytes": 47162
+        },
+        {
+          "commandAndSerializationMs": 15.5118,
+          "memory": {
+            "lifetimePeakCommitBytes": 3424256,
+            "lifetimePeakWorkingSetBytes": 15343616,
+            "privateCommitBytes": 3264512,
+            "workingSetBytes": 15204352
+          },
+          "phase": "measured",
+          "responseBytes": 47162
+        }
+      ],
+      "savedQueryComparisonMs": 200,
+      "schema": "fruitboard/native-resource-result/1",
+      "state": "ready",
+      "warmCommandAndSerialization": {
+        "maxMs": 20.7495,
+        "medianMs": 15.5349,
+        "nearestRankP95Ms": 20.7495,
+        "samples": [
+          16.2803, 15.5327, 15.642799999999998, 16.6783, 15.5371,
+          15.479700000000001, 20.7495, 14.9476, 15.125, 15.5118
+        ]
+      }
+    },
+    {
+      "baselineMemory": {
+        "lifetimePeakCommitBytes": 4685824,
+        "lifetimePeakWorkingSetBytes": 11014144,
+        "privateCommitBytes": 4685824,
+        "workingSetBytes": 11014144
+      },
+      "completeCountsOrNoPartialResults": true,
+      "entries": 1000,
+      "probe": "plugin-explorer",
+      "runs": [
+        {
+          "commandAndSerializationMs": 166.23669999999998,
+          "memory": {
+            "lifetimePeakCommitBytes": 8220672,
+            "lifetimePeakWorkingSetBytes": 14553088,
+            "privateCommitBytes": 8220672,
+            "workingSetBytes": 14553088
+          },
+          "phase": "first_run",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 150.8416,
+          "memory": {
+            "lifetimePeakCommitBytes": 9129984,
+            "lifetimePeakWorkingSetBytes": 15069184,
+            "privateCommitBytes": 9129984,
+            "workingSetBytes": 15069184
+          },
+          "phase": "warm_up",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 151.7942,
+          "memory": {
+            "lifetimePeakCommitBytes": 9334784,
+            "lifetimePeakWorkingSetBytes": 15228928,
+            "privateCommitBytes": 9015296,
+            "workingSetBytes": 15110144
+          },
+          "phase": "measured",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 154.6112,
+          "memory": {
+            "lifetimePeakCommitBytes": 9609216,
+            "lifetimePeakWorkingSetBytes": 15974400,
+            "privateCommitBytes": 8974336,
+            "workingSetBytes": 15339520
+          },
+          "phase": "measured",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 148.6009,
+          "memory": {
+            "lifetimePeakCommitBytes": 9883648,
+            "lifetimePeakWorkingSetBytes": 16195584,
+            "privateCommitBytes": 9195520,
+            "workingSetBytes": 15724544
+          },
+          "phase": "measured",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 155.70929999999998,
+          "memory": {
+            "lifetimePeakCommitBytes": 10416128,
+            "lifetimePeakWorkingSetBytes": 16547840,
+            "privateCommitBytes": 9437184,
+            "workingSetBytes": 15773696
+          },
+          "phase": "measured",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 149.3478,
+          "memory": {
+            "lifetimePeakCommitBytes": 10805248,
+            "lifetimePeakWorkingSetBytes": 16633856,
+            "privateCommitBytes": 9203712,
+            "workingSetBytes": 15732736
+          },
+          "phase": "measured",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 157.0475,
+          "memory": {
+            "lifetimePeakCommitBytes": 10838016,
+            "lifetimePeakWorkingSetBytes": 16715776,
+            "privateCommitBytes": 9510912,
+            "workingSetBytes": 15802368
+          },
+          "phase": "measured",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 161.5288,
+          "memory": {
+            "lifetimePeakCommitBytes": 10887168,
+            "lifetimePeakWorkingSetBytes": 16887808,
+            "privateCommitBytes": 9433088,
+            "workingSetBytes": 15831040
+          },
+          "phase": "measured",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 151.05569999999997,
+          "memory": {
+            "lifetimePeakCommitBytes": 10940416,
+            "lifetimePeakWorkingSetBytes": 16908288,
+            "privateCommitBytes": 9555968,
+            "workingSetBytes": 15818752
+          },
+          "phase": "measured",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 158.7428,
+          "memory": {
+            "lifetimePeakCommitBytes": 10940416,
+            "lifetimePeakWorkingSetBytes": 16908288,
+            "privateCommitBytes": 9797632,
+            "workingSetBytes": 16134144
+          },
+          "phase": "measured",
+          "responseBytes": 466564
+        },
+        {
+          "commandAndSerializationMs": 148.4879,
+          "memory": {
+            "lifetimePeakCommitBytes": 10940416,
+            "lifetimePeakWorkingSetBytes": 17031168,
+            "privateCommitBytes": 9084928,
+            "workingSetBytes": 15577088
+          },
+          "phase": "measured",
+          "responseBytes": 466564
+        }
+      ],
+      "savedQueryComparisonMs": 200,
+      "schema": "fruitboard/native-resource-result/1",
+      "state": "ready",
+      "warmCommandAndSerialization": {
+        "maxMs": 161.5288,
+        "medianMs": 153.2027,
+        "nearestRankP95Ms": 161.5288,
+        "samples": [
+          151.7942, 154.6112, 148.6009, 155.70929999999998, 149.3478, 157.0475,
+          161.5288, 151.05569999999997, 158.7428, 148.4879
+        ]
+      }
+    },
+    {
+      "baselineMemory": {
+        "lifetimePeakCommitBytes": 6258688,
+        "lifetimePeakWorkingSetBytes": 12259328,
+        "privateCommitBytes": 5480448,
+        "workingSetBytes": 11501568
+      },
+      "completeCountsOrNoPartialResults": true,
+      "entries": 2000,
+      "probe": "plugin-explorer",
+      "runs": [
+        {
+          "commandAndSerializationMs": 327.8197,
+          "memory": {
+            "lifetimePeakCommitBytes": 11653120,
+            "lifetimePeakWorkingSetBytes": 17928192,
+            "privateCommitBytes": 11653120,
+            "workingSetBytes": 17928192
+          },
+          "phase": "first_run",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 322.3585,
+          "memory": {
+            "lifetimePeakCommitBytes": 12697600,
+            "lifetimePeakWorkingSetBytes": 18268160,
+            "privateCommitBytes": 12697600,
+            "workingSetBytes": 18157568
+          },
+          "phase": "warm_up",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 313.2663,
+          "memory": {
+            "lifetimePeakCommitBytes": 12697600,
+            "lifetimePeakWorkingSetBytes": 18747392,
+            "privateCommitBytes": 12554240,
+            "workingSetBytes": 18612224
+          },
+          "phase": "measured",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 313.7641,
+          "memory": {
+            "lifetimePeakCommitBytes": 12992512,
+            "lifetimePeakWorkingSetBytes": 19304448,
+            "privateCommitBytes": 12992512,
+            "workingSetBytes": 18571264
+          },
+          "phase": "measured",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 328.8929,
+          "memory": {
+            "lifetimePeakCommitBytes": 13144064,
+            "lifetimePeakWorkingSetBytes": 19578880,
+            "privateCommitBytes": 12869632,
+            "workingSetBytes": 18513920
+          },
+          "phase": "measured",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 325.56030000000004,
+          "memory": {
+            "lifetimePeakCommitBytes": 13631488,
+            "lifetimePeakWorkingSetBytes": 19869696,
+            "privateCommitBytes": 12656640,
+            "workingSetBytes": 18567168
+          },
+          "phase": "measured",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 324.8929,
+          "memory": {
+            "lifetimePeakCommitBytes": 13991936,
+            "lifetimePeakWorkingSetBytes": 20176896,
+            "privateCommitBytes": 13991936,
+            "workingSetBytes": 19361792
+          },
+          "phase": "measured",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 319.0382,
+          "memory": {
+            "lifetimePeakCommitBytes": 14512128,
+            "lifetimePeakWorkingSetBytes": 20660224,
+            "privateCommitBytes": 13361152,
+            "workingSetBytes": 19177472
+          },
+          "phase": "measured",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 311.3328,
+          "memory": {
+            "lifetimePeakCommitBytes": 14786560,
+            "lifetimePeakWorkingSetBytes": 20979712,
+            "privateCommitBytes": 13082624,
+            "workingSetBytes": 19030016
+          },
+          "phase": "measured",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 315.35540000000003,
+          "memory": {
+            "lifetimePeakCommitBytes": 14974976,
+            "lifetimePeakWorkingSetBytes": 21286912,
+            "privateCommitBytes": 13828096,
+            "workingSetBytes": 19509248
+          },
+          "phase": "measured",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 309.562,
+          "memory": {
+            "lifetimePeakCommitBytes": 15310848,
+            "lifetimePeakWorkingSetBytes": 21651456,
+            "privateCommitBytes": 13504512,
+            "workingSetBytes": 19369984
+          },
+          "phase": "measured",
+          "responseBytes": 932564
+        },
+        {
+          "commandAndSerializationMs": 311.91839999999996,
+          "memory": {
+            "lifetimePeakCommitBytes": 15585280,
+            "lifetimePeakWorkingSetBytes": 21729280,
+            "privateCommitBytes": 13496320,
+            "workingSetBytes": 19517440
+          },
+          "phase": "measured",
+          "responseBytes": 932564
+        }
+      ],
+      "savedQueryComparisonMs": 200,
+      "schema": "fruitboard/native-resource-result/1",
+      "state": "ready",
+      "warmCommandAndSerialization": {
+        "maxMs": 328.8929,
+        "medianMs": 314.55975,
+        "nearestRankP95Ms": 328.8929,
+        "samples": [
+          313.2663, 313.7641, 328.8929, 325.56030000000004, 324.8929, 319.0382,
+          311.3328, 315.35540000000003, 309.562, 311.91839999999996
+        ]
+      }
+    },
+    {
+      "baselineMemory": {
+        "lifetimePeakCommitBytes": 6434816,
+        "lifetimePeakWorkingSetBytes": 12374016,
+        "privateCommitBytes": 5603328,
+        "workingSetBytes": 11546624
+      },
+      "completeCountsOrNoPartialResults": true,
+      "entries": 2001,
+      "probe": "plugin-explorer",
+      "runs": [
+        {
+          "commandAndSerializationMs": 3.3011999999999997,
+          "memory": {
+            "lifetimePeakCommitBytes": 6434816,
+            "lifetimePeakWorkingSetBytes": 12546048,
+            "privateCommitBytes": 4845568,
+            "workingSetBytes": 11366400
+          },
+          "phase": "first_run",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.5177,
+          "memory": {
+            "lifetimePeakCommitBytes": 6434816,
+            "lifetimePeakWorkingSetBytes": 12578816,
+            "privateCommitBytes": 4833280,
+            "workingSetBytes": 11374592
+          },
+          "phase": "warm_up",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.4621999999999997,
+          "memory": {
+            "lifetimePeakCommitBytes": 6459392,
+            "lifetimePeakWorkingSetBytes": 12677120,
+            "privateCommitBytes": 5132288,
+            "workingSetBytes": 11481088
+          },
+          "phase": "measured",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.3771,
+          "memory": {
+            "lifetimePeakCommitBytes": 6459392,
+            "lifetimePeakWorkingSetBytes": 12677120,
+            "privateCommitBytes": 5128192,
+            "workingSetBytes": 11489280
+          },
+          "phase": "measured",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.3796,
+          "memory": {
+            "lifetimePeakCommitBytes": 6459392,
+            "lifetimePeakWorkingSetBytes": 12677120,
+            "privateCommitBytes": 5124096,
+            "workingSetBytes": 11485184
+          },
+          "phase": "measured",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.4959000000000002,
+          "memory": {
+            "lifetimePeakCommitBytes": 6459392,
+            "lifetimePeakWorkingSetBytes": 12693504,
+            "privateCommitBytes": 5140480,
+            "workingSetBytes": 11501568
+          },
+          "phase": "measured",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.3754,
+          "memory": {
+            "lifetimePeakCommitBytes": 6459392,
+            "lifetimePeakWorkingSetBytes": 12693504,
+            "privateCommitBytes": 5156864,
+            "workingSetBytes": 11530240
+          },
+          "phase": "measured",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.4008,
+          "memory": {
+            "lifetimePeakCommitBytes": 6463488,
+            "lifetimePeakWorkingSetBytes": 12746752,
+            "privateCommitBytes": 5115904,
+            "workingSetBytes": 11501568
+          },
+          "phase": "measured",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.3886,
+          "memory": {
+            "lifetimePeakCommitBytes": 6463488,
+            "lifetimePeakWorkingSetBytes": 12746752,
+            "privateCommitBytes": 5103616,
+            "workingSetBytes": 11489280
+          },
+          "phase": "measured",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.4212000000000002,
+          "memory": {
+            "lifetimePeakCommitBytes": 6463488,
+            "lifetimePeakWorkingSetBytes": 12746752,
+            "privateCommitBytes": 5124096,
+            "workingSetBytes": 11509760
+          },
+          "phase": "measured",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.3936,
+          "memory": {
+            "lifetimePeakCommitBytes": 6463488,
+            "lifetimePeakWorkingSetBytes": 12746752,
+            "privateCommitBytes": 5152768,
+            "workingSetBytes": 11538432
+          },
+          "phase": "measured",
+          "responseBytes": 171
+        },
+        {
+          "commandAndSerializationMs": 2.368,
+          "memory": {
+            "lifetimePeakCommitBytes": 6463488,
+            "lifetimePeakWorkingSetBytes": 12746752,
+            "privateCommitBytes": 5103616,
+            "workingSetBytes": 11489280
+          },
+          "phase": "measured",
+          "responseBytes": 171
+        }
+      ],
+      "savedQueryComparisonMs": 200,
+      "schema": "fruitboard/native-resource-result/1",
+      "state": "limited",
+      "warmCommandAndSerialization": {
+        "maxMs": 2.4959000000000002,
+        "medianMs": 2.3911,
+        "nearestRankP95Ms": 2.4959000000000002,
+        "samples": [
+          2.4621999999999997, 2.3771, 2.3796, 2.4959000000000002, 2.3754,
+          2.4008, 2.3886, 2.4212000000000002, 2.3936, 2.368
+        ]
+      }
+    }
+  ],
+  "earlierMeasurements": [
+    {
+      "status": "incomplete_matrix_no_idle_window_pass",
+      "reason": "Explorer preparation used incorrect paging; all four successful worker reports retained",
+      "nativeAnalysis": [
+        {
+          "baselineMemory": {
+            "lifetimePeakCommitBytes": 1953792,
+            "lifetimePeakWorkingSetBytes": 7286784,
+            "privateCommitBytes": 1708032,
+            "workingSetBytes": 7270400
+          },
+          "bytes": 46703,
+          "case": "sample",
+          "copies": 12,
+          "probe": "native-analysis",
+          "runs": [
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 1953792,
+                "lifetimePeakWorkingSetBytes": 8306688,
+                "privateCommitBytes": 1929216,
+                "workingSetBytes": 8306688
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 761856,
+                "lifetimePeakWorkingSetBytes": 4829184,
+                "privateCommitBytes": 761856,
+                "workingSetBytes": 4829184
+              },
+              "parserReportedMs": 1.351,
+              "phase": "first_run",
+              "supervisedParseMs": 1.5801,
+              "workerMs": 114.2552
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2084864,
+                "lifetimePeakWorkingSetBytes": 9068544,
+                "privateCommitBytes": 2084864,
+                "workingSetBytes": 9068544
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 4878336,
+                "privateCommitBytes": 765952,
+                "workingSetBytes": 4804608
+              },
+              "parserReportedMs": 1.257,
+              "phase": "warm_up",
+              "supervisedParseMs": 1.4383,
+              "workerMs": 40.5278
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2084864,
+                "lifetimePeakWorkingSetBytes": 9113600,
+                "privateCommitBytes": 2084864,
+                "workingSetBytes": 9113600
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 4878336,
+                "privateCommitBytes": 716800,
+                "workingSetBytes": 4784128
+              },
+              "parserReportedMs": 1.198,
+              "phase": "measured",
+              "supervisedParseMs": 1.3416000000000001,
+              "workerMs": 38.982099999999996
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2084864,
+                "lifetimePeakWorkingSetBytes": 9113600,
+                "privateCommitBytes": 2084864,
+                "workingSetBytes": 9113600
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 4878336,
+                "privateCommitBytes": 737280,
+                "workingSetBytes": 4792320
+              },
+              "parserReportedMs": 1.552,
+              "phase": "measured",
+              "supervisedParseMs": 1.7503,
+              "workerMs": 8.493799999999998
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2084864,
+                "lifetimePeakWorkingSetBytes": 9113600,
+                "privateCommitBytes": 2084864,
+                "workingSetBytes": 9113600
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 4878336,
+                "privateCommitBytes": 770048,
+                "workingSetBytes": 4788224
+              },
+              "parserReportedMs": 1.154,
+              "phase": "measured",
+              "supervisedParseMs": 1.285,
+              "workerMs": 40.2312
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2084864,
+                "lifetimePeakWorkingSetBytes": 9113600,
+                "privateCommitBytes": 2084864,
+                "workingSetBytes": 9113600
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 4878336,
+                "privateCommitBytes": 770048,
+                "workingSetBytes": 4788224
+              },
+              "parserReportedMs": 1.183,
+              "phase": "measured",
+              "supervisedParseMs": 1.3209,
+              "workerMs": 33.223099999999995
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2084864,
+                "lifetimePeakWorkingSetBytes": 9121792,
+                "privateCommitBytes": 2084864,
+                "workingSetBytes": 9121792
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 4878336,
+                "privateCommitBytes": 749568,
+                "workingSetBytes": 4816896
+              },
+              "parserReportedMs": 1.242,
+              "phase": "measured",
+              "supervisedParseMs": 1.4427999999999999,
+              "workerMs": 44.5113
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2084864,
+                "lifetimePeakWorkingSetBytes": 9121792,
+                "privateCommitBytes": 2084864,
+                "workingSetBytes": 9121792
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 5017600,
+                "privateCommitBytes": 733184,
+                "workingSetBytes": 4956160
+              },
+              "parserReportedMs": 1.208,
+              "phase": "measured",
+              "supervisedParseMs": 1.3465,
+              "workerMs": 74.86850000000001
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2084864,
+                "lifetimePeakWorkingSetBytes": 9121792,
+                "privateCommitBytes": 2084864,
+                "workingSetBytes": 9121792
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 5021696,
+                "privateCommitBytes": 741376,
+                "workingSetBytes": 4968448
+              },
+              "parserReportedMs": 1.125,
+              "phase": "measured",
+              "supervisedParseMs": 1.2612999999999999,
+              "workerMs": 74.0427
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2084864,
+                "lifetimePeakWorkingSetBytes": 9121792,
+                "privateCommitBytes": 2056192,
+                "workingSetBytes": 9052160
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 5029888,
+                "privateCommitBytes": 741376,
+                "workingSetBytes": 4968448
+              },
+              "parserReportedMs": 1.225,
+              "phase": "measured",
+              "supervisedParseMs": 1.3648,
+              "workerMs": 8.9147
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2084864,
+                "lifetimePeakWorkingSetBytes": 9121792,
+                "privateCommitBytes": 2084864,
+                "workingSetBytes": 9113600
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 5029888,
+                "privateCommitBytes": 770048,
+                "workingSetBytes": 4993024
+              },
+              "parserReportedMs": 1.196,
+              "phase": "measured",
+              "supervisedParseMs": 1.3093,
+              "workerMs": 37.5509
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2359296,
+                "lifetimePeakWorkingSetBytes": 9244672,
+                "privateCommitBytes": 2359296,
+                "workingSetBytes": 9244672
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 811008,
+                "lifetimePeakWorkingSetBytes": 5029888,
+                "privateCommitBytes": 737280,
+                "workingSetBytes": 4964352
+              },
+              "parserReportedMs": 1.417,
+              "phase": "measured",
+              "supervisedParseMs": 1.5864,
+              "workerMs": 49.1746
+            }
+          ],
+          "schema": "fruitboard/native-resource-result/1",
+          "sourceHashesMatch": true,
+          "supervisedRequestDeadlineMs": 10000,
+          "warmWorker": {
+            "maxMs": 74.86850000000001,
+            "medianMs": 39.60665,
+            "nearestRankP95Ms": 74.86850000000001,
+            "samples": [
+              38.982099999999996, 8.493799999999998, 40.2312,
+              33.223099999999995, 44.5113, 74.86850000000001, 74.0427, 8.9147,
+              37.5509, 49.1746
+            ]
+          }
+        },
+        {
+          "baselineMemory": {
+            "lifetimePeakCommitBytes": 1933312,
+            "lifetimePeakWorkingSetBytes": 6868992,
+            "privateCommitBytes": 1843200,
+            "workingSetBytes": 6868992
+          },
+          "bytes": 4601596,
+          "case": "reported",
+          "copies": 12,
+          "probe": "native-analysis",
+          "runs": [
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 6598656,
+                "lifetimePeakWorkingSetBytes": 12189696,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7692288
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5296128,
+                "lifetimePeakWorkingSetBytes": 8888320,
+                "privateCommitBytes": 700416,
+                "workingSetBytes": 4313088
+              },
+              "parserReportedMs": 35.651,
+              "phase": "first_run",
+              "supervisedParseMs": 35.960300000000004,
+              "workerMs": 98.51310000000001
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 6742016,
+                "lifetimePeakWorkingSetBytes": 12308480,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7708672
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5341184,
+                "lifetimePeakWorkingSetBytes": 8916992,
+                "privateCommitBytes": 720896,
+                "workingSetBytes": 4329472
+              },
+              "parserReportedMs": 37.229,
+              "phase": "warm_up",
+              "supervisedParseMs": 37.4846,
+              "workerMs": 121.03949999999999
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 6742016,
+                "lifetimePeakWorkingSetBytes": 12324864,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7733248
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5390336,
+                "lifetimePeakWorkingSetBytes": 8933376,
+                "privateCommitBytes": 720896,
+                "workingSetBytes": 4329472
+              },
+              "parserReportedMs": 34.74,
+              "phase": "measured",
+              "supervisedParseMs": 35.0408,
+              "workerMs": 123.1843
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 6742016,
+                "lifetimePeakWorkingSetBytes": 12349440,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7745536
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5390336,
+                "lifetimePeakWorkingSetBytes": 8933376,
+                "privateCommitBytes": 720896,
+                "workingSetBytes": 4333568
+              },
+              "parserReportedMs": 34.55,
+              "phase": "measured",
+              "supervisedParseMs": 34.8394,
+              "workerMs": 77.28649999999999
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 6742016,
+                "lifetimePeakWorkingSetBytes": 12349440,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7745536
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5390336,
+                "lifetimePeakWorkingSetBytes": 8937472,
+                "privateCommitBytes": 716800,
+                "workingSetBytes": 4308992
+              },
+              "parserReportedMs": 34.961,
+              "phase": "measured",
+              "supervisedParseMs": 35.265699999999995,
+              "workerMs": 123.7916
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 6746112,
+                "lifetimePeakWorkingSetBytes": 12349440,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7745536
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5390336,
+                "lifetimePeakWorkingSetBytes": 8937472,
+                "privateCommitBytes": 696320,
+                "workingSetBytes": 4300800
+              },
+              "parserReportedMs": 34.18,
+              "phase": "measured",
+              "supervisedParseMs": 34.5015,
+              "workerMs": 118.8374
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 6746112,
+                "lifetimePeakWorkingSetBytes": 12349440,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7745536
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5390336,
+                "lifetimePeakWorkingSetBytes": 8945664,
+                "privateCommitBytes": 778240,
+                "workingSetBytes": 4390912
+              },
+              "parserReportedMs": 35.38,
+              "phase": "measured",
+              "supervisedParseMs": 35.6556,
+              "workerMs": 113.6156
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 6746112,
+                "lifetimePeakWorkingSetBytes": 12349440,
+                "privateCommitBytes": 2138112,
+                "workingSetBytes": 7757824
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5398528,
+                "lifetimePeakWorkingSetBytes": 8994816,
+                "privateCommitBytes": 827392,
+                "workingSetBytes": 4435968
+              },
+              "parserReportedMs": 36.552,
+              "phase": "measured",
+              "supervisedParseMs": 36.8679,
+              "workerMs": 82.7328
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 6819840,
+                "lifetimePeakWorkingSetBytes": 12361728,
+                "privateCommitBytes": 2138112,
+                "workingSetBytes": 7770112
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5492736,
+                "lifetimePeakWorkingSetBytes": 9056256,
+                "privateCommitBytes": 835584,
+                "workingSetBytes": 4431872
+              },
+              "parserReportedMs": 35.892,
+              "phase": "measured",
+              "supervisedParseMs": 36.2214,
+              "workerMs": 80.7595
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 7077888,
+                "lifetimePeakWorkingSetBytes": 12460032,
+                "privateCommitBytes": 2412544,
+                "workingSetBytes": 7872512
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5492736,
+                "lifetimePeakWorkingSetBytes": 9056256,
+                "privateCommitBytes": 868352,
+                "workingSetBytes": 4464640
+              },
+              "parserReportedMs": 35.601,
+              "phase": "measured",
+              "supervisedParseMs": 35.8496,
+              "workerMs": 148.1641
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 7090176,
+                "lifetimePeakWorkingSetBytes": 12476416,
+                "privateCommitBytes": 2412544,
+                "workingSetBytes": 7872512
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5513216,
+                "lifetimePeakWorkingSetBytes": 9072640,
+                "privateCommitBytes": 868352,
+                "workingSetBytes": 4476928
+              },
+              "parserReportedMs": 38.671,
+              "phase": "measured",
+              "supervisedParseMs": 38.9684,
+              "workerMs": 139.7155
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 7090176,
+                "lifetimePeakWorkingSetBytes": 12488704,
+                "privateCommitBytes": 2412544,
+                "workingSetBytes": 7884800
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 5513216,
+                "lifetimePeakWorkingSetBytes": 9080832,
+                "privateCommitBytes": 868352,
+                "workingSetBytes": 4476928
+              },
+              "parserReportedMs": 37.171,
+              "phase": "measured",
+              "supervisedParseMs": 37.4776,
+              "workerMs": 168.3835
+            }
+          ],
+          "schema": "fruitboard/native-resource-result/1",
+          "sourceHashesMatch": true,
+          "supervisedRequestDeadlineMs": 10000,
+          "warmWorker": {
+            "maxMs": 168.3835,
+            "medianMs": 121.01085,
+            "nearestRankP95Ms": 168.3835,
+            "samples": [
+              123.1843, 77.28649999999999, 123.7916, 118.8374, 113.6156,
+              82.7328, 80.7595, 148.1641, 139.7155, 168.3835
+            ]
+          }
+        },
+        {
+          "baselineMemory": {
+            "lifetimePeakCommitBytes": 1933312,
+            "lifetimePeakWorkingSetBytes": 6778880,
+            "privateCommitBytes": 1630208,
+            "workingSetBytes": 6766592
+          },
+          "bytes": 25000000,
+          "case": "25mb",
+          "copies": 12,
+          "probe": "native-analysis",
+          "runs": [
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 26906624,
+                "lifetimePeakWorkingSetBytes": 32518144,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7622656
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25731072,
+                "lifetimePeakWorkingSetBytes": 29290496,
+                "privateCommitBytes": 700416,
+                "workingSetBytes": 4317184
+              },
+              "parserReportedMs": 191.693,
+              "phase": "first_run",
+              "supervisedParseMs": 192.00400000000002,
+              "workerMs": 450.36310000000003
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27160576,
+                "lifetimePeakWorkingSetBytes": 32636928,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7634944
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25763840,
+                "lifetimePeakWorkingSetBytes": 29319168,
+                "privateCommitBytes": 720896,
+                "workingSetBytes": 4333568
+              },
+              "parserReportedMs": 183.887,
+              "phase": "warm_up",
+              "supervisedParseMs": 184.1105,
+              "workerMs": 417.4813
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27168768,
+                "lifetimePeakWorkingSetBytes": 32649216,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7655424
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25821184,
+                "lifetimePeakWorkingSetBytes": 29335552,
+                "privateCommitBytes": 720896,
+                "workingSetBytes": 4333568
+              },
+              "parserReportedMs": 189.133,
+              "phase": "measured",
+              "supervisedParseMs": 189.3904,
+              "workerMs": 440.6925
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27168768,
+                "lifetimePeakWorkingSetBytes": 32677888,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7680000
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25825280,
+                "lifetimePeakWorkingSetBytes": 29335552,
+                "privateCommitBytes": 720896,
+                "workingSetBytes": 4337664
+              },
+              "parserReportedMs": 183.468,
+              "phase": "measured",
+              "supervisedParseMs": 183.7728,
+              "workerMs": 436.0469
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27168768,
+                "lifetimePeakWorkingSetBytes": 32681984,
+                "privateCommitBytes": 2068480,
+                "workingSetBytes": 7680000
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25825280,
+                "lifetimePeakWorkingSetBytes": 29339648,
+                "privateCommitBytes": 720896,
+                "workingSetBytes": 4337664
+              },
+              "parserReportedMs": 189.217,
+              "phase": "measured",
+              "supervisedParseMs": 189.51000000000002,
+              "workerMs": 410.49449999999996
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27181056,
+                "lifetimePeakWorkingSetBytes": 32686080,
+                "privateCommitBytes": 2072576,
+                "workingSetBytes": 7688192
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25825280,
+                "lifetimePeakWorkingSetBytes": 29339648,
+                "privateCommitBytes": 720896,
+                "workingSetBytes": 4337664
+              },
+              "parserReportedMs": 188.678,
+              "phase": "measured",
+              "supervisedParseMs": 188.92000000000002,
+              "workerMs": 415.4267
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27181056,
+                "lifetimePeakWorkingSetBytes": 32698368,
+                "privateCommitBytes": 2072576,
+                "workingSetBytes": 7696384
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25825280,
+                "lifetimePeakWorkingSetBytes": 29351936,
+                "privateCommitBytes": 778240,
+                "workingSetBytes": 4382720
+              },
+              "parserReportedMs": 192.995,
+              "phase": "measured",
+              "supervisedParseMs": 193.1899,
+              "workerMs": 392.9491
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27181056,
+                "lifetimePeakWorkingSetBytes": 32698368,
+                "privateCommitBytes": 2060288,
+                "workingSetBytes": 7667712
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25841664,
+                "lifetimePeakWorkingSetBytes": 29384704,
+                "privateCommitBytes": 847872,
+                "workingSetBytes": 4460544
+              },
+              "parserReportedMs": 187.227,
+              "phase": "measured",
+              "supervisedParseMs": 187.44910000000002,
+              "workerMs": 425.6327
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27181056,
+                "lifetimePeakWorkingSetBytes": 32698368,
+                "privateCommitBytes": 2056192,
+                "workingSetBytes": 7647232
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25935872,
+                "lifetimePeakWorkingSetBytes": 29462528,
+                "privateCommitBytes": 847872,
+                "workingSetBytes": 4460544
+              },
+              "parserReportedMs": 193.018,
+              "phase": "measured",
+              "supervisedParseMs": 193.2678,
+              "workerMs": 422.13840000000005
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27463680,
+                "lifetimePeakWorkingSetBytes": 32751616,
+                "privateCommitBytes": 2347008,
+                "workingSetBytes": 7774208
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25944064,
+                "lifetimePeakWorkingSetBytes": 29462528,
+                "privateCommitBytes": 847872,
+                "workingSetBytes": 4460544
+              },
+              "parserReportedMs": 188.101,
+              "phase": "measured",
+              "supervisedParseMs": 188.3001,
+              "workerMs": 408.0958
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27463680,
+                "lifetimePeakWorkingSetBytes": 32784384,
+                "privateCommitBytes": 2347008,
+                "workingSetBytes": 7782400
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25944064,
+                "lifetimePeakWorkingSetBytes": 29462528,
+                "privateCommitBytes": 847872,
+                "workingSetBytes": 4460544
+              },
+              "parserReportedMs": 185.57,
+              "phase": "measured",
+              "supervisedParseMs": 185.7358,
+              "workerMs": 408.3546
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 27463680,
+                "lifetimePeakWorkingSetBytes": 32796672,
+                "privateCommitBytes": 2347008,
+                "workingSetBytes": 7794688
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 25952256,
+                "lifetimePeakWorkingSetBytes": 29462528,
+                "privateCommitBytes": 847872,
+                "workingSetBytes": 4460544
+              },
+              "parserReportedMs": 186.889,
+              "phase": "measured",
+              "supervisedParseMs": 187.1077,
+              "workerMs": 454.2122
+            }
+          ],
+          "schema": "fruitboard/native-resource-result/1",
+          "sourceHashesMatch": true,
+          "supervisedRequestDeadlineMs": 10000,
+          "warmWorker": {
+            "maxMs": 454.2122,
+            "medianMs": 418.78255,
+            "nearestRankP95Ms": 454.2122,
+            "samples": [
+              440.6925, 436.0469, 410.49449999999996, 415.4267, 392.9491,
+              425.6327, 422.13840000000005, 408.0958, 408.3546, 454.2122
+            ]
+          }
+        },
+        {
+          "baselineMemory": {
+            "lifetimePeakCommitBytes": 1904640,
+            "lifetimePeakWorkingSetBytes": 6770688,
+            "privateCommitBytes": 1630208,
+            "workingSetBytes": 6758400
+          },
+          "bytes": 67108864,
+          "case": "64mib",
+          "copies": 12,
+          "probe": "native-analysis",
+          "runs": [
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69079040,
+                "lifetimePeakWorkingSetBytes": 74616832,
+                "privateCommitBytes": 1892352,
+                "workingSetBytes": 7610368
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 67923968,
+                "lifetimePeakWorkingSetBytes": 71401472,
+                "privateCommitBytes": 700416,
+                "workingSetBytes": 4317184
+              },
+              "parserReportedMs": 500.015,
+              "phase": "first_run",
+              "supervisedParseMs": 500.28450000000004,
+              "workerMs": 1073.7411
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69206016,
+                "lifetimePeakWorkingSetBytes": 74731520,
+                "privateCommitBytes": 2043904,
+                "workingSetBytes": 7647232
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 67948544,
+                "lifetimePeakWorkingSetBytes": 71430144,
+                "privateCommitBytes": 720896,
+                "workingSetBytes": 4333568
+              },
+              "parserReportedMs": 562.647,
+              "phase": "warm_up",
+              "supervisedParseMs": 562.935,
+              "workerMs": 1168.9805
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69304320,
+                "lifetimePeakWorkingSetBytes": 74768384,
+                "privateCommitBytes": 2043904,
+                "workingSetBytes": 7663616
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 68018176,
+                "lifetimePeakWorkingSetBytes": 71446528,
+                "privateCommitBytes": 720896,
+                "workingSetBytes": 4333568
+              },
+              "parserReportedMs": 512.057,
+              "phase": "measured",
+              "supervisedParseMs": 512.2854,
+              "workerMs": 1076.9019
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69316608,
+                "lifetimePeakWorkingSetBytes": 74784768,
+                "privateCommitBytes": 2043904,
+                "workingSetBytes": 7671808
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 68018176,
+                "lifetimePeakWorkingSetBytes": 71446528,
+                "privateCommitBytes": 729088,
+                "workingSetBytes": 4345856
+              },
+              "parserReportedMs": 509.795,
+              "phase": "measured",
+              "supervisedParseMs": 510.01750000000004,
+              "workerMs": 1056.6762999999999
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69341184,
+                "lifetimePeakWorkingSetBytes": 74784768,
+                "privateCommitBytes": 2043904,
+                "workingSetBytes": 7671808
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 68034560,
+                "lifetimePeakWorkingSetBytes": 71458816,
+                "privateCommitBytes": 729088,
+                "workingSetBytes": 4345856
+              },
+              "parserReportedMs": 515.053,
+              "phase": "measured",
+              "supervisedParseMs": 515.2485,
+              "workerMs": 1045.851
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69353472,
+                "lifetimePeakWorkingSetBytes": 74784768,
+                "privateCommitBytes": 2043904,
+                "workingSetBytes": 7671808
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 68038656,
+                "lifetimePeakWorkingSetBytes": 71458816,
+                "privateCommitBytes": 729088,
+                "workingSetBytes": 4345856
+              },
+              "parserReportedMs": 520.252,
+              "phase": "measured",
+              "supervisedParseMs": 520.4115,
+              "workerMs": 1065.3519000000001
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69353472,
+                "lifetimePeakWorkingSetBytes": 74784768,
+                "privateCommitBytes": 2043904,
+                "workingSetBytes": 7671808
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 68038656,
+                "lifetimePeakWorkingSetBytes": 71458816,
+                "privateCommitBytes": 729088,
+                "workingSetBytes": 4345856
+              },
+              "parserReportedMs": 509.28,
+              "phase": "measured",
+              "supervisedParseMs": 509.4862,
+              "workerMs": 1065.1128
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69357568,
+                "lifetimePeakWorkingSetBytes": 74784768,
+                "privateCommitBytes": 2043904,
+                "workingSetBytes": 7680000
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 68038656,
+                "lifetimePeakWorkingSetBytes": 71458816,
+                "privateCommitBytes": 737280,
+                "workingSetBytes": 4354048
+              },
+              "parserReportedMs": 505.959,
+              "phase": "measured",
+              "supervisedParseMs": 506.1164,
+              "workerMs": 1044.5235
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69357568,
+                "lifetimePeakWorkingSetBytes": 74792960,
+                "privateCommitBytes": 2043904,
+                "workingSetBytes": 7680000
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 68038656,
+                "lifetimePeakWorkingSetBytes": 71467008,
+                "privateCommitBytes": 794624,
+                "workingSetBytes": 4411392
+              },
+              "parserReportedMs": 618.455,
+              "phase": "measured",
+              "supervisedParseMs": 618.8457000000001,
+              "workerMs": 1199.0239000000001
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69627904,
+                "lifetimePeakWorkingSetBytes": 74870784,
+                "privateCommitBytes": 2318336,
+                "workingSetBytes": 7757824
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 68091904,
+                "lifetimePeakWorkingSetBytes": 71524352,
+                "privateCommitBytes": 794624,
+                "workingSetBytes": 4411392
+              },
+              "parserReportedMs": 517.943,
+              "phase": "measured",
+              "supervisedParseMs": 518.1159,
+              "workerMs": 1084.4332000000002
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69627904,
+                "lifetimePeakWorkingSetBytes": 74883072,
+                "privateCommitBytes": 2318336,
+                "workingSetBytes": 7770112
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 68091904,
+                "lifetimePeakWorkingSetBytes": 71524352,
+                "privateCommitBytes": 794624,
+                "workingSetBytes": 4411392
+              },
+              "parserReportedMs": 511.96,
+              "phase": "measured",
+              "supervisedParseMs": 512.1861,
+              "workerMs": 1056.2757000000001
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 69627904,
+                "lifetimePeakWorkingSetBytes": 74883072,
+                "privateCommitBytes": 2318336,
+                "workingSetBytes": 7770112
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 68096000,
+                "lifetimePeakWorkingSetBytes": 71524352,
+                "privateCommitBytes": 864256,
+                "workingSetBytes": 4476928
+              },
+              "parserReportedMs": 505.469,
+              "phase": "measured",
+              "supervisedParseMs": 505.6577,
+              "workerMs": 1044.2642
+            }
+          ],
+          "schema": "fruitboard/native-resource-result/1",
+          "sourceHashesMatch": true,
+          "supervisedRequestDeadlineMs": 10000,
+          "warmWorker": {
+            "maxMs": 1199.0239000000001,
+            "medianMs": 1060.89455,
+            "nearestRankP95Ms": 1199.0239000000001,
+            "samples": [
+              1076.9019, 1056.6762999999999, 1045.851, 1065.3519000000001,
+              1065.1128, 1044.5235, 1199.0239000000001, 1084.4332000000002,
+              1056.2757000000001, 1044.2642
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "status": "incomplete_matrix_no_idle_window_pass",
+      "reason": "PowerShell launcher did not retain process exit code; successful JSON retained, no passing window claimed",
+      "nativeAnalysis": [
+        {
+          "baselineMemory": {
+            "lifetimePeakCommitBytes": 1892352,
+            "lifetimePeakWorkingSetBytes": 6926336,
+            "privateCommitBytes": 1699840,
+            "workingSetBytes": 6832128
+          },
+          "bytes": 46703,
+          "case": "sample",
+          "copies": 12,
+          "probe": "native-analysis",
+          "runs": [
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7716864,
+                "privateCommitBytes": 2027520,
+                "workingSetBytes": 7716864
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 737280,
+                "lifetimePeakWorkingSetBytes": 4341760,
+                "privateCommitBytes": 737280,
+                "workingSetBytes": 4341760
+              },
+              "parserReportedMs": 1.308,
+              "phase": "first_run",
+              "supervisedParseMs": 1.4413,
+              "workerMs": 27.803600000000003
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7757824,
+                "privateCommitBytes": 2027520,
+                "workingSetBytes": 7757824
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 786432,
+                "lifetimePeakWorkingSetBytes": 4386816,
+                "privateCommitBytes": 688128,
+                "workingSetBytes": 4292608
+              },
+              "parserReportedMs": 1.381,
+              "phase": "warm_up",
+              "supervisedParseMs": 1.5399999999999998,
+              "workerMs": 7.7734
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7757824,
+                "privateCommitBytes": 2027520,
+                "workingSetBytes": 7757824
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 786432,
+                "lifetimePeakWorkingSetBytes": 4386816,
+                "privateCommitBytes": 692224,
+                "workingSetBytes": 4296704
+              },
+              "parserReportedMs": 1.285,
+              "phase": "measured",
+              "supervisedParseMs": 1.4081000000000001,
+              "workerMs": 10.260399999999999
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7757824,
+                "privateCommitBytes": 2027520,
+                "workingSetBytes": 7757824
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 786432,
+                "lifetimePeakWorkingSetBytes": 4386816,
+                "privateCommitBytes": 733184,
+                "workingSetBytes": 4308992
+              },
+              "parserReportedMs": 1.184,
+              "phase": "measured",
+              "supervisedParseMs": 1.3002999999999998,
+              "workerMs": 7.1444
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7757824,
+                "privateCommitBytes": 2027520,
+                "workingSetBytes": 7757824
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 786432,
+                "lifetimePeakWorkingSetBytes": 4386816,
+                "privateCommitBytes": 733184,
+                "workingSetBytes": 4313088
+              },
+              "parserReportedMs": 1.156,
+              "phase": "measured",
+              "supervisedParseMs": 1.2735999999999998,
+              "workerMs": 7.2663
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7757824,
+                "privateCommitBytes": 2027520,
+                "workingSetBytes": 7757824
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 786432,
+                "lifetimePeakWorkingSetBytes": 4386816,
+                "privateCommitBytes": 733184,
+                "workingSetBytes": 4313088
+              },
+              "parserReportedMs": 1.145,
+              "phase": "measured",
+              "supervisedParseMs": 1.2598,
+              "workerMs": 7.0298
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7757824,
+                "privateCommitBytes": 2027520,
+                "workingSetBytes": 7757824
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 786432,
+                "lifetimePeakWorkingSetBytes": 4390912,
+                "privateCommitBytes": 733184,
+                "workingSetBytes": 4337664
+              },
+              "parserReportedMs": 1.144,
+              "phase": "measured",
+              "supervisedParseMs": 1.2524000000000002,
+              "workerMs": 7.702
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7757824,
+                "privateCommitBytes": 2015232,
+                "workingSetBytes": 7700480
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 892928,
+                "lifetimePeakWorkingSetBytes": 4493312,
+                "privateCommitBytes": 839680,
+                "workingSetBytes": 4440064
+              },
+              "parserReportedMs": 1.148,
+              "phase": "measured",
+              "supervisedParseMs": 1.2827,
+              "workerMs": 6.9315
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7770112,
+                "privateCommitBytes": 2011136,
+                "workingSetBytes": 7712768
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 892928,
+                "lifetimePeakWorkingSetBytes": 4497408,
+                "privateCommitBytes": 831488,
+                "workingSetBytes": 4435968
+              },
+              "parserReportedMs": 1.182,
+              "phase": "measured",
+              "supervisedParseMs": 1.2947,
+              "workerMs": 8.167300000000001
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7770112,
+                "privateCommitBytes": 2027520,
+                "workingSetBytes": 7770112
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 913408,
+                "lifetimePeakWorkingSetBytes": 4505600,
+                "privateCommitBytes": 897024,
+                "workingSetBytes": 4460544
+              },
+              "parserReportedMs": 1.184,
+              "phase": "measured",
+              "supervisedParseMs": 1.3071000000000002,
+              "workerMs": 7.7174000000000005
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7770112,
+                "privateCommitBytes": 2027520,
+                "workingSetBytes": 7770112
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 942080,
+                "lifetimePeakWorkingSetBytes": 4505600,
+                "privateCommitBytes": 843776,
+                "workingSetBytes": 4448256
+              },
+              "parserReportedMs": 1.141,
+              "phase": "measured",
+              "supervisedParseMs": 1.2566000000000002,
+              "workerMs": 7.7052
+            },
+            {
+              "parentMemory": {
+                "lifetimePeakCommitBytes": 2027520,
+                "lifetimePeakWorkingSetBytes": 7770112,
+                "privateCommitBytes": 2027520,
+                "workingSetBytes": 7770112
+              },
+              "parserMemory": {
+                "lifetimePeakCommitBytes": 942080,
+                "lifetimePeakWorkingSetBytes": 4505600,
+                "privateCommitBytes": 884736,
+                "workingSetBytes": 4460544
+              },
+              "parserReportedMs": 1.242,
+              "phase": "measured",
+              "supervisedParseMs": 1.3754,
+              "workerMs": 7.5844
+            }
+          ],
+          "schema": "fruitboard/native-resource-result/1",
+          "sourceHashesMatch": true,
+          "supervisedRequestDeadlineMs": 10000,
+          "warmWorker": {
+            "maxMs": 10.260399999999999,
+            "medianMs": 7.6432,
+            "nearestRankP95Ms": 10.260399999999999,
+            "samples": [
+              10.260399999999999, 7.1444, 7.2663, 7.0298, 7.702, 6.9315,
+              8.167300000000001, 7.7174000000000005, 7.7052, 7.5844
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "followUpIssue": 259
+}
