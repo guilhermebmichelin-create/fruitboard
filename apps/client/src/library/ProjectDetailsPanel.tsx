@@ -22,10 +22,12 @@ export function ProjectDetailsPanel({
   adapter,
   record,
   sourceEligible = true,
+  idPrefix = "project-details",
 }: {
   readonly adapter: LibraryScanAdapter;
   readonly record: PublishedFileLocation;
   readonly sourceEligible?: boolean;
+  readonly idPrefix?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -76,7 +78,7 @@ export function ProjectDetailsPanel({
     sourceEligible,
   ]);
 
-  const id = `project-details-${locationId}`;
+  const id = `${idPrefix}-${locationId}`;
   return (
     <div className="project-details">
       <button

@@ -31,6 +31,11 @@ description = "Allows the local main window to read selected typed facts for one
 commands.allow = ["get_project_details"]
 
 [[permission]]
+identifier = "allow-get-plugin-explorer"
+description = "Allows the local main window to read bounded exact saved plugin groups for one tracked Library root."
+commands.allow = ["get_plugin_explorer"]
+
+[[permission]]
 identifier = "allow-get-scan-console-state"
 description = "Allows the local main window to read whether the scan console is enabled."
 commands.allow = ["get_scan_console_state"]

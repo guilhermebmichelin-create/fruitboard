@@ -1388,7 +1388,9 @@ pub(crate) fn publish_scan_run_tx(
     })
 }
 
-fn published_location_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PublishedLocation> {
+pub(crate) fn published_location_from_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<PublishedLocation> {
     let identity = identity_from_columns(row.get(8)?, row.get(9)?)
         .map_err(|_| sqlite_invalid_column(8, "encoded_identity"))?;
     Ok(PublishedLocation {
@@ -1415,7 +1417,8 @@ fn published_location_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Publ
     })
 }
 
-const LOCATION_COLUMNS: &str = "SELECT id, project_file_id, scan_root_id, detached_scan_root_id,
+pub(crate) const LOCATION_COLUMNS: &str =
+    "SELECT id, project_file_id, scan_root_id, detached_scan_root_id,
             locator_key, relative_path, byte_size, modified_at_ns,
             identity_volume_serial, identity_file_id, presence,
             last_seen_scan_run_id, last_seen_at_ms
