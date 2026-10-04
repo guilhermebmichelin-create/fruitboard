@@ -40,10 +40,14 @@ use std::io::{Read, Seek};
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
-pub const MAX_FILE_BYTES: u64 = 4 * 1024 * 1024;
+pub const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_EVENTS: usize = 100_000;
 const MAX_CHANNELS: u16 = 256;
-const MAX_EVENT_BYTES: usize = 2 * 1024 * 1024;
+// Opaque plugin-state events can occupy most of an ordinary FLP. Their checked
+// slices are skipped without copying state; interpreted events keep a tighter
+// budget (including the playlist payload that is retained during the walk).
+pub const MAX_EVENT_BYTES: usize = MAX_FILE_BYTES as usize;
+const MAX_INTERPRETED_EVENT_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_PATTERNS: usize = 1024;
 pub const MAX_PLAYLIST_CLIPS: usize = 1024;
 
@@ -537,7 +541,12 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
                 value
             }
         };
-        if width > MAX_EVENT_BYTES {
+        let event_limit = if id == 213 {
+            MAX_EVENT_BYTES
+        } else {
+            MAX_INTERPRETED_EVENT_BYTES
+        };
+        if width > event_limit {
             return failed("EVENT_LENGTH_OUT_OF_BOUNDS");
         }
         let Some(end) = cursor.checked_add(width) else {

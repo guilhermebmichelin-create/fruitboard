@@ -82,7 +82,7 @@ export const ANALYSIS_REQUEST_NOTES: Readonly<
     "The source changed or is no longer eligible. Refresh the Library before requesting analysis.",
   unqualified_source:
     "This file has no verified local identity. Scan its approved local folder before requesting analysis.",
-  too_large: "This file exceeds the supported analysis size limit.",
+  too_large: "This file exceeds the 64 MiB analysis limit (67,108,864 bytes).",
   queue_full:
     "The analysis queue is full. Refresh details after other work finishes.",
   runtime_unavailable:
