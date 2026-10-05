@@ -53,9 +53,9 @@ export function savedDetails(): Extract<
         position: 3,
         name: {
           status: "inferred",
-          value: "Sampler 2",
+          value: "Sampler",
           explanation:
-            "Medium confidence. Default Sampler numbering follows FL Studio's display convention; no channel label was stored.",
+            "Medium confidence. Default Sampler label inferred without inventing a numbered name; no channel label was stored.",
         },
         instrument: {
           status: "unsupported",

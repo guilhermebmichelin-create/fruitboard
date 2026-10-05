@@ -94,7 +94,7 @@ fn channel_id_and_type_are_independent_in_synth_first_sparse_layout() {
         "CHANNEL_NAME_NOT_STORED"
     );
     assert_eq!(parsed["channelNames"]["items"][1]["value"], "Sampler");
-    assert_eq!(parsed["channelNames"]["items"][2]["value"], "Sampler 2");
+    assert_eq!(parsed["channelNames"]["items"][2]["value"], "Sampler");
     assert_eq!(
         parsed["channelGeneratorNames"]["value"],
         json!(["3x Osc", "Sampler", "Sampler"])

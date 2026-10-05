@@ -60,6 +60,10 @@ const approvedFlpFixtureHashes = new Map([
     "d4acf044b447ff578a59070c2020aeacf5a473de2ce97821e8d2dc25a5904ec5",
   ],
   [
+    "fixtures/parser-corpus/FIX-FL2026-MULTISAMPLER.flp",
+    "d9f09c8f61293ce1ea95ee925af0bdb67b4978668cc273966e553cc6f2e5a71e",
+  ],
+  [
     "fixtures/parser-corpus/FIX-RB-TRUNC.flp",
     "38837f28cf0723434b9a089decc617af8e0069e19b12bd8d6d4cee612e59a9cd",
   ],
