@@ -114,7 +114,8 @@ compatibility fixtures (G3). Keep production activation and later phases outside
 Issue #267 begins G3 with [independent multi-Sampler GUI qualification](../../research/parser-multisampler-267-result.md).
 It exposed invented numbered channel labels; the correction retains duplicate
 `Sampler` defaults and distinguishes new results from immutable older numbered
-inferences. The exact new fixture remains private pending owner approval. Other
+inferences. The owner approved the exact F15 bytes and expectations on 2026-10-05;
+PR268 includes its immutable fixture and read-only regression. Other
 compatibility cases and the full Phase 3 checkpoint remain open.
 
 The [development checkpoint rule](../../../DEVELOPMENT.md#phase-review-checkpoint)

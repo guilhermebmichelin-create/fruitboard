@@ -1,8 +1,9 @@
 # Default Sampler labels: multi-channel qualification (issue #267)
 
-Status: source correction under validation; the exact F15 candidate remains
-private pending owner privacy approval. No new approved corpus/build coverage
-is claimed by this record.
+Status: the owner approved the exact F15 bytes and registered expectations on
+2026-10-05. PR268 adds the fixture, pinned privacy entry and read-only regression
+test. This qualifies one clone path in the existing exact 2026 build; no new
+supported build or broader Phase 3 acceptance is claimed.
 
 ## Independent GUI case
 
@@ -31,8 +32,8 @@ Bounded event/byte checks found no registration event, non-Public Windows home
 path, known local account name, email or RIFF payload in the candidate. Its
 project-data folder is the existing synthetic Public Documents fixture path.
 These scans do not fully decode opaque state. The raw save and failed attempt
-remain private; approval is requested only for the exact sanitized bytes and
-registered expectations under
+remain private; the owner approved only the exact sanitized bytes and registered
+expectations ("Approve this exact fixture and expectations") under
 [the fixture rules](../../DEVELOPMENT.md#parser-fixture-rules).
 
 ## Demonstrated mismatch and correction
@@ -79,9 +80,11 @@ version for display, while their immutable data remains retained.
 
 Focused regression tests cover repeated defaults, sparse/reordered channels,
 stored numbered labels, fresh-reply method/name/confidence rejection, mixed
-provenance and legacy display without mutation. The new fixture stays outside
-Git until exact owner approval; constructed tests are defenses, not additional
-GUI or supported-build coverage. Existing approved fixtures retain their bytes.
+provenance and legacy display without mutation. The owner-approved F15 regression
+uses the genuine-save bytes and independently recorded GUI values, pins the
+exact SHA-256 and verifies unchanged bytes after file parsing. Constructed tests
+remain defenses, not additional GUI or supported-build coverage. The previous
+twelve approved fixtures retain their bytes; the corpus now has thirteen files.
 
 Pinned Windows full/default checks, changed native-feature checks, a direct
 corrected-parser comparison and updated-head CI are required before handoff.
@@ -89,8 +92,8 @@ Their final results/source hashes are recorded with the private handoff.
 No performance budget, installed workflow or broader Phase 3 acceptance is
 promoted by these checks.
 
-This resolves the discovered naming defect. G3 still needs owner-approved
-fixture additions and the other cases in the
+This resolves the discovered naming defect and adds its approved fixture. G3
+still needs the other independent fixture cases in the
 [readiness ledger](../review/flp-intelligence-readiness/gap-ledger.md): additional
 exact builds, absent tempo/zero channels, richer arrangements, external wrapper
 metadata and independent embedded date/time-counter ground truth.
