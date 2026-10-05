@@ -226,6 +226,7 @@ export function parseProjectDetails(
   const build = facts.find((fact) => fact.key === "savedVersion")?.value;
   if (!Array.isArray(channels) || channels.length !== count) return fail();
   let inferredNames = 0;
+  let inferredNameStyle: "literal" | "numbered" | undefined;
   const selectedChannels = channels.map(
     (entry: unknown, index: number): ProjectChannel => {
       if (!record(entry) || entry["position"] !== index + 1) return fail();
@@ -242,6 +243,12 @@ export function parseProjectDetails(
           (name.value !== "Sampler" && name.value !== legacy)
         )
           return fail();
+        if (inferredNames > 1) {
+          const style = name.value === "Sampler" ? "literal" : "numbered";
+          if (inferredNameStyle !== undefined && inferredNameStyle !== style)
+            return fail();
+          inferredNameStyle = style;
+        }
       }
       if (instrument.status !== "unsupported" && build !== "26.1.0.5530")
         return fail();

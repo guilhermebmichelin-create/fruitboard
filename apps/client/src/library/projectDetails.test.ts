@@ -62,6 +62,15 @@ describe("typed project details", () => {
       })),
     };
     expect(parseProjectDetails(legacy, identity)).toEqual(legacy);
+    const mixed = {
+      ...legacy,
+      channels: legacy.channels.map((channel) =>
+        channel.position === 3
+          ? { ...channel, name: { ...channel.name, value: "Sampler" } }
+          : channel,
+      ),
+    };
+    expect(() => parseProjectDetails(mixed, identity)).toThrow("internal");
   });
 
   it.each([
