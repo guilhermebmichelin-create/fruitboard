@@ -585,6 +585,15 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
             .to_owned()
     };
     let before = saved_payload();
+    let projected: Value = serde_json::from_str(&before).unwrap();
+    assert_eq!(
+        projected["channelNames"]["method"],
+        "mixed-extracted-and-sampler-label"
+    );
+    assert_eq!(
+        projected["channelNames"]["items"][0]["method"],
+        "sampler-label-for-known-build"
+    );
     let details = read(request.clone());
     assert_eq!(before, saved_payload());
     assert_eq!(details["state"], "available");

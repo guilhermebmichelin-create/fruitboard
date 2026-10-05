@@ -51,6 +51,7 @@ pub(super) fn project(value: &Value, build: &str, count: usize) -> Result<Vec<Ch
         .filter(|v| v.len() == count)
         .ok_or(())?;
     let (mut extracted, mut inferred, mut missing) = (0, 0, 0);
+    let mut legacy_inference = None;
     let mut result = Vec::with_capacity(count);
     for (index, field) in items.iter().enumerate() {
         let name = match field["status"].as_str() {
@@ -70,13 +71,21 @@ pub(super) fn project(value: &Value, build: &str, count: usize) -> Result<Vec<Ch
             Some("inferred") if matches!(build, "25.1.3.4922" | "26.1.0.5530") => {
                 has_value(field, "inferred")?;
                 inferred += 1;
-                let expected = if inferred == 1 {
-                    "Sampler".to_owned()
-                } else {
+                let legacy = match field["method"].as_str() {
+                    Some("sampler-label-for-known-build") => false,
+                    Some("sampler-default-for-known-build") => true,
+                    _ => return Err(()),
+                };
+                if legacy_inference.is_some_and(|previous| previous != legacy) {
+                    return Err(());
+                }
+                legacy_inference = Some(legacy);
+                let expected = if legacy && inferred > 1 {
                     format!("Sampler {inferred}")
+                } else {
+                    "Sampler".to_owned()
                 };
                 if field["value"] != expected
-                    || field["method"] != "sampler-default-for-known-build"
                     || field["confidence"] != if inferred == 1 { "high" } else { "medium" }
                 {
                     return Err(());
@@ -86,8 +95,10 @@ pub(super) fn project(value: &Value, build: &str, count: usize) -> Result<Vec<Ch
                     Some(&expected),
                     Some(if inferred == 1 {
                         "High confidence. FL Studio's default Sampler label for this verified build; no channel label was stored."
+                    } else if legacy {
+                        "Earlier Fruitboard inferred a numbered Sampler label. Analyze this project again to check it with the corrected naming rule."
                     } else {
-                        "Medium confidence. Default Sampler numbering follows FL Studio's display convention; no channel label was stored."
+                        "Medium confidence. Default Sampler label inferred without inventing a numbered name; no channel label was stored."
                     }),
                 )
             }
@@ -123,10 +134,12 @@ pub(super) fn project(value: &Value, build: &str, count: usize) -> Result<Vec<Ch
             }
         }
         Some("inferred") if inferred > 0 && missing == 0 => {
-            let method = if extracted > 0 {
-                "mixed-extracted-and-sampler-default"
-            } else {
-                "sampler-default-for-known-build"
+            let method = match (extracted > 0, legacy_inference) {
+                (true, Some(true)) => "mixed-extracted-and-sampler-default",
+                (false, Some(true)) => "sampler-default-for-known-build",
+                (true, Some(false)) => "mixed-extracted-and-sampler-label",
+                (false, Some(false)) => "sampler-label-for-known-build",
+                (_, None) => return Err(()),
             };
             let confidence = if extracted > 0 || inferred > 1 {
                 "medium"
