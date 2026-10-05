@@ -1,6 +1,6 @@
 # ADR-007: Bounded checks for saved sample paths
 
-- Status: Accepted bounded design by PR279; policy implementation in #280
+- Status: Accepted bounded design by PR279; policy merged in PR281; Windows #282 for review
 - Date: 2026-10-05
 - Decision owner: product owner
 - Source baseline: merged PR268, `91261525383ce79adb090550329167ef347f7253`
@@ -203,8 +203,10 @@ need no migration for this design.
 The design was accepted by PR279 on 2026-10-05, merge
 `53e248ae906bfd0a53cbdf6cbe62442c25238669`. The authority review is documented;
 [policy slice #280](../review/sample-presence-policy-280/README.md) implements
-portable rules for review. Implementation tests are not
-evidence that a port is safe. Review/merge of the focused design PR approves
+portable rules merged in PR281. The
+[Windows slice #282](../review/sample-presence-windows-282/README.md) records native
+implementation, adversarial tests and limitations for review. Passing tests alone
+do not replace an authority review. Review/merge of the focused design PR approves
 this implementation scope. Separate implementation PRs still need their own
 native review, required updated-head checks, Windows adversarial tests and
 rendered/installed evidence. Design approval does not activate production,

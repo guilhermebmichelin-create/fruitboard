@@ -100,8 +100,10 @@ the selected local-NTFS source root, with present/not-found/not-checked/no-refer
 semantics and source/root/snapshot/session fences. Relative paths, placeholders
 and additional folders need separate qualification/grants. No probe is implemented
 by the design PR. PR279 accepted the design; [policy slice #280](../sample-presence-policy-280/README.md)
-adds an inactive library with recording-port policy/lifecycle tests. Real Windows
-authority and app integration remain pending. G5 and its broader resolution
-work stay open.
+adds an inactive library with recording-port policy/lifecycle tests, merged in
+PR281. [Windows slice #282](../sample-presence-windows-282/README.md) implements
+the native metadata adapter for review, including real NTFS rights and race
+tests. Application integration remains pending; G5 and broader resolution work
+stay open. This does not qualify every cloud provider or blocked kernel call.
 Merging this packet supplies a maintained evidence map; it does not close gaps,
 accept budgets, accept Phase 3 or open a later-phase milestone.

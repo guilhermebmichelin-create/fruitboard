@@ -51,8 +51,9 @@ a complete parse does not make every field extracted or universally supported.
 G5's [sample presence design](../sample-presence-278/README.md), issue #278,
 was accepted in PR279 for a separate ephemeral within-root metadata report.
 The [policy slice #280](../sample-presence-policy-280/README.md) implements an
-inactive library with injected-port tests; native authority and app delivery
-remain pending.
+inactive library with injected-port tests, merged in PR281. The
+[Windows slice #282](../sample-presence-windows-282/README.md) adds a metadata
+adapter and actual NTFS rights/race tests for review; app delivery remains pending.
 It does not change saved reference provenance or add implemented presence/missing
 claims to this matrix. Relative/placeholder/external-folder resolution remains
 unqualified; current raw sample text is still inert.

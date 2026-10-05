@@ -1,8 +1,11 @@
 # Sample presence policy review
 
-Status: **Slice 1 implementation for owner review; no app probe activation.**
+Status: **Slice 1 merged as PR281; no app probe activation.**
 Date: 2026-10-05. Issue:
 [#280](https://github.com/guilhermebmichelin-create/fruitboard/issues/280).
+Merge: `aecf880e515540c3bce012c0508d81dba2c31e68`. The
+[Windows slice #282](../sample-presence-windows-282/README.md) supplies later native
+evidence; the recording-port proof below retains its original boundary.
 Source baseline: `6054790e0a7b2f09ece4644b479f68acf6805b13`, tree
 `1f7caa93092d5b6363369a8d029dbcee93bd8273`. This includes reviewed design
 [PR279](https://github.com/guilhermebmichelin-create/fruitboard/pull/279) and four
