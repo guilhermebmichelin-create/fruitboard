@@ -979,6 +979,14 @@ name = "fruitboard-reconciliation"
 version = "0.1.0"
 
 [[package]]
+name = "fruitboard-sample-presence"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "fruitboard-scan-execution"
 version = "0.1.0"
 dependencies = [

@@ -1,12 +1,17 @@
 # Sample presence implementation sequence
 
-Status: proposed follow-up to issue #278 and ADR-007; not implemented.
+Status: design accepted by PR279; policy slice #280 implemented for review;
+Windows port and app integration pending.
 Planning source: merged PR268, `91261525383ce79adb090550329167ef347f7253`.
 Start implementation from the reviewed design merge, record its actual SHA/tree
 and validate each final PR head against that boundary. Do not start from an
 unreviewed documentation branch or claim this plan is an implemented capability.
 
 ## Slice 1: Policy and typed reports
+
+The [policy library review](../sample-presence-policy-280/README.md) implements
+this slice without app activation, starting from main
+`6054790e0a7b2f09ece4644b479f68acf6805b13`. Exact final-head checks are in its PR.
 
 Owned files: a dedicated `crates/sample-presence/` library and its tests, root
 `Cargo.toml`/`Cargo.lock` workspace entries only as needed. This is the proposed

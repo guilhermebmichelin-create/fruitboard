@@ -9,6 +9,7 @@ members = [
   "crates/scan-execution",
   "crates/flp-parser",
   "crates/analysis-execution",
+  "crates/sample-presence",
 ]
 resolver = "3"
 
