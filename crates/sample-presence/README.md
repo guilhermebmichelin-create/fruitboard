@@ -1,8 +1,8 @@
-# Bounded sample presence policy
+# Bounded sample presence
 
-ADR-007 slice 1, issue #280. This library implements portable policy and request
-lifecycle rules. It has **no filesystem implementation or desktop command**;
-the app still displays saved paths without checking them.
+ADR-007 slices 1 and 2, issues #280 and #282. This library implements portable
+policy, request lifecycle rules and a Windows metadata adapter. There is no
+desktop command or UI activation; the app still displays saved reference text.
 
 ## Authority contract
 
@@ -65,11 +65,48 @@ raw errors, file identities and fingerprints, and are not persisted. Slice 3
 must supply strict IPC decoding and host/renderer context/generation fencing at
 delivery; library publication alone does not guarantee transport freshness.
 
+## Windows metadata adapter
+
+`native::WindowsPort` requires an injected `CurrentAuthorization`; there is no
+production permit-all implementation. The future host must check durable root,
+location, snapshot, source and session state, release its database guard before
+I/O and signal `RequestControl` when authority is revoked. The adapter compares
+the captured context/fence again before publication. Database integration is
+slice 3 work, not something the injected tests prove.
+
+The adapter qualifies a local harddisk DOS mapping and held NTFS volume/root/
+source identity before candidate work. Handles request attributes and synchronize
+rights only. Exact child queries/opens use held parents, kernel-owned directory
+case semantics, no-follow/no-recall options and existing-only NT disposition.
+Unsafe calls live exclusively in the private `native/ffi.rs` boundary; no raw
+handle or arbitrary error/path escapes it. Ancestor handles pin names without
+blocking descendant writes. Source files allow ordinary writes and atomic
+replacement; final checks compare both held metadata and the current parent/name
+binding, because an old handle can survive replacement.
+
+Root-prefix spelling must match the trusted captured spelling literally.
+Potentially equivalent case variants remain `not_checked/unsupported_case_mode`;
+the adapter does not grant authority from an OS string comparison. Candidate
+suffixes follow the qualified directory's case mode, including sensitive
+directories. Unsupported/remote/redirected mappings and reparse/offline/recall
+states fail closed. The no-recall option and injected flags are reviewed evidence;
+these tests do not qualify every real cloud provider or a blocked kernel call.
+
 ## Validation
 
-`cargo test -p fruitboard-sample-presence --locked` uses recording ports, fake
-clocks and a channel-controlled blocked worker. It proves policy/lifecycle,
-not Windows traversal, FL Studio mapping, installed UI or performance.
-Warning-denied all-target Clippy/tests run in portable CI and the pinned Windows
-workspace gate. See the [review](../../docs/review/sample-presence-policy-280/README.md)
-and [accepted sequence](../../docs/review/sample-presence-278/implementation-plan.md).
+`cargo test -p fruitboard-sample-presence --locked` retains 24 recording-port,
+fake-clock and blocked-worker tests. On Windows, 20 additional tests exercise
+actual NTFS attributes-only handles, presence/absence, access-denied metadata,
+directory pins, ordinary source saves, surviving old handles, real junction
+races, sensitive case mode, cancellation/revocation and maximum-depth budgets.
+Offline/recall attributes use explicit injection. Fixtures are private synthetic
+bytes, not new FL Studio compatibility evidence. Independent source/sample bytes
+remain unchanged except in tests that deliberately simulate a save/replacement.
+
+Warning-denied all-target Clippy/tests run in portable CI, explicit Windows CI
+and the pinned Windows workspace gate. See the
+[policy review](../../docs/review/sample-presence-policy-280/README.md),
+[Windows review](../../docs/review/sample-presence-windows-282/README.md) and
+[accepted sequence](../../docs/review/sample-presence-278/implementation-plan.md).
+Installed UI, strict IPC, host database fences, wider path resolution and
+performance qualification remain separate work.

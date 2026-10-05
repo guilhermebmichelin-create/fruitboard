@@ -272,6 +272,10 @@ jobs:
           cargo test -p fruitboard-storage --features parser-metadata --locked
       - name: Run the integrated Windows gate
         run: pnpm.cmd check
+      - name: Check bounded Windows sample metadata authority
+        run: |
+          cargo clippy -p fruitboard-sample-presence --all-targets --locked -- -D warnings
+          cargo test -p fruitboard-sample-presence --locked
       - name: Run the enabled scan-console suite
         run: cargo test -p fruitboard-desktop --features scan-console --locked
       - name: Lint enabled scan-console code

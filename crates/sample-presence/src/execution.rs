@@ -25,6 +25,7 @@ pub struct SourceFingerprint {
 }
 
 /// Captured under the future host's durable authorization guard. No Debug.
+#[derive(Clone, Eq, PartialEq)]
 pub struct AuthorityFence {
     pub root_revision: u64,
     pub location_revision: u64,
@@ -125,7 +126,7 @@ pub struct Operations {
 }
 
 impl Operations {
-    fn new(control: RequestControl) -> Self {
+    pub(crate) fn new(control: RequestControl) -> Self {
         Self {
             control,
             used: 0,
@@ -178,7 +179,7 @@ pub enum Child<D> {
 }
 
 /// Trusted injection seam, never selected by a renderer. No enumeration, content,
-/// process, network fallback or mutation methods. No production adapter yet.
+/// process, network fallback or mutation methods. No application activation.
 pub trait MetadataPort {
     type Authority;
     type Directory;

@@ -1,7 +1,7 @@
 # Sample presence implementation sequence
 
-Status: design accepted by PR279; policy slice #280 implemented for review;
-Windows port and app integration pending.
+Status: design accepted by PR279; policy slice #280 merged as PR281;
+Windows slice #282 implemented for review; app integration pending.
 Planning source: merged PR268, `91261525383ce79adb090550329167ef347f7253`.
 Start implementation from the reviewed design merge, record its actual SHA/tree
 and validate each final PR head against that boundary. Do not start from an
@@ -12,6 +12,8 @@ unreviewed documentation branch or claim this plan is an implemented capability.
 The [policy library review](../sample-presence-policy-280/README.md) implements
 this slice without app activation, starting from main
 `6054790e0a7b2f09ece4644b479f68acf6805b13`. Exact final-head checks are in its PR.
+PR281 merged this slice on 2026-10-05 as
+`aecf880e515540c3bce012c0508d81dba2c31e68`.
 
 Owned files: a dedicated `crates/sample-presence/` library and its tests, root
 `Cargo.toml`/`Cargo.lock` workspace entries only as needed. This is the proposed
@@ -31,6 +33,12 @@ updated-head CI. Existing accepted-source CI applies only to unchanged crates;
 it cannot validate the new policy. Retain the source/tree and exact check logs.
 
 ## Slice 2: Windows metadata authority
+
+The [Windows review](../sample-presence-windows-282/README.md) maps implementation
+and real Windows evidence from that PR281 merge. The adapter is inactive in the
+app. A narrow enumeration correction uses NT existing-only disposition rather
+than the similarly named Win32 option; regression tests reproduce the former
+creation behavior and verify that disappeared names remain absent.
 
 Owned files: the new library's Windows implementation/tests and narrowly scoped
 shared native helper changes only after their authority impact is reviewed.

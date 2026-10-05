@@ -8,3 +8,9 @@ publish = false
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Globalization"] }
+
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = ["Win32_Security_Authorization"] }

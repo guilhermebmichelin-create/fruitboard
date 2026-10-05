@@ -2288,6 +2288,9 @@ mod windows_port {
     const FILE_SHARE_WRITE: u32 = 0x0000_0002;
     const FILE_SHARE_DELETE: u32 = 0x0000_0004;
     const OPEN_EXISTING: u32 = 3;
+    // NT dispositions have a different numeric vocabulary from CreateFileW.
+    // FILE_OPEN_IF (3) could recreate a name that disappeared during scanning.
+    const FILE_OPEN_DISPOSITION: u32 = 1;
     const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
     const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
     const FILE_DIRECTORY_FILE: u32 = 0x0000_0001;
@@ -2873,7 +2876,7 @@ mod windows_port {
                 null_mut(),
                 0,
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                OPEN_EXISTING,
+                FILE_OPEN_DISPOSITION,
                 create_options,
                 null_mut(),
                 0,
@@ -3136,6 +3139,104 @@ mod windows_port {
                 PortError::Unsupported
             }
             _ => PortError::Other,
+        }
+    }
+
+    #[cfg(test)]
+    mod existing_only_tests {
+        use super::*;
+        use std::os::windows::fs::MetadataExt;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
+
+        struct Fixture(PathBuf);
+
+        impl Fixture {
+            fn new() -> Self {
+                loop {
+                    let path = std::env::temp_dir().join(format!(
+                        "fruitboard-enumeration-existing-only-{}-{}",
+                        std::process::id(),
+                        NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
+                    ));
+                    match std::fs::create_dir(&path) {
+                        Ok(()) => return Self(path),
+                        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                        Err(error) => panic!("create owned test directory: {error}"),
+                    }
+                }
+            }
+        }
+
+        impl Drop for Fixture {
+            fn drop(&mut self) {
+                // Only these two owned names can have been created by the regression.
+                // Never traverse a link or recursively delete temporary storage.
+                for name in ["vanished-file", "vanished-directory"] {
+                    let path = self.0.join(name);
+                    match std::fs::symlink_metadata(&path) {
+                        Ok(metadata) => {
+                            assert_eq!(
+                                metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT,
+                                0
+                            );
+                            if metadata.is_dir() {
+                                std::fs::remove_dir(path).unwrap();
+                            } else {
+                                std::fs::remove_file(path).unwrap();
+                            }
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(error) => panic!("inspect owned test name: {error}"),
+                    }
+                }
+                let metadata = std::fs::symlink_metadata(&self.0).unwrap();
+                assert_eq!(metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT, 0);
+                std::fs::remove_dir(&self.0).unwrap();
+            }
+        }
+
+        #[test]
+        fn disappeared_file_is_not_recreated_by_relative_open() {
+            let fixture = Fixture::new();
+            let path = fixture.0.join("vanished-file");
+            std::fs::write(&path, b"private synthetic regression").unwrap();
+            let parent = open_path(&fixture.0).unwrap();
+            std::fs::remove_file(&path).unwrap();
+
+            let result = open_relative(
+                &parent,
+                OsStr::new("vanished-file"),
+                FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT_OPTION,
+            );
+            assert!(
+                !path.exists(),
+                "relative open recreated the disappeared file"
+            );
+            assert!(matches!(result, Err(PortError::NotFound)));
+        }
+
+        #[test]
+        fn disappeared_directory_is_not_recreated_by_relative_open() {
+            let fixture = Fixture::new();
+            let path = fixture.0.join("vanished-directory");
+            std::fs::create_dir(&path).unwrap();
+            let parent = open_path(&fixture.0).unwrap();
+            std::fs::remove_dir(&path).unwrap();
+
+            let result = open_relative(
+                &parent,
+                OsStr::new("vanished-directory"),
+                FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT_OPTION,
+            );
+            assert!(
+                !path.exists(),
+                "relative open recreated the disappeared directory"
+            );
+            assert!(matches!(result, Err(PortError::NotFound)));
         }
     }
 }

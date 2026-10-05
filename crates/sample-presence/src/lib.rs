@@ -1,14 +1,18 @@
-//! ADR-007 policy foundation. No filesystem adapter or application capability.
+//! ADR-007 bounded sample presence. No application command or UI activation.
 //!
 //! Stored paths are untrusted. Only an injected, reviewed metadata port can
 //! qualify objects, compare filesystem names and attest exact-name absence.
 //! This crate never reads content, enumerates directories or mutates files.
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
+#![deny(unsafe_op_in_unsafe_fn)]
 
 mod execution;
 mod lifecycle;
 mod path;
 mod report;
+
+#[cfg(windows)]
+pub mod native;
 
 pub use execution::{
     AuthorityFence, CapturedInput, Child, HandleLease, MetadataPort, ObjectIdentity, Operations,
