@@ -3,10 +3,13 @@
 Status: **Review packet; budgets and Phase 3 exit are not accepted.**
 Date: 2026-10-04. Related issue:
 [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259).
-Reviewed application boundary: merged
+Historical application baseline: merged
 [PR #261](https://github.com/guilhermebmichelin-create/fruitboard/pull/261),
 `19b95362a66a82c91cba56fc8f2226c6ef899cc2` (tree identical to its tested head
 `d32a6e358a6a91e3cc133dc3a3ce553334688690`).
+Pattern delivery is now merged PR264. The [current installed review](../installed-combined-265/README.md)
+covers that integration plus the enlarged-text fix at source `e1e00c6`; it does
+not promote earlier dated evidence or accept whole-app resource budgets.
 
 ## Owner summary
 
@@ -28,7 +31,7 @@ The [gap ledger](gap-ledger.md) records what remains and the next focused change
 
 ## Delivered behavior and evidence
 
-| Surface                              | Merged delivery            | Evidence and boundary                                                                                                                                                                                                                                                          |
+| Surface                              | Delivery reference         | Evidence and boundary                                                                                                                                                                                                                                                          |
 | ------------------------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Read-only parser and authority       | PRs #224, #227, #231, #233 | [Parser contract](../../../crates/flp-parser/README.md), approved corpus, Windows/Linux supervision tests; exact builds and per-field restrictions remain.                                                                                                                     |
 | Windows development packaging        | PR #235                    | [Installed lifecycle](../parser-packaging-234/README.md): fixed sibling, reuse, crash recovery, rejection, missing binary and reinstall; unsigned development identity.                                                                                                        |
@@ -41,8 +44,10 @@ The [gap ledger](gap-ledger.md) records what remains and the next focused change
 | Ordinary-size analysis               | PR #256                    | [Size policy](../analysis-size-255/README.md): 4,601,596/25,000,000/64 MiB constructed inputs, typed over-limit rejection, unchanged hashes; parser adapter 0.1.1.                                                                                                             |
 | Saved Plugin Explorer                | PR #257                    | [Explorer](../plugin-explorer-254/README.md): exact provenance-aware groups, complete counts or limited state, bounded input/output, freshness and root isolation; native screenshots, not installed qualification.                                                            |
 | Native resource observations         | PRs #260, #261             | [Quiet before/after](../explorer-performance-259/README.md): full native Explorer plus serialization and real supervised worker; independent artifacts and source hashes. [Earlier characterization](../metadata-resources-258/README.md) retains its failed noise guard.      |
+| Saved pattern counts and names       | PR #264                    | [Patterns](../library-patterns-263/README.md): typed validation, immutable projection, authorized display and backward reading; exact verified 2026 build only.                                                                                                                |
+| Current combined installed workflow  | Issue #265 / this review   | [Installed journey and text reflow](../installed-combined-265/README.md): fresh identity, scan/analysis/patterns/Explorer, restart/failure/root gates and a11y; narrow whole-app characterization, not approved resource/scale qualification.                                  |
 
-These rows identify the relevant merged delivery PRs, not every prerequisite.
+These rows identify the relevant delivery PRs and current review, not every prerequisite.
 The dated reports retain their original source and build boundaries. Current
 CI tests code integration; it does not retrospectively rerun a historical
 installed journey or expand GUI-verified compatibility.
@@ -102,8 +107,9 @@ Decisions are currently **pending**, including after merging this documentation:
 Issue #263 delivers [G2](../library-patterns-263/README.md): the already verified
 2026 pattern count and names now pass through typed validation, immutable
 persistence and the authorized Library view, using unchanged approved F13.
-Next prioritize fresh-identity installed coverage (G4), followed by independently
-approved compatibility fixtures. Keep production activation and later phases outside these changes.
+Issue #265 now covers the bounded fresh-identity installed workflow (G4), while
+whole-app resource decisions remain open. Next plan independently approved
+compatibility fixtures (G3). Keep production activation and later phases outside these changes.
 
 The [development checkpoint rule](../../../DEVELOPMENT.md#phase-review-checkpoint)
 requires an explicit owner acceptance before a later phase starts. Approval or
@@ -117,6 +123,13 @@ PR262 (`7b6a7d1e0b0fe1e2e3fc8ebe5b5275e3d167db48`). Its
 checks, fresh-profile visual evidence and final-head CI. It does not rerun or
 promote historical installed/performance evidence. Budget/phase decisions above
 remain pending.
+
+The [#265 installed review](../installed-combined-265/README.md) supplies current
+combined scan/analysis/patterns/Explorer evidence, a Library enlarged-text fix
+and an installed layout regression. Its default full check and real installed
+results supplement PR264's unchanged native checks. Fresh final-head checks and
+owner review remain required for this change; the seven-entry characterization
+does not qualify representative FLPs, limit-scale UI or approved resource budgets.
 
 ## Historical documentation-only validation
 

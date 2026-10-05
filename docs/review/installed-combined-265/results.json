@@ -1,0 +1,98 @@
+﻿{
+  "sourceSha": "e1e00c6dc824dcbd31ead5a8ef7518b1536c5539",
+  "kind": "Installed whole-app characterization; no approved budgets or cold-disk claim",
+  "entries": 7,
+  "groups": 2,
+  "startup": {
+    "firstMs": 695.9148999999998,
+    "excludedWarmupMs": 694.8580000000002,
+    "warm": {
+      "samplesMs": [
+        704.9939000000004, 718.5915999999997, 713.1183000000001,
+        681.4365000000016, 695.4151999999995, 710.8361999999997,
+        702.9179999999997, 713.4467000000004, 706.0574000000015,
+        691.685300000001
+      ],
+      "medianMs": 705.52565000000095,
+      "p95Ms": 718.5915999999997
+    }
+  },
+  "ipcExplorer": {
+    "firstMs": 4.199999928474426,
+    "excludedWarmupMs": 4.300000071525574,
+    "warm": {
+      "samplesMs": [
+        4.200000047683716, 4.100000023841858, 4.600000023841858,
+        4.100000023841858, 3.8000000715255737, 3.8000000715255737,
+        3.8000000715255737, 4.299999952316284, 4.699999928474426, 4
+      ],
+      "medianMs": 4.100000023841858,
+      "p95Ms": 4.699999928474426
+    }
+  },
+  "uiExplorer": {
+    "firstMs": 9.299999952316284,
+    "excludedWarmupMs": 11.199999928474426,
+    "warm": {
+      "samplesMs": [
+        11.800000071525574, 12.299999952316284, 12.599999904632568,
+        6.799999952316284, 7, 7.400000095367432, 8.299999952316284, 12.5,
+        10.600000023841858, 7.700000047683716
+      ],
+      "medianMs": 9.449999988079071,
+      "p95Ms": 12.599999904632568
+    }
+  },
+  "uiDetails": {
+    "firstMs": 14.799999952316284,
+    "excludedWarmupMs": 93.5,
+    "warm": {
+      "samplesMs": [
+        7.699999928474426, 14.899999976158142, 7.200000047683716,
+        14.799999952316284, 7.200000047683716, 7.199999928474426,
+        14.900000095367432, 14.400000095367432, 7.299999952316284,
+        7.299999952316284
+      ],
+      "medianMs": 7.499999940395355,
+      "p95Ms": 14.900000095367432
+    }
+  },
+  "resourceWindows": [
+    {
+      "label": "saved-query-window-v2",
+      "samples": 3,
+      "durationMs": 680.1650000000001,
+      "noiseGuardPassed": true,
+      "noiseGuardViolations": [],
+      "peakConcurrentWorkingSetMiB": 388.5546875,
+      "peakConcurrentPrivateCommitMiB": 228.109375
+    },
+    {
+      "label": "startup-window-v2",
+      "samples": 25,
+      "durationMs": 12420.2515,
+      "noiseGuardPassed": true,
+      "noiseGuardViolations": [],
+      "peakConcurrentWorkingSetMiB": 364.203125,
+      "peakConcurrentPrivateCommitMiB": 221.90234375
+    },
+    {
+      "label": "steady-whole-tree-v2",
+      "samples": 65,
+      "durationMs": 10175.3263,
+      "noiseGuardPassed": true,
+      "noiseGuardViolations": [],
+      "peakConcurrentWorkingSetMiB": 375.8828125,
+      "peakConcurrentPrivateCommitMiB": 220.6953125
+    },
+    {
+      "label": "25mb-analysis-whole-tree-v3",
+      "samples": 25,
+      "durationMs": 4153.5784,
+      "noiseGuardPassed": true,
+      "noiseGuardViolations": [],
+      "peakConcurrentWorkingSetMiB": 414.59765625,
+      "peakConcurrentPrivateCommitMiB": 248.08203125
+    }
+  ]
+}
