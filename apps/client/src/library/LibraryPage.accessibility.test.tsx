@@ -1,5 +1,5 @@
 import { MemoryRouter } from "react-router";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { describe, expect, it } from "vitest";
@@ -51,8 +51,13 @@ function renderLibrary(
 }
 
 async function expectNoViolations(container: HTMLElement) {
-  const results = await axe.run(container, {
-    rules: { "color-contrast": { enabled: false } },
+  // Keep React updates queued while axe takes its asynchronous DOM snapshot.
+  // A scan refresh must not replace headings halfway through the audit.
+  let results!: axe.AxeResults;
+  await act(async () => {
+    results = await axe.run(container, {
+      rules: { "color-contrast": { enabled: false } },
+    });
   });
   expect(
     results.violations.map(({ id, nodes }) => ({
@@ -242,6 +247,16 @@ describe("LibraryPage accessibility", () => {
     await expectNoViolations(view.container);
 
     adapter.completeScan(root.id);
+    await screen.findByRole("heading", { name: "Accessible.flp" });
+    // The scan refresh also restores keyboard focus asynchronously. Audit the
+    // completed transition rather than a document still being replaced.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole("heading", { name: "File locations" }),
+      ),
+    );
+    await expectNoViolations(view.container);
+    // The audit can release a queued follow-up read. Check its final ready view too.
     await screen.findByRole("heading", { name: "Accessible.flp" });
     await expectNoViolations(view.container);
   });

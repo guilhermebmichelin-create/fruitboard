@@ -429,6 +429,24 @@ fn native_analysis_uses_real_parser_and_holds_source_through_publication() {
 
 #[cfg(windows)]
 #[test]
+#[ignore = "requires freshly built FRUITBOARD_ANALYSIS_TEST_PARSER; run with the real-parser integration checks"]
+fn native_analysis_publishes_approved_saved_patterns() {
+    let saved = run_native_analysis(
+        std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../fixtures/parser-corpus/FIX-FL2026-PATTERNS.flp"),
+        )
+        .unwrap(),
+    );
+    assert_eq!(saved["patterns"]["count"], 3);
+    assert_eq!(
+        saved["patterns"]["items"][2]["name"]["value"],
+        "Fixture Pattern C"
+    );
+}
+
+#[cfg(windows)]
+#[test]
 #[ignore = "requires freshly built FRUITBOARD_ANALYSIS_TEST_PARSER; run by Windows feature CI and local validation"]
 fn native_analysis_accepts_ordinary_project_sizes_through_publication() {
     for size in [4_601_596, 25_000_000] {
@@ -451,7 +469,7 @@ fn native_analysis_accepts_ordinary_project_sizes_through_publication() {
 }
 
 #[cfg(windows)]
-fn run_native_analysis(payload: Vec<u8>) {
+fn run_native_analysis(payload: Vec<u8>) -> serde_json::Value {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Storage::FileSystem::GetFileInformationByHandleEx;
     let directory = Directory::new();
@@ -531,7 +549,7 @@ fn run_native_analysis(payload: Vec<u8>) {
             .state,
         AnalysisState::Complete
     );
-    {
+    let saved = {
         let database = db.lock().unwrap();
         let input = database
             .capture_metadata_input(&scan_root.id, &location)
@@ -548,7 +566,12 @@ fn run_native_analysis(payload: Vec<u8>) {
         let saved: serde_json::Value =
             serde_json::from_str(snapshot.payload_json().unwrap()).unwrap();
         assert_eq!(saved["savedVersion"], "26.1.0.5530");
-        assert_eq!(saved["channelCount"], 1);
-    }
+        assert_eq!(
+            saved["channelCount"],
+            fruitboard_flp_parser::parse_bytes(&payload)["channelCount"]["value"]
+        );
+        saved
+    };
     std::fs::rename(&root, directory.0.join("Moved")).unwrap();
+    saved
 }

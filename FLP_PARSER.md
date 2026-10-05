@@ -295,6 +295,20 @@ extended metadata presentation and performance qualification remain open.
 
 ### Library saved project details
 
+Issue #263 adds saved pattern counts and names to this view, using the existing
+verified extraction for exact build `26.1.0.5530`. Counts describe distinct
+stored IDs, not playlist placements. The validator checks advertised fields,
+count/ID/name relationships, playlist references and text/list bounds before
+persisting an additive private `patterns` container in projection version 1.
+The existing total payload limit and source authority remain unchanged.
+
+The renderer shows 20 names at a time with keyboard paging and visible escaped
+control characters. Missing names/default pattern data stay explicitly unknown;
+older immutable snapshots explain `not_saved` without being rewritten. A new
+analysis can add details; Refresh details only reads results. Other supported
+builds remain unsupported for pattern details. See the
+[patterns review packet](docs/review/library-patterns-263/README.md).
+
 The expandable Library view reads nine selected scalar facts through
 `get_project_details`: saved version, base tempo, channel count, local project
 creation time, filesystem creation time, FL Studio's saved time counter and

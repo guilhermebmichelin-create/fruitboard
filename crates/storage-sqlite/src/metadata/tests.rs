@@ -27,6 +27,91 @@ fn raw_reply() -> Value {
     value["filesystemCreatedAtMs"] = json!({"status":"extracted","value":u64::MAX});
     value
 }
+
+#[test]
+fn patterns_are_selected_immutable_and_invalid_results_keep_the_last_good_snapshot() {
+    let directory = TestDirectory::new();
+    let (mut database, input) = setup(&directory, MIGRATIONS.len());
+    let mut descriptor = json!({"adapter":ADAPTER_ID,"adapterVersion":ADAPTER_VERSION,
+        "fields":["savedVersion","baseTempoBpm","channelCount","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","patternCount","patternNames"],
+        "maxFileBytes":67108864,"maxEvents":100000,"maxChannels":256,"maxEventBytes":67108864,"maxPatterns":1024,"maxPlaylistClips":1024});
+    let caps = validate_descriptor(&descriptor).unwrap();
+    // Constructed missing-name/sparse-ID protocol case, using the existing F12 source fences.
+    let mut raw = raw_reply();
+    raw["patternCount"] = json!({"status":"extracted","value":2});
+    raw["patternNames"] = json!({"status":"unavailable","reason":"PATTERN_NAME_NOT_STORED","items":[
+        {"patternId":1,"name":{"status":"extracted","value":"","rawPrivate":"discard"},"rawPrivate":"discard"},
+        {"patternId":65535,"name":{"status":"unavailable","reason":"PATTERN_NAME_NOT_STORED","rawPrivate":"discard"}}]});
+    let header = database
+        .publish_metadata_snapshot(&input, &caps, ProtocolReply::Result(raw.clone()), 100)
+        .unwrap();
+    let snapshot = database.metadata_snapshot(&header.id).unwrap().unwrap();
+    let stored = snapshot.payload_json().unwrap().to_owned();
+    let payload: Value = serde_json::from_str(&stored).unwrap();
+    assert_eq!(
+        payload["patterns"],
+        json!({"status":"extracted","count":2,"items":[
+        {"patternId":1,"name":{"status":"extracted","value":""}},
+        {"patternId":65535,"name":{"status":"unavailable","reason":"PATTERN_NAME_NOT_STORED"}}]})
+    );
+    assert!(payload.get("patternCount").is_none());
+    assert!(payload.get("patternNames").is_none());
+    assert!(!stored.contains("rawPrivate"));
+    let input = database
+        .capture_metadata_input(&input.root_id, "location")
+        .unwrap();
+    raw["patternCount"]["value"] = json!(3);
+    assert!(matches!(
+        database.publish_metadata_snapshot(&input, &caps, ProtocolReply::Result(raw), 101),
+        Err(StorageError::InvalidSchema)
+    ));
+    assert_eq!(
+        database
+            .current_metadata_snapshot("project")
+            .unwrap()
+            .unwrap()
+            .header()
+            .id,
+        header.id
+    );
+    descriptor["fields"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|field| field != "patternCount");
+    let mut raw = raw_reply();
+    raw["patternNames"] = json!({"private":"unadvertised text"});
+    database
+        .publish_metadata_snapshot(
+            &input,
+            &validate_descriptor(&descriptor).unwrap(),
+            ProtocolReply::Result(raw),
+            102,
+        )
+        .unwrap();
+    assert_eq!(
+        database
+            .metadata_snapshot(&header.id)
+            .unwrap()
+            .unwrap()
+            .payload_json(),
+        Some(stored.as_str())
+    );
+    let current = database
+        .current_metadata_snapshot("project")
+        .unwrap()
+        .unwrap();
+    let payload: Value = serde_json::from_str(current.payload_json().unwrap()).unwrap();
+    assert_eq!(
+        payload["patterns"],
+        json!({"status":"unsupported","reason":"PATTERN_DETAILS_NOT_ADVERTISED"})
+    );
+    assert!(
+        !current
+            .payload_json()
+            .unwrap()
+            .contains("unadvertised text")
+    );
+}
 pub(crate) fn reply() -> ProtocolReply {
     ProtocolReply::Result(raw_reply())
 }

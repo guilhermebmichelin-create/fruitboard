@@ -1,5 +1,6 @@
 import { LibraryAdapterError, type PublishedFileLocation } from "./contracts";
 import { parseProjectAnalysis, type ProjectAnalysis } from "./projectAnalysis";
+import { parseProjectPatterns, type ProjectPatterns } from "./projectPatterns";
 import {
   parseProjectPlugins,
   type ProjectPluginReferences,
@@ -59,6 +60,7 @@ export type ProjectDetails = {
       readonly outcome: "complete" | "partial";
       readonly facts: readonly ProjectFact[];
       readonly channels: readonly ProjectChannel[];
+      readonly patterns?: ProjectPatterns;
       readonly sampleReferences?: readonly ProjectSampleReference[];
       readonly pluginReferences?: ProjectPluginReferences;
       readonly analysis?: ProjectAnalysis;
@@ -91,6 +93,7 @@ export function parseProjectDetails(
       value["facts"] !== undefined ||
       value["snapshotId"] !== undefined ||
       value["channels"] !== undefined ||
+      value["patterns"] !== undefined ||
       value["sampleReferences"] !== undefined ||
       value["pluginReferences"] !== undefined ||
       value["warnings"] !== undefined ||
@@ -263,6 +266,14 @@ export function parseProjectDetails(
       : {
           pluginReferences: parseProjectPlugins(
             value["pluginReferences"],
+            facts[0]?.value ?? "",
+          ),
+        }),
+    ...(value["patterns"] === undefined
+      ? {}
+      : {
+          patterns: parseProjectPatterns(
+            value["patterns"],
             facts[0]?.value ?? "",
           ),
         }),

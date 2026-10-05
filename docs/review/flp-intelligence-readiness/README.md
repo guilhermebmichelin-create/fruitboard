@@ -17,7 +17,7 @@ approved synthetic corpus. It supports ordinary project sizes, but that does
 not establish support for every project or plugin.
 
 The bounded development workflow is delivered. The broader Phase 3 roadmap is
-not complete: pattern summaries still stop at the parser, sample availability
+not complete: saved pattern counts/names are integrated in issue #263, but sample availability
 is unchecked, and external plugins, richer arrangements and whole-app resource
 qualification remain gaps. Keep development inside FLP intelligence; this
 packet does not authorize Phase 4, production activation or public distribution.
@@ -58,7 +58,7 @@ must not be presented as the full phase exit.
 | 1. Compatibility matrix and approved corpus    | Maintained narrow corpus and ordinary tests; three exact builds                   | Broader representative version/feature coverage; FL20/21, absent tempo and zero-channel genuine saves remain unverified. |
 | 2. Metadata normalization and provenance       | Selected facts have typed validation, immutable storage and honest display        | Broader project/arrangement fields and independent field ground truth.                                                   |
 | 3. Duration/bar estimates                      | Verified pattern-clip endpoint and explicitly low-confidence bars/nominal seconds | Richer arrangements, audio clips, tempo automation and tails; no finished-song duration claim.                           |
-| 4. Channel/pattern/automation/MIDI summaries   | Channel labels/count/instruments displayed; pattern IDs/names parsed              | Pattern count/names are not retained by the application projection or displayed; automation/MIDI summaries are absent.   |
+| 4. Channel/pattern/automation/MIDI summaries   | Channel and saved pattern counts/names displayed                                  | Automation/MIDI summaries remain absent; saved patterns cover only the verified exact 2026 build.                        |
 | 5. Mixer/plugin normalization                  | Saved top-level name/class/vendor and two verified instrument classes             | Mixer effects, nested coverage, broader external VST identity and classification.                                        |
 | 6. Sample/reference resolution                 | Raw saved references displayed safely                                             | No existence, availability, relocation or dependency resolution.                                                         |
 | 7. Diagnostics/reparse UI                      | Fixed analysis states and explicit retry/reanalysis                               | Broader compatibility/error qualification; no FLP modification or repair.                                                |
@@ -99,20 +99,28 @@ Decisions are currently **pending**, including after merging this documentation:
 3. Confirm the remaining Phase 3 scope and deliberate exclusions before any
    later-phase entry. No missing roadmap item is silently removed here.
 
-The next recommended implementation is [G2 in the gap ledger](gap-ledger.md):
-carry the already verified 2026 pattern count and stored names through typed
-validation, immutable persistence and the authorized Library details view.
-It can reuse approved F13 instead of inventing new FLP ground truth. Follow
-with fresh-identity installed coverage and independently approved compatibility
-fixtures. Keep production activation and later phases outside these changes.
+Issue #263 delivers [G2](../library-patterns-263/README.md): the already verified
+2026 pattern count and names now pass through typed validation, immutable
+persistence and the authorized Library view, using unchanged approved F13.
+Next prioritize fresh-identity installed coverage (G4), followed by independently
+approved compatibility fixtures. Keep production activation and later phases outside these changes.
 
 The [development checkpoint rule](../../../DEVELOPMENT.md#phase-review-checkpoint)
 requires an explicit owner acceptance before a later phase starts. Approval or
 merge of an implementation/docs PR alone is not that checkpoint decision.
 
-## Validation and retained evidence
+## Current pattern integration and validation
 
-This packet changes documentation only. Application/corpus/lockfiles are
+Issue #263 changes application validation, projection and display on merged
+PR262 (`7b6a7d1e0b0fe1e2e3fc8ebe5b5275e3d167db48`). Its
+[review packet](../library-patterns-263/README.md) owns focused/default/native
+checks, fresh-profile visual evidence and final-head CI. It does not rerun or
+promote historical installed/performance evidence. Budget/phase decisions above
+remain pending.
+
+## Historical documentation-only validation
+
+The original PR262 packet changed documentation only. Application/corpus/lockfiles are
 byte-identical to merged PR261, whose exact head passed all 15 checks, including
 Windows enabled native features, packaging smoke and CodeQL. No local native
 rebuild, installer, app launch, benchmark or profile operation is needed.

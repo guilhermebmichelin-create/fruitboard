@@ -118,6 +118,7 @@ pub struct ValidatedProjectMetadata {
     fl_studio_time_spent_ms: ProjectField<u64>,
     plugins: Vec<PluginReference>,
     channel_generators: ChannelGenerators,
+    patterns: SavedPatterns,
     arrangement_end_tick: ProjectField<u32>,
     arrangement_span_bars: ProjectField<f64>,
     arrangement_estimated_seconds: ProjectField<f64>,
@@ -149,6 +150,9 @@ impl ValidatedProjectMetadata {
     }
     pub fn channel_generators(&self) -> &ChannelGenerators {
         &self.channel_generators
+    }
+    pub fn patterns(&self) -> &SavedPatterns {
+        &self.patterns
     }
     pub fn arrangement_end_tick(&self) -> &ProjectField<u32> {
         &self.arrangement_end_tick
@@ -558,6 +562,13 @@ pub fn validate_project_reply(
         initial.channel_count() as usize,
     )?;
     let project_created_local = project_created(&raw["projectCreatedLocal"])?;
+    let patterns = patterns::validate(
+        &raw["patternCount"],
+        &raw["patternNames"],
+        capabilities.patterns,
+        initial.saved_version(),
+        capabilities.max_patterns,
+    )?;
     let fl_studio_time_spent_ms = integer(
         &raw["flStudioTimeSpentMs"],
         255_611_462_399_999,
@@ -593,6 +604,22 @@ pub fn validate_project_reply(
             .ok_or(ValidationError::InvalidReply)?,
     )?;
     let arrangement_end_tick = arrangement_end(&raw, capabilities.max_playlist_clips)?;
+    if capabilities.patterns && raw["playlistPatternClips"]["status"] == "extracted" {
+        let clips = raw["playlistPatternClips"]["value"]
+            .as_array()
+            .ok_or(ValidationError::InvalidReply)?;
+        for clip in clips {
+            let SavedPatterns::Entries(items) = &patterns else {
+                return Err(ValidationError::InvalidReply);
+            };
+            let id = clip["patternId"]
+                .as_u64()
+                .ok_or(ValidationError::InvalidReply)?;
+            if !items.iter().any(|pattern| u64::from(pattern.id()) == id) {
+                return Err(ValidationError::InvalidReply);
+            }
+        }
+    }
     if !matches!(initial.saved_version(), "26.1.0.5530")
         && !matches!(
             arrangement_end_tick,
@@ -638,6 +665,7 @@ pub fn validate_project_reply(
             fl_studio_time_spent_ms,
             plugins,
             channel_generators,
+            patterns,
             arrangement_end_tick,
             arrangement_span_bars,
             arrangement_estimated_seconds,
