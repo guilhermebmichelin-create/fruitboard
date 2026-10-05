@@ -609,6 +609,63 @@ mod tests {
 
     #[test]
     #[cfg(feature = "analysis-jobs")]
+    fn corrected_sampler_labels_and_legacy_numbered_snapshots_are_read_without_rewriting() {
+        let mut raw = payload();
+        raw["channelNames"] = json!({"status":"inferred","method":"sampler-label-for-known-build","confidence":"medium","items":[
+            {"status":"inferred","value":"Sampler","method":"sampler-label-for-known-build","confidence":"high"},
+            {"status":"inferred","value":"Sampler","method":"sampler-label-for-known-build","confidence":"medium"},
+            {"status":"inferred","value":"Sampler","method":"sampler-label-for-known-build","confidence":"medium"}
+        ]});
+        let before = raw.to_string();
+        let channels = serde_json::to_value(project(&before).unwrap().1).unwrap();
+        for index in 0..3 {
+            assert_eq!(channels[index]["name"]["value"], "Sampler");
+        }
+        assert_eq!(raw.to_string(), before);
+        assert!(
+            channels[2]["name"]["explanation"]
+                .as_str()
+                .unwrap()
+                .contains("without inventing")
+        );
+        for (pointer, bad) in [
+            ("/channelNames/items/1/value", json!("Sampler 2")),
+            (
+                "/channelNames/items/2/method",
+                json!("sampler-default-for-known-build"),
+            ),
+            (
+                "/channelNames/method",
+                json!("sampler-default-for-known-build"),
+            ),
+        ] {
+            let mut invalid = raw.clone();
+            *invalid.pointer_mut(pointer).unwrap() = bad;
+            assert!(project(&invalid.to_string()).is_err(), "{pointer}");
+        }
+        raw["channelNames"]["method"] = json!("sampler-default-for-known-build");
+        for index in 0..3 {
+            raw["channelNames"]["items"][index]["method"] =
+                json!("sampler-default-for-known-build");
+            if index > 0 {
+                raw["channelNames"]["items"][index]["value"] =
+                    json!(format!("Sampler {}", index + 1));
+            }
+        }
+        let legacy_before = raw.to_string();
+        let channels = serde_json::to_value(project(&legacy_before).unwrap().1).unwrap();
+        assert_eq!(channels[1]["name"]["value"], "Sampler 2");
+        assert!(
+            channels[1]["name"]["explanation"]
+                .as_str()
+                .unwrap()
+                .contains("Earlier Fruitboard")
+        );
+        assert_eq!(raw.to_string(), legacy_before);
+    }
+
+    #[test]
+    #[cfg(feature = "analysis-jobs")]
     fn channel_projection_reads_old_snapshots_and_rejects_invalid_names_or_instrument_claims() {
         let raw = payload();
         let (_, channels, _, _, _, _) = project(&raw.to_string()).unwrap();

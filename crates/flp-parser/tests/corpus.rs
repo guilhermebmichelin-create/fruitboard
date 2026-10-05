@@ -88,7 +88,7 @@ fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
         ) {
             assert_eq!(parsed["channelNames"]["status"], "inferred", "{name}");
             assert_eq!(
-                parsed["channelNames"]["method"], "sampler-default-for-known-build",
+                parsed["channelNames"]["method"], "sampler-label-for-known-build",
                 "{name}"
             );
             assert_eq!(parsed["channelNames"]["confidence"], "high", "{name}");
@@ -145,6 +145,62 @@ fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
     assert_eq!(unknown["diagnostics"][0]["code"], "UNSUPPORTED_EVENT");
     assert_eq!(unknown["diagnostics"][0]["eventId"], 255);
     assert_eq!(unknown["channelCount"]["value"], 1);
+}
+
+#[test]
+fn approved_three_sampler_gui_save_preserves_duplicate_labels_read_only() {
+    // Registered GUI values precede parser inspection; this exact file/hash
+    // received owner publication approval on 2026-10-05 (manifest F15).
+    let path = fixture("FIX-FL2026-MULTISAMPLER.flp");
+    let before = fs::read(&path).unwrap();
+    let hash = "d9f09c8f61293ce1ea95ee925af0bdb67b4978668cc273966e553cc6f2e5a71e";
+    assert_eq!(fruitboard_flp_parser::sha256_hex(&before), hash);
+    let metadata = fs::metadata(&path).unwrap();
+    let parsed = parse_file(
+        &path,
+        ExpectedFingerprint {
+            size: metadata.len(),
+            modified_at_ms: modified_at_ms(&metadata).unwrap(),
+        },
+    );
+    assert_eq!(parsed["outcome"], "complete");
+    assert_eq!(parsed["savedVersion"]["value"], "26.1.0.5530");
+    assert_eq!(parsed["baseTempoBpm"]["value"], 130.0);
+    assert_eq!(parsed["channelCount"]["value"], 3);
+    let labels = serde_json::json!(["Sampler", "Sampler", "Sampler"]);
+    assert_eq!(parsed["channelNames"]["value"], labels);
+    assert_eq!(parsed["channelNames"]["status"], "inferred");
+    assert_eq!(
+        parsed["channelNames"]["method"],
+        "sampler-label-for-known-build"
+    );
+    assert_eq!(parsed["channelNames"]["confidence"], "medium");
+    for (index, confidence) in ["high", "medium", "medium"].iter().enumerate() {
+        assert_eq!(parsed["channelNames"]["items"][index]["value"], "Sampler");
+        assert_eq!(
+            parsed["channelNames"]["items"][index]["confidence"],
+            *confidence
+        );
+    }
+    assert_eq!(parsed["channelGeneratorNames"]["value"], labels);
+    assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
+    assert_eq!(
+        parsed["sampleReferences"]["items"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    for sample in parsed["sampleReferences"]["items"].as_array().unwrap() {
+        assert_eq!(sample["status"], "unavailable");
+        assert_eq!(sample["reason"], "SAMPLE_REFERENCE_NOT_STORED");
+    }
+    assert_eq!(
+        parsed["playlistPatternClips"]["value"],
+        serde_json::json!([])
+    );
+    assert_eq!(parsed["inputFingerprint"]["hash"]["value"], hash);
+    assert_eq!(fs::read(&path).unwrap(), before);
 }
 
 #[test]

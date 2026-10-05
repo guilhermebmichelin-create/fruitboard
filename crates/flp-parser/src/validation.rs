@@ -122,8 +122,8 @@ pub enum Confidence {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NameInference {
-    SamplerDefaultForKnownBuild,
-    MixedExtractedAndSamplerDefault,
+    SamplerLabelForKnownBuild,
+    MixedExtractedAndSamplerLabel,
 }
 
 pub enum Field<T> {
@@ -483,25 +483,20 @@ fn text_list(
             Some("inferred") if !sample && matches!(build, "25.1.3.4922" | "26.1.0.5530") => {
                 field_shape(item, "inferred")?;
                 inferred += 1;
-                let expected_name = if inferred == 1 {
-                    "Sampler".to_owned()
-                } else {
-                    format!("Sampler {inferred}")
-                };
                 let confidence = if inferred == 1 {
                     Confidence::High
                 } else {
                     Confidence::Medium
                 };
-                if item["value"] != expected_name
-                    || item["method"] != "sampler-default-for-known-build"
+                if item["value"] != "Sampler"
+                    || item["method"] != "sampler-label-for-known-build"
                     || item["confidence"] != if inferred == 1 { "high" } else { "medium" }
                 {
                     return Err(ValidationError::InvalidReply);
                 }
                 entries.push(TextField::Inferred {
-                    value: expected_name,
-                    method: NameInference::SamplerDefaultForKnownBuild,
+                    value: "Sampler".to_owned(),
+                    method: NameInference::SamplerLabelForKnownBuild,
                     confidence,
                 });
             }
@@ -530,13 +525,13 @@ fn text_list(
         }
         let (method, method_name) = if extracted > 0 {
             (
-                NameInference::MixedExtractedAndSamplerDefault,
-                "mixed-extracted-and-sampler-default",
+                NameInference::MixedExtractedAndSamplerLabel,
+                "mixed-extracted-and-sampler-label",
             )
         } else {
             (
-                NameInference::SamplerDefaultForKnownBuild,
-                "sampler-default-for-known-build",
+                NameInference::SamplerLabelForKnownBuild,
+                "sampler-label-for-known-build",
             )
         };
         let confidence = if extracted > 0 || inferred > 1 {

@@ -60,6 +60,7 @@ test("the committed parser corpus passes its binary privacy scan", () => {
     "FIX-FL2026-SAMPLE",
     "FIX-FL2026-PATTERNS",
     "FIX-FL2026-3XOSC",
+    "FIX-FL2026-MULTISAMPLER",
     "FIX-RB-TRUNC",
     "FIX-RB-UNKNOWN",
     "FIX-RB-MALFORM",

@@ -34,8 +34,8 @@ fn missing(reason: MissingReason) -> &'static str {
 }
 fn inference(method: NameInference) -> &'static str {
     match method {
-        NameInference::SamplerDefaultForKnownBuild => "sampler-default-for-known-build",
-        NameInference::MixedExtractedAndSamplerDefault => "mixed-extracted-and-sampler-default",
+        NameInference::SamplerLabelForKnownBuild => "sampler-label-for-known-build",
+        NameInference::MixedExtractedAndSamplerLabel => "mixed-extracted-and-sampler-label",
     }
 }
 fn confidence(value: Confidence) -> &'static str {

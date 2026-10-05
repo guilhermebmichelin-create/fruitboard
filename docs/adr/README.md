@@ -1,7 +1,8 @@
 # Architecture Decision Records
 
-ADRs describe consequential choices. These records were approved by the product
-owner on 2026-09-04. If a decision changes, add a superseding ADR rather than
+ADRs describe consequential choices. ADR-001 through ADR-006 were approved by
+the product owner on 2026-09-04; later dated decisions and proposed records are
+marked individually. If a decision changes, add a superseding ADR rather than
 silently rewriting implementation history.
 
 | ADR | Title | Status |
@@ -12,3 +13,4 @@ silently rewriting implementation history.
 | [ADR-004](004-project-identity.md) | Separate Project, ProjectFile, and FileLocation | Accepted |
 | [ADR-005](005-google-drive-sync.md) | Drive app-data operation-log synchronization | Accepted |
 | [ADR-006](006-shared-client-architecture.md) | Shared desktop/PWA client architecture | Accepted |
+| [ADR-007](007-sample-presence-boundary.md) | Bounded checks for saved sample paths | Proposed; issue #278 design review |
