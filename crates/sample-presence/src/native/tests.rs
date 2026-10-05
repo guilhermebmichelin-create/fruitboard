@@ -46,6 +46,13 @@ impl Fixture {
         ));
         assert!(!base.exists());
         fs::create_dir(&base).unwrap();
+        // Test setup owns this new directory. Resolve Windows' abbreviated
+        // TEMP spelling, then remove the verbatim drive prefix returned by
+        // canonicalize. Production authority never canonicalizes saved paths.
+        let canonical = fs::canonicalize(&base).unwrap();
+        let full = canonical.to_str().unwrap();
+        let base = PathBuf::from(full.strip_prefix(r"\\?\").unwrap_or(full));
+        AbsolutePath::parse(base.to_str().unwrap()).expect("ordinary owned fixture root");
         let root = base.join("projects");
         fs::create_dir(&root).unwrap();
         let source = root.join("project.flp");

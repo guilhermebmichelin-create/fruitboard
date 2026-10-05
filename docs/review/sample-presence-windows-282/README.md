@@ -100,6 +100,13 @@ The [Windows tests](../../../crates/sample-presence/src/native/tests.rs) add 20
 cases to the existing 24 portable policy/lifecycle cases; none of the new cases
 is ignored. Fixtures are uniquely owned private synthetic bytes. Test setup
 and independent before/after reads are separate from adapter I/O authority.
+Windows test setup resolves the newly owned temporary directory to its full
+ordinary drive spelling; hosted runners may supply an abbreviated TEMP path.
+This is fixture preparation only. Production root/sample syntax and authority
+never canonicalize or expand saved references.
+The same 44-case suite also passes locally with TEMP/TMP deliberately set to an
+actual Windows short-name alias and to verbatim drive spelling. Neither variant
+requires weakening the production path restrictions.
 
 | Obligation | Evidence and limits |
 | --- | --- |
