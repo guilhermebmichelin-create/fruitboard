@@ -70,10 +70,14 @@ not to recall contents on open; see the
 The existing [enumeration opener](../../../crates/filesystem-enumeration/src/lib.rs)
 passed Win32 `OPEN_EXISTING` (3) to NT, where 3 means `FILE_OPEN_IF` and permits
 creation. Only its NT call changes to `FILE_OPEN` (1); `CreateFileW` keeps its
-valid existing-only value 3. Two real Windows regressions first failed with
+valid existing-only value 3. Two real
+[Windows regressions](../../../crates/filesystem-enumeration/src/windows_port/existing_only_tests.rs)
+first failed with
 explicit recreated-file/recreated-directory assertions, then passed after the
 correction. The full enumeration suite and warning-denied Clippy pass. No scan
-capability, cursor or filesystem qualification is expanded.
+capability, cursor or filesystem qualification is expanded. Fixture creation
+stays in a separate test-only module; the existing discovery source policy is
+unchanged and continues to reject content reads/writes in production code.
 
 ## Case and freshness limits
 
