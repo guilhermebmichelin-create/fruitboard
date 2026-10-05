@@ -1,6 +1,6 @@
 # Sample presence design review
 
-Status: **Proposed design; no implemented sample probes or G5 acceptance.**
+Status: **Design accepted in PR279; no app sample probes or G5 acceptance.**
 Date: 2026-10-05. Issue: #278. Baseline: merged PR268,
 `91261525383ce79adb090550329167ef347f7253`.
 
@@ -12,14 +12,14 @@ the selected project folder. It reports whether a file was present at that
 exact path when checked. Paths it cannot safely inspect remain "not checked";
 they do not become false missing-sample warnings.
 
-Review this scope before introducing file access from saved project strings.
+PR279 accepted this scope before introducing file access from saved project strings.
 The first version deliberately needs separate qualification before expanding
 relative paths, FL Studio placeholders or additional sample folders. Those
 references remain visible as saved text.
 
 ## Review contents
 
-- [Proposed ADR-007](../../adr/007-sample-presence-boundary.md): explicit
+- [Accepted ADR-007](../../adr/007-sample-presence-boundary.md): explicit
   authority, result vocabulary, lifecycle, bounds, privacy and UI behavior.
 - [Native authority review](authority-review.md): threats, proof obligations
   and concrete test cases. This is a design audit, not passed implementation tests.
@@ -27,13 +27,15 @@ references remain visible as saved text.
   application slices with validation and shared-cache ownership boundaries.
 - [Maintained gaps](../flp-intelligence-readiness/gap-ledger.md): G5 stays open.
 
-## Decision requested through normal PR review
+## Decision recorded through normal PR review
 
-Review/merge approves the bounded first-version design for subsequent
+PR279 merged on 2026-10-05 at `53e248ae906bfd0a53cbdf6cbe62442c25238669`,
+approving the bounded first-version design for subsequent
 implementation PRs. The implementation must still demonstrate exact-child
 metadata authority, stale/late-result fences and accurate unchecked states.
 Rejecting or revising this design changes that planned scope, not current app
-behavior. Production activation, broader path mapping, performance budgets and
+behavior. [Policy slice 1](../sample-presence-policy-280/README.md) is implemented
+for review. Production activation, broader path mapping, performance budgets and
 the Phase 3 checkpoint remain separate decisions.
 
 ## Current contract alignment

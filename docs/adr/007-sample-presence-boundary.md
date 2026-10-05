@@ -1,6 +1,6 @@
 # ADR-007: Bounded checks for saved sample paths
 
-- Status: Proposed; design review in issue #278
+- Status: Accepted bounded design by PR279; policy implementation in #280
 - Date: 2026-10-05
 - Decision owner: product owner
 - Source baseline: merged PR268, `91261525383ce79adb090550329167ef347f7253`
@@ -14,12 +14,12 @@ absence. Treating an access error or an unresolved reference as a missing
 sample would give the owner incorrect information.
 
 G5 requires a scoped native authority review before implementation. This record
-proposes the first slice of Phase 3 reference resolution; it does not implement
+defines the first slice of Phase 3 reference resolution; it does not itself implement
 it, accept G5 as delivered or authorize a later phase. The
 [review packet](../review/sample-presence-278/README.md) contains the threat
 review, acceptance cases and implementation sequence.
 
-## Proposed decision
+## Decision
 
 Add an explicit desktop action to check saved paths within the selected
 project's enabled, qualified local-NTFS scan root. Use a dedicated Rust
@@ -200,7 +200,10 @@ folder grants and relative/placeholder mapping without claiming FL Studio's
 full dependency resolver. Source snapshots remain immutable and old apps/data
 need no migration for this design.
 
-The proposed authority review is documented; implementation tests are not yet
+The design was accepted by PR279 on 2026-10-05, merge
+`53e248ae906bfd0a53cbdf6cbe62442c25238669`. The authority review is documented;
+[policy slice #280](../review/sample-presence-policy-280/README.md) implements
+portable rules for review. Implementation tests are not
 evidence that a port is safe. Review/merge of the focused design PR approves
 this implementation scope. Separate implementation PRs still need their own
 native review, required updated-head checks, Windows adversarial tests and

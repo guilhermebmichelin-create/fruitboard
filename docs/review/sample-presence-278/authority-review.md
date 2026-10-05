@@ -1,9 +1,11 @@
 # Sample presence native authority review
 
-Status: design audit for issue #278; implementation and adversarial tests pending.
+Status: design audit accepted by PR279; native adversarial tests pending.
 Baseline: merged PR268, `91261525383ce79adb090550329167ef347f7253`.
-The [proposed ADR](../../adr/007-sample-presence-boundary.md) is authoritative for
+The [accepted ADR](../../adr/007-sample-presence-boundary.md) is authoritative for
 scope. This review identifies what a native implementation must demonstrate.
+The [policy review](../sample-presence-policy-280/README.md) maps recording-port
+tests to their limited proof; real Windows and installed cases remain open.
 
 ## Existing boundaries inspected
 

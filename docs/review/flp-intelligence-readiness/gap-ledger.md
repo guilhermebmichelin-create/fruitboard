@@ -99,6 +99,9 @@ It proposes explicit metadata-only checks of literal absolute saved paths within
 the selected local-NTFS source root, with present/not-found/not-checked/no-reference
 semantics and source/root/snapshot/session fences. Relative paths, placeholders
 and additional folders need separate qualification/grants. No probe is implemented
-by the design PR; G5 and its broader dependency-resolution work remain open.
+by the design PR. PR279 accepted the design; [policy slice #280](../sample-presence-policy-280/README.md)
+adds an inactive library with recording-port policy/lifecycle tests. Real Windows
+authority and app integration remain pending. G5 and its broader resolution
+work stay open.
 Merging this packet supplies a maintained evidence map; it does not close gaps,
 accept budgets, accept Phase 3 or open a later-phase milestone.
