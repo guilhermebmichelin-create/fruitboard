@@ -118,6 +118,12 @@ inferences. The owner approved the exact F15 bytes and expectations on 2026-10-0
 PR268 includes its immutable fixture and read-only regression. Other
 compatibility cases and the full Phase 3 checkpoint remain open.
 
+Issue #278 proposes [bounded sample presence](../sample-presence-278/README.md)
+for G5. The first design checks literal saved absolute paths only within the
+selected qualified source root after an explicit action; unsupported references
+remain unchecked. ADR-007 and its native authority/test plan are proposed, not
+implemented file access or G5 delivery. Review precedes the implementation slices.
+
 The [development checkpoint rule](../../../DEVELOPMENT.md#phase-review-checkpoint)
 requires an explicit owner acceptance before a later phase starts. Approval or
 merge of an implementation/docs PR alone is not that checkpoint decision.

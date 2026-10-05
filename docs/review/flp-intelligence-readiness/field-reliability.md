@@ -48,6 +48,12 @@ a complete parse does not make every field extracted or universally supported.
 
 ## Tests and independent checks
 
+G5's [sample presence design](../sample-presence-278/README.md), issue #278,
+proposes a separate ephemeral report for explicit within-root metadata checks.
+It does not change saved reference provenance or add implemented presence/missing
+claims to this matrix. Relative/placeholder/external-folder resolution remains
+unqualified; current raw sample text is still inert.
+
 Issue #267 [qualifies approved three-Sampler F15](../../research/parser-multisampler-267-result.md)
 in the exact 2026 build. Duplicate GUI labels refute the old assumption that
 unstored later labels should be numbered. New results retain literal `Sampler`

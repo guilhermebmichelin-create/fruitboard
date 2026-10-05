@@ -92,5 +92,13 @@ This does not close
 G3 or qualify additional saved builds, arrangements or external plugins.
 
 Issue #259 remains open for G1 and the remaining qualification/checkpoint review.
+
+Issue #278 provides the next G5 design review:
+[ADR-007 and authority/implementation packet](../sample-presence-278/README.md).
+It proposes explicit metadata-only checks of literal absolute saved paths within
+the selected local-NTFS source root, with present/not-found/not-checked/no-reference
+semantics and source/root/snapshot/session fences. Relative paths, placeholders
+and additional folders need separate qualification/grants. No probe is implemented
+by the design PR; G5 and its broader dependency-resolution work remain open.
 Merging this packet supplies a maintained evidence map; it does not close gaps,
 accept budgets, accept Phase 3 or open a later-phase milestone.
