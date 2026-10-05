@@ -24,6 +24,58 @@ const record: PublishedFileLocation = {
 };
 
 describe("Project details panel", () => {
+  it("clears saved patterns while refreshing and never queues analysis through Refresh details", async () => {
+    const diagnostics = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+    const available = {
+      ...savedDetails(),
+      patterns: {
+        state: "available" as const,
+        count: 1,
+        items: [
+          {
+            patternId: 200,
+            name: { status: "extracted" as const, value: "Fixture Pattern" },
+          },
+        ],
+      },
+    };
+    let finish!: (details: ProjectDetails) => void;
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce(available)
+      .mockImplementationOnce(
+        () =>
+          new Promise<ProjectDetails>((resolve) => {
+            finish = resolve;
+          }),
+      );
+    const adapter = {
+      ...createFakeLibraryScanAdapter(),
+      getProjectDetails: read,
+      requestProjectAnalysis: vi.fn(),
+    };
+    render(<ProjectDetailsPanel record={record} adapter={adapter} />);
+    await user.click(
+      screen.getByRole("button", { name: "Project details Example.flp" }),
+    );
+    await screen.findByText("Fixture Pattern");
+    await user.click(
+      screen.getByRole("button", {
+        name: "Refresh project details Example.flp",
+      }),
+    );
+    expect(screen.queryByText("Fixture Pattern")).toBeNull();
+    await act(async () => {
+      finish({ ...identity, state: "no_current" });
+      await Promise.resolve();
+    });
+    await screen.findByText(/No current saved project details/);
+    expect(screen.queryByRole("region", { name: "Saved patterns" })).toBeNull();
+    expect(adapter.requestProjectAnalysis).not.toHaveBeenCalled();
+    expect(diagnostics).not.toHaveBeenCalled();
+    diagnostics.mockRestore();
+  });
   it.each([
     "not_reported",
     "not_current",

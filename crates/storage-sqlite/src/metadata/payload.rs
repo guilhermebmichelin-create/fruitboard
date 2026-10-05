@@ -159,6 +159,7 @@ pub(super) fn encode(metadata: &ValidatedProjectMetadata) -> Result<String> {
         "channelCount":initial.channel_count(),
         "channelNames":list(initial.channel_names()),
         "channelGeneratorNames":generators(metadata.channel_generators()),
+        "patterns":patterns(metadata.patterns()),
         "sampleReferences":list(initial.sample_references()),
         "projectCreatedLocal":project(metadata.project_created_local()),
         "flStudioTimeSpentMs":project(metadata.fl_studio_time_spent_ms()),
@@ -184,5 +185,24 @@ fn generators(value: &ChannelGenerators) -> Value {
             ChannelGenerator::InferredSampler => json!({"status":"inferred","value":"Sampler","method":"sampler-generator-default-for-known-build","confidence":"high"}),
             ChannelGenerator::Unsupported(reason) => json!({"status":"unsupported","reason":reason.as_str()}),
         }).collect::<Vec<_>>()}),
+    }
+}
+
+fn patterns(value: &SavedPatterns) -> Value {
+    match value {
+        SavedPatterns::Unsupported(reason) => {
+            json!({"status":"unsupported","reason":reason.as_str()})
+        }
+        SavedPatterns::Unavailable => {
+            json!({"status":"unavailable","reason":"PATTERN_DATA_NOT_STORED"})
+        }
+        SavedPatterns::Entries(items) => {
+            json!({"status":"extracted","count":items.len(),"items":items.iter().map(|item| json!({
+            "patternId":item.id(), "name":match item.name() {
+                Some(name) => json!({"status":"extracted","value":name}),
+                None => json!({"status":"unavailable","reason":"PATTERN_NAME_NOT_STORED"}),
+            },
+        })).collect::<Vec<_>>()})
+        }
     }
 }

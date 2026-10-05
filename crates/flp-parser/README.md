@@ -186,6 +186,13 @@ conflicting names, malformed UTF-16, and names outside a pattern context fail
 with typed codes. Text uses the existing 8192-byte limit and response limits
 remain in force. This field does not describe pattern notes or playlist length.
 
+Issue #263 carries both advertised pattern fields through full typed validation
+into the application's bounded immutable projection and authorized Library
+details view. Count/ID/name relationships and playlist references are checked;
+unknown extensions are discarded. Older saved projections without patterns
+remain readable without reparsing. See the
+[Library patterns review](../../docs/review/library-patterns-263/README.md).
+
 `playlistPatternClips` reads event-233 pattern placements only for the exact
 2026 build validated by the [F13 playlist study](../../docs/research/parser-playlist-188-result.md).
 The extracted value is an array in saved record order, with entries like

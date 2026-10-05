@@ -13,6 +13,8 @@ mod project_facts;
 pub use project_facts::*;
 mod channel_generators;
 pub use channel_generators::*;
+mod patterns;
+pub use patterns::*;
 
 const INITIAL_FIELDS: [&str; 5] = [
     "savedVersion",
@@ -41,8 +43,10 @@ pub struct ParserCapabilities {
     max_events: u64,
     max_channels: usize,
     max_playlist_clips: usize,
+    max_patterns: usize,
     project_facts: bool,
     channel_generators: bool,
+    patterns: bool,
 }
 
 pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, ValidationError> {
@@ -74,17 +78,19 @@ pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, Validati
     let max_events = limit("maxEvents", crate::MAX_EVENTS as u64)?;
     let max_channels = limit("maxChannels", u64::from(crate::MAX_CHANNELS))? as usize;
     limit("maxEventBytes", crate::MAX_EVENT_BYTES as u64)?;
-    limit("maxPatterns", crate::MAX_PATTERNS as u64)?;
+    let max_patterns = limit("maxPatterns", crate::MAX_PATTERNS as u64)? as usize;
     let max_playlist_clips = limit("maxPlaylistClips", crate::MAX_PLAYLIST_CLIPS as u64)? as usize;
     Ok(ParserCapabilities {
         max_file_bytes,
         max_events,
         max_channels,
         max_playlist_clips,
+        max_patterns,
         project_facts: project_facts::FIELDS
             .iter()
             .all(|field| names.contains(field)),
         channel_generators: names.contains("channelGeneratorNames"),
+        patterns: names.contains("patternCount") && names.contains("patternNames"),
     })
 }
 
