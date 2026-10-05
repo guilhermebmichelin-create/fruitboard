@@ -6,7 +6,7 @@ the bounded research parser at commit `080e825`. It reads one explicit FLP
 read-only, returns the four initial metadata fields plus channel and pattern
 counts, pattern names, playlist pattern clips and timing summaries, and the
 narrow generator-name field and project facts described below. It keeps typed failure/partial
-outcomes tested against the approved twelve-file corpus.
+outcomes tested against the approved thirteen-file corpus.
 
 The executable uses protocol version 1 and schema version 2 as newline-delimited
 JSON on stdin/stdout. It accepts `describe`, `healthCheck`, and `parse` methods.
