@@ -157,18 +157,23 @@ label the method and confidence explicitly. An inferred displayed channel name
 must never be labeled as text extracted from the FLP, and an extracted name must
 never be relabeled as inferred by an aggregate method.
 
-Inferred sampler channel names follow FL Studio's own display numbering, so
-successive unnamed sampler channels in a known build are reported as `Sampler`,
-`Sampler 2`, `Sampler 3`, and so on. Only the first is verified against a real
-save and carries `high` confidence; the numbering beyond it follows FL's display
-convention and is reported at `medium` until a multi-channel approved fixture
-confirms it. When a project mixes a stored name with an inferred default, the
-aggregate `channelNames` object uses the method
-`mixed-extracted-and-sampler-default` at `medium` confidence rather than
-claiming the whole array came from the sampler-default rule.
-An all-inferred array keeps the sampler-default method, but its confidence is
-`medium` when any included name is `medium`; the one verified inferred Sampler
-alone remains `high`.
+Merged PR268 corrects the former numbering assumption. Approved genuine F15
+shows three cloned empty Samplers named `Sampler`, `Sampler`, `Sampler` in
+FL Studio 26.1.0.5530. Fresh unstored default labels remain literal `Sampler`
+with method `sampler-label-for-known-build`; no positional suffix is invented.
+The first default retains `high` confidence, later defaults retain `medium`,
+and stored names such as `Sampler 2` remain extracted verbatim. This case does
+not qualify every creation path or multi-channel FL Studio 2025 project.
+
+Mixed stored/default names use `mixed-extracted-and-sampler-label` at `medium`
+confidence, preserving each item's provenance. An all-inferred array uses the
+corrected label method and the weakest included confidence. Earlier immutable
+snapshots can retain the bounded numbered `sampler-default-for-known-build`
+method; native display explains reanalysis without rewriting them on refresh.
+Fresh validation rejects that old channel-name method and mixed naming rules.
+Instrument/plugin Sampler inference is separate and keeps its own methods.
+See the [independent GUI result](docs/research/parser-multisampler-267-result.md)
+and [approved manifest](fixtures/parser-corpus/manifest.md).
 
 Generator names are separate from editable channel labels. A controlled
 FL Studio 2026 save shows built-in `3x Osc` stored in event 201, while the

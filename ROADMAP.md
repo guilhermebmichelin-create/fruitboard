@@ -244,13 +244,18 @@ parser implementation as incidental scanner work.
 ## Phase 3 proposed issues and PRs
 
 The [FLP intelligence readiness packet](docs/review/flp-intelligence-readiness/README.md)
-maps the delivered bounded development workflow through merged PR261 to the
+maps the delivered bounded development workflow and current integrations to the
 proposed scope below. Its maintained field matrix distinguishes parser-only
 extensions, app-visible facts and independently verified compatibility. Resource
 budgets and the full Phase 3 exit remain unaccepted; no roadmap item is silently
 removed and no later-phase entry is authorized by merging that packet. The next
-focused implementation proposal is validated, persisted and displayed pattern
-count/names using the unchanged approved F13 fixture.
+focused design proposal is
+[bounded sample presence](docs/review/sample-presence-278/README.md), issue #278:
+explicit metadata-only checks of literal saved absolute paths inside the
+selected local-NTFS source root. Saved pattern count/names were delivered in
+PR264, and PR268 qualifies the three-Sampler clone case with approved F15.
+Sample presence needs design/native authority review and separate implementation;
+relative/placeholder/external-folder resolution remains open.
 
 ### Epic: Phase 3 — FLP intelligence
 

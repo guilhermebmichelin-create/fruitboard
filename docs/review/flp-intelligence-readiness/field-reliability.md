@@ -14,13 +14,13 @@ display or corpus coverage must update this matrix in the same PR.
 | ------------------ | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 24.1.0.4225        | F01/F04/F05                       | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                      |
 | 25.1.3.4922        | F06                               | Minimal Sampler, 130 BPM, displayed default name by labeled inference and absent sample references.                     |
-| 26.1.0.5530        | F11/F12/F13/F14                   | Minimal save; explicit sample/name at 137 BPM; three named patterns/four placements; two channels with built-in 3x Osc. |
+| 26.1.0.5530        | F11/F12/F13/F14/F15               | Minimal; explicit sample/name; three patterns/four placements; 3x Osc; cloned empty Samplers with duplicate labels.     |
 | FL Studio 20/21    | F02/F03 are not covered           | No runnable matching build or genuine-save fixture here; no supported-build claim.                                      |
 | Other saved builds | No approved row                   | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                    |
 
 The [manifest](../../../fixtures/parser-corpus/manifest.md) owns approval,
-provenance, license, expected values and SHA-256. Twelve files are committed:
-eight genuine-save derivatives and four approved robustness derivatives.
+provenance, license, expected values and SHA-256. Thirteen files are committed:
+nine genuine-save derivatives and four approved robustness derivatives.
 F07-F10 exercise failure/partial handling; they add no saved-build coverage.
 
 ## Field reliability and application reach
@@ -34,8 +34,8 @@ a complete parse does not make every field extracted or universally supported.
 | Field                                        | Evidence and supported interpretation                                                                                                                                                                  | App reach                                                                                 | Important boundary                                                                                                                                                   |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Saved version/base BPM                       | GUI-checked exact builds/tempos above; [corpus tests](../../../crates/flp-parser/tests/corpus.rs)                                                                                                      | Stored and displayed                                                                      | Missing tempo is typed unavailable; genuine absent-tempo coverage is still missing.                                                                                  |
-| Channel count                                | Header/event agreement; one-channel saves and two-channel F14                                                                                                                                          | Stored and displayed                                                                      | Constructed sparse/reordered IDs and inference cases test defenses; no approved zero-channel or large multi-channel fixture.                                         |
-| Editable channel names                       | Stored 2024/F12 names; known 2025/2026 default Sampler by labeled inference                                                                                                                            | Stored and displayed per channel                                                          | Names are separate from instruments. Later Sampler numbering has medium confidence until an approved multi-Sampler save verifies it.                                 |
+| Channel count                                | Header/event agreement; one-channel saves, two-channel F14 and three-channel F15                                                                                                                       | Stored and displayed                                                                      | Constructed sparse/reordered IDs and inference cases test defenses; no approved zero-channel or large multi-channel fixture.                                         |
+| Editable channel names                       | Stored 2024/F12 names; labeled default Sampler inference; approved 2026 three-Sampler F15 (#267)                                                                                                       | Stored and displayed per channel                                                          | Names differ from instruments. New defaults repeat Sampler; old numbered snapshots explain reanalysis. F15 qualifies the clone path in the exact 2026 build.         |
 | Channel generator names                      | F14: extracted 3x Osc; verified 2026 Sampler inferred; [generator record](../../research/parser-generator-200-result.md)                                                                               | Stored and displayed                                                                      | Only the exact 2026 build and verified classes; older builds/unknown classes stay unsupported.                                                                       |
 | Raw sample references                        | F12 explicitly stores the approved synthetic reference; other genuine saves have File `(none)`                                                                                                         | Stored and displayed as inert text                                                        | Does not establish existence, availability or missing dependency; no path resolution or audio read.                                                                  |
 | Pattern count/names                          | F13: three distinct IDs/names, repeated placements do not inflate count; [pattern record](../../research/parser-pattern-count-184-result.md) and [tests](../../../crates/flp-parser/tests/patterns.rs) | Stored and displayed through bounded typed validation                                     | Exact 2026 build. Absent markers do not prove zero patterns; missing names retain an unavailable state.                                                              |
@@ -47,6 +47,20 @@ a complete parse does not make every field extracted or universally supported.
 | Automation/MIDI/mixer summaries              | No implemented app summary or approved matching fixture                                                                                                                                                | Not delivered                                                                             | Pattern clips/names and top-level plugin references do not imply these capabilities.                                                                                 |
 
 ## Tests and independent checks
+
+G5's [sample presence design](../sample-presence-278/README.md), issue #278,
+proposes a separate ephemeral report for explicit within-root metadata checks.
+It does not change saved reference provenance or add implemented presence/missing
+claims to this matrix. Relative/placeholder/external-folder resolution remains
+unqualified; current raw sample text is still inert.
+
+Issue #267 [qualifies approved three-Sampler F15](../../research/parser-multisampler-267-result.md)
+in the exact 2026 build. Duplicate GUI labels refute the old assumption that
+unstored later labels should be numbered. New results retain literal `Sampler`
+defaults with labeled inference; old immutable numbered results stay readable
+with an explanation to reanalyze. The owner approved the exact F15 bytes and
+registered expectations on 2026-10-05. The corpus table includes this clone path;
+the exact supported builds remain unchanged.
 
 The ordinary [parser tests](../../../crates/flp-parser/tests/) exercise corpus,
 patterns, generators, playlist, project facts, authorization, supervision and

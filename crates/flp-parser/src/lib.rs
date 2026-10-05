@@ -100,17 +100,12 @@ fn known_sampler_default_build(version: Option<&str>) -> bool {
 
 /// Build the `channelNames` field from stored names and validated channel types.
 ///
-/// FL Studio numbers successive sampler channels `Sampler`, `Sampler 2`,
-/// `Sampler 3`, ..., so an inferred name depends on how many unnamed sampler
-/// channels precede it rather than being a single literal. Only the first is
-/// verified against a real save (see
-/// `docs/research/parser-spike-138-inferred-default-result-20260928.md`); the
-/// numbering beyond it follows FL's display convention and is reported at
-/// lower confidence until a multi-channel fixture confirms it.
-///
-/// Split out from the event walk so the multi-channel shape is directly
-/// testable without new fixture bytes: every approved corpus file currently has
-/// exactly one channel, so this path was previously unreachable in tests.
+/// An unstored Sampler label stays `Sampler`: cloned empty Samplers can share
+/// that label, so channel position cannot justify an invented numeric suffix.
+/// Keep the first verified default high confidence and later defaults medium;
+/// the multi-channel observation does not qualify every build or authoring path.
+/// The new method distinguishes corrected results from immutable old snapshots
+/// that used `sampler-default-for-known-build` and numbered later defaults.
 fn channel_names_json(
     names: Vec<Option<String>>,
     channel_types: Vec<ChannelType>,
@@ -131,15 +126,10 @@ fn channel_names_json(
             Some(value) => field("extracted", json!(value), None),
             None if infer_sampler_default && channel_type == ChannelType::Sampler => {
                 inferred_samplers += 1;
-                let (display, confidence) = if inferred_samplers == 1 {
-                    ("Sampler".to_owned(), "high")
-                } else {
-                    (format!("Sampler {inferred_samplers}"), "medium")
-                };
                 json!({
-                    "status":"inferred", "value":display,
-                    "method":"sampler-default-for-known-build",
-                    "confidence":confidence
+                    "status":"inferred", "value":"Sampler",
+                    "method":"sampler-label-for-known-build",
+                    "confidence":if inferred_samplers == 1 { "high" } else { "medium" }
                 })
             }
             None => field("unavailable", Value::Null, Some("CHANNEL_NAME_NOT_STORED")),
@@ -156,7 +146,7 @@ fn channel_names_json(
     }
     // Never stamp the whole array with a single method. When a project mixes a
     // stored name with an inferred default, reporting
-    // `sampler-default-for-known-build` for the array implies every element
+    // `sampler-label-for-known-build` for the array implies every element
     // came from that rule, which mislabels the extracted ones in the opposite
     // direction to the rule in FLP_PARSER.md.
     let mixed = items
@@ -166,9 +156,9 @@ fn channel_names_json(
             .iter()
             .any(|item| item["status"].as_str() == Some("inferred"));
     let method = if mixed {
-        "mixed-extracted-and-sampler-default"
+        "mixed-extracted-and-sampler-label"
     } else {
-        "sampler-default-for-known-build"
+        "sampler-label-for-known-build"
     };
     // A list cannot be more certain than a name inside it. A later inferred
     // Sampler has medium confidence even when every name uses the same method.
@@ -1097,10 +1087,7 @@ mod tests {
         std::fs::remove_dir_all(fixture).unwrap();
     }
 
-    /// Every approved corpus file has exactly one channel
-    /// (`tests/corpus.rs`), so the multi-channel shape of the sampler-default
-    /// inference was unreachable in tests. These cases drive the extracted
-    /// helper directly rather than adding synthetic fixture bytes.
+    /// Drive naming edge cases without treating constructed bytes as GUI truth.
     fn names(pairs: &[(Option<&str>, u8)]) -> (Vec<Option<String>>, Vec<ChannelType>) {
         (
             pairs
@@ -1115,12 +1102,12 @@ mod tests {
     }
 
     #[test]
-    fn successive_inferred_samplers_are_numbered_like_fl_studio() {
+    fn successive_inferred_samplers_do_not_invent_numbered_labels() {
         let (stored, kinds) = names(&[(None, 0), (None, 0), (None, 0)]);
         let value = channel_names_json(stored, kinds, true);
         assert_eq!(
             value["value"],
-            serde_json::json!(["Sampler", "Sampler 2", "Sampler 3"])
+            serde_json::json!(["Sampler", "Sampler", "Sampler"])
         );
     }
 
@@ -1131,7 +1118,7 @@ mod tests {
         let items = value["items"].as_array().unwrap();
         assert_eq!(items[0]["value"], "Sampler");
         assert_eq!(items[0]["confidence"], "high");
-        assert_eq!(items[1]["value"], "Sampler 2");
+        assert_eq!(items[1]["value"], "Sampler");
         assert_eq!(items[1]["confidence"], "medium");
     }
 
@@ -1143,10 +1130,22 @@ mod tests {
         assert_eq!(items[0]["status"], "extracted");
         assert_eq!(items[0]["value"], "Kick");
         // The aggregate must not claim every element came from the inference rule.
-        assert_eq!(value["method"], "mixed-extracted-and-sampler-default");
+        assert_eq!(value["method"], "mixed-extracted-and-sampler-label");
         assert_eq!(value["confidence"], "medium");
         // The stored channel must not consume an inferred sampler ordinal.
         assert_eq!(items[1]["value"], "Sampler");
+    }
+
+    #[test]
+    fn stored_numbered_names_remain_extracted_and_do_not_change_other_defaults() {
+        let (stored, kinds) = names(&[(Some("Sampler 2"), 0), (None, 0), (None, 0)]);
+        let value = channel_names_json(stored, kinds, true);
+        assert_eq!(
+            value["value"],
+            serde_json::json!(["Sampler 2", "Sampler", "Sampler"])
+        );
+        assert_eq!(value["items"][0]["status"], "extracted");
+        assert_eq!(value["items"][2]["confidence"], "medium");
     }
 
     #[test]
@@ -1154,7 +1153,7 @@ mod tests {
         let (stored, kinds) = names(&[(None, 0), (None, 0)]);
         let value = channel_names_json(stored, kinds, true);
         assert_eq!(value["status"], "inferred");
-        assert_eq!(value["method"], "sampler-default-for-known-build");
+        assert_eq!(value["method"], "sampler-label-for-known-build");
         assert_eq!(value["confidence"], "medium");
     }
 
