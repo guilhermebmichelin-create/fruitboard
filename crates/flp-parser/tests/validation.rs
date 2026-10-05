@@ -57,7 +57,7 @@ fn metadata(value: Value) -> ValidatedMetadata {
 }
 
 fn sampler(name: &str, confidence: &str) -> Value {
-    json!({"status":"inferred","value":name,"method":"sampler-default-for-known-build","confidence":confidence})
+    json!({"status":"inferred","value":name,"method":"sampler-label-for-known-build","confidence":confidence})
 }
 
 #[test]
@@ -169,7 +169,7 @@ fn inferred_names_keep_per_channel_provenance_and_aggregate_confidence() {
     mixed["sampleReferences"]["value"] = json!(["a.wav", "b.wav"]);
     mixed["channelNames"] = json!({
         "status":"inferred","value":["Stored","Sampler"],
-        "method":"mixed-extracted-and-sampler-default","confidence":"medium",
+        "method":"mixed-extracted-and-sampler-label","confidence":"medium",
         "items":[{"status":"extracted","value":"Stored"},sampler("Sampler","high")]
     });
     let result = metadata(mixed.clone());
@@ -187,14 +187,14 @@ fn inferred_names_keep_per_channel_provenance_and_aggregate_confidence() {
     assert_eq!(
         result.channel_names().status(),
         ListStatus::Inferred {
-            method: NameInference::MixedExtractedAndSamplerDefault,
+            method: NameInference::MixedExtractedAndSamplerLabel,
             confidence: Confidence::Medium
         }
     );
     mixed["channelNames"] = json!({
-        "status":"inferred","value":["Sampler","Sampler 2"],
-        "method":"sampler-default-for-known-build","confidence":"medium",
-        "items":[sampler("Sampler","high"),sampler("Sampler 2","medium")]
+        "status":"inferred","value":["Sampler","Sampler"],
+        "method":"sampler-label-for-known-build","confidence":"medium",
+        "items":[sampler("Sampler","high"),sampler("Sampler","medium")]
     });
     assert!(matches!(
         metadata(mixed.clone()).channel_names().entries()[1],
@@ -207,6 +207,11 @@ fn inferred_names_keep_per_channel_provenance_and_aggregate_confidence() {
         ("/channelNames/confidence", json!("high")),
         ("/channelNames/items/1/confidence", json!("high")),
         ("/channelNames/items/1/value", json!("Sampler 99")),
+        ("/channelNames/items/1/value", json!("Sampler 2")),
+        (
+            "/channelNames/items/1/method",
+            json!("sampler-default-for-known-build"),
+        ),
         ("/channelNames/items/1/method", json!("unverified-guess")),
         ("/channelNames/value/1", json!("Different")),
         ("/savedVersion/value", json!("24.1.0.4225")),

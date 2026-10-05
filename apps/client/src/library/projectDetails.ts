@@ -233,11 +233,13 @@ export function parseProjectDetails(
       const instrument = parseChannelDetail(entry["instrument"], true);
       if (name.status === "inferred") {
         inferredNames++;
-        const expected =
+        // Older immutable results may retain their numbered inference. The
+        // native projection explains that legacy value; new results use Sampler.
+        const legacy =
           inferredNames === 1 ? "Sampler" : `Sampler ${inferredNames}`;
         if (
           !["25.1.3.4922", "26.1.0.5530"].includes(build ?? "") ||
-          name.value !== expected
+          (name.value !== "Sampler" && name.value !== legacy)
         )
           return fail();
       }

@@ -82,6 +82,14 @@ bytes and expectations after sanitation. G5/G6 need their own scoped design and
 native authority review. The full Phase 3 exit requires these criteria to be
 met or explicitly revised/deferred by the owner in a checkpoint decision.
 
+Issue #267 starts G3 with [a private, independently registered three-Sampler
+case](../../research/parser-multisampler-267-result.md). FL Studio shows duplicate
+`Sampler` labels; Fruitboard's former numbering assumption failed that case.
+The source correction uses an explicit new inference method and preserves older
+immutable numbered results with an explanation. Exact candidate bytes and
+expectations await owner approval before corpus inclusion. This does not close
+G3 or qualify additional saved builds, arrangements or external plugins.
+
 Issue #259 remains open for G1 and the remaining qualification/checkpoint review.
 Merging this packet supplies a maintained evidence map; it does not close gaps,
 accept budgets, accept Phase 3 or open a later-phase milestone.

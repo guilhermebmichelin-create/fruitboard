@@ -40,6 +40,30 @@ describe("typed project details", () => {
     );
   });
 
+  it("accepts duplicate default Sampler labels and preserves an explained older numbered label", () => {
+    const details = savedDetails();
+    const sampler = details.channels[1]!;
+    const current = {
+      ...details,
+      channels: [1, 2, 3].map((position) => ({ ...sampler, position })),
+    };
+    expect(parseProjectDetails(current, identity)).toEqual(current);
+    const legacy = {
+      ...current,
+      channels: current.channels.map((channel) => ({
+        ...channel,
+        name: {
+          ...channel.name,
+          value:
+            channel.position === 1 ? "Sampler" : `Sampler ${channel.position}`,
+          explanation:
+            "Earlier Fruitboard inferred a numbered Sampler label. Analyze this project again to check it with the corrected naming rule.",
+        },
+      })),
+    };
+    expect(parseProjectDetails(legacy, identity)).toEqual(legacy);
+  });
+
   it.each([
     (v: Record<string, unknown>) => {
       v["rootId"] = "different-root";

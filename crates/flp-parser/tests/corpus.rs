@@ -88,7 +88,7 @@ fn approved_corpus_keeps_registered_values_and_typed_outcomes() {
         ) {
             assert_eq!(parsed["channelNames"]["status"], "inferred", "{name}");
             assert_eq!(
-                parsed["channelNames"]["method"], "sampler-default-for-known-build",
+                parsed["channelNames"]["method"], "sampler-label-for-known-build",
                 "{name}"
             );
             assert_eq!(parsed["channelNames"]["confidence"], "high", "{name}");

@@ -598,7 +598,7 @@ fn project_details_resolves_authorized_current_metadata_and_fences_displayed_row
     assert_eq!(plugins["items"][0]["position"], 1);
     assert_eq!(
         plugins["items"][0]["name"],
-        json!({"status":"inferred","value":"Sampler","method":"sampler-default-for-known-build","confidence":"high"})
+        json!({"status":"inferred","value":"Sampler","method":"sampler-label-for-known-build","confidence":"high"})
     );
     assert_eq!(plugins["items"][1]["className"]["value"], "3x Osc");
     assert_eq!(plugins["items"][1]["name"]["value"], "3x Osc");
