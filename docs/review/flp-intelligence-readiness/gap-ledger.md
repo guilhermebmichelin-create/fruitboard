@@ -1,22 +1,24 @@
 # FLP intelligence gaps and next implementation
 
 Status: **Open gaps and proposals; no acceptance or later-phase authorization.**
-Historical baseline: merged PR261. Issue #263 implements G2 on merged PR262;
-see the [patterns review](../library-patterns-263/README.md). Other gaps remain open. This ledger supplements the historical dated reports;
+Historical baseline: merged PR261. G2 was delivered by merged PR264;
+see the [patterns review](../library-patterns-263/README.md). Issue #265 covers the
+[current installed journey](../installed-combined-265/README.md) and corrects its
+enlarged-text layout defect. Other gaps remain open. This ledger supplements the historical dated reports;
 it does not erase their failures or promote their source boundaries.
 
 ## Current gaps
 
-| ID  | Gap                                                                       | Evidence/decision needed                                                                                                                                               | Effect on readiness                                                                                                                                                   |
-| --- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| G1  | Native resource budgets remain proposed                                   | Explicit owner accept/revise decision on [the bounded proposal](../explorer-performance-259/budget-proposal.md), recorded with date/scope; #259 stays open             | Quiet measurements meet candidates, but approved-budget qualification is not claimed.                                                                                 |
-| G2  | Saved pattern count/names integration implemented in #263                 | Typed advertised-field validation, bounded immutable projection and authorized Library display using existing F13                                                      | G2 delivered by this change; final-head CI and owner review required. Automation/MIDI remain G6.                                                                      |
-| G3  | Compatibility/field ground truth is narrow                                | Separately approved genuine fixtures: additional exact builds, absent tempo/zero channels, multi-Sampler provenance, richer arrangements and external wrapper metadata | No broad supported-version/plugin or complete duration claim. Dates/time counter lack independent GUI qualification.                                                  |
-| G4  | Current combined installed Explorer/size workflow and whole-app resources | Fresh review identity/profile, real installed scan/analyze/details/Explorer, restart/failure/a11y plus UI/IPC/startup/memory boundary decisions                        | #252 installed Library evidence and #254 native screenshots do not qualify today's whole installed app. Never seed/swap the owner's personal FoundationSmoke profile. |
-| G5  | Sample availability/dependency resolution absent                          | Dedicated native read-only resolver scope, root/path authority and typed unchecked/missing/available semantics before implementation                                   | Saved reference text is useful but cannot prove a dependency exists or is missing.                                                                                    |
-| G6  | Richer FLP summaries incomplete                                           | Explicit scope/fixture plan for automation/MIDI, mixer/nested plugins, tempo changes and non-pattern arrangements                                                      | These Phase 3 roadmap items remain incomplete; no implicit scope exclusion.                                                                                           |
-| G7  | Production/distribution gates open                                        | Explicit activation decision, representative compatibility/provenance review, license selection and protected signing/update/rollback process                          | Development feature, unsigned test build and green CI are not a public release.                                                                                       |
-| G8  | Earlier Scanner MVP gaps and qualification failures                       | Existing separate scanner evidence/decisions; retain unchanged targets and historical results                                                                          | Native metadata speedup does not qualify scanner performance or DriveFS/FAT32.                                                                                        |
+| ID  | Gap                                                                       | Evidence/decision needed                                                                                                                                                                | Effect on readiness                                                                                                                                                     |
+| --- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | Native resource budgets remain proposed                                   | Explicit owner accept/revise decision on [the bounded proposal](../explorer-performance-259/budget-proposal.md), recorded with date/scope; #259 stays open                              | Quiet measurements meet candidates, but approved-budget qualification is not claimed.                                                                                   |
+| G2  | Saved pattern count/names integration delivered by merged PR264           | Typed advertised-field validation, bounded immutable projection and authorized Library display using existing F13                                                                       | G2 delivered; current installed integration is also covered by #265. Automation/MIDI remain G6.                                                                         |
+| G3  | Compatibility/field ground truth is narrow                                | Separately approved genuine fixtures: additional exact builds, absent tempo/zero channels, multi-Sampler provenance, richer arrangements and external wrapper metadata                  | No broad supported-version/plugin or complete duration claim. Dates/time counter lack independent GUI qualification.                                                    |
+| G4  | Installed combined workflow covered; whole-app resource decisions pending | [Fresh installed journey and reflow regression](../installed-combined-265/README.md); still needs approved startup/UI/IPC/memory boundaries and representative/limit-scale measurements | #265 passes the bounded current workflow and characterizes seven-entry installed resources. This does not accept budgets, qualify scale or replace historical failures. |
+| G5  | Sample availability/dependency resolution absent                          | Dedicated native read-only resolver scope, root/path authority and typed unchecked/missing/available semantics before implementation                                                    | Saved reference text is useful but cannot prove a dependency exists or is missing.                                                                                      |
+| G6  | Richer FLP summaries incomplete                                           | Explicit scope/fixture plan for automation/MIDI, mixer/nested plugins, tempo changes and non-pattern arrangements                                                                       | These Phase 3 roadmap items remain incomplete; no implicit scope exclusion.                                                                                             |
+| G7  | Production/distribution gates open                                        | Explicit activation decision, representative compatibility/provenance review, license selection and protected signing/update/rollback process                                           | Development feature, unsigned test build and green CI are not a public release.                                                                                         |
+| G8  | Earlier Scanner MVP gaps and qualification failures                       | Existing separate scanner evidence/decisions; retain unchanged targets and historical results                                                                                           | Native metadata speedup does not qualify scanner performance or DriveFS/FAT32.                                                                                          |
 
 G8 carries the [accepted Phase 2 record](../phase-2-integration/acceptance-2026-09-14.md)
 and later [scanner recovery evidence](../phase-2-integration/installed-journey/run-20260930-scanner-recovery.md).
@@ -67,11 +69,13 @@ phase change. Final-head CI and owner review remain required.
 
 ## Qualification sequence
 
-With G2 implemented, prioritize G4's current installed combined workflow with a new explicit
-review identity rather than the owner's personal test identity. Declare timed
-boundaries, proposed/approved targets, noise guards and the exact source/binary
-hashes before the run. Do not combine setup or benchmark work with a timing
-window; maintain the 30 GiB reserve after expected fixture/build/evidence output.
+G2 is delivered and #265 covers G4's bounded current installed combined workflow
+using fresh explicit review identities. Startup/UI/IPC and whole-app memory were
+characterized; their target/boundary decisions and broader qualification remain
+open. Future runs must declare boundaries, proposed/approved targets, noise
+guards and exact source/binary hashes. Keep setup outside timing windows,
+maintain the 30 GiB reserve after expected output, and never seed/swap the owner's
+personal Foundation Smoke profile.
 
 Plan G3 fixture additions separately from code: the owner approves exact public
 bytes and expectations after sanitation. G5/G6 need their own scoped design and
