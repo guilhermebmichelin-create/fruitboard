@@ -79,8 +79,11 @@ states. The list still reveals 20 channels at a time.
 Installed review on 2026-10-06 used a fresh, separately named unsigned development
 package/profile with private metadata-only sentinels. Package source:
 `bd8f8adbd3e6b3d83bcada5d5c9817c583012042`, tree
-`4f7df2452c57b2aaa500b233c9c897d81f443ad8`; later changes add only review
-documentation/screenshots. Native Library check, repeat check, strict request
+`4f7df2452c57b2aaa500b233c9c897d81f443ad8`; later feature changes add only review
+documentation/screenshots. The separate [security prerequisite](../security/source-map-js-286.md)
+updates transitive CSS/source-map tooling; final check receipts include native/client
+source equality and patched-build web-output comparison with this installed package.
+Native Library check, repeat check, strict request
 rejection, stale snapshot/root revocation, keyboard cancellation/focus, late reply
 discard and restart were verified through the installed WebView2/native adapter.
 The cancelled UI test held a completed native response at the renderer's fetch
