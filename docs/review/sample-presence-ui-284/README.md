@@ -114,16 +114,16 @@ locators, not personal projects. Only the no-reference screenshots use the actua
 empty-Sampler parser projection; the present/absent screenshots use the explicitly
 constructed host projection described above.
 
-| Capture | State / scope |
-| --- | --- |
-| [Desktop idle](samples-idle-desktop.png) | Details display alone starts no check. |
-| [Desktop results](samples-results-desktop.png) | Present, absent at the exact path, and no saved reference. |
-| [Checking](samples-checking-desktop.png) | Injected renderer response delay; Cancel remains available. |
-| [Cancelled](samples-cancelled-desktop.png) | No report shown; keyboard focus returns to Check. |
-| [Narrow results](samples-narrow-viewport.png) | 390px viewport; long saved paths wrap. |
-| [No references](samples-no-references-desktop.png) | Actual approved empty-Sampler analysis; disabled action. |
-| [Narrow no references](samples-no-references-narrow.png) | 390px viewport with the section heading and action. |
-| [Doubled text](samples-text-200-viewport.png) | 32px text; actual no-reference state, no horizontal overflow. |
+| Capture                                                  | State / scope                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------- |
+| [Desktop idle](samples-idle-desktop.png)                 | Details display alone starts no check.                        |
+| [Desktop results](samples-results-desktop.png)           | Present, absent at the exact path, and no saved reference.    |
+| [Checking](samples-checking-desktop.png)                 | Injected renderer response delay; Cancel remains available.   |
+| [Cancelled](samples-cancelled-desktop.png)               | No report shown; keyboard focus returns to Check.             |
+| [Narrow results](samples-narrow-viewport.png)            | 390px viewport; long saved paths wrap.                        |
+| [No references](samples-no-references-desktop.png)       | Actual approved empty-Sampler analysis; disabled action.      |
+| [Narrow no references](samples-no-references-narrow.png) | 390px viewport with the section heading and action.           |
+| [Doubled text](samples-text-200-viewport.png)            | 32px text; actual no-reference state, no horizontal overflow. |
 
 ## Resource ownership and rollback
 
