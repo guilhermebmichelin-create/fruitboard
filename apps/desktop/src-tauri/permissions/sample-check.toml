@@ -1,0 +1,11 @@
+"$schema" = "../gen/schemas/schema.json"
+
+[[permission]]
+identifier = "allow-check-saved-samples"
+description = "Allows an explicit bounded metadata check of current saved references within one selected local NTFS root. No renderer paths or file contents."
+commands.allow = ["check_saved_samples"]
+
+[[permission]]
+identifier = "allow-cancel-sample-check"
+description = "Allows the local main window to cancel its matching ephemeral sample check using opaque identities."
+commands.allow = ["cancel_sample_check"]

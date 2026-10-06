@@ -29,7 +29,10 @@ pub struct SourceFingerprint {
 pub struct AuthorityFence {
     pub root_revision: u64,
     pub location_revision: u64,
-    pub root_identity: ObjectIdentity,
+    /// Some when an earlier native observation captured identity. Otherwise
+    /// the qualified adapter must capture and pin the actual root on admission.
+    /// The DB folder grant itself has no persisted directory identity.
+    pub root_identity: Option<ObjectIdentity>,
     pub source: SourceFingerprint,
 }
 
@@ -83,6 +86,10 @@ impl CapturedInput {
     }
     pub fn context(&self) -> &Context {
         &self.context
+    }
+    /// Lets the authorized host avoid all filesystem access for empty results.
+    pub fn has_saved_references(&self) -> bool {
+        self.references.iter().any(Option::is_some)
     }
     pub fn root(&self) -> &AbsolutePath {
         &self.root

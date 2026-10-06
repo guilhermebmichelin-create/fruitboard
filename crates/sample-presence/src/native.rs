@@ -248,7 +248,12 @@ impl<F: CurrentAuthorization> MetadataPort for WindowsPort<F> {
             )?);
         }
         let root_node = root_chain.last().ok_or_else(stale)?.clone();
-        if root_node.identity != input.fence().root_identity {
+        if input
+            .fence()
+            .root_identity
+            .as_ref()
+            .is_some_and(|expected| expected != &root_node.identity)
+        {
             return Err(stale());
         }
         let mut source_parent = root_node.clone();
@@ -366,7 +371,7 @@ impl<F: CurrentAuthorization> MetadataPort for WindowsPort<F> {
             let (_, observed) = self
                 .open_child(parent, &root.name, Some(true), operations)?
                 .ok_or_else(stale)?;
-            if observed.identity != input.fence().root_identity {
+            if observed.identity != root.identity {
                 return Err(stale());
             }
         }

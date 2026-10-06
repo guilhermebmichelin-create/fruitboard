@@ -1,14 +1,15 @@
 # Sample presence native authority review
 
 Status: design audit accepted by PR279; Windows slice #282 implemented for review;
-application integration and installed evidence pending.
+app slice #284 implemented for review with scoped installed evidence.
 Baseline: merged PR268, `91261525383ce79adb090550329167ef347f7253`.
 The [accepted ADR](../../adr/007-sample-presence-boundary.md) is authoritative for
 scope. This review identifies what a native implementation must demonstrate.
 The [policy review](../sample-presence-policy-280/README.md) maps recording-port
 tests to their limited proof. The [Windows review](../sample-presence-windows-282/README.md)
 maps actual native tests and their limitations. Durable host/IPC/renderer,
-installed and real blocked-kernel/provider evidence remain open.
+and installed evidence is mapped by [app slice #284](../sample-presence-ui-284/README.md).
+Real blocked-kernel/provider qualification remains open.
 
 ## Existing boundaries inspected
 

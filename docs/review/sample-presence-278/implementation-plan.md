@@ -1,7 +1,7 @@
 # Sample presence implementation sequence
 
 Status: design accepted by PR279; policy slice #280 merged as PR281;
-Windows slice #282 implemented for review; app integration pending.
+Windows slice #282 merged as PR283; app slice #284 implemented for review.
 Planning source: merged PR268, `91261525383ce79adb090550329167ef347f7253`.
 Start implementation from the reviewed design merge, record its actual SHA/tree
 and validate each final PR head against that boundary. Do not start from an
@@ -59,6 +59,10 @@ case in [the matrix](authority-review.md) before integrating the command. Keep
 source/binary hashes and independent evidence copies where a binary is retained.
 
 ## Slice 3: Authorized command and Library display
+
+The [app review](../sample-presence-ui-284/README.md) records implementation
+from PR283 merge `b8c065c3f10b6b64d96b8224fadcdbb4e19af3d6` and its validation
+boundary. Broader resolution, G5 and Phase 3 remain open.
 
 Owned files: desktop `foundation/mod.rs`, new sample-presence command/host module,
 command registration/permission/capability files and desktop Cargo feature wiring;

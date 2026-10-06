@@ -201,6 +201,11 @@ export function ProjectDetailsPanel({
                 <ProjectSamples
                   key={`samples:${state.details.snapshotId}`}
                   samples={state.details.sampleReferences}
+                  checkView={{
+                    adapter,
+                    record,
+                    snapshotId: state.details.snapshotId,
+                  }}
                 />
                 <ProjectPlugins
                   key={`plugins:${state.details.snapshotId}`}

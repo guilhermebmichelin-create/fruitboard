@@ -13,6 +13,7 @@ pub(crate) mod packaging_smoke;
 pub(crate) mod plugin_explorer;
 pub(crate) mod project_analysis;
 pub(crate) mod project_details;
+pub(crate) mod sample_check;
 pub(crate) mod scan_console;
 #[cfg(feature = "scan-console")]
 pub(crate) mod scan_console_host;

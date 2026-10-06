@@ -175,7 +175,7 @@ fn fence() -> AuthorityFence {
     AuthorityFence {
         root_revision: 3,
         location_revision: 7,
-        root_identity: ObjectIdentity { volume: 1, file: 2 },
+        root_identity: Some(ObjectIdentity { volume: 1, file: 2 }),
         source: SourceFingerprint {
             identity: ObjectIdentity { volume: 1, file: 4 },
             byte_size: 100,

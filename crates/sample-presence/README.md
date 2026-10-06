@@ -1,13 +1,21 @@
 # Bounded sample presence
 
 ADR-007 slices 1 and 2, issues #280 and #282. This library implements portable
-policy, request lifecycle rules and a Windows metadata adapter. There is no
-desktop command or UI activation; the app still displays saved reference text.
+policy, request lifecycle rules and a Windows metadata adapter. The
+[slice 3 host review](../../docs/review/sample-presence-ui-284/README.md) records
+explicit command/Library integration in the opt-in `analysis-jobs` composition.
+Default builds and PWA gain no functional sample probe.
 
 ## Authority contract
 
-The future trusted host captures enabled root/location revisions, root/source
-identities, source size/time, snapshot and session under durable authorization.
+The trusted host captures enabled root/location revisions, qualified source
+identity, size/time, snapshot and session under durable authorization. The DB
+stores a folder grant/revision, not a root directory identity. When
+`AuthorityFence.root_identity` is `None`, the Windows adapter captures the actual
+root ID during qualification, pins its ancestry, and compares final root/name
+observations to that held ID. `Some` also requires the earlier observed ID to
+match. Both modes require local NTFS/source qualification and the same final
+held-object/durable fences; neither accepts a renderer root identity.
 `CapturedInput` validates shape; its constructor does not grant access. Old
 snapshots without references return `ReferencesUnavailable`. The limits are
 256 ordered slots, 256 KiB aggregate reference text and the existing per-string

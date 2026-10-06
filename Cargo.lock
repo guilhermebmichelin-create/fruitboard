@@ -933,6 +933,7 @@ dependencies = [
  "fruitboard-filesystem-enumeration",
  "fruitboard-filesystem-watcher",
  "fruitboard-flp-parser",
+ "fruitboard-sample-presence",
  "fruitboard-scan-execution",
  "fruitboard-storage",
  "regex",

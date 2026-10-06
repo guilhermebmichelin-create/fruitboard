@@ -10,7 +10,7 @@ publish = false
 default = []
 packaging-smoke = ["dep:tauri-plugin-shell", "dep:fruitboard-flp-parser"]
 # Explicit development composition; default builds still read no FLP contents.
-analysis-jobs = ["scan-console", "packaging-smoke", "dep:fruitboard-analysis-execution", "fruitboard-storage/analysis-jobs"]
+analysis-jobs = ["scan-console", "packaging-smoke", "dep:fruitboard-analysis-execution", "dep:fruitboard-sample-presence", "fruitboard-storage/analysis-jobs"]
 # Hidden scan-console IPC: commands are always registered, but the host wiring
 # and worker thread only exist with this feature enabled. Default builds must
 # not compile the scanner crates at all.
@@ -30,6 +30,7 @@ tauri-build.workspace = true
 [dependencies]
 fruitboard-flp-parser = { path = "../../../crates/flp-parser", optional = true }
 fruitboard-analysis-execution = { path = "../../../crates/analysis-execution", optional = true }
+fruitboard-sample-presence = { path = "../../../crates/sample-presence", optional = true }
 fruitboard-storage.workspace = true
 fruitboard-scan-execution = { path = "../../../crates/scan-execution", optional = true }
 fruitboard-filesystem-enumeration = { path = "../../../crates/filesystem-enumeration", optional = true }
