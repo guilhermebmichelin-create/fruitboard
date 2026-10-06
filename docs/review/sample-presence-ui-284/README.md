@@ -1,6 +1,7 @@
 # Explicit saved sample checks
 
-Status: ADR-007 slice 3 implemented for owner review; broader G5 stays open.
+Status: ADR-007 slice 3 merged as PR285 on 2026-10-06,
+`d19587f52132f31065bbaab97a572d3c5487cf00`; broader G5 stays open.
 Issue [#284](https://github.com/guilhermebmichelin-create/fruitboard/issues/284).
 Baseline: PR283 merge `b8c065c3f10b6b64d96b8224fadcdbb4e19af3d6`.
 Final source/check receipts and installed binary provenance belong to this PR's

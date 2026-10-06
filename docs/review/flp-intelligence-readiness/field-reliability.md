@@ -10,13 +10,13 @@ display or corpus coverage must update this matrix in the same PR.
 
 ## Saved-build coverage
 
-| Exact saved build  | Approved genuine-save derivatives | Independently checked coverage                                                                                          |
-| ------------------ | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| 24.1.0.4225        | F01/F04/F05                       | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                      |
-| 25.1.3.4922        | F06                               | Minimal Sampler, 130 BPM, displayed default name by labeled inference and absent sample references.                     |
-| 26.1.0.5530        | F11/F12/F13/F14/F15               | Minimal; explicit sample/name; three patterns/four placements; 3x Osc; cloned empty Samplers with duplicate labels.     |
-| FL Studio 20/21    | F02/F03 are not covered           | No runnable matching build or genuine-save fixture here; no supported-build claim.                                      |
-| Other saved builds | No approved row                   | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                    |
+| Exact saved build  | Approved genuine-save derivatives | Independently checked coverage                                                                                      |
+| ------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 24.1.0.4225        | F01/F04/F05                       | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                  |
+| 25.1.3.4922        | F06                               | Minimal Sampler, 130 BPM, displayed default name by labeled inference and absent sample references.                 |
+| 26.1.0.5530        | F11/F12/F13/F14/F15               | Minimal; explicit sample/name; three patterns/four placements; 3x Osc; cloned empty Samplers with duplicate labels. |
+| FL Studio 20/21    | F02/F03 are not covered           | No runnable matching build or genuine-save fixture here; no supported-build claim.                                  |
+| Other saved builds | No approved row                   | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                |
 
 The [manifest](../../../fixtures/parser-corpus/manifest.md) owns approval,
 provenance, license, expected values and SHA-256. Thirteen files are committed:
@@ -45,6 +45,12 @@ a complete parse does not make every field extracted or universally supported.
 | File size/modified/filesystem-created time   | Native held-handle authority and independent source checks; filesystem creation optional                                                                                                               | Size/modified shown in Library; optional creation in details                              | File creation differs from embedded creation. Details are saved facts matching a scanned observation, not continuous live inspection.                                |
 | Top-level plugin references                  | Verified built-in Sampler/3x Osc and bounded saved strings; recognized wrapper name/vendor handling has constructed tests                                                                              | Stored/displayed; Explorer groups exact name/class/vendor and provenance                  | No approved external VST wrapper fixture. No exhaustive mixer/nested coverage, installed-plugin inventory or plugin load. Empty coverage is not proof of no plugins. |
 | Automation/MIDI/mixer summaries              | No implemented app summary or approved matching fixture                                                                                                                                                | Not delivered                                                                             | Pattern clips/names and top-level plugin references do not imply these capabilities.                                                                                 |
+| Ephemeral sample metadata observations       | ADR-007/PR285; actual NTFS rights/race and authorized-host tests, installed constructed host mapping plus unchanged F12 outside-root/F15 no-reference cases                                            | Explicit Library checks in `analysis-jobs`; no persisted availability                     | Exact eligible absolute paths inside selected local NTFS root only; time-of-check presence/absence, no audio/content reads or broader FL Studio resolution.          |
+
+The [saved pattern note-count proposal](../pattern-notes-288/README.md), #288,
+starts a narrow G6 scope with preregistered fixture and native authority reviews.
+It adds no extraction/display support or approved note expectations to this
+matrix. Note counts and automation/MIDI/mixer summaries remain undelivered.
 
 ## Tests and independent checks
 
@@ -53,10 +59,12 @@ was accepted in PR279 for a separate ephemeral within-root metadata report.
 The [policy slice #280](../sample-presence-policy-280/README.md) implements an
 inactive library with injected-port tests, merged in PR281. The
 [Windows slice #282](../sample-presence-windows-282/README.md) adds a metadata
-adapter and actual NTFS rights/race tests for review; app delivery remains pending.
-It does not change saved reference provenance or add implemented presence/missing
-claims to this matrix. Relative/placeholder/external-folder resolution remains
-unqualified; current raw sample text is still inert.
+adapter and actual NTFS rights/race tests, merged as PR283. The
+[app slice #284](../sample-presence-ui-284/README.md), merged as PR285, adds
+authorized ephemeral observations for eligible exact paths inside the selected
+local NTFS root: present/not-found when checked, not-checked and no-reference.
+Saved reference provenance remains unchanged and raw sample text stays inert.
+Relative/placeholder/external-folder/cloud resolution remains unqualified.
 
 Issue #267 [qualifies approved three-Sampler F15](../../research/parser-multisampler-267-result.md)
 in the exact 2026 build. Duplicate GUI labels refute the old assumption that
