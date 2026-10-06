@@ -1,5 +1,6 @@
 import { NATIVE_COMMAND_SCHEMA_VERSION } from "../platform/contracts";
 import { parseProjectDetails } from "./projectDetails";
+import { parseSampleCheckResult, sampleCheckArguments } from "./samplePresence";
 import { parsePluginExplorer } from "./pluginExplorer";
 import {
   parseProjectAnalysisRequestResult,
@@ -661,6 +662,20 @@ export function createNativeLibraryScanAdapter(
           },
         },
         (value) => parseProjectAnalysisRequestResult(value, record),
+      );
+    },
+    async checkSavedSamples(request, samples) {
+      return execute(
+        "check_saved_samples",
+        sampleCheckArguments(request),
+        (value) => parseSampleCheckResult(value, request, samples),
+      );
+    },
+    async cancelSampleCheck(request) {
+      return execute(
+        "cancel_sample_check",
+        sampleCheckArguments(request),
+        (value) => parseSampleCheckResult(value, request, [], true),
       );
     },
     async getPluginExplorer(rootId) {

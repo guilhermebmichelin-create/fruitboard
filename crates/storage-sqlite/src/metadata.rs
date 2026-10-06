@@ -11,6 +11,8 @@ use fruitboard_flp_parser::{
 use rusqlite::{Connection, OptionalExtension, params};
 
 mod payload;
+mod source;
+pub use source::MetadataSource;
 #[cfg(test)]
 pub(crate) mod tests;
 
@@ -307,6 +309,15 @@ impl Database {
         &self,
         project_file_id: &str,
     ) -> Result<Option<MetadataSnapshot>> {
+        self.current_metadata_snapshot_id(project_file_id)?
+            .map(|id| self.metadata_snapshot(&id))
+            .transpose()
+            .map(Option::flatten)
+    }
+
+    /// Same durable freshness query without loading a saved JSON projection.
+    /// An ID is a correlation fence, never a filesystem capability.
+    pub fn current_metadata_snapshot_id(&self, project_file_id: &str) -> Result<Option<String>> {
         // Cache the prepared SQL, never a snapshot or freshness result. Bind
         // the selected file and recheck every source fence on every read.
         let id: Option<String> = self.connection.prepare_cached("SELECT snapshot.id
@@ -322,9 +333,7 @@ impl Database {
               AND location.metadata_revision = snapshot.input_location_revision
               AND file.byte_size = snapshot.input_byte_size AND location.byte_size = snapshot.input_byte_size
               AND file.modified_at_ns = snapshot.input_modified_at_ns AND location.modified_at_ns = snapshot.input_modified_at_ns")?.query_row([project_file_id], |row| row.get(0)).optional()?;
-        id.map(|id| self.metadata_snapshot(&id))
-            .transpose()
-            .map(Option::flatten)
+        Ok(id)
     }
 
     /// Bounded indexed header pagination; payloads are loaded individually.

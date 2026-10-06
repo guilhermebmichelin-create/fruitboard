@@ -22,6 +22,8 @@
     "allow-get-project-details",
     "allow-get-plugin-explorer",
     "allow-request-project-analysis",
+    "allow-check-saved-samples",
+    "allow-cancel-sample-check",
     "allow-get-scan-console-state",
     "core:event:allow-listen",
     "core:event:allow-unlisten"

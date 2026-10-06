@@ -233,6 +233,7 @@ struct NativeFoundation {
     preferences: PreferencesService,
     scan_roots: ScanRootsService,
     scan_console: ScanConsoleService,
+    sample_checks: foundation::sample_check::Service,
     #[cfg(feature = "analysis-jobs")]
     analysis: foundation::analysis_host::AnalysisHost,
 }
@@ -257,12 +258,14 @@ impl NativeFoundation {
             preferences: PreferencesService::new(database.clone()),
             scan_roots: ScanRootsService::new(database.clone()),
             scan_console,
+            sample_checks: foundation::sample_check::Service::new(database.clone()),
             #[cfg(feature = "analysis-jobs")]
             analysis: foundation::analysis_host::AnalysisHost::new(database),
         })
     }
 
     fn shutdown(&self) {
+        self.sample_checks.shutdown();
         #[cfg(feature = "analysis-jobs")]
         self.analysis.shutdown();
         self.scan_console.shutdown();
@@ -706,6 +709,40 @@ fn get_scan_console_state(
     handle_get_scan_console_state(&state.commands, &state.scan_console, request)
 }
 
+#[tauri::command]
+async fn check_saved_samples(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> Result<CommandEnvelope<foundation::sample_check::Response>, ()> {
+    #[cfg(feature = "analysis-jobs")]
+    let now = state.commands.now_millis();
+    #[cfg(not(feature = "analysis-jobs"))]
+    let now = 0;
+    let prepared = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        state.sample_checks.begin(request, now)
+    }))
+    .unwrap_or_else(|_| Err(AppError::command_panicked()));
+    let result = match prepared {
+        Ok(foundation::sample_check::Prepared::Immediate(response)) => Ok(response),
+        #[cfg(feature = "analysis-jobs")]
+        Ok(foundation::sample_check::Prepared::Worker(ticket)) => {
+            tauri::async_runtime::spawn_blocking(move || ticket.wait())
+                .await
+                .map_err(|_| AppError::command_panicked())
+        }
+        Err(error) => Err(error),
+    };
+    Ok(state.commands.execute("check_saved_samples", || result))
+}
+
+#[tauri::command]
+fn cancel_sample_check(
+    request: Option<Value>,
+    state: tauri::State<'_, NativeFoundation>,
+) -> CommandEnvelope<foundation::sample_check::Response> {
+    state.sample_checks.cancel(&state.commands, request)
+}
+
 fn install_safe_panic_hook() {
     static INSTALL: std::sync::Once = std::sync::Once::new();
 
@@ -802,6 +839,8 @@ pub fn run() -> tauri::Result<()> {
             get_project_details,
             get_plugin_explorer,
             request_project_analysis,
+            check_saved_samples,
+            cancel_sample_check,
             get_scan_console_state
         ])
         .build(tauri::generate_context!())?;

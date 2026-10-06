@@ -1,6 +1,6 @@
 # ADR-007: Bounded checks for saved sample paths
 
-- Status: Accepted bounded design by PR279; policy merged in PR281; Windows #282 for review
+- Status: Accepted design; policy PR281 and Windows PR283 merged; app #284 for review
 - Date: 2026-10-05
 - Decision owner: product owner
 - Source baseline: merged PR268, `91261525383ce79adb090550329167ef347f7253`
@@ -82,6 +82,13 @@ session under the database guard. Any mismatch discards provisional results.
 This is bounded freshness checking, not a globally atomic filesystem snapshot.
 Without rereading content, edits that preserve the recorded identity, size and
 timestamp cannot be detected; do not claim cryptographic content freshness.
+
+Storage retains the configured folder grant/revision, not a directory ID. Slice
+3 captures root identity on the actual held native root during qualification
+before probing; final root/name checks compare to that ID. Earlier independently
+captured root IDs, when supplied by a trusted native caller, must also match.
+Both paths require the same qualified source identity, pinned ancestry, operation
+bounds and final durable fences; the renderer supplies neither identity nor path.
 
 Native cancellation and request generation fence late replies. The renderer
 also requires the same selected row, displayed fingerprint, snapshot and current
@@ -211,3 +218,7 @@ this implementation scope. Separate implementation PRs still need their own
 native review, required updated-head checks, Windows adversarial tests and
 rendered/installed evidence. Design approval does not activate production,
 approve resource budgets, accept Phase 3 or close G5.
+
+PR283 merged the Windows adapter as `b8c065c3f10b6b64d96b8224fadcdbb4e19af3d6`.
+[App slice #284](../review/sample-presence-ui-284/README.md) maps the authorized
+command, durable revocation/delivery fences and explicit Library controls.

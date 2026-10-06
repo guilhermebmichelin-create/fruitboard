@@ -7,7 +7,7 @@ use serde_json::Value;
 pub(super) struct SampleReference {
     position: usize,
     status: &'static str,
-    value: Option<String>,
+    pub(super) value: Option<String>,
 }
 
 pub(super) fn project(

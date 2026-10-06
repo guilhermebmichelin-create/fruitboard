@@ -288,6 +288,13 @@ pub(super) fn explorer_plugins(payload: &str) -> Result<Option<Value>, ()> {
         .map_err(|_| ())
 }
 
+/// Only the complete validated saved projection can supply a check's strings.
+#[cfg(feature = "analysis-jobs")]
+pub(super) fn saved_sample_values(payload: &str) -> Result<Option<Vec<Option<String>>>, ()> {
+    let (_, _, _, samples, _, _) = project(payload)?;
+    Ok(samples.map(|items| items.into_iter().map(|item| item.value).collect()))
+}
+
 #[cfg(feature = "analysis-jobs")]
 fn scalar(key: &'static str, field: &Value) -> Result<Fact, ()> {
     let status = field["status"].as_str().ok_or(())?;

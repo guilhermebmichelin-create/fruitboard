@@ -15,7 +15,7 @@ mod migrations;
 #[cfg(feature = "parser-metadata")]
 pub use metadata::{
     MAX_METADATA_JSON_BYTES, MAX_METADATA_PAGE_SIZE, MetadataCursor, MetadataInput,
-    MetadataOutcome, MetadataPage, MetadataSnapshot, MetadataSnapshotHeader,
+    MetadataOutcome, MetadataPage, MetadataSnapshot, MetadataSnapshotHeader, MetadataSource,
 };
 #[cfg(feature = "parser-metadata")]
 mod plugin_explorer;

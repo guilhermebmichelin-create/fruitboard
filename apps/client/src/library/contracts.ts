@@ -290,6 +290,14 @@ export interface ScanConsoleState {
 }
 
 export interface LibraryScanAdapter {
+  /** Explicit metadata check; the local projection is decoder context only. */
+  checkSavedSamples?(
+    request: import("./samplePresence").SampleCheckRequest,
+    samples: readonly import("./sampleReferences").ProjectSampleReference[],
+  ): Promise<import("./samplePresence").SampleCheckResult>;
+  cancelSampleCheck?(
+    request: import("./samplePresence").SampleCheckRequest,
+  ): Promise<import("./samplePresence").SampleCheckResult>;
   /** Read-only saved-reference aggregate. Never opens sources or plugins. */
   getPluginExplorer?(
     rootId: string,

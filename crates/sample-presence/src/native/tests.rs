@@ -109,7 +109,7 @@ impl Fixture {
             AuthorityFence {
                 root_revision: 1,
                 location_revision: 1,
-                root_identity: root_id,
+                root_identity: Some(root_id),
                 source: SourceFingerprint {
                     identity: source_id,
                     byte_size: recorded.len(),
@@ -190,6 +190,42 @@ fn outcomes(report: &crate::Report) -> Vec<Outcome> {
 }
 fn unchecked(reason: UncheckedReason) -> Outcome {
     Outcome::NotChecked { reason }
+}
+
+#[test]
+fn root_identity_captured_on_qualification_is_pinned_through_final_revalidation() {
+    let fixture = Fixture::new();
+    let sample = fixture.sample("capture.wav");
+    let original = fixture.input(&[Some(&sample)]);
+    let mut fence = original.fence().clone();
+    fence.root_identity = None;
+    let input = CapturedInput::new(
+        original.context().clone(),
+        fixture.root.to_str().unwrap(),
+        fixture.source.to_str().unwrap(),
+        fence,
+        Some(vec![Some(sample.to_str().unwrap().to_owned())]),
+    )
+    .unwrap();
+    let root = fixture.root.clone();
+    let moved = fixture.base.join("replaced-root");
+    let attempted = Arc::new(AtomicBool::new(false));
+    let observed = attempted.clone();
+    let mut port = WindowsPort::new(Fence::default());
+    port.hook = Some(Box::new(move |stage, name| {
+        if stage == TestStage::BeforeQuery && name == "capture.wav" {
+            assert!(
+                fs::rename(&root, &moved).is_err(),
+                "qualified root namespace was not pinned"
+            );
+            observed.store(true, Ordering::SeqCst);
+        }
+    }));
+    assert_eq!(
+        outcomes(&run(&input, &mut port).unwrap()),
+        [Outcome::Present]
+    );
+    assert!(attempted.load(Ordering::SeqCst));
 }
 
 #[test]

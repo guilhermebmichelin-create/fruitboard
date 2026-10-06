@@ -141,6 +141,8 @@ test("desktop capability exposes only health, preference, scan-root, and scan-co
     "allow-get-project-details",
     "allow-get-plugin-explorer",
     "allow-request-project-analysis",
+    "allow-check-saved-samples",
+    "allow-cancel-sample-check",
     "allow-get-scan-console-state",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
@@ -185,6 +187,19 @@ test("desktop capability exposes only health, preference, scan-root, and scan-co
   }
   assert.doesNotMatch(
     `${JSON.stringify(capability)}\n${permission}\n${preferencesPermission}\n${scanRootsPermission}\n${scanConsolePermission}`,
+    /(?:dialog|fs|shell|sql|process|opener):/,
+  );
+  const samplePermission = readRootFile(
+    "apps/desktop/src-tauri/permissions/sample-check.toml",
+  );
+  for (const command of ["check_saved_samples", "cancel_sample_check"]) {
+    assert.match(
+      samplePermission,
+      new RegExp(`commands\\.allow = \\["${command}"\\]`),
+    );
+  }
+  assert.doesNotMatch(
+    samplePermission,
     /(?:dialog|fs|shell|sql|process|opener):/,
   );
   assert.doesNotMatch(
