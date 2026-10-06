@@ -1,6 +1,12 @@
 # Sample presence design review
 
-Status: **Design accepted in PR279; no app sample probes or G5 acceptance.**
+Status: **Design accepted in PR279; its three bounded implementation slices
+merged as PR281/PR283/PR285. Broader G5 remains open.**
+
+This document retains the design boundary: the design PR itself added no probe.
+The [merged app review](../sample-presence-ui-284/README.md) records delivered
+behavior and the actual installed/source evidence, without promoting this design
+to a qualification report.
 Date: 2026-10-05. Issue: #278. Baseline: merged PR268,
 `91261525383ce79adb090550329167ef347f7253`.
 

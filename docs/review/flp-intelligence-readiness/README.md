@@ -20,9 +20,10 @@ approved synthetic corpus. It supports ordinary project sizes, but that does
 not establish support for every project or plugin.
 
 The bounded development workflow is delivered. The broader Phase 3 roadmap is
-not complete: saved pattern counts/names are integrated in issue #263, but sample availability
-is unchecked, and external plugins, richer arrangements and whole-app resource
-qualification remain gaps. Keep development inside FLP intelligence; this
+not complete: saved pattern counts/names are integrated in issue #263, and PR285
+adds explicit within-root sample metadata observations. Broader dependency
+resolution, note/automation/mixer summaries, external plugins, richer arrangements
+and whole-app resource qualification remain gaps. Keep development inside FLP intelligence; this
 packet does not authorize Phase 4, production activation or public distribution.
 
 Use the [field reliability matrix](field-reliability.md) to distinguish real
@@ -46,6 +47,7 @@ The [gap ledger](gap-ledger.md) records what remains and the next focused change
 | Native resource observations         | PRs #260, #261             | [Quiet before/after](../explorer-performance-259/README.md): full native Explorer plus serialization and real supervised worker; independent artifacts and source hashes. [Earlier characterization](../metadata-resources-258/README.md) retains its failed noise guard.      |
 | Saved pattern counts and names       | PR #264                    | [Patterns](../library-patterns-263/README.md): typed validation, immutable projection, authorized display and backward reading; exact verified 2026 build only.                                                                                                                |
 | Current combined installed workflow  | Issue #265 / this review   | [Installed journey and text reflow](../installed-combined-265/README.md): fresh identity, scan/analysis/patterns/Explorer, restart/failure/root gates and a11y; narrow whole-app characterization, not approved resource/scale qualification.                                  |
+| Bounded saved sample observations    | PRs #281, #283, #285       | [Explicit checks](../sample-presence-ui-284/README.md): policy, Windows attributes-only adapter and authorized ephemeral Library report. Eligible exact absolute paths inside the selected local NTFS root only; broader resolution remains open.                              |
 
 These rows identify the relevant delivery PRs and current review, not every prerequisite.
 The dated reports retain their original source and build boundaries. Current
@@ -108,8 +110,11 @@ Issue #263 delivers [G2](../library-patterns-263/README.md): the already verifie
 2026 pattern count and names now pass through typed validation, immutable
 persistence and the authorized Library view, using unchanged approved F13.
 Issue #265 now covers the bounded fresh-identity installed workflow (G4), while
-whole-app resource decisions remain open. Next plan independently approved
-compatibility fixtures (G3). Keep production activation and later phases outside these changes.
+whole-app resource decisions remain open. Independently approved compatibility
+fixtures (G3) remain needed. The next scoped G6 proposal is
+[saved pattern note counts](../pattern-notes-288/README.md), issue #288, with
+registered genuine-save cases and native authority review before implementation.
+Keep production activation and later phases outside these changes.
 
 Issue #267 begins G3 with [independent multi-Sampler GUI qualification](../../research/parser-multisampler-267-result.md).
 It exposed invented numbered channel labels; the correction retains duplicate

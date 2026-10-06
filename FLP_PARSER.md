@@ -26,6 +26,10 @@ field reliability, merged evidence, proposed resource budgets and remaining
 roadmap work. These deliveries do not accept the full Phase 3 exit or public
 distribution. The component/research notes below retain their original scope;
 the readiness matrix distinguishes parser-only fields from application support.
+PR285 adds explicit, ephemeral within-root sample metadata checks alongside
+inert saved reference text. The next [saved pattern note-count design](docs/review/pattern-notes-288/README.md)
+requires separately qualified genuine-save fixtures before expanding extraction;
+note/automation/MIDI/mixer summaries are not delivered by that proposal.
 
 PyFLP was tested as the comparison candidate. Its stable release returned no
 complete parse on the approved corpus. It remains outside the product, and the

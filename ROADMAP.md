@@ -248,14 +248,16 @@ maps the delivered bounded development workflow and current integrations to the
 proposed scope below. Its maintained field matrix distinguishes parser-only
 extensions, app-visible facts and independently verified compatibility. Resource
 budgets and the full Phase 3 exit remain unaccepted; no roadmap item is silently
-removed and no later-phase entry is authorized by merging that packet. The next
-focused design proposal is
-[bounded sample presence](docs/review/sample-presence-278/README.md), issue #278:
-explicit metadata-only checks of literal saved absolute paths inside the
-selected local-NTFS source root. Saved pattern count/names were delivered in
-PR264, and PR268 qualifies the three-Sampler clone case with approved F15.
-Sample presence needs design/native authority review and separate implementation;
-relative/placeholder/external-folder resolution remains open.
+removed and no later-phase entry is authorized by merging that packet.
+[Bounded sample presence](docs/review/sample-presence-ui-284/README.md) was
+delivered in PR285: explicit metadata-only observations of literal saved
+absolute paths inside the selected local-NTFS source root. Broader relative,
+placeholder, external-folder and cloud resolution remains open. Saved pattern
+count/names were delivered in PR264, and PR268 qualifies the three-Sampler clone
+case with approved F15. The next focused design proposal is
+[saved pattern note counts](docs/review/pattern-notes-288/README.md), issue #288,
+with independent fixture qualification before parser and Library integration.
+Automation/MIDI, mixer and richer arrangement summaries remain open.
 
 ### Epic: Phase 3 — FLP intelligence
 

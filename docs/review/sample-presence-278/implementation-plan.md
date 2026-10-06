@@ -1,7 +1,9 @@
 # Sample presence implementation sequence
 
 Status: design accepted by PR279; policy slice #280 merged as PR281;
-Windows slice #282 merged as PR283; app slice #284 implemented for review.
+Windows slice #282 merged as PR283; app slice #284 merged as PR285 on 2026-10-06,
+`d19587f52132f31065bbaab97a572d3c5487cf00`. All three bounded slices are delivered;
+broader resolution remains open.
 Planning source: merged PR268, `91261525383ce79adb090550329167ef347f7253`.
 Start implementation from the reviewed design merge, record its actual SHA/tree
 and validate each final PR head against that boundary. Do not start from an

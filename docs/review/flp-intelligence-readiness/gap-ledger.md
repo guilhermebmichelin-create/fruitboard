@@ -15,8 +15,8 @@ it does not erase their failures or promote their source boundaries.
 | G2  | Saved pattern count/names integration delivered by merged PR264           | Typed advertised-field validation, bounded immutable projection and authorized Library display using existing F13                                                                       | G2 delivered; current installed integration is also covered by #265. Automation/MIDI remain G6.                                                                         |
 | G3  | Compatibility/field ground truth is narrow                                | Separately approved genuine fixtures: additional exact builds, absent tempo/zero channels, multi-Sampler provenance, richer arrangements and external wrapper metadata                  | No broad supported-version/plugin or complete duration claim. Dates/time counter lack independent GUI qualification.                                                    |
 | G4  | Installed combined workflow covered; whole-app resource decisions pending | [Fresh installed journey and reflow regression](../installed-combined-265/README.md); still needs approved startup/UI/IPC/memory boundaries and representative/limit-scale measurements | #265 passes the bounded current workflow and characterizes seven-entry installed resources. This does not accept budgets, qualify scale or replace historical failures. |
-| G5  | Bounded sample presence integration in review; broader resolution open    | Review explicit local metadata observations under ADR-007; relative, placeholder, external-folder and cloud resolution need separate accepted scope                                     | Saved reference text alone proves no availability; this slice observes only eligible exact paths inside the selected local NTFS root.                                   |
-| G6  | Richer FLP summaries incomplete                                           | Explicit scope/fixture plan for automation/MIDI, mixer/nested plugins, tempo changes and non-pattern arrangements                                                                       | These Phase 3 roadmap items remain incomplete; no implicit scope exclusion.                                                                                             |
+| G5  | Bounded sample presence delivered as PR285; broader resolution open       | Merged explicit local metadata observations under ADR-007; relative, placeholder, external-folder and cloud resolution need separate accepted scope                                     | Saved reference text alone proves no availability; delivered observations cover only eligible exact paths inside the selected local NTFS root.                          |
+| G6  | Richer FLP summaries incomplete; note-count design #288                   | Review the scoped note-count contract/fixture plan; automation/MIDI, mixer/nested plugins, tempo changes and non-pattern arrangements still need their own scope and evidence           | No note-count extraction/display is delivered by the design; these Phase 3 roadmap items remain incomplete with no implicit scope exclusion.                            |
 | G7  | Production/distribution gates open                                        | Explicit activation decision, representative compatibility/provenance review, license selection and protected signing/update/rollback process                                           | Development feature, unsigned test build and green CI are not a public release.                                                                                         |
 | G8  | Earlier Scanner MVP gaps and qualification failures                       | Existing separate scanner evidence/decisions; retain unchanged targets and historical results                                                                                           | Native metadata speedup does not qualify scanner performance or DriveFS/FAT32.                                                                                          |
 
@@ -93,7 +93,7 @@ G3 or qualify additional saved builds, arrangements or external plugins.
 
 Issue #259 remains open for G1 and the remaining qualification/checkpoint review.
 
-Issue #278 provides the next G5 design review:
+Issue #278 provided the accepted G5 design review:
 [ADR-007 and authority/implementation packet](../sample-presence-278/README.md).
 It proposes explicit metadata-only checks of literal absolute saved paths within
 the selected local-NTFS source root, with present/not-found/not-checked/no-reference
@@ -104,7 +104,17 @@ adds an inactive library with recording-port policy/lifecycle tests, merged in
 PR281. [Windows slice #282](../sample-presence-windows-282/README.md) implements
 the native metadata adapter, merged as PR283, including real NTFS rights and race
 tests. [App slice #284](../sample-presence-ui-284/README.md) adds authorized
-command/Library integration for review; G5 and broader resolution work
-stay open. This does not qualify every cloud provider or blocked kernel call.
+command/Library integration, merged as PR285 on 2026-10-06 at
+`d19587f52132f31065bbaab97a572d3c5487cf00`. This delivers the three bounded
+ADR-007 slices; G5's broader resolution work stays open. This does not qualify
+every cloud provider or blocked kernel call.
+
+Issue #288 proposes the next narrow G6 step:
+[saved pattern note counts, authority review and fixture plan](../pattern-notes-288/README.md).
+It defines per-pattern stored-record counts, explicit missing/unsupported/older
+states, bounded additive projections and independent GUI qualification before
+extraction. No note parser/UI or new fixture is delivered by this design.
+Automation/MIDI, mixer/nested plugins, tempo changes and richer arrangements
+remain open; accepting a first note-count scope does not remove those roadmap items.
 Merging this packet supplies a maintained evidence map; it does not close gaps,
 accept budgets, accept Phase 3 or open a later-phase milestone.
