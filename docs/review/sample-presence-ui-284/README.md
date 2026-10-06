@@ -76,17 +76,54 @@ extensions and request mismatches. They cover duplicate slots, 256 references,
 transport privacy, cancel/navigation/fingerprint races, keyboard focus and axe
 states. The list still reveals 20 channels at a time.
 
-Installed review uses a fresh, separately named unsigned development package and
-profile with private metadata-only sentinels. Unchanged approved FLP copies and
-constructed stored expectations prove host behavior, not new FL Studio path
-mapping. Rendered desktop/narrow/200%-text states and installed check/cancel/
-stale/reinstall evidence are recorded in the final PR. Delayed transport UI
-cancellation is distinguished from injected native blocked-worker tests.
+Installed review on 2026-10-06 used a fresh, separately named unsigned development
+package/profile with private metadata-only sentinels. Package source:
+`bd8f8adbd3e6b3d83bcada5d5c9817c583012042`, tree
+`4f7df2452c57b2aaa500b233c9c897d81f443ad8`; later changes add only review
+documentation/screenshots. Native Library check, repeat check, strict request
+rejection, stale snapshot/root revocation, keyboard cancellation/focus, late reply
+discard and restart were verified through the installed WebView2/native adapter.
+The cancelled UI test held a completed native response at the renderer's fetch
+boundary; it did not block a Windows syscall. Native blocked-worker tests above
+cover that separate lifetime requirement.
 
-Required gates: pinned Windows `pnpm check`, changed `analysis-jobs` tests and
+Unchanged approved F15 bytes with constructed stored references prove the host's
+present/absent/no-reference mapping, not new FL Studio path mapping. Actual parser
+reanalysis of F15 produces three empty-Sampler references, disables the action
+and returns `no_references` without a worker. An unchanged approved F12 copy's
+real saved external reference returns `not_checked / outside_root`; its screenshot
+stays private. Source and sentinel hashes remain unchanged. Uninstall/reinstall
+preserved the review DB; final uninstall removed only the review registration,
+retained its DB/fixtures and left both protected owner profiles and all 13 approved
+corpus files byte-identical. The exclusive host lock was released after cleanup.
+
+The sample section had zero installed axe WCAG A/AA violations, including actual
+contrast evaluation. Narrow 390px and doubled 32px text had no horizontal page
+overflow. Component tests cover additional busy/stale/error/deadline states;
+installed evidence does not claim cloud blocking or performance qualification.
+
+Required gates: pinned Windows `pnpm check`, `scan-console` and `analysis-jobs` tests and
 warning-denied all-target Clippy, sample-presence native/portable and storage
 fence tests, unchanged approved corpus and normal final-head CI. No new public
-FLP or owner profile access is part of this work.
+FLP or owner profile mutation is part of this work.
+
+## Installed screenshots
+
+These are native review-package captures. Paths shown are owned synthetic test
+locators, not personal projects. Only the no-reference screenshots use the actual
+empty-Sampler parser projection; the present/absent screenshots use the explicitly
+constructed host projection described above.
+
+| Capture | State / scope |
+| --- | --- |
+| [Desktop idle](samples-idle-desktop.png) | Details display alone starts no check. |
+| [Desktop results](samples-results-desktop.png) | Present, absent at the exact path, and no saved reference. |
+| [Checking](samples-checking-desktop.png) | Injected renderer response delay; Cancel remains available. |
+| [Cancelled](samples-cancelled-desktop.png) | No report shown; keyboard focus returns to Check. |
+| [Narrow results](samples-narrow-viewport.png) | 390px viewport; long saved paths wrap. |
+| [No references](samples-no-references-desktop.png) | Actual approved empty-Sampler analysis; disabled action. |
+| [Narrow no references](samples-no-references-narrow.png) | 390px viewport with the section heading and action. |
+| [Doubled text](samples-text-200-viewport.png) | 32px text; actual no-reference state, no horizontal overflow. |
 
 ## Resource ownership and rollback
 
