@@ -4,3 +4,4 @@ packages:
 
 overrides:
   smol-toml: 1.7.1
+  source-map-js: 1.2.2
