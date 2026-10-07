@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
@@ -61,6 +62,8 @@ test("the committed parser corpus passes its binary privacy scan", () => {
     "FIX-FL2026-PATTERNS",
     "FIX-FL2026-3XOSC",
     "FIX-FL2026-MULTISAMPLER",
+    "FIX-FL2026-NOTES",
+    "FIX-FL2026-NAMED-EMPTY",
     "FIX-RB-TRUNC",
     "FIX-RB-UNKNOWN",
     "FIX-RB-MALFORM",
@@ -69,6 +72,42 @@ test("the committed parser corpus passes its binary privacy scan", () => {
     const path = `fixtures/parser-corpus/${name}.flp`;
     const bytes = readFileSync(new URL(`../${path}`, import.meta.url));
     assert.deepEqual(inspectApprovedFixtureBinary(path, bytes), [], name);
+  }
+});
+
+test("note fixtures permit only their approved bytes and paths", () => {
+  const registered = readFileSync(
+    new URL(
+      "../fixtures/parser-corpus/pattern-note-expectations.json",
+      import.meta.url,
+    ),
+  );
+  assert.equal(
+    createHash("sha256").update(registered).digest("hex"),
+    "6a7b161bc9d2d6240887a1ae04d5e0978bb4f9fcf072aa41e803a46b6f9a6295",
+  );
+  const expectations = JSON.parse(registered.toString("utf8"));
+  for (const slot of ["F16", "F17"]) {
+    const expected = expectations[slot];
+    const path = `fixtures/parser-corpus/${expected.filename}`;
+    const bytes = readFileSync(new URL(`../${path}`, import.meta.url));
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    assert.equal(bytes.length, expected.bytes);
+    assert.equal(hash, expected.sha256);
+    assert.deepEqual(inspectTrackedPath(path, hash), []);
+    const changed = Buffer.from(bytes);
+    changed[changed.length - 1] ^= 1;
+    assert.equal(
+      inspectTrackedPath(
+        path,
+        createHash("sha256").update(changed).digest("hex"),
+      )[0].rule,
+      "fixture-hash-mismatch",
+    );
+    assert.equal(
+      inspectTrackedPath(`other/${expected.filename}`, hash)[0].rule,
+      "blocked-extension",
+    );
   }
 });
 

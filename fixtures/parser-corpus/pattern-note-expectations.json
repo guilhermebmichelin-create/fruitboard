@@ -1,0 +1,50 @@
+{
+  "scope": "Exact privately retained F16/F17 candidate bytes and observations for public test-corpus inclusion; no personal project, audio, raw save or screenshot approval",
+  "sourceMerge": "491abefc9d3a4d74337d541efa1ff1c1a2ab89cc",
+  "savedBuild": "26.1.0.5530",
+  "baseTempoBpm": 130,
+  "ppq": 96,
+  "F16": {
+    "filename": "FIX-FL2026-NOTES.flp",
+    "bytes": 48431,
+    "sha256": "be58afee914e10ab95f73f55405d8ea72f607430016a4264ecd1d5a488ef041f",
+    "channels": ["Fixture Notes One", "Fixture Notes Two"],
+    "generators": ["Sampler", "Sampler"],
+    "sampleFiles": ["(none)", "(none)"],
+    "patterns": [
+      {"patternId":1,"name":"Fixture Notes A","oneOrdinary":2,"twoOrdinary":1,"savedRecordCount":3,"event224PayloadBytes":72},
+      {"patternId":2,"name":"Fixture Notes B","oneOrdinary":1,"oneSlide":1,"twoEntries":0,"savedRecordCount":2,"event224PayloadBytes":48},
+      {"patternId":3,"name":"Fixture Steps C","oneEnabledSteps":4,"twoEnabledSteps":0,"savedRecordCount":4,"event224PayloadBytes":96}
+    ],
+    "playlistPatternIds": [1,1,2,3],
+    "distinctPatternCount": 3,
+    "playlistPlacementCount": 4,
+    "recordSizeBytes": 24,
+    "recordCountsIndependentOfPlacements": true,
+    "qualifiedOrdering": "One contiguous initial series of event-65 ID followed immediately by event-224 payload, before first event-64 channel. Later repeated IDs carry properties/names, not additional payloads.",
+    "slideObservation": "GUI confirmed slide to D5; stored flags word 0x4008 versus ordinary 0x4000, one 24-byte record each.",
+    "stepObservation": "Four enabled steps reopen as four Piano roll entries and four 24-byte records, each with stored length word zero; these are not an empty payload."
+  },
+  "F17": {
+    "filename": "FIX-FL2026-NAMED-EMPTY.flp",
+    "bytes": 46697,
+    "sha256": "32cee5af3969d61c54f6bb6703fc1f3406be509d33a81e57b571d1c83cf7f78b",
+    "channels": ["Sampler"],
+    "generators": ["Sampler"],
+    "sampleFiles": ["(none)"],
+    "patterns": [{"patternId":1,"name":"Fixture Named Empty","ordinaryNotes":0,"slideNotes":0,"enabledSteps":0,"nameSurvivedReopen":true}],
+    "distinctPatternCount": 1,
+    "playlistPlacementCount": 0,
+    "event224Count": 0,
+    "futureNoteCountState": {"status":"unavailable","reason":"PATTERN_NOTES_NOT_STORED"},
+    "explicitZeroLengthPayloadQualified": false,
+    "qualifiedOrdering": "Only the property/name event-65 marker is stored, after the channel; no initial note payload or explicit empty payload."
+  },
+  "qualificationLimits": [
+    "Exact 26.1.0.5530 build and demonstrated ordering only",
+    "No controller, MIDI, playback, audible-note, duration-formula or other-build qualification",
+    "No genuine explicit zero-length event-224 payload demonstrated",
+    "Existing parser reads metadata but does not advertise or implement patternNoteCounts",
+    "Bounded privacy scan and empty-Sampler provenance do not fully decode opaque state"
+  ]
+}

@@ -241,6 +241,69 @@ fn read_only_file_parse_checks_expected_fingerprint_and_hides_path() {
 }
 
 #[test]
+fn approved_note_cases_preserve_registered_metadata_and_source_bytes() {
+    let expected: Value = serde_json::from_str(include_str!(
+        "../../../fixtures/parser-corpus/pattern-note-expectations.json"
+    ))
+    .unwrap();
+    for slot in ["F16", "F17"] {
+        let case = &expected[slot];
+        let path = fixture(case["filename"].as_str().unwrap());
+        let before = fs::read(&path).unwrap();
+        assert_eq!(before.len() as u64, case["bytes"].as_u64().unwrap());
+        assert_eq!(fruitboard_flp_parser::sha256_hex(&before), case["sha256"]);
+        let metadata = fs::metadata(&path).unwrap();
+        let parsed = parse_file(
+            &path,
+            ExpectedFingerprint {
+                size: metadata.len(),
+                modified_at_ms: modified_at_ms(&metadata).unwrap(),
+            },
+        );
+        assert_eq!(parsed["outcome"], "complete", "{slot}");
+        assert_eq!(parsed["savedVersion"]["value"], expected["savedBuild"]);
+        assert_eq!(
+            parsed["baseTempoBpm"]["value"].as_f64(),
+            expected["baseTempoBpm"].as_f64()
+        );
+        assert_eq!(
+            parsed["channelCount"]["value"],
+            case["channels"].as_array().unwrap().len()
+        );
+        assert_eq!(parsed["channelNames"]["value"], case["channels"]);
+        assert_eq!(parsed["channelGeneratorNames"]["value"], case["generators"]);
+        assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
+        assert_eq!(
+            parsed["patternCount"]["value"],
+            case["distinctPatternCount"]
+        );
+        let patterns = case["patterns"].as_array().unwrap().iter().map(|p| {
+            serde_json::json!({"patternId":p["patternId"],"name":{"status":"extracted","value":p["name"]}})
+        }).collect::<Vec<_>>();
+        assert_eq!(parsed["patternNames"]["value"], serde_json::json!(patterns));
+        let clips = parsed["playlistPatternClips"]["value"].as_array().unwrap();
+        assert_eq!(
+            clips.len() as u64,
+            case["playlistPlacementCount"].as_u64().unwrap()
+        );
+        let ids = clips
+            .iter()
+            .map(|c| c["patternId"].as_u64().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            serde_json::json!(ids),
+            if slot == "F16" {
+                case["playlistPatternIds"].clone()
+            } else {
+                serde_json::json!([])
+            }
+        );
+        assert_eq!(parsed["inputFingerprint"]["hash"]["value"], case["sha256"]);
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+}
+
+#[test]
 fn oversized_buffer_fails_before_event_walk() {
     let bytes = vec![0; fruitboard_flp_parser::MAX_FILE_BYTES as usize + 1];
     let parsed: Value = parse_bytes(&bytes);

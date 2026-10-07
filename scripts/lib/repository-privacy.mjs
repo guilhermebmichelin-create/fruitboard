@@ -64,6 +64,14 @@ const approvedFlpFixtureHashes = new Map([
     "d9f09c8f61293ce1ea95ee925af0bdb67b4978668cc273966e553cc6f2e5a71e",
   ],
   [
+    "fixtures/parser-corpus/FIX-FL2026-NOTES.flp",
+    "be58afee914e10ab95f73f55405d8ea72f607430016a4264ecd1d5a488ef041f",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NAMED-EMPTY.flp",
+    "32cee5af3969d61c54f6bb6703fc1f3406be509d33a81e57b571d1c83cf7f78b",
+  ],
+  [
     "fixtures/parser-corpus/FIX-RB-TRUNC.flp",
     "38837f28cf0723434b9a089decc617af8e0069e19b12bd8d6d4cee612e59a9cd",
   ],

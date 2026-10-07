@@ -10,17 +10,17 @@ display or corpus coverage must update this matrix in the same PR.
 
 ## Saved-build coverage
 
-| Exact saved build  | Approved genuine-save derivatives | Independently checked coverage                                                                                      |
-| ------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| 24.1.0.4225        | F01/F04/F05                       | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                  |
-| 25.1.3.4922        | F06                               | Minimal Sampler, 130 BPM, displayed default name by labeled inference and absent sample references.                 |
-| 26.1.0.5530        | F11/F12/F13/F14/F15               | Minimal; explicit sample/name; three patterns/four placements; 3x Osc; cloned empty Samplers with duplicate labels. |
-| FL Studio 20/21    | F02/F03 are not covered           | No runnable matching build or genuine-save fixture here; no supported-build claim.                                  |
-| Other saved builds | No approved row                   | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                |
+| Exact saved build  | Approved genuine-save derivatives | Independently checked coverage                                                                                                                     |
+| ------------------ | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 24.1.0.4225        | F01/F04/F05                       | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                                                 |
+| 25.1.3.4922        | F06                               | Minimal Sampler, 130 BPM, displayed default name by labeled inference and absent sample references.                                                |
+| 26.1.0.5530        | F11/F12/F13/F14/F15/F16/F17       | Minimal; explicit sample/name; patterns/placements; 3x Osc; cloned empty Samplers; registered ordinary/slide/step records and named-empty absence. |
+| FL Studio 20/21    | F02/F03 are not covered           | No runnable matching build or genuine-save fixture here; no supported-build claim.                                                                 |
+| Other saved builds | No approved row                   | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                               |
 
 The [manifest](../../../fixtures/parser-corpus/manifest.md) owns approval,
-provenance, license, expected values and SHA-256. Thirteen files are committed:
-nine genuine-save derivatives and four approved robustness derivatives.
+provenance, license, expected values and SHA-256. Fifteen files are committed:
+eleven genuine-save derivatives and four approved robustness derivatives.
 F07-F10 exercise failure/partial handling; they add no saved-build coverage.
 
 ## Field reliability and application reach
@@ -49,8 +49,11 @@ a complete parse does not make every field extracted or universally supported.
 
 The [saved pattern note-count proposal](../pattern-notes-288/README.md), #288,
 starts a narrow G6 scope with preregistered fixture and native authority reviews.
-It adds no extraction/display support or approved note expectations to this
-matrix. Note counts and automation/MIDI/mixer summaries remain undelivered.
+Its [fixture slice #290](../../research/parser-pattern-notes-290-result.md)
+adds owner-approved F16/F17 expectations: A/B/C contain 3/2/4 records; the named
+empty pattern omits note data. Exact-build GUI/byte qualification is complete
+for the demonstrated ordering, with no explicit-zero payload qualification.
+Note-count extraction/display and automation/MIDI/mixer summaries remain undelivered.
 
 ## Tests and independent checks
 
