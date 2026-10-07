@@ -28,8 +28,11 @@ distribution. The component/research notes below retain their original scope;
 the readiness matrix distinguishes parser-only fields from application support.
 PR285 adds explicit, ephemeral within-root sample metadata checks alongside
 inert saved reference text. The next [saved pattern note-count design](docs/review/pattern-notes-288/README.md)
-requires separately qualified genuine-save fixtures before expanding extraction;
-note/automation/MIDI/mixer summaries are not delivered by that proposal.
+has owner-approved F16/F17 ground truth in PR291. Issue #292 adds bounded
+`patternNoteCounts` extraction and full native validation for the qualified
+26.1.0.5530 initial content series. F16 yields 3/2/4 saved records; absent F17
+payload remains unavailable. Storage/Library display follows separately;
+automation/MIDI/mixer summaries and broader G6 remain open.
 
 PyFLP was tested as the comparison candidate. Its stable release returned no
 complete parse on the approved corpus. It remains outside the product, and the

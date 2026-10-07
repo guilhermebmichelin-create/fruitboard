@@ -113,9 +113,11 @@ fn respond(line: &[u8]) -> Value {
     let result = match request.method.as_str() {
         "describe" if request.params.is_none() => json!({
             "adapter":ADAPTER_ID, "adapterVersion":ADAPTER_VERSION,
-            "fields":["savedVersion","baseTempoBpm","channelCount","patternCount","patternNames","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","pluginReferences","filesystemCreatedAtMs"],
+            "fields":["savedVersion","baseTempoBpm","channelCount","patternCount","patternNames","patternNoteCounts","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","pluginReferences","filesystemCreatedAtMs"],
             "maxFileBytes":MAX_FILE_BYTES, "maxEvents":100_000,
             "maxChannels":256, "maxPatterns":MAX_PATTERNS, "maxPlaylistClips":MAX_PLAYLIST_CLIPS,
+            "maxNoteRecordsPerPattern":fruitboard_flp_parser::MAX_NOTE_RECORDS_PER_PATTERN,
+            "maxNoteRecordsTotal":fruitboard_flp_parser::MAX_NOTE_RECORDS_TOTAL,
             "maxEventBytes":fruitboard_flp_parser::MAX_EVENT_BYTES
         }),
         "healthCheck" if request.params.is_none() => json!({"status":"ok"}),

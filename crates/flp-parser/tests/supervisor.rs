@@ -97,8 +97,8 @@ fn actual_parser_health_describe_and_approved_file_share_one_supervisor() {
 #[test]
 fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutation() {
     use fruitboard_flp_parser::validation::{
-        MetadataOutcome, ParseContext, ValidatedProjectReply, validate_descriptor,
-        validate_project_reply,
+        MetadataOutcome, NoteRecordCount, ParseContext, PatternNoteCounts, ValidatedProjectReply,
+        validate_descriptor, validate_project_reply,
     };
     let mut supervisor = ParserSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_fruitboard-flp-parser")),
@@ -176,6 +176,26 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                 "{name}"
             );
             assert_eq!(metadata.file_size_bytes(), expected.size);
+            if name == "FIX-FL2026-NOTES.flp" {
+                let PatternNoteCounts::Entries(items) = metadata.pattern_note_counts() else {
+                    panic!("typed note counts expected")
+                };
+                assert_eq!(
+                    items
+                        .iter()
+                        .map(|item| match item.count() {
+                            NoteRecordCount::Extracted(n) => (item.id(), *n),
+                            _ => panic!("qualified count expected"),
+                        })
+                        .collect::<Vec<_>>(),
+                    [(1, 3), (2, 2), (3, 4)]
+                );
+            } else if name == "FIX-FL2026-NAMED-EMPTY.flp" {
+                let PatternNoteCounts::Entries(items) = metadata.pattern_note_counts() else {
+                    panic!("typed empty pattern expected")
+                };
+                assert!(matches!(items[0].count(), NoteRecordCount::Unavailable));
+            }
             assert_eq!(metadata.file_modified_at_ms(), expected.modified_at_ms);
             assert!(metadata.project_created_local().value().is_some());
             assert!(metadata.fl_studio_time_spent_ms().value().is_some());

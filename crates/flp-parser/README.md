@@ -102,6 +102,48 @@ lifecycle checks only. Project reply validation has no scanner/application
 publication call site, renderer command or persistence effect. Application
 integration remains a separate slice.
 
+## Saved pattern note records
+
+Adapter 0.1.2 advertises additive `patternNoteCounts` on protocol 1/schema 2.
+Independent approved [F16/F17](../../docs/research/parser-pattern-notes-290-result.md)
+qualify exact build 26.1.0.5530: counts 3/2/4 include ordinary, slide and step
+records across channels once per saved pattern, independently of Playlist use.
+No audible-note total, pitch, flags, position, length or per-note array is returned.
+
+Only the contiguous initial event-65 ID / event-224 payload series is bound.
+Before the series, only header event kinds independently observed in the F16
+genuine save/candidate pass. The registration header removed during sanitation
+is skipped without copying or returning it; it cannot restore later authority.
+Any interruption ends authority permanently; later property IDs cannot restore
+it. An unbound payload invalidates the whole summary. Duplicate payloads are
+unsupported even when identical. A missing payload is unavailable, including
+the GUI-empty F17. Zero-length and non-24-byte-multiple payloads are unqualified.
+Other saved builds keep an unsupported field without losing existing metadata.
+
+The summary carries `coverage: stored-pattern-note-records`. All extracted
+entries use `value`; incomplete entries use `items` and fixed reason
+`PATTERN_NOTE_COUNTS_INCOMPLETE`, unavailable unless any entry is unsupported.
+Entries are sorted by saved ID and retain individual states. Global build,
+binding, missing-pattern and limit failures have no entries. Whole parse failure
+keeps its existing failed outcome.
+
+Advertised positive ceilings are `maxNoteRecordsPerPattern: 65536` and
+`maxNoteRecordsTotal: 262144`. Borrowed slices are counted using checked lengths;
+every candidate charges a ceiling of payload bytes / 24 before classification,
+including duplicates, malformed and unbound candidates. No records are traversed
+or allocated. Existing file/event/pattern/output/deadline limits remain intact.
+These are safety bounds, not performance qualification.
+
+Full typed validation selects the field only when advertised with both limits
+and pattern IDs/names. It checks exact shapes, literal coverage, fixed reasons,
+verified build, ordered matching IDs, positive integer counts and checked totals.
+Zero counts are rejected while explicit-zero encoding remains unqualified.
+Malformed advertised fields reject the result; unadvertised extensions are
+discarded. Matching adapter-version checks remain exact and initial-only
+validation remains usable. Typed accessors retain counts/states only, without
+automatic serialization. Storage and Library projection are a separate slice;
+no native authority, command, sample read, filesystem grant or migration is added.
+
 ## Project facts
 
 Issue #232 adds `projectCreatedLocal` (the embedded creation date with an
