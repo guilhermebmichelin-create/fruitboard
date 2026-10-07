@@ -37,11 +37,69 @@ focus. Default desktop and PWA analysis behavior remains unchanged.
 
 ## Validation record
 
-Validation receipts, final source identity, installed artifact hashes and visual
-evidence are recorded after qualification in this packet and the private handoff.
-The approved F16/F17 corpus and its recorded expectations remain unchanged.
-Constructed malformed/older/limit/paging states test defenses and display only;
-they do not qualify a new FL Studio encoding.
+Full pinned Windows `pnpm check` passes; scan-console has 118 passing tests,
+analysis-jobs 157 (four existing opt-in review/host tests ignored), with
+all-target warning-denied Clippy for both compositions. Three explicitly enabled
+real-parser worker tests pass separately. Approved F16/F17 cross real parsing,
+immutable publication, authorized reads, refresh, restart and root revocation.
+Storage tests retain last-good results after malformed replacement attempts and
+preserve earlier snapshots. Native/renderer tests reject foreign/reordered IDs,
+zero/fractional/oversized counts, invalid states and total-ceiling violations.
+All 15 approved FLPs and recorded note expectations remain byte-identical.
+
+Installed qualification used a fresh, separately identified unsigned development
+package/profile under the exclusive host lock, built from
+`e63898668de169d51bb1e22f4495dc91e1928a4c`, tree
+`5f062d6827686ecc2f891ce8525cb22f827e98c5`. Later changes add only this review
+record/screenshots. Installed real scans/analysis yield 3/2/4 and a named empty
+pattern with unknown note count. Opening/refreshing preserves snapshot and
+attempt count; explicit analysis creates a new snapshot and uses the existing
+attempt policy. Counts survive restart and uninstall/reinstall. Disabled roots
+hide counts; changed-source scans fence an older displayed row. Source bytes,
+personal/FoundationSmoke profiles and all approved fixtures remain unchanged.
+The review app was closed/uninstalled; its private database/evidence remains.
+
+Desktop, 390px and 200%-text layouts were visually inspected; no horizontal
+overflow was measured. Native axe WCAG checks, including contrast, report zero
+violations at all three sizes and on constructed pagination. Keyboard Enter
+reveals 20/40/45 records and collapses to 20 while retaining button focus.
+Closing during a deliberately held successful native reply clears counts,
+retains disclosure focus and discards the late result. This is a constructed
+transport race; existing native freshness tests cover authority changes.
+
+Constructed older/layout/limit/paging/malformed states replace only the renderer
+reply after a real native read. They do not modify saved data or qualify a new
+FL Studio encoding. Initial capture/focus-driver defects were corrected and the
+complete journey passed on resume in the same fresh review profile. Final
+viewport captures supersede an initial blank 200%-text capture.
+
+Independently copied installer SHA-256:
+`145b9cb58b41314e03bad7f13481c4495b6e18aa66beece8831dbdfbe3a0854c`.
+Desktop executable:
+`9e50a0ac378477a93e4d4e34120374f859e21a697fce273d315cfb9ec885c8d8`.
+Parser executable:
+`b01fac6314a59736960b12b38895856a18ddd59d6cb9e3498857b21102666fd7`.
+The private handoff retains final head/tree, source equality, exact commands,
+host-lock ownership, artifact/profile/corpus hashes and final CI receipts.
+
+## Sanitized installed screenshots
+
+Only approved fixture names and synthetic review values appear here. Cropped
+views come from the actual installed native renderer; viewport captures show
+the app around the tested region. At 390px the last pattern is also shown after
+scrolling, so its count is visible above the fixed navigation.
+
+- [Desktop: real 3/2/4 counts](screenshots/notes-desktop.png)
+- [390px list](screenshots/notes-390.png) and
+  [last pattern after scrolling](screenshots/notes-390-last-pattern.png)
+- [200% text: real first-pattern count](screenshots/notes-text-200-viewport.png)
+- [Real named empty pattern: unknown count](screenshots/notes-missing-payload.png)
+- [Constructed older result](screenshots/notes-older-constructed.png)
+- [Constructed unverified layout](screenshots/notes-layout-constructed.png)
+- [Constructed note-record limit](screenshots/notes-limit-constructed.png)
+- [Constructed 45-pattern paging and keyboard focus](screenshots/notes-paging-constructed-viewport.png)
+- [Loading during a constructed held reply](screenshots/notes-loading.png)
+- [Safe details error for constructed malformed data](screenshots/notes-malformed.png)
 
 ## Remaining work and recovery
 
