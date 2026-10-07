@@ -57,8 +57,10 @@ Issue #292 delivers bounded parser extraction and full typed validation of saved
 record counts for this exact build/order, with approved counts 3/2/4 and absent
 F17 kept unavailable. [Parser tests](../../../crates/flp-parser/tests/pattern_notes.rs)
 cover limits/ambiguity; [native validation tests](../../../crates/flp-parser/tests/pattern_note_validation.rs)
-reject malformed advertised data. Counts remain parser-only: immutable storage
-and Library display follow separately. Automation/MIDI/mixer summaries stay open.
+reject malformed advertised data. [Issue #294](../library-pattern-notes-294/README.md)
+adds immutable count/state persistence and per-pattern Library display, with
+older-result explanations, strict matching-ID/limit checks and existing source
+freshness fences. Automation/MIDI/mixer summaries stay open.
 
 ## Tests and independent checks
 

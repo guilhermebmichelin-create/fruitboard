@@ -2,6 +2,10 @@ import { LibraryAdapterError, type PublishedFileLocation } from "./contracts";
 import { parseProjectAnalysis, type ProjectAnalysis } from "./projectAnalysis";
 import { parseProjectPatterns, type ProjectPatterns } from "./projectPatterns";
 import {
+  parseProjectPatternNotes,
+  type ProjectPatternNotes,
+} from "./projectPatternNotes";
+import {
   parseProjectPlugins,
   type ProjectPluginReferences,
 } from "./pluginReferences";
@@ -61,6 +65,7 @@ export type ProjectDetails = {
       readonly facts: readonly ProjectFact[];
       readonly channels: readonly ProjectChannel[];
       readonly patterns?: ProjectPatterns;
+      readonly patternNoteCounts?: ProjectPatternNotes;
       readonly sampleReferences?: readonly ProjectSampleReference[];
       readonly pluginReferences?: ProjectPluginReferences;
       readonly analysis?: ProjectAnalysis;
@@ -94,6 +99,7 @@ export function parseProjectDetails(
       value["snapshotId"] !== undefined ||
       value["channels"] !== undefined ||
       value["patterns"] !== undefined ||
+      value["patternNoteCounts"] !== undefined ||
       value["sampleReferences"] !== undefined ||
       value["pluginReferences"] !== undefined ||
       value["warnings"] !== undefined ||
@@ -263,6 +269,18 @@ export function parseProjectDetails(
       warnings.some((v: unknown) => v !== "unverified_events"))
   )
     return fail();
+  const patterns =
+    value["patterns"] === undefined
+      ? undefined
+      : parseProjectPatterns(value["patterns"], facts[0]?.value ?? "");
+  const patternNoteCounts =
+    value["patternNoteCounts"] === undefined
+      ? undefined
+      : parseProjectPatternNotes(
+          value["patternNoteCounts"],
+          facts[0]?.value ?? "",
+          patterns,
+        );
   return {
     ...identity,
     state,
@@ -278,14 +296,8 @@ export function parseProjectDetails(
             facts[0]?.value ?? "",
           ),
         }),
-    ...(value["patterns"] === undefined
-      ? {}
-      : {
-          patterns: parseProjectPatterns(
-            value["patterns"],
-            facts[0]?.value ?? "",
-          ),
-        }),
+    ...(patterns === undefined ? {} : { patterns }),
+    ...(patternNoteCounts === undefined ? {} : { patternNoteCounts }),
     ...(value["sampleReferences"] === undefined
       ? {}
       : {

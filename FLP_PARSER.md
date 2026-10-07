@@ -27,11 +27,14 @@ roadmap work. These deliveries do not accept the full Phase 3 exit or public
 distribution. The component/research notes below retain their original scope;
 the readiness matrix distinguishes parser-only fields from application support.
 PR285 adds explicit, ephemeral within-root sample metadata checks alongside
-inert saved reference text. The next [saved pattern note-count design](docs/review/pattern-notes-288/README.md)
+inert saved reference text. The [saved pattern note-count design](docs/review/pattern-notes-288/README.md)
 has owner-approved F16/F17 ground truth in PR291. Issue #292 adds bounded
 `patternNoteCounts` extraction and full native validation for the qualified
 26.1.0.5530 initial content series. F16 yields 3/2/4 saved records; absent F17
-payload remains unavailable. Storage/Library display follows separately;
+payload remains unavailable. [Issue #294](docs/review/library-pattern-notes-294/README.md)
+adds immutable count/state persistence and per-pattern Library display, with
+older results explicitly marked not saved. Refresh reads saved results;
+only a new analysis can add counts to an older result. No raw notes are saved;
 automation/MIDI/mixer summaries and broader G6 remain open.
 
 PyFLP was tested as the comparison candidate. Its stable release returned no
