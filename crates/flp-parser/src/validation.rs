@@ -15,6 +15,8 @@ mod channel_generators;
 pub use channel_generators::*;
 mod patterns;
 pub use patterns::*;
+mod pattern_notes;
+pub use pattern_notes::*;
 
 const INITIAL_FIELDS: [&str; 5] = [
     "savedVersion",
@@ -47,6 +49,7 @@ pub struct ParserCapabilities {
     project_facts: bool,
     channel_generators: bool,
     patterns: bool,
+    note_limits: Option<(u64, u64)>,
 }
 
 pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, ValidationError> {
@@ -80,12 +83,27 @@ pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, Validati
     limit("maxEventBytes", crate::MAX_EVENT_BYTES as u64)?;
     let max_patterns = limit("maxPatterns", crate::MAX_PATTERNS as u64)? as usize;
     let max_playlist_clips = limit("maxPlaylistClips", crate::MAX_PLAYLIST_CLIPS as u64)? as usize;
+    let note_limits = if names.contains("patternNoteCounts") {
+        if !names.contains("patternCount") || !names.contains("patternNames") {
+            return Err(invalid);
+        }
+        Some((
+            limit(
+                "maxNoteRecordsPerPattern",
+                crate::MAX_NOTE_RECORDS_PER_PATTERN as u64,
+            )?,
+            limit("maxNoteRecordsTotal", crate::MAX_NOTE_RECORDS_TOTAL as u64)?,
+        ))
+    } else {
+        None
+    };
     Ok(ParserCapabilities {
         max_file_bytes,
         max_events,
         max_channels,
         max_playlist_clips,
         max_patterns,
+        note_limits,
         project_facts: project_facts::FIELDS
             .iter()
             .all(|field| names.contains(field)),

@@ -53,7 +53,12 @@ Its [fixture slice #290](../../research/parser-pattern-notes-290-result.md)
 adds owner-approved F16/F17 expectations: A/B/C contain 3/2/4 records; the named
 empty pattern omits note data. Exact-build GUI/byte qualification is complete
 for the demonstrated ordering, with no explicit-zero payload qualification.
-Note-count extraction/display and automation/MIDI/mixer summaries remain undelivered.
+Issue #292 delivers bounded parser extraction and full typed validation of saved
+record counts for this exact build/order, with approved counts 3/2/4 and absent
+F17 kept unavailable. [Parser tests](../../../crates/flp-parser/tests/pattern_notes.rs)
+cover limits/ambiguity; [native validation tests](../../../crates/flp-parser/tests/pattern_note_validation.rs)
+reject malformed advertised data. Counts remain parser-only: immutable storage
+and Library display follow separately. Automation/MIDI/mixer summaries stay open.
 
 ## Tests and independent checks
 

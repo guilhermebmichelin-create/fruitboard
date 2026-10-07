@@ -60,6 +60,14 @@ fn versioned_protocol_handles_multiple_requests_without_stderr() {
             .contains(&json!("patternCount"))
     );
     assert_eq!(responses[0]["result"]["maxPatterns"], 1024);
+    assert!(
+        responses[0]["result"]["fields"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("patternNoteCounts"))
+    );
+    assert_eq!(responses[0]["result"]["maxNoteRecordsPerPattern"], 65536);
+    assert_eq!(responses[0]["result"]["maxNoteRecordsTotal"], 262144);
     assert_eq!(responses[0]["result"]["maxFileBytes"], 67_108_864);
     assert_eq!(responses[0]["result"]["maxEventBytes"], 67_108_864);
     assert!(

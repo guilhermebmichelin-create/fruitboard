@@ -119,6 +119,7 @@ pub struct ValidatedProjectMetadata {
     plugins: Vec<PluginReference>,
     channel_generators: ChannelGenerators,
     patterns: SavedPatterns,
+    pattern_note_counts: PatternNoteCounts,
     arrangement_end_tick: ProjectField<u32>,
     arrangement_span_bars: ProjectField<f64>,
     arrangement_estimated_seconds: ProjectField<f64>,
@@ -153,6 +154,9 @@ impl ValidatedProjectMetadata {
     }
     pub fn patterns(&self) -> &SavedPatterns {
         &self.patterns
+    }
+    pub fn pattern_note_counts(&self) -> &PatternNoteCounts {
+        &self.pattern_note_counts
     }
     pub fn arrangement_end_tick(&self) -> &ProjectField<u32> {
         &self.arrangement_end_tick
@@ -569,6 +573,12 @@ pub fn validate_project_reply(
         initial.saved_version(),
         capabilities.max_patterns,
     )?;
+    let pattern_note_counts = pattern_notes::validate(
+        &raw["patternNoteCounts"],
+        capabilities.note_limits,
+        initial.saved_version(),
+        &patterns,
+    )?;
     let fl_studio_time_spent_ms = integer(
         &raw["flStudioTimeSpentMs"],
         255_611_462_399_999,
@@ -666,6 +676,7 @@ pub fn validate_project_reply(
             plugins,
             channel_generators,
             patterns,
+            pattern_note_counts,
             arrangement_end_tick,
             arrangement_span_bars,
             arrangement_estimated_seconds,
