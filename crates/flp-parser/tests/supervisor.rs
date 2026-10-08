@@ -122,7 +122,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
         .filter(|path| path.extension().is_some_and(|extension| extension == "flp"))
         .collect::<Vec<_>>();
     fixtures.sort();
-    assert_eq!(fixtures.len(), 15, "only the maintained approved corpus");
+    assert_eq!(fixtures.len(), 19, "only the maintained approved corpus");
     for (index, path) in fixtures.into_iter().enumerate() {
         let before = fs::read(&path).unwrap();
         let attributes = fs::metadata(&path).unwrap();

@@ -48,8 +48,12 @@ file. In this exact build event 172 has its separately qualified three-byte
 width; event 199 must identify 26.1.0.5530 before that width is accepted. This
 does not qualify framing in any additional build.
 
-Each case has one two-byte event 103 with value **18**, after the observed
-mixer-control boundary. Its complete record series is:
+Each case has one two-byte event 103 with value **18**. The immediately
+preceding sequence is 242 (28-byte payload), 100 (two-byte value 0), then
+one-byte events 29/39/40/31/38 with values 1/1/0/0/1. That boundary is identical
+across all four saves; a bare count/name event in another context is not
+authority. No intervening unknown transition is qualified. The complete
+record series immediately after 103 is:
 
 | Component | Observed representation |
 | --- | --- |
@@ -138,9 +142,13 @@ Raw originals, account-bearing screenshots and diagnostics remain private.
 Policy allows only the exact named paths/hashes. Tests pin the expectation
 hash, scan all nineteen fixtures and reject changed FLP bytes or approved
 bytes at another path. All fifteen prior FLPs and expectations remain unchanged.
-No dependency, protocol or app behavior changes. No local native build is
-needed; pinned privacy/docs/script/policy checks and normal updated-head CI
-apply. Prior PR297 CI covers unchanged product code only.
+No dependency, protocol or app behavior changes. No local build is needed for
+extraction/app code. The existing supervised corpus integration test's
+maintained-file count changes from fifteen to nineteen; a targeted local
+parser integration build verifies all nineteen real supervised replies,
+full metadata validation and unchanged bytes. Pinned privacy/docs/script/policy
+checks, parser all-target Clippy and normal updated-head CI apply. Prior PR297
+CI covers unchanged product code only.
 
 Broader G6, Phase 3 exit, resource budgets, production activation, licensing/
 distribution and performance acceptance remain open. After owner review/merge,
