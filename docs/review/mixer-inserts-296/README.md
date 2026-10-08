@@ -123,6 +123,10 @@ count within limits, ordered unique bounded IDs, list/count equality and bounded
 names. Extracted aggregates contain only `value`; incomplete names contain only
 `items` plus the fixed reason and at least one unavailable entry. Non-entry
 states carry neither collection; count and names global reasons agree.
+IDs must also satisfy the qualified ordinary-insert identity rules and exclude
+the proven Master/Current identities. Envelope bounds alone do not authorize
+an ID. Reapply those identity rules when reading stored data and decoding the
+selected renderer DTO; a parser's category claim cannot override them.
 Reject missing required fields, extra selected keys, invented inference/method/
 confidence, fractions, negatives, overflows, bad text, duplicate/missing IDs,
 wrong coverage, invalid state relationships and value/items/reason contradictions.
