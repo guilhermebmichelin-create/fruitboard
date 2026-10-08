@@ -160,6 +160,7 @@ pub(super) fn encode(metadata: &ValidatedProjectMetadata) -> Result<String> {
         "channelNames":list(initial.channel_names()),
         "channelGeneratorNames":generators(metadata.channel_generators()),
         "patterns":patterns(metadata.patterns()),
+        "patternNoteCounts":pattern_notes(metadata.pattern_note_counts()),
         "sampleReferences":list(initial.sample_references()),
         "projectCreatedLocal":project(metadata.project_created_local()),
         "flStudioTimeSpentMs":project(metadata.fl_studio_time_spent_ms()),
@@ -173,6 +174,49 @@ pub(super) fn encode(metadata: &ValidatedProjectMetadata) -> Result<String> {
     let mut writer = BoundedJson(Vec::new());
     serde_json::to_writer(&mut writer, &value).map_err(|_| StorageError::InvalidSchema)?;
     String::from_utf8(writer.0).map_err(|_| StorageError::InvalidSchema)
+}
+
+fn pattern_notes(value: &PatternNoteCounts) -> Value {
+    let coverage = "stored-pattern-note-records";
+    match value {
+        PatternNoteCounts::NotAdvertised => {
+            json!({"status":"unsupported","reason":"PATTERN_NOTES_NOT_ADVERTISED","coverage":coverage})
+        }
+        PatternNoteCounts::Unavailable(reason) => {
+            json!({"status":"unavailable","reason":reason.as_str(),"coverage":coverage})
+        }
+        PatternNoteCounts::Unsupported(reason) => {
+            json!({"status":"unsupported","reason":reason.as_str(),"coverage":coverage})
+        }
+        PatternNoteCounts::Entries(items) => {
+            let mut missing = false;
+            let mut unsupported = false;
+            let entries: Vec<Value> = items
+                .iter()
+                .map(|item| {
+                    let count = match item.count() {
+                        NoteRecordCount::Extracted(count) => {
+                            json!({"status":"extracted","value":count})
+                        }
+                        NoteRecordCount::Unavailable => {
+                            missing = true;
+                            json!({"status":"unavailable","reason":"PATTERN_NOTES_NOT_STORED"})
+                        }
+                        NoteRecordCount::Unsupported(reason) => {
+                            unsupported = true;
+                            json!({"status":"unsupported","reason":reason.as_str()})
+                        }
+                    };
+                    json!({"patternId":item.id(),"noteCount":count})
+                })
+                .collect();
+            if unsupported || missing {
+                json!({"status":if unsupported {"unsupported"} else {"unavailable"},"reason":"PATTERN_NOTE_COUNTS_INCOMPLETE","coverage":coverage,"items":entries})
+            } else {
+                json!({"status":"extracted","coverage":coverage,"value":entries})
+            }
+        }
+    }
 }
 
 fn generators(value: &ChannelGenerators) -> Value {

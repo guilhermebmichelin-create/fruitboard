@@ -197,6 +197,7 @@ export function ProjectDetailsPanel({
                 <ProjectPatterns
                   key={`patterns:${state.details.snapshotId}`}
                   patterns={state.details.patterns}
+                  notes={state.details.patternNoteCounts}
                 />
                 <ProjectSamples
                   key={`samples:${state.details.snapshotId}`}

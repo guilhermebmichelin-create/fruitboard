@@ -29,6 +29,82 @@ fn raw_reply() -> Value {
 }
 
 #[test]
+fn note_projection_rejects_invalid_replacements_and_preserves_immutable_history() {
+    let directory = TestDirectory::new();
+    let (mut db, input) = setup(&directory, MIGRATIONS.len());
+    let caps = validate_descriptor(&json!({"adapter":ADAPTER_ID,"adapterVersion":ADAPTER_VERSION,
+        "fields":["savedVersion","baseTempoBpm","channelCount","channelNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","patternCount","patternNames","patternNoteCounts"],
+        "maxFileBytes":67108864,"maxEvents":100000,"maxChannels":256,"maxEventBytes":67108864,"maxPatterns":1024,"maxPlaylistClips":1024,"maxNoteRecordsPerPattern":65536,"maxNoteRecordsTotal":262144})).unwrap();
+    // Constructed protocol payload; F12 supplies unchanged source fingerprints.
+    let mut raw = raw_reply();
+    raw["patternCount"] = json!({"status":"extracted","value":1});
+    raw["patternNames"] = json!({"status":"extracted","value":[{"patternId":1,"name":{"status":"extracted","value":"Synthetic"}}]});
+    raw["patternNoteCounts"] = json!({"status":"extracted","coverage":"stored-pattern-note-records","value":[{"patternId":1,"noteCount":{"status":"extracted","value":3}}]});
+    raw["rawNotes"] = json!({"pitches":[60],"private":"must not persist"});
+    let header = db
+        .publish_metadata_snapshot(&input, &caps, ProtocolReply::Result(raw.clone()), 100)
+        .unwrap();
+    let stored = db
+        .metadata_snapshot(&header.id)
+        .unwrap()
+        .unwrap()
+        .payload_json()
+        .unwrap()
+        .to_owned();
+    let payload: Value = serde_json::from_str(&stored).unwrap();
+    assert_eq!(payload["projectionVersion"], 1);
+    assert_eq!(payload["patternNoteCounts"], raw["patternNoteCounts"]);
+    assert!(!stored.contains("pitches") && !stored.contains("must not persist"));
+    let input = db
+        .capture_metadata_input(&input.root_id, "location")
+        .unwrap();
+    for (pointer, value) in [
+        ("/value/0/patternId", json!(2)),
+        ("/value/0/noteCount/value", json!(0)),
+        ("/value/0/noteCount/value", json!(65537)),
+        ("/coverage", json!("unverified")),
+    ] {
+        let mut invalid = raw.clone();
+        *invalid["patternNoteCounts"].pointer_mut(pointer).unwrap() = value;
+        assert!(
+            db.publish_metadata_snapshot(&input, &caps, ProtocolReply::Result(invalid), 101)
+                .is_err()
+        );
+        assert_eq!(
+            db.current_metadata_snapshot("project")
+                .unwrap()
+                .unwrap()
+                .header()
+                .id,
+            header.id
+        );
+    }
+    let mut missing = raw;
+    missing["patternNoteCounts"] = json!({"status":"unavailable","reason":"PATTERN_NOTE_COUNTS_INCOMPLETE","coverage":"stored-pattern-note-records","items":[{"patternId":1,"noteCount":{"status":"unavailable","reason":"PATTERN_NOTES_NOT_STORED"}}]});
+    let next = db
+        .publish_metadata_snapshot(&input, &caps, ProtocolReply::Result(missing.clone()), 102)
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            db.metadata_snapshot(&next.id)
+                .unwrap()
+                .unwrap()
+                .payload_json()
+                .unwrap()
+        )
+        .unwrap()["patternNoteCounts"],
+        missing["patternNoteCounts"]
+    );
+    assert_eq!(
+        db.metadata_snapshot(&header.id)
+            .unwrap()
+            .unwrap()
+            .payload_json(),
+        Some(stored.as_str())
+    );
+}
+
+#[test]
 fn patterns_are_selected_immutable_and_invalid_results_keep_the_last_good_snapshot() {
     let directory = TestDirectory::new();
     let (mut database, input) = setup(&directory, MIGRATIONS.len());

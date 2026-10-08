@@ -29,6 +29,15 @@ describe("Project details panel", () => {
     const user = userEvent.setup();
     const available = {
       ...savedDetails(),
+      patternNoteCounts: {
+        state: "available" as const,
+        items: [
+          {
+            patternId: 200,
+            noteCount: { status: "extracted" as const, value: 314 },
+          },
+        ],
+      },
       patterns: {
         state: "available" as const,
         count: 1,
@@ -60,12 +69,14 @@ describe("Project details panel", () => {
       screen.getByRole("button", { name: "Project details Example.flp" }),
     );
     await screen.findByText("Fixture Pattern");
+    expect(screen.getByText("314")).toBeTruthy();
     await user.click(
       screen.getByRole("button", {
         name: "Refresh project details Example.flp",
       }),
     );
     expect(screen.queryByText("Fixture Pattern")).toBeNull();
+    expect(screen.queryByText("314")).toBeNull();
     await act(async () => {
       finish({ ...identity, state: "no_current" });
       await Promise.resolve();

@@ -6,6 +6,53 @@ import { ProjectPatterns } from "./SavedPatterns";
 import type { ProjectPatterns as Patterns } from "./projectPatterns";
 
 describe("saved patterns", () => {
+  it("shows qualified counts and fixed unknown/unsupported explanations per pattern", () => {
+    const view = render(
+      <ProjectPatterns
+        patterns={{
+          state: "available",
+          count: 3,
+          items: [1, 2, 3].map((patternId) => ({
+            patternId,
+            name: { status: "unavailable", value: null },
+          })),
+        }}
+        notes={{
+          state: "available",
+          items: [
+            { patternId: 1, noteCount: { status: "extracted", value: 3 } },
+            {
+              patternId: 2,
+              noteCount: { status: "unavailable", reason: "no_stored_notes" },
+            },
+            {
+              patternId: 3,
+              noteCount: { status: "unsupported", reason: "unverified_layout" },
+            },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByText("3", { selector: "strong" })).toBeTruthy();
+    expect(
+      screen.getByText(/no note data was stored for this pattern/),
+    ).toBeTruthy();
+    expect(screen.getByText(/note layout is not verified/)).toBeTruthy();
+    expect(screen.getByText(/Reusing a pattern in the Playlist/)).toBeTruthy();
+    expect(view.container.textContent).not.toContain("Saved note records0");
+    view.rerender(
+      <ProjectPatterns
+        patterns={{
+          state: "available",
+          count: 1,
+          items: [
+            { patternId: 1, name: { status: "unavailable", value: null } },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByText(/Note counts were not saved/)).toBeTruthy();
+  });
   it("shows counts separately from placements and names as inert, escaped text", async () => {
     const view = render(
       <ProjectPatterns

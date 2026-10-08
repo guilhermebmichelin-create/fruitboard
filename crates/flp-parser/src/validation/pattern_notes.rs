@@ -55,6 +55,31 @@ fn shape(value: &Value, keys: &[&str]) -> Result<(), ValidationError> {
     }
     Ok(())
 }
+
+/// Revalidate a selected immutable projection against its saved patterns.
+/// Fixed current ceilings apply; this grants no parser or filesystem authority.
+pub fn validate_stored_pattern_note_counts(
+    value: &Value,
+    build: &str,
+    patterns: &SavedPatterns,
+) -> Result<PatternNoteCounts, ValidationError> {
+    if value["status"] == "unsupported" && value["reason"] == "PATTERN_NOTES_NOT_ADVERTISED" {
+        shape(value, &["status", "reason", "coverage"])?;
+        if value["coverage"] != crate::pattern_notes::COVERAGE {
+            return Err(ValidationError::InvalidReply);
+        }
+        return Ok(PatternNoteCounts::NotAdvertised);
+    }
+    validate(
+        value,
+        Some((
+            crate::MAX_NOTE_RECORDS_PER_PATTERN as u64,
+            crate::MAX_NOTE_RECORDS_TOTAL as u64,
+        )),
+        build,
+        patterns,
+    )
+}
 pub(super) fn validate(
     value: &Value,
     limits: Option<(u64, u64)>,

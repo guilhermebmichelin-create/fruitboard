@@ -119,7 +119,11 @@ adds approved F16/F17 genuine saves and recorded expectations. A/B/C qualify
 3/2/4 stored records, including slides and steps. A named empty pattern survives
 with its note payload absent; explicit-zero payload support remains unqualified.
 The demonstrated ordering/build is qualified; parser/full typed validation and
-Library integration are separate next slices, and G6 remains open.
+Library integration follow separately. PR293 delivers the bounded parser and
+full typed validation. [Issue #294](../library-pattern-notes-294/README.md)
+adds immutable per-pattern count/state persistence and Library display with
+matching-ID/build/limit checks, old-result explanations and current-source fences.
+G6 remains open.
 Automation/MIDI, mixer/nested plugins, tempo changes and richer arrangements
 remain open; accepting a first note-count scope does not remove those roadmap items.
 Merging this packet supplies a maintained evidence map; it does not close gaps,

@@ -12,6 +12,10 @@ mod analysis;
 #[cfg(feature = "analysis-jobs")]
 mod channels;
 #[cfg(all(test, feature = "analysis-jobs"))]
+mod note_tests;
+#[cfg(feature = "analysis-jobs")]
+mod pattern_notes;
+#[cfg(all(test, feature = "analysis-jobs"))]
 mod pattern_tests;
 #[cfg(feature = "analysis-jobs")]
 mod patterns;
@@ -59,6 +63,7 @@ enum Content {
         facts: Vec<Fact>,
         channels: Vec<channels::Channel>,
         patterns: Box<patterns::Summary>,
+        pattern_note_counts: Box<pattern_notes::Summary>,
         analysis: analysis::Summary,
         warnings: Vec<&'static str>,
         analysis_request: super::project_analysis::RequestInfo,
@@ -176,14 +181,22 @@ fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<
     if header.projection_version != 1 {
         return Err(());
     }
-    let (facts, channels, warnings, sample_references, plugin_references, patterns) =
-        project(snapshot.payload_json().ok_or(())?)?;
+    let (
+        facts,
+        channels,
+        warnings,
+        sample_references,
+        plugin_references,
+        patterns,
+        pattern_note_counts,
+    ) = project(snapshot.payload_json().ok_or(())?)?;
     Ok(Content::Available {
         snapshot_id: header.id.clone(),
         outcome: header.outcome.as_str(),
         facts,
         channels,
         patterns: Box::new(patterns),
+        pattern_note_counts: Box::new(pattern_note_counts),
         analysis,
         warnings,
         analysis_request,
@@ -200,6 +213,7 @@ type DisplayProjection = (
     Option<Vec<samples::SampleReference>>,
     Option<plugins::PluginReferences>,
     patterns::Summary,
+    pattern_notes::Summary,
 );
 
 #[cfg(feature = "analysis-jobs")]
@@ -252,6 +266,7 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
     let sample_references = samples::project(value.get("sampleReferences"), channels as usize)?;
     let plugin_references = plugins::project(value.get("pluginReferences"), version)?;
     let patterns = patterns::project(value.get("patterns"), version)?;
+    let pattern_note_counts = pattern_notes::project(&value, version)?;
     let channels = channels::project(&value, version, channels as usize)?;
     let warnings = match value.get("diagnostics") {
         None => Vec::new(),
@@ -274,6 +289,7 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
         sample_references,
         plugin_references,
         patterns,
+        pattern_note_counts,
     ))
 }
 
@@ -281,7 +297,7 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
 /// passed to Explorer. Only the validated plugin projection leaves this seam.
 #[cfg(feature = "analysis-jobs")]
 pub(super) fn explorer_plugins(payload: &str) -> Result<Option<Value>, ()> {
-    let (_, _, _, _, plugins, _) = project(payload)?;
+    let (_, _, _, _, plugins, _, _) = project(payload)?;
     plugins
         .map(serde_json::to_value)
         .transpose()
@@ -291,7 +307,7 @@ pub(super) fn explorer_plugins(payload: &str) -> Result<Option<Value>, ()> {
 /// Only the complete validated saved projection can supply a check's strings.
 #[cfg(feature = "analysis-jobs")]
 pub(super) fn saved_sample_values(payload: &str) -> Result<Option<Vec<Option<String>>>, ()> {
-    let (_, _, _, samples, _, _) = project(payload)?;
+    let (_, _, _, samples, _, _, _) = project(payload)?;
     Ok(samples.map(|items| items.into_iter().map(|item| item.value).collect()))
 }
 
@@ -571,7 +587,7 @@ mod tests {
     #[test]
     #[cfg(feature = "analysis-jobs")]
     fn projection_preserves_status_assumptions_and_exact_integers_without_raw_extensions() {
-        let (facts, _, _, _, _, _) = project(&payload().to_string()).unwrap();
+        let (facts, _, _, _, _, _, _) = project(&payload().to_string()).unwrap();
         let serialized = serde_json::to_value(facts).unwrap();
         assert_eq!(serialized.as_array().unwrap().len(), 9);
         assert_eq!(serialized[4]["value"], u64::MAX.to_string());
@@ -675,7 +691,7 @@ mod tests {
     #[cfg(feature = "analysis-jobs")]
     fn channel_projection_reads_old_snapshots_and_rejects_invalid_names_or_instrument_claims() {
         let raw = payload();
-        let (_, channels, _, _, _, _) = project(&raw.to_string()).unwrap();
+        let (_, channels, _, _, _, _, _) = project(&raw.to_string()).unwrap();
         let channels = serde_json::to_value(channels).unwrap();
         assert_eq!(channels[0]["name"]["value"], "Kick");
         assert_eq!(channels[0]["instrument"]["status"], "unsupported");
