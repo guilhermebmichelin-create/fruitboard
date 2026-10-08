@@ -1,8 +1,13 @@
 # Genuine mixer fixture gate
 
-Status: **Preregistered plan; no new files, observed IDs/counts or approvals.**
+Status: **Completed for exact F18-F21 bytes approved on 2026-10-08.**
+The [qualification result](../../research/parser-mixer-inserts-298-result.md)
+records GUI observations, the eighteen-record layout, positional identity,
+sixteen ordinary records and remaining unqualified cases. The preregistered
+procedure below remains the historical creation/qualification boundary.
 Scope and planning boundary are in the [design](README.md). Candidate exact
-saved build: **26.1.0.5530**. The existing approved corpus remains unchanged.
+saved build: **26.1.0.5530**. The fifteen previously approved corpus files remain
+unchanged; four separately approved mixer fixtures are added by issue #298.
 
 ## Record expectations before byte inspection
 

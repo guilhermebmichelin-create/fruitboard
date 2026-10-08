@@ -5,6 +5,10 @@ request. Each slice follows issue → branch → focused PR → updated-head che
 → owner review/manual merge. Inspect actual paths and name additions before
 editing. Review the field contract if qualification changes it.
 
+Issue #298's [qualification result](../../research/parser-mixer-inserts-298-result.md)
+adds owner-approved F18-F21 bytes and proposes the observed positional
+identity mapping for review in the corpus slice. No extraction is implemented.
+
 ## Slice 1: genuine qualification and approved corpus
 
 Source boundary: actual accepted design merge, recorded SHA/tree, with all
@@ -37,7 +41,8 @@ the paired fields/caps. Implement independently from approved format evidence.
 
 A local parser build is required. Run pinned `pnpm.cmd check`, parser tests and
 warning-denied all-target Clippy; test descriptor negotiation, unadvertised/other-
-build/omitted/unnamed states, sorted sparse IDs, count/list correspondence, UTF-16
+build/omitted/unnamed states, qualified positional IDs and rejection of sparse
+or other unqualified layouts, count/list correspondence, UTF-16
 and UTF-8 limits, candidate/output caps, duplicate IDs/names, repeated sections,
 special-track exclusion, unknown/incorrect boundaries and borrowed aggregate
 arithmetic. Genuine observations establish compatibility; constructed negative

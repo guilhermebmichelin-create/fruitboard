@@ -1,0 +1,768 @@
+{
+  "schema": 1,
+  "purpose": "Independent genuine mixer fixture observations; not output obtained from Fruitboard or another decoder",
+  "savedBuild": "26.1.0.5530",
+  "provenance": {
+    "baselineFixture": "FIX-FL2026-MIN.flp",
+    "baselineSha256": "e0471d55032b7dfaa8bbcd496c487147149b9ce18e0b250882cc6f67f47480ee",
+    "applicationVersion": "26.1.0.5530",
+    "applicationSha256": "a3ef478a54d660d763113b04dae0a8b985e8610eca213eb3bf0222eed5df4b67",
+    "creation": "matching FL Studio GUI from independent copies of approved synthetic baseline; no notes, imported audio, effects, external plugins, playback, or routing edits",
+    "contentLicense": "owner-approved synthetic project content; exact public inclusion permission pending; no third-party project/audio material or external attribution requirement"
+  },
+  "qualification": {
+    "scope": "only the exact observed complete 18-record layout; sixteen ordinary records plus independently distinguished Master and Current",
+    "identityRepresentation": "position within the saved complete section; no independent numeric identity payload was observed",
+    "identityScope": "within each observed saved section only; no persistent identity across project edits is claimed",
+    "ordinarySectionRecordOrdinals": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16
+    ],
+    "excluded": {
+      "masterSectionRecordOrdinal": 0,
+      "currentSectionRecordOrdinal": 17
+    },
+    "entry": {
+      "eventId": 103,
+      "width": 2,
+      "value": 18
+    },
+    "recordSequence": [
+      42,
+      "optional 204 name",
+      236,
+      "98 slot selectors 0 through 9",
+      235,
+      165,
+      166,
+      49,
+      154,
+      147
+    ],
+    "nextSectionEventId": 225,
+    "tailEventIds": [
+      225,
+      133,
+      243,
+      47
+    ],
+    "nameEncoding": "UTF-16LE, single trailing NUL; omitted name event means unavailable, not a synthesized default name",
+    "unqualified": [
+      "other record totals/layouts",
+      "stable identities across insert/reorder/delete edits",
+      "sparse on-disk numeric identity encoding",
+      "explicit zero",
+      "explicit empty names",
+      "other builds",
+      "routing/effects/automation semantics",
+      "unknown section transitions"
+    ]
+  },
+  "cases": [
+    {
+      "slot": "F18",
+      "file": "FIX-FL2026-MIXER-DEFAULT.flp",
+      "bytes": 46571,
+      "sha256": "d66225e0b36a39ed27e2473d7ad51b410e1f2f6b5ec21009ebf8a011b86126c3",
+      "gui": {
+        "ordinaryInsertPositions": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "customOrdinaryLabels": [],
+        "customSpecialLabels": [],
+        "channelLabel": "Sampler",
+        "patternLabel": "Pattern 1",
+        "tempoBpm": 130,
+        "samplerFile": "(none)",
+        "playlistClips": 0
+      },
+      "savedSection": {
+        "explicitCandidateRecords": 18,
+        "ordinaryRecordCount": 16,
+        "ordinaryRecords": [
+          {
+            "sectionRecordOrdinal": 1,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 2,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 3,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 4,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 5,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 6,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 7,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 8,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 9,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 10,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 11,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 12,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 13,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 14,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 15,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 16,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          }
+        ],
+        "specialRecords": [
+          {
+            "sectionRecordOrdinal": 0,
+            "role": "master",
+            "name": null
+          },
+          {
+            "sectionRecordOrdinal": 17,
+            "role": "current",
+            "name": null
+          }
+        ],
+        "completeTermination": true,
+        "allNonNameRecordBytesIdenticalAcrossCases": true,
+        "unrelatedChannelPatternNamesOutsideMixerSection": true
+      }
+    },
+    {
+      "slot": "F19",
+      "file": "FIX-FL2026-MIXER-NAMES.flp",
+      "bytes": 46823,
+      "sha256": "e33f61af1eb21c0f7081c2511c48bf2fe417ad2d5e0c8c76d67dba056eb1758c",
+      "gui": {
+        "ordinaryInsertPositions": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "customOrdinaryLabels": [
+          {
+            "position": 2,
+            "label": "Fixture Mixer A"
+          },
+          {
+            "position": 7,
+            "label": "Fixture Mixer B"
+          }
+        ],
+        "customSpecialLabels": [],
+        "channelLabel": "Fixture Channel Context",
+        "patternLabel": "Fixture Pattern Context",
+        "tempoBpm": 130,
+        "samplerFile": "(none)",
+        "playlistClips": 0
+      },
+      "savedSection": {
+        "explicitCandidateRecords": 18,
+        "ordinaryRecordCount": 16,
+        "ordinaryRecords": [
+          {
+            "sectionRecordOrdinal": 1,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 2,
+            "name": {
+              "status": "extracted",
+              "value": "Fixture Mixer A"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 3,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 4,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 5,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 6,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 7,
+            "name": {
+              "status": "extracted",
+              "value": "Fixture Mixer B"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 8,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 9,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 10,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 11,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 12,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 13,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 14,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 15,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 16,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          }
+        ],
+        "specialRecords": [
+          {
+            "sectionRecordOrdinal": 0,
+            "role": "master",
+            "name": null
+          },
+          {
+            "sectionRecordOrdinal": 17,
+            "role": "current",
+            "name": null
+          }
+        ],
+        "completeTermination": true,
+        "allNonNameRecordBytesIdenticalAcrossCases": true,
+        "unrelatedChannelPatternNamesOutsideMixerSection": true
+      }
+    },
+    {
+      "slot": "F20",
+      "file": "FIX-FL2026-MIXER-DUPLICATE.flp",
+      "bytes": 46651,
+      "sha256": "4a4992de859cc0e7718697d3b046ccf657865bbf9ecd925aefe03a0535c6ed2d",
+      "gui": {
+        "ordinaryInsertPositions": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "customOrdinaryLabels": [
+          {
+            "position": 2,
+            "label": "Fixture Mixer Same"
+          },
+          {
+            "position": 7,
+            "label": "Fixture Mixer Same"
+          }
+        ],
+        "customSpecialLabels": [],
+        "channelLabel": "Sampler",
+        "patternLabel": "Pattern 1",
+        "tempoBpm": 130,
+        "samplerFile": "(none)",
+        "playlistClips": 0
+      },
+      "savedSection": {
+        "explicitCandidateRecords": 18,
+        "ordinaryRecordCount": 16,
+        "ordinaryRecords": [
+          {
+            "sectionRecordOrdinal": 1,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 2,
+            "name": {
+              "status": "extracted",
+              "value": "Fixture Mixer Same"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 3,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 4,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 5,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 6,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 7,
+            "name": {
+              "status": "extracted",
+              "value": "Fixture Mixer Same"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 8,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 9,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 10,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 11,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 12,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 13,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 14,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 15,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 16,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          }
+        ],
+        "specialRecords": [
+          {
+            "sectionRecordOrdinal": 0,
+            "role": "master",
+            "name": null
+          },
+          {
+            "sectionRecordOrdinal": 17,
+            "role": "current",
+            "name": null
+          }
+        ],
+        "completeTermination": true,
+        "allNonNameRecordBytesIdenticalAcrossCases": true,
+        "unrelatedChannelPatternNamesOutsideMixerSection": true
+      }
+    },
+    {
+      "slot": "F21",
+      "file": "FIX-FL2026-MIXER-SPECIAL.flp",
+      "bytes": 46669,
+      "sha256": "557d081a935ea2fe71859d4166018577528fac2f762c55865ea2d3549c4d3046",
+      "gui": {
+        "ordinaryInsertPositions": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "customOrdinaryLabels": [],
+        "customSpecialLabels": [
+          {
+            "role": "master",
+            "label": "Fixture Master Context"
+          },
+          {
+            "role": "current",
+            "label": "Fixture Current Context"
+          }
+        ],
+        "channelLabel": "Sampler",
+        "patternLabel": "Pattern 1",
+        "tempoBpm": 130,
+        "samplerFile": "(none)",
+        "playlistClips": 0
+      },
+      "savedSection": {
+        "explicitCandidateRecords": 18,
+        "ordinaryRecordCount": 16,
+        "ordinaryRecords": [
+          {
+            "sectionRecordOrdinal": 1,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 2,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 3,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 4,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 5,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 6,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 7,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 8,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 9,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 10,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 11,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 12,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 13,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 14,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 15,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          },
+          {
+            "sectionRecordOrdinal": 16,
+            "name": {
+              "status": "unavailable",
+              "reason": "name event omitted"
+            }
+          }
+        ],
+        "specialRecords": [
+          {
+            "sectionRecordOrdinal": 0,
+            "role": "master",
+            "name": "Fixture Master Context"
+          },
+          {
+            "sectionRecordOrdinal": 17,
+            "role": "current",
+            "name": "Fixture Current Context"
+          }
+        ],
+        "completeTermination": true,
+        "allNonNameRecordBytesIdenticalAcrossCases": true,
+        "unrelatedChannelPatternNamesOutsideMixerSection": true
+      }
+    }
+  ]
+}

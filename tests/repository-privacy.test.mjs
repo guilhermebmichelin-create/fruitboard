@@ -64,6 +64,10 @@ test("the committed parser corpus passes its binary privacy scan", () => {
     "FIX-FL2026-MULTISAMPLER",
     "FIX-FL2026-NOTES",
     "FIX-FL2026-NAMED-EMPTY",
+    "FIX-FL2026-MIXER-DEFAULT",
+    "FIX-FL2026-MIXER-NAMES",
+    "FIX-FL2026-MIXER-DUPLICATE",
+    "FIX-FL2026-MIXER-SPECIAL",
     "FIX-RB-TRUNC",
     "FIX-RB-UNKNOWN",
     "FIX-RB-MALFORM",
@@ -106,6 +110,45 @@ test("note fixtures permit only their approved bytes and paths", () => {
     );
     assert.equal(
       inspectTrackedPath(`other/${expected.filename}`, hash)[0].rule,
+      "blocked-extension",
+    );
+  }
+});
+
+test("mixer fixtures permit only their approved bytes, paths and expectations", () => {
+  const registered = readFileSync(
+    new URL(
+      "../fixtures/parser-corpus/mixer-insert-expectations.json",
+      import.meta.url,
+    ),
+  );
+  assert.equal(
+    createHash("sha256").update(registered).digest("hex"),
+    "cb89b238d9c7b836a6a5ddebaf044ae3f95559b0943364b4faa098fac1cb9d8e",
+  );
+  const expectations = JSON.parse(registered.toString("utf8"));
+  assert.deepEqual(
+    expectations.cases.map(({ slot }) => slot),
+    ["F18", "F19", "F20", "F21"],
+  );
+  for (const expected of expectations.cases) {
+    const path = `fixtures/parser-corpus/${expected.file}`;
+    const bytes = readFileSync(new URL(`../${path}`, import.meta.url));
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    assert.equal(bytes.length, expected.bytes);
+    assert.equal(hash, expected.sha256);
+    assert.deepEqual(inspectTrackedPath(path, hash), []);
+    const changed = Buffer.from(bytes);
+    changed[changed.length - 1] ^= 1;
+    assert.equal(
+      inspectTrackedPath(
+        path,
+        createHash("sha256").update(changed).digest("hex"),
+      )[0].rule,
+      "fixture-hash-mismatch",
+    );
+    assert.equal(
+      inspectTrackedPath(`other/${expected.file}`, hash)[0].rule,
       "blocked-extension",
     );
   }
