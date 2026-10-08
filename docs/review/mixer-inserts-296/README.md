@@ -1,6 +1,9 @@
 # Saved mixer insert count and name proposal
 
-Status: **Design for review; no extraction, app support or fixture approval.**
+Status: **F18-F21 fixture approval recorded; narrow positional mapping for review.**
+No extraction or app support is delivered. The
+[genuine qualification result #298](../../research/parser-mixer-inserts-298-result.md)
+records exact approved bytes, observations and restrictions after PR297.
 Issue [#296](https://github.com/guilhermebmichelin-create/fruitboard/issues/296).
 Planning source: PR295 merge `2bb2c187eef0d4faee56e96f5774af6b9b7b8251`,
 tree `19cb8ba31317f82a18d763693377370d1e8234f2`.
@@ -26,18 +29,23 @@ Current only through a qualified identity distinction; do not assume special
 numeric IDs, zero/one-based GUI numbering or order. If that distinction or the
 complete insert section cannot be established, publish an unsupported field,
 not a guessed count. No special-track names or roles are exposed in this slice.
-Sparse saved IDs remain unchanged, duplicate names remain separate entries,
-and absent names remain unavailable. Never synthesize `Insert N` or `Master`.
+Duplicate names remain separate entries, and absent names remain unavailable.
+Sparse layouts remain unsupported until genuine evidence qualifies their
+identity representation. Never synthesize `Insert N` or `Master`.
 
-No existing approved fixture has independently registered mixer expectations.
-F16/F17 qualify note records, and F15 qualifies Sampler labels. Their approvals
-do not authorize new mixer expectations or new files. The
-[fixture gate](fixture-plan.md) must qualify genuine saves before code is added.
+F18-F21 now have independently registered mixer expectations and exact owner
+approval. F16/F17 qualify note records, and F15 qualifies Sampler labels; their
+earlier approvals were not used to authorize the new files. The
+[fixture gate](fixture-plan.md) records the completed evidence boundary before code.
 No unofficial decoder code is copied, translated or made a dependency.
 
 ## Proposed parser contract
 
-Candidate build: **26.1.0.5530 only**, conditional on the fixture gate.
+Qualified build/layout: **26.1.0.5530, complete eighteen-record layout only**.
+Sixteen ordinary records occupy section positions 1 through 16; independently
+qualified Master/Current occupy positions 0/17. Other totals/orderings remain
+unsupported. The positional mapping below is proposed for review before
+implementation; public fixture approval alone does not implement it.
 Keep protocol 1/schema 2. Advertise `mixerInsertCount` and `mixerInsertNames`
 together with positive `maxMixerInserts` and `maxMixerInsertCandidates` limits,
 each at or below **512**, with the returned-record limit no larger than the
@@ -46,32 +54,26 @@ not this design. An unadvertised pair is unsupported; it is not an empty list.
 
 Every non-failed field uses coverage `explicit-saved-mixer-insert-records`.
 The count is extracted only when the qualified complete section gives a total.
-The names field contains exactly one entry per counted saved ID, strictly
+The names field contains exactly one entry per counted saved identity, strictly
 ascending. The proposed ID envelope is an unsigned integer from 0 through
 65,535, conditional on qualifying the actual saved identity representation.
 This is a validation envelope, not a claim about on-disk width or GUI numbering.
-If genuine identity does not fit the contract, revise the design before coding.
+The genuine representation is positional: no separate numeric ID payload was
+observed. `savedInsertId` means the record's zero-based position in the
+complete qualified saved section, scoped to that save; it is not a persistent
+ID across edits. In this layout the exact ordinary ID set is 1-16, count is 16,
+and both names collections contain all sixteen entries. This clarifies the
+original conditional representation before coding.
 
-This **constructed shape** illustrates two records; it is not a genuine result:
+| Approved genuine case | Proposed count and names mapping |
+| --- | --- |
+| F18 / F21 | Extracted count 16; incomplete names with sixteen unavailable entries |
+| F19 | Extracted count 16; incomplete names, IDs 2/7 extracted as `Fixture Mixer A` / `Fixture Mixer B`, other fourteen unavailable |
+| F20 | Extracted count 16; incomplete names, IDs 2/7 separately extracted as `Fixture Mixer Same`, other fourteen unavailable |
 
-```json
-{
-  "mixerInsertCount": {
-    "status": "extracted",
-    "coverage": "explicit-saved-mixer-insert-records",
-    "value": 2
-  },
-  "mixerInsertNames": {
-    "status": "unavailable",
-    "coverage": "explicit-saved-mixer-insert-records",
-    "reason": "MIXER_INSERT_NAMES_INCOMPLETE",
-    "items": [
-      { "savedInsertId": 2, "name": { "status": "extracted", "value": "Fixture Mixer A" } },
-      { "savedInsertId": 7, "name": { "status": "unavailable", "reason": "MIXER_INSERT_NAME_NOT_STORED" } }
-    ]
-  }
-}
-```
+Every unavailable entry uses `MIXER_INSERT_NAME_NOT_STORED`; the incomplete
+aggregate uses `MIXER_INSERT_NAMES_INCOMPLETE`. These are proposed field
+results from independent evidence, not output from the current parser.
 
 All extracted names use aggregate `extracted` with `value`, no `items`/reason.
 Any absent name uses aggregate `unavailable / MIXER_INSERT_NAMES_INCOMPLETE`
@@ -123,9 +125,10 @@ count within limits, ordered unique bounded IDs, list/count equality and bounded
 names. Extracted aggregates contain only `value`; incomplete names contain only
 `items` plus the fixed reason and at least one unavailable entry. Non-entry
 states carry neither collection; count and names global reasons agree.
-IDs must also satisfy the qualified ordinary-insert identity rules and exclude
-the proven Master/Current identities. Envelope bounds alone do not authorize
-an ID. Reapply those identity rules when reading stored data and decoding the
+IDs must satisfy the exact qualified ordinary position set 1-16, exclude
+Master/Current positions 0/17, and correspond to count 16 and all sixteen names
+entries. Envelope bounds alone do not authorize an ID or another count.
+Reapply those identity rules when reading stored data and decoding the
 selected renderer DTO; a parser's category claim cannot override them.
 Reject missing required fields, extra selected keys, invented inference/method/
 confidence, fractions, negatives, overflows, bad text, duplicate/missing IDs,
