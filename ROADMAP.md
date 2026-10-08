@@ -254,10 +254,12 @@ delivered in PR285: explicit metadata-only observations of literal saved
 absolute paths inside the selected local-NTFS source root. Broader relative,
 placeholder, external-folder and cloud resolution remains open. Saved pattern
 count/names were delivered in PR264, and PR268 qualifies the three-Sampler clone
-case with approved F15. The next focused design proposal is
-[saved pattern note counts](docs/review/pattern-notes-288/README.md), issue #288,
-with independent fixture qualification before parser and Library integration.
-Automation/MIDI, mixer and richer arrangement summaries remain open.
+case with approved F15. Saved pattern note records are delivered through
+approved F16/F17 in PR291, bounded parser/full validation in PR293 and immutable
+Library display in PR295. The next focused proposal is
+[saved mixer insert counts and names](docs/review/mixer-inserts-296/README.md),
+issue #296, with independent fixture qualification before parsing and display.
+Automation/MIDI, mixer effects/nested plugins and richer arrangements remain open.
 
 ### Epic: Phase 3 — FLP intelligence
 
