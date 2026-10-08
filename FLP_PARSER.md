@@ -31,11 +31,14 @@ inert saved reference text. The [saved pattern note-count design](docs/review/pa
 has owner-approved F16/F17 ground truth in PR291. Issue #292 adds bounded
 `patternNoteCounts` extraction and full native validation for the qualified
 26.1.0.5530 initial content series. F16 yields 3/2/4 saved records; absent F17
-payload remains unavailable. [Issue #294](docs/review/library-pattern-notes-294/README.md)
-adds immutable count/state persistence and per-pattern Library display, with
+payload remains unavailable. [PR295 / issue #294](docs/review/library-pattern-notes-294/README.md)
+delivers immutable count/state persistence and per-pattern Library display, with
 older results explicitly marked not saved. Refresh reads saved results;
 only a new analysis can add counts to an older result. No raw notes are saved;
-automation/MIDI/mixer summaries and broader G6 remain open.
+automation/MIDI/mixer summaries and broader G6 remain open. The next scoped
+[mixer insert count/name proposal](docs/review/mixer-inserts-296/README.md)
+preregisters genuine qualification before extraction; no mixer fields are
+implemented or qualified by that documentation.
 
 PyFLP was tested as the comparison candidate. Its stable release returned no
 complete parse on the approved corpus. It remains outside the product, and the

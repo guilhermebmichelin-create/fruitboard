@@ -1,7 +1,9 @@
 # Saved pattern note records in Library
 
 Status: issue [#294](https://github.com/guilhermebmichelin-create/fruitboard/issues/294),
-accepted note-count design slice 3; owner review/manual merge required.
+accepted note-count design slice 3, merged as PR295 on 2026-10-08.
+Merge: `2bb2c187eef0d4faee56e96f5774af6b9b7b8251`, tree
+`19cb8ba31317f82a18d763693377370d1e8234f2` (identical to tested PR head).
 Baseline: PR293 merge `ff48da24fc15151cc81d82edb168126811825706`, tree
 `acb63317fe62b4c111c6ffb0b5cbd71823f7cb1e`.
 
