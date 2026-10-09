@@ -22,6 +22,7 @@ pub fn authorize_source(
         .map(AuthorizedSource)
         .map_err(|_| SourceAuthorizationError::Unavailable)
 }
+mod mixer_inserts;
 mod pattern_notes;
 mod plugin_references;
 mod project_info;
@@ -53,6 +54,8 @@ pub const MAX_PATTERNS: usize = 1024;
 pub const MAX_PLAYLIST_CLIPS: usize = 1024;
 pub const MAX_NOTE_RECORDS_PER_PATTERN: usize = 65_536;
 pub const MAX_NOTE_RECORDS_TOTAL: usize = 262_144;
+pub const MAX_MIXER_INSERTS: usize = 512;
+pub const MAX_MIXER_INSERT_CANDIDATES: usize = 512;
 
 fn known_pattern_build(version: Option<&str>) -> bool {
     version == Some("26.1.0.5530")
@@ -74,6 +77,8 @@ pub fn failed(code: &str) -> Value {
         "patternCount":field("failed",Value::Null,Some(code)),
         "patternNames":field("failed",Value::Null,Some(code)),
         "patternNoteCounts":field("failed",Value::Null,Some(code)),
+        "mixerInsertCount":field("failed",Value::Null,Some(code)),
+        "mixerInsertNames":field("failed",Value::Null,Some(code)),
         "playlistPatternClips":field("failed",Value::Null,Some(code)),
         "playlistPatternEndTick":field("failed",Value::Null,Some(code)),
         "playlistPatternNominalSeconds":field("failed",Value::Null,Some(code)),
@@ -326,8 +331,11 @@ fn supported_saved_version(version: &str) -> bool {
 }
 
 fn unsupported_version(version: &str) -> Value {
+    let (mixer_count, mixer_names) = mixer_inserts::MixerInserts::default().summary(Some(version));
     json!({
         "outcome":"unsupported", "code":"UNSUPPORTED_SAVED_VERSION",
+        "mixerInsertCount":mixer_count,
+        "mixerInsertNames":mixer_names,
         "savedVersion":field("extracted",json!(version),None),
         "baseTempoBpm":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "channelCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
@@ -497,6 +505,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
     let mut pattern_names = BTreeMap::new();
     let mut current_pattern = None;
     let mut pattern_notes = pattern_notes::PatternNotes::default();
+    let mut mixer_inserts = mixer_inserts::MixerInserts::default();
     let mut playlist_payload: Option<Vec<u8>> = None;
     let mut multiple_playlist_payloads = false;
     let mut event_count = 0usize;
@@ -553,6 +562,9 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         let data = &bytes[cursor..end];
         cursor = end;
         pattern_notes.observe(id, data);
+        if version.as_deref() == Some(mixer_inserts::BUILD) {
+            mixer_inserts.observe(id, data);
+        }
         if matches!(id, 64 | 65 | 100 | 233 | 236)
             && let Err(code) = plugins.boundary()
         {
@@ -854,6 +866,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         Some(value) => field("extracted", json!(value), None),
         None => field("unavailable", Value::Null, Some("SAVED_VERSION_ABSENT")),
     };
+    let (mixer_insert_count, mixer_insert_names) = mixer_inserts.summary(version.as_deref());
     let base_tempo = match tempo {
         Some(value) => field("extracted", json!(value), None),
         None => field("unavailable", Value::Null, Some("BASE_TEMPO_ABSENT")),
@@ -883,6 +896,8 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         "channelCount":field("extracted",json!(channel_count),None),
         "patternCount":pattern_count,
         "patternNoteCounts":pattern_notes.summary(version.as_deref(), &pattern_ids),
+        "mixerInsertCount":mixer_insert_count,
+        "mixerInsertNames":mixer_insert_names,
         "patternNames":pattern_names,
         "playlistPatternClips":playlist_clips,
         "playlistPatternEndTick":playlist_end,

@@ -35,10 +35,15 @@ payload remains unavailable. [PR295 / issue #294](docs/review/library-pattern-no
 delivers immutable count/state persistence and per-pattern Library display, with
 older results explicitly marked not saved. Refresh reads saved results;
 only a new analysis can add counts to an older result. No raw notes are saved;
-automation/MIDI/mixer summaries and broader G6 remain open. The next scoped
-[mixer insert count/name proposal](docs/review/mixer-inserts-296/README.md)
-preregisters genuine qualification before extraction; no mixer fields are
-implemented or qualified by that documentation.
+automation/MIDI summaries and broader G6 remain open. The approved
+[mixer qualification](docs/research/parser-mixer-inserts-298-result.md) supplies
+F18-F21 ground truth. Issue #300 adds bounded count/name extraction and strict
+full native validation on adapter 0.1.3, protocol 1/schema 2. Only the complete
+26.1.0.5530 eighteen-record layout is qualified: ordinary positions 1-16,
+excluding Master/Current. Saved IDs are section positions, not persistent IDs.
+Missing names remain unavailable; counts do not establish usage or audibility.
+Storage/Library integration and installed qualification follow separately under
+the [accepted mixer design](docs/review/mixer-inserts-296/README.md).
 
 PyFLP was tested as the comparison candidate. Its stable release returned no
 complete parse on the approved corpus. It remains outside the product, and the

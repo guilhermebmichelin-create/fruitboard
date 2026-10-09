@@ -68,6 +68,16 @@ fn versioned_protocol_handles_multiple_requests_without_stderr() {
     );
     assert_eq!(responses[0]["result"]["maxNoteRecordsPerPattern"], 65536);
     assert_eq!(responses[0]["result"]["maxNoteRecordsTotal"], 262144);
+    for field in ["mixerInsertCount", "mixerInsertNames"] {
+        assert!(
+            responses[0]["result"]["fields"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(field))
+        );
+    }
+    assert_eq!(responses[0]["result"]["maxMixerInserts"], 512);
+    assert_eq!(responses[0]["result"]["maxMixerInsertCandidates"], 512);
     assert_eq!(responses[0]["result"]["maxFileBytes"], 67_108_864);
     assert_eq!(responses[0]["result"]["maxEventBytes"], 67_108_864);
     assert!(

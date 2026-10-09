@@ -70,6 +70,35 @@ production distribution remain gates in ADR-002.
 
 ## Initial native result validation
 
+Adapter 0.1.3 adds paired `mixerInsertCount` / `mixerInsertNames` and descriptor
+caps `maxMixerInserts` / `maxMixerInsertCandidates` (512 each). Protocol 1/schema 2
+stay unchanged. Approved F18-F21 qualify only FL Studio 26.1.0.5530's complete
+18-record section: sixteen ordinary positions 1-16, excluding Master/Current
+positions 0/17. `savedInsertId` means position within that save, not a persistent
+ID across edits. Counts describe explicit saved records, not usage or audibility.
+
+The independent bounded observer requires contiguous entry, complete record
+ordering/roles and qualified termination at file end. It borrows opaque payloads,
+charges candidates before filtering (including rejected/special records) and
+keeps only bounded names. Duplicate labels remain separate identities. Omitted
+names stay unavailable; no default labels or zero counts are invented. Other
+builds/layouts, invalid text/binding, repeated sections and limits return fixed
+states for both fields, never a partial list. Text remains bounded by 4095 UTF-16
+units / 12285 UTF-8 bytes; JSON escaping also counts against selected output.
+
+Full native validation requires advertised fields/caps together, coverage
+`explicit-saved-mixer-insert-records`, exact ordinary IDs/count, strict shapes and
+matching aggregate states. Invalid advertised data rejects the complete reply;
+initial-only callers and descriptors without the pair keep their earlier
+behavior. The typed `mixer_inserts()` getter exposes selected names explicitly,
+without automatic logging/serialization. Storage selection and Library display
+follow in a separate slice; existing immutable snapshots are unchanged.
+
+See [approved qualification](../../docs/research/parser-mixer-inserts-298-result.md)
+and [field contract](../../docs/review/mixer-inserts-296/README.md). Genuine corpus
+replies pass supervised/full typed validation; constructed mutations test refusal
+and bounds without qualifying additional layouts. Broader G6 remains open.
+
 The `validation` module adds a typed projection of the initial five fields:
 saved version, base tempo, channel count, channel names and raw sample
 references. A validated descriptor must identify the selected adapter/version,
