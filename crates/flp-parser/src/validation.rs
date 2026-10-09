@@ -17,6 +17,8 @@ mod patterns;
 pub use patterns::*;
 mod pattern_notes;
 pub use pattern_notes::*;
+mod mixer_inserts;
+pub use mixer_inserts::*;
 
 const INITIAL_FIELDS: [&str; 5] = [
     "savedVersion",
@@ -50,6 +52,7 @@ pub struct ParserCapabilities {
     channel_generators: bool,
     patterns: bool,
     note_limits: Option<(u64, u64)>,
+    mixer_limits: Option<(usize, usize)>,
 }
 
 pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, ValidationError> {
@@ -97,6 +100,22 @@ pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, Validati
     } else {
         None
     };
+    if names.contains("mixerInsertCount") != names.contains("mixerInsertNames") {
+        return Err(invalid);
+    }
+    let mixer_limits = if names.contains("mixerInsertCount") {
+        let returned = limit("maxMixerInserts", crate::MAX_MIXER_INSERTS as u64)?;
+        let candidates = limit(
+            "maxMixerInsertCandidates",
+            crate::MAX_MIXER_INSERT_CANDIDATES as u64,
+        )?;
+        if returned > candidates {
+            return Err(invalid);
+        }
+        Some((returned as usize, candidates as usize))
+    } else {
+        None
+    };
     Ok(ParserCapabilities {
         max_file_bytes,
         max_events,
@@ -104,6 +123,7 @@ pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, Validati
         max_playlist_clips,
         max_patterns,
         note_limits,
+        mixer_limits,
         project_facts: project_facts::FIELDS
             .iter()
             .all(|field| names.contains(field)),

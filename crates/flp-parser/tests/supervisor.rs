@@ -97,8 +97,8 @@ fn actual_parser_health_describe_and_approved_file_share_one_supervisor() {
 #[test]
 fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutation() {
     use fruitboard_flp_parser::validation::{
-        MetadataOutcome, NoteRecordCount, ParseContext, PatternNoteCounts, ValidatedProjectReply,
-        validate_descriptor, validate_project_reply,
+        MetadataOutcome, MixerInsertName, NoteRecordCount, ParseContext, PatternNoteCounts,
+        SavedMixerInserts, ValidatedProjectReply, validate_descriptor, validate_project_reply,
     };
     let mut supervisor = ParserSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_fruitboard-flp-parser")),
@@ -112,6 +112,10 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
             .unwrap(),
     );
     let capabilities = validate_descriptor(&descriptor).unwrap();
+    let mixer_expectations: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/parser-corpus/mixer-insert-expectations.json"
+    ))
+    .unwrap();
     let corpus = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/parser-corpus")
         .canonicalize()
@@ -176,6 +180,33 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                 "{name}"
             );
             assert_eq!(metadata.file_size_bytes(), expected.size);
+            if let Some(case) = mixer_expectations["cases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|case| case["file"] == name)
+            {
+                assert_eq!(sha256_hex(&before), case["sha256"].as_str().unwrap());
+                let SavedMixerInserts::Entries(items) = metadata.mixer_inserts() else {
+                    panic!("complete qualified mixer required: {name}")
+                };
+                let observed = case["savedSection"]["ordinaryRecords"].as_array().unwrap();
+                assert_eq!(items.len(), 16);
+                for (item, registered) in items.iter().zip(observed) {
+                    assert_eq!(
+                        u64::from(item.id()),
+                        registered["sectionRecordOrdinal"].as_u64().unwrap()
+                    );
+                    match item.name() {
+                        MixerInsertName::Extracted(value) => {
+                            assert_eq!(value, registered["name"]["value"].as_str().unwrap())
+                        }
+                        MixerInsertName::Unavailable => {
+                            assert_eq!(registered["name"]["status"], "unavailable")
+                        }
+                    }
+                }
+            }
             if name == "FIX-FL2026-NOTES.flp" {
                 let PatternNoteCounts::Entries(items) = metadata.pattern_note_counts() else {
                     panic!("typed note counts expected")

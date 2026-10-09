@@ -120,6 +120,7 @@ pub struct ValidatedProjectMetadata {
     channel_generators: ChannelGenerators,
     patterns: SavedPatterns,
     pattern_note_counts: PatternNoteCounts,
+    mixer_inserts: SavedMixerInserts,
     arrangement_end_tick: ProjectField<u32>,
     arrangement_span_bars: ProjectField<f64>,
     arrangement_estimated_seconds: ProjectField<f64>,
@@ -157,6 +158,9 @@ impl ValidatedProjectMetadata {
     }
     pub fn pattern_note_counts(&self) -> &PatternNoteCounts {
         &self.pattern_note_counts
+    }
+    pub fn mixer_inserts(&self) -> &SavedMixerInserts {
+        &self.mixer_inserts
     }
     pub fn arrangement_end_tick(&self) -> &ProjectField<u32> {
         &self.arrangement_end_tick
@@ -552,8 +556,27 @@ pub fn validate_project_reply(
     };
     let initial = match validate_reply(reply, capabilities, captured, current)? {
         ValidatedReply::Metadata(value) => value,
-        ValidatedReply::Failed(code) => return Ok(ValidatedProjectReply::Failed(code)),
+        ValidatedReply::Failed(code) => {
+            if capabilities.mixer_limits.is_some() {
+                let raw = raw.as_ref().ok_or(ValidationError::InvalidReply)?;
+                mixer_inserts::validate_failed(
+                    &raw["mixerInsertCount"],
+                    &raw["mixerInsertNames"],
+                    code.as_str(),
+                )?;
+            }
+            return Ok(ValidatedProjectReply::Failed(code));
+        }
         ValidatedReply::UnsupportedSavedVersion(value) => {
+            if capabilities.mixer_limits.is_some() {
+                let raw = raw.as_ref().ok_or(ValidationError::InvalidReply)?;
+                mixer_inserts::validate(
+                    &raw["mixerInsertCount"],
+                    &raw["mixerInsertNames"],
+                    capabilities.mixer_limits,
+                    &value,
+                )?;
+            }
             return Ok(ValidatedProjectReply::UnsupportedSavedVersion(value));
         }
         ValidatedReply::Rejected(code) => return Ok(ValidatedProjectReply::Rejected(code)),
@@ -588,6 +611,12 @@ pub fn validate_project_reply(
             ProjectReason::MultipleProjectInfoRecords,
             ProjectReason::ProjectTimeSpentInvalid,
         ],
+    )?;
+    let mixer_inserts = mixer_inserts::validate(
+        &raw["mixerInsertCount"],
+        &raw["mixerInsertNames"],
+        capabilities.mixer_limits,
+        initial.saved_version(),
     )?;
     for code in [
         ProjectReason::ProjectInfoNotStored,
@@ -677,6 +706,7 @@ pub fn validate_project_reply(
             channel_generators,
             patterns,
             pattern_note_counts,
+            mixer_inserts,
             arrangement_end_tick,
             arrangement_span_bars,
             arrangement_estimated_seconds,
