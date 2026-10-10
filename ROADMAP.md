@@ -256,9 +256,13 @@ placeholder, external-folder and cloud resolution remains open. Saved pattern
 count/names were delivered in PR264, and PR268 qualifies the three-Sampler clone
 case with approved F15. Saved pattern note records are delivered through
 approved F16/F17 in PR291, bounded parser/full validation in PR293 and immutable
-Library display in PR295. The next focused proposal is
+Library display in PR295. For
 [saved mixer insert counts and names](docs/review/mixer-inserts-296/README.md),
-issue #296, with independent fixture qualification before parsing and display.
+issue #296, PR299 independently qualifies approved F18-F21 and PR301 delivers
+bounded parsing and full native validation. This covers only FL Studio
+26.1.0.5530's complete eighteen-record section, with sixteen ordinary saved
+records; names may be unavailable and record count does not imply use.
+Mixer storage projection and Library display remain open, as do broader layouts.
 Automation/MIDI, mixer effects/nested plugins and richer arrangements remain open.
 
 ### Epic: Phase 3 — FLP intelligence
