@@ -31,8 +31,10 @@ is closed only after the worker is joined, so stopping an already-exited
 worker is safe), cancels its own pending read, and joins the
 thread; a restart opens a fresh handle and must use a fresh caller-supplied
 generation that is strictly greater than the previous generation for the
-same root, which replaces all pending state for that root (debug builds
-assert this monotonicity). Downstream consumers key hints by
+same root, which replaces all pending state for that root. The coalescer
+rejects and counts older activity and coverage-loss generations against its
+pending state in every build. It retains no generation history after those
+hints drain, so downstream consumers still key hints by
 `(root, generation)` and must discard stale-generation signals. The platform
 worker signals "armed" before `start()` returns, so every change made after
 `start()` is observed. If the worker exits before arming, `start()` reports
@@ -44,9 +46,13 @@ worker signals "armed" before `start()` returns, so every change made after
 - Coalescing uses a fixed, non-extending window (default 1 s in caller
   timestamp units): a burst collapses into at most one reconciliation hint
   per root per window. The coalescer is pure and fake-clock injectable.
-- The coalescer tracks at most 8 roots per watcher (one root plus restart
-  bookkeeping); signals beyond the bound are rejected and counted, never
-  queued.
+- Each platform watcher uses its own coalescer for one root, with an 8-root
+  tracking budget. The standalone `CoalescerConfig` default is 100 roots;
+  it is not a shared production limit across all watches. Signals beyond
+  the configured bound are rejected and counted, never queued. Counters
+  are available from `Coalescer::rejected_signals` and
+  `Coalescer::stale_generation_signals`, and from `HandleBoundWatcher::stats`.
+  No per-root history accumulates after polling drains the pending state.
 - The raw event queue is bounded (default 256, clamped at start). A full
   queue drops the event, counts it, and raises the sticky coverage-loss
   signal. The same signal covers OS buffer overflows (`ERROR_MORE_DATA` /
@@ -61,17 +67,18 @@ worker signals "armed" before `start()` returns, so every change made after
 A reparse-point root (junction or symlink) observed at start is refused with
 `StartError::ReparseRootExcluded` — a policy exclusion consistent with the
 enumeration contract, deliberately separate from the I/O failure
-classifications (`RootUnavailable`, `NotADirectory`). Limitation tied to
-issues #47/#48: the pre-check races with the handle open
-(`GetFileAttributesW`-to-`CreateFileW` window, see `platform.rs`
-TODO(#47)), parent-directory junctions are followed by the OS open, and the
-OS may still report activity beneath reparse directories inside the watched
+classifications (`RootUnavailable`, `NotADirectory`). The handle is opened
+with `FILE_FLAG_OPEN_REPARSE_POINT`, and the opened handle's directory and
+reparse attributes are verified before the worker starts. Replacing the
+final root component with a junction between the path check and the open
+therefore remains a policy exclusion. Any failure closes the owned handle.
+Limitations tied to issues #47/#48 remain: parent-directory junctions are
+followed by the OS open, and the OS may still report activity beneath reparse
+directories inside the watched
 subtree. No traversal safety is claimed: the watcher performs no per-event
 I/O, such reports remain hints that cannot override the enumeration
 boundary's reparse exclusions, and enforcement stays with the authoritative
-enumeration. A future hardening is to open with
-`FILE_FLAG_OPEN_REPARSE_POINT` plus a post-open reparse verify to close the
-final-component window.
+enumeration.
 
 ## Privacy
 
@@ -101,14 +108,17 @@ Run `cargo test -p fruitboard-filesystem-watcher --locked` and
 `cargo clippy -p fruitboard-filesystem-watcher --all-targets --locked -- -D
 warnings`. The `filesystem-watcher-windows` CI job runs both plus
 `cargo fmt --all -- --check`, and the workspace Windows gate includes the
-crate. Thirty-one deterministic tests cover coalescing determinism under a
+crate. Automated tests cover coalescing determinism under a
 fake clock, burst collapse and at-most-one-per-window invariants, immediate
-coverage-loss delivery with stale-generation rules, tracking-bound
+coverage-loss delivery with stale-generation rules in pending windows and
+losses, bounded state across repeated roots/restarts, tracking-bound
 rejection, relative-path validation (absolute, traversal, ADS, UTF-8, and
 length shapes), defensive notification-chain parsing with truncation,
 privacy redaction, the drop-with-counter queue policy, live delivery and
 coalescing against a real NTFS temp tree, typed rename/deletion lifecycle,
-policy exclusions, idempotent stop with join, stop-after-worker-exit safety,
+policy exclusions (including deterministic directory-to-junction and
+directory-to-file replacements between the path check and handle open),
+idempotent stop with join, stop-after-worker-exit safety,
 pre-arm root-loss classification with preserved OS codes, terminal-reason
 mapping (including the sharing-violation audit), and fresh handle/generation
 restarts. Four fixtures are `#[ignore]`d as unverified (network, DriveFS,

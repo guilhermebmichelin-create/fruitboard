@@ -1,10 +1,15 @@
 # Security and privacy
 
-Status: **Active threat model; Phase 1 controls are implemented incrementally**
+Status: **Active threat model; bounded development scanner/parser controls implemented**
 
 Fruitboard processes untrusted binary files while holding access to valuable
 creative work. Its primary safety property is that analysis cannot modify,
 execute, or upload those files.
+
+The implemented desktop boundary below includes the opt-in native analysis and
+sample-presence workflow. OAuth, sync, media, PWA and signed-release controls
+remain requirements for their future phases; this document does not claim
+those surfaces or a complete parser sandbox are delivered.
 
 ## Assets to protect
 
@@ -136,6 +141,47 @@ safely on route changes. The worker reads no file contents, hashes, or parser
 data — only bounded metadata traversal through the typed enumeration crate —
 and raw storage or traversal diagnostics never cross the boundary.
 
+The explicit `analysis-jobs` development feature composes that scanner with one
+native analysis worker and the fixed installed Rust FLP parser. Default builds
+do not gain automatic FLP content reads. Renderer requests carry bounded IDs,
+an expected size/time fingerprint and an opaque action key; they cannot select
+a filesystem path or parser executable. The durable queue permits at most 128
+queued/running cells and one globally running lease. A rotating process session,
+source/root revisions and publication fences reject stale work, with at most
+three attempts for unchanged input. Cancellation/revocation interrupts the
+supervised request; shutdown retires the owned parser.
+
+Content-read authority requires a selected enabled local NTFS root and qualified
+opened source/ancestor identities. Reparses, offline/recall states and virtual
+Drive roots do not grant it. Held Windows handles deny ordinary source writes
+and replacement through publication. The worker independently checks length,
+modification time and content digest before/after parsing, validates the bounded
+reply, and publishes the immutable snapshot and terminal job in one transaction
+after rechecking durable authorization. The shared file cap is 64 MiB; supervisor
+requests/replies are capped at 64/256 KiB with a ten-second request deadline.
+Startup/termination and general CPU/memory containment are not qualified by that
+deadline. A failed attempt preserves a still-fresh last good snapshot. See the
+[analysis authority contract](crates/analysis-execution/README.md#bounds-and-authority).
+
+[Explicit sample presence](crates/sample-presence/README.md) is a separate
+metadata-only operation in the same development composition. Native code
+captures root/source/snapshot/session authority; the renderer supplies IDs and
+the displayed fingerprint, never saved paths. Only eligible literal absolute
+paths inside the selected local NTFS source root are checked. Held-parent,
+no-follow/no-recall attributes-only operations and final durable/identity fences
+prevent untrusted references from granting wider access. Relative paths,
+placeholders, external folders and cloud resolution stay unchecked. No sample
+content is read, no directory is enumerated and no media/plugin is loaded.
+
+One host-owned sample worker admits one request with no queue. Bounds include
+256 channel slots, 256 KiB aggregate reference text, 2,048 metadata operations,
+132 live handles and a two-second monotonic publication deadline. A blocked
+kernel call can outlive cancellation/timeout; admission stays busy until the
+underlying worker retires. Reports are ephemeral, at most 64 KiB, with fixed
+outcomes/reasons and opaque context; they contain no paths, raw errors, file
+identities or fingerprints. They are discarded on stale authorization and never
+persisted as proof of complete dependency availability.
+
 Malformed command input is rejected before use-case work and is never copied to
 logs. Native operations run inside the command panic boundary, while unknown
 failures become the fixed `internal` response. The renderer accepts only the six
@@ -190,7 +236,7 @@ print only fixed safe text.
 
 - Commit lockfiles for pnpm, Cargo, and the parser; every GitHub Action reference
   uses a reviewed immutable commit SHA.
-- Pull-request CI runs a repository privacy gate, high-severity `pnpm audit`,
+- Pull-request CI runs a repository privacy gate, moderate-severity `pnpm audit`,
   and RustSec advisory scanning. Dependabot proposes weekly pnpm, Cargo, and
   GitHub Actions updates for review.
 - RustSec fails on every new vulnerability, unsoundness, unmaintained crate, or
@@ -214,18 +260,21 @@ print only fixed safe text.
   are committed and run on every pull request. The proposal's executable
   positive/clean verification pairs are owner-run procedures and are not
   claimed as evidence until they are recorded; the executable privacy
-  regressions, `pnpm audit --audit-level high`, and RustSec checks below remain
+  regressions, `pnpm audit --audit-level moderate`, and RustSec checks below remain
   the baseline, and an unavailable integration is never represented as a
   passing security check.
-- Add Python dependency auditing with the parser environment; the current empty
-  research lock has no parser dependency and PyFLP remains blocked.
-- Generate an SBOM for installers including the Python sidecar.
+- The isolated Python research lock has no runtime dependency and no Python
+  parser ships. Add Python dependency auditing if that boundary acquires
+  dependencies; the selected shipped development parser is Rust.
+- Generate an SBOM for production installers including the Rust FLP sidecar.
+  The current unsigned development packaging smoke does not generate an SBOM
+  and is not a signed production release.
 - Build sidecars and installers in controlled CI; sign Windows artifacts and
   future macOS artifacts. Keep signing credentials in protected environments.
 - Tauri update manifests must be signed; updates fail closed on invalid
   signatures. Release publishing is tag/manual-only, never from pull-request
   code with signing secrets.
-- Resolve PyFLP GPL-3.0 obligations before distribution. See
+- Resolve PyFLP GPL-3.0 obligations before any future PyFLP adoption. See
   [FLP_PARSER.md](FLP_PARSER.md#licensing-gate-p0-c).
 
 ### Denial of service and resource exhaustion
@@ -251,6 +300,14 @@ print only fixed safe text.
 | Absolute filesystem paths | Device-local and redacted from logs/sync |
 | Logs | Local, bounded retention, path-redacted by default |
 | Personal FLP/audio test fixtures | Ignored by Git; explicit review required |
+
+The repository privacy gate inspects tracked files and unignored untracked
+files. Ignored local/generated files are deliberately excluded: this gate guards
+what can enter a normal commit, not every private file on the machine. A
+force-added ignored file becomes tracked and is inspected. Database blocks
+include explicit case-insensitive `.db`, `.sqlite` and `.sqlite3` companion
+suffixes (`-wal`, `-shm`, `-journal`), whose extensions differ from the database
+itself. Approved public FLP fixtures require their exact path and SHA-256.
 
 The app should provide a readable “What syncs” view before Drive is enabled and
 a local data export/delete workflow before sync is called stable.
@@ -362,10 +419,26 @@ debug noise.
 
 ## Vulnerability handling
 
-Before public distribution, add a private reporting channel and supported
-version policy. A security fix receives a focused branch/PR, regression test,
-coordinated signed release, and clear user impact. Never ask reporters to upload
-private FLPs publicly; provide a local minimization/reproduction process.
+Use [GitHub private vulnerability reporting](https://github.com/guilhermebmichelin-create/fruitboard/security/advisories/new)
+to report a suspected vulnerability to the maintainer. Private reporting was
+enabled and verified on 2026-10-09. Do not disclose vulnerability details,
+credentials, private paths, raw diagnostics or private FLP/audio files in public
+issues. Begin with a description and minimized synthetic reproduction; private
+reporting does not make uploading personal projects necessary.
+
+### Supported versions
+
+Fruitboard currently has development builds only: no signed production release
+or maintained release branch is published. Current work targets the `main`
+development baseline; the [README](README.md#current-status---2026-10-09) pins
+the source for its status claims. Historical builds and research artifacts are
+not maintained release lines. A supported-release policy and response/release
+commitments remain an owner decision before production distribution.
+
+Security fixes receive focused changes, regression evidence and clear user
+impact. Once signed releases exist, fixes also require coordinated signed
+distribution. Never request private FLPs publicly; provide a local minimization
+and reproduction process.
 
 ## References
 

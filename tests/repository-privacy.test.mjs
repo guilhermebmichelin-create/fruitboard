@@ -172,6 +172,44 @@ test("blocks tracked project, preset, audio, database, log, and key material", (
   assert.deepEqual(inspectTrackedPath("docs/review/interaction.mp4"), []);
 });
 
+test("blocks SQLite companions without exposing their repository paths", () => {
+  for (const extension of ["db", "sqlite", "sqlite3"]) {
+    for (const companion of ["wal", "shm", "journal"]) {
+      for (const path of [
+        `local/fruitboard.${extension}-${companion}`,
+        `nested/local/project.backup.${extension}-${companion}`,
+        `.private.${extension}-${companion}`,
+        `local\\nested\\project.${extension.toUpperCase()}-${companion.toUpperCase()}`,
+        `C:\\local\\nested\\project.${extension}-${companion}`,
+      ]) {
+        const [violation] = inspectTrackedPath(path);
+        assert.equal(violation?.rule, "sqlite-companion", path);
+        const output = formatPrivacyViolation(violation);
+        assert.match(output, /repository-path-sha256:/);
+        assert.doesNotMatch(output, /fruitboard|project|\.private|nested/);
+      }
+    }
+  }
+});
+
+test("permits near matches to SQLite companion suffixes", () => {
+  for (const path of [
+    "docs/fruitboard.db-wal.md",
+    "local/fruitboard.db-wal-backup",
+    "local/fruitboard.db-wal.tmp",
+    "local/fruitboard.sqlite4-shm",
+    "local/fruitboard.sqlite3-journals",
+    "local/fruitboard.db-wals",
+    "local/fruitboarddb-wal",
+    "local/fruitboard.dbwal",
+    "local/db-wal",
+    "nested/project.db-wal/readme.md",
+    "nested\\project.sqlite-shm\\readme.md",
+  ]) {
+    assert.deepEqual(inspectTrackedPath(path), [], path);
+  }
+});
+
 test("permits only the exact approved fixture bytes at their approved paths", () => {
   const path = "fixtures/parser-corpus/FIX-BASE-MIN.flp";
   const approvedHash =

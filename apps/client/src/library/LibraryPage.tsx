@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { useFocusAfterCommit } from "../app/useFocusAfterCommit";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 import { PluginExplorerPanel } from "./PluginExplorerPanel";
 import {
@@ -272,56 +273,12 @@ function ConnectedLibraryPage({
   const pageFollowUpTimer = useRef<number | null>(null);
   const statusFollowUpTimer = useRef<number | null>(null);
 
-  const pendingPageFocus = useRef(false);
+  const { prepareFocus, cancelPendingFocus } = useFocusAfterCommit();
+  const pendingPageFocus = useRef<ReturnType<typeof prepareFocus> | null>(null);
   const listHeadingReference = useRef<HTMLHeadingElement | null>(null);
   const scanButtonReferences = useRef(new Map<string, HTMLButtonElement>());
   const cancelButtonReferences = useRef(new Map<string, HTMLButtonElement>());
   const retryButtonReferences = useRef(new Map<string, HTMLButtonElement>());
-  const pendingCancelFocus = useRef<{
-    rootId: string;
-    requestId: number;
-  } | null>(null);
-
-  useEffect(() => {
-    const pending = pendingCancelFocus.current;
-    if (
-      !pending ||
-      statusState.kind !== "ready" ||
-      actionState.kind === "working"
-    )
-      return;
-    if (actionSequence.current !== pending.requestId) {
-      pendingCancelFocus.current = null;
-      return;
-    }
-    const target =
-      retryButtonReferences.current.get(pending.rootId) ??
-      scanButtonReferences.current.get(pending.rootId);
-    if (target?.isConnected && !target.disabled) {
-      pendingCancelFocus.current = null;
-      target.focus();
-    }
-  }, [statusState, actionState]);
-
-  const focusLater = useCallback((target: () => HTMLElement | null) => {
-    let attempts = 0;
-    const attemptFocus = () => {
-      if (!mounted.current) return;
-      const element = target();
-      const unavailable =
-        element === null ||
-        !element.isConnected ||
-        (element instanceof HTMLButtonElement && element.disabled);
-      if (!unavailable) {
-        element.focus();
-        return;
-      }
-      if (attempts >= 10) return;
-      attempts += 1;
-      window.setTimeout(attemptFocus, 0);
-    };
-    window.setTimeout(attemptFocus, 0);
-  }, []);
 
   useEffect(() => {
     mounted.current = true;
@@ -459,18 +416,21 @@ function ConnectedLibraryPage({
   const restartTimerReference = useRef<number | null>(null);
   const pendingRestartNoticeReference = useRef<string | undefined>(undefined);
 
-  const performPaginationRestart = useCallback((notice?: string) => {
-    pageRequestSequence.current += 1;
-    pendingPageFocus.current = true;
-    setPagePosition({ cursor: null, snapshotId: null });
-    setCursorHistory([]);
-    setPageState({ kind: "loading" });
-    setPaginationNotice(
-      notice ??
-        "The committed Library snapshot changed. Pagination restarted at page 1.",
-    );
-    setPageAttempt((attempt) => attempt + 1);
-  }, []);
+  const performPaginationRestart = useCallback(
+    (notice?: string) => {
+      pageRequestSequence.current += 1;
+      pendingPageFocus.current = prepareFocus();
+      setPagePosition({ cursor: null, snapshotId: null });
+      setCursorHistory([]);
+      setPageState({ kind: "loading" });
+      setPaginationNotice(
+        notice ??
+          "The committed Library snapshot changed. Pagination restarted at page 1.",
+      );
+      setPageAttempt((attempt) => attempt + 1);
+    },
+    [prepareFocus],
+  );
 
   const restartPagination = useCallback(
     (notice?: string) => {
@@ -501,7 +461,8 @@ function ConnectedLibraryPage({
     (rootId: string) => {
       if (rootId === resolvedRootId) return;
       pageRequestSequence.current += 1;
-      pendingPageFocus.current = false;
+      pendingPageFocus.current = null;
+      cancelPendingFocus();
       resolvedRootIdReference.current = rootId;
       setSelectedRootId(rootId);
       setPagePosition({ cursor: null, snapshotId: null });
@@ -510,7 +471,7 @@ function ConnectedLibraryPage({
       setPageState({ kind: "loading" });
       setPageAttempt((attempt) => attempt + 1);
     },
-    [resolvedRootId],
+    [cancelPendingFocus, resolvedRootId],
   );
 
   const loadPage = useCallback(
@@ -817,10 +778,11 @@ function ConnectedLibraryPage({
       pendingPageFocus.current &&
       listHeadingReference.current !== null
     ) {
-      pendingPageFocus.current = false;
-      focusLater(() => listHeadingReference.current);
+      const restoreFocus = pendingPageFocus.current;
+      pendingPageFocus.current = null;
+      restoreFocus(() => listHeadingReference.current);
     }
-  }, [focusLater, pageState]);
+  }, [pageState]);
 
   const pageNumber = cursorHistory.length + 1;
   useEffect(() => {
@@ -851,6 +813,7 @@ function ConnectedLibraryPage({
 
   const runScan = async (status: ScanStatus, action: "retry" | "scan-now") => {
     const retry = action === "retry";
+    const restoreFocus = prepareFocus();
     const requestId = ++actionSequence.current;
     const isCurrentAction = () =>
       mounted.current && actionSequence.current === requestId;
@@ -892,7 +855,10 @@ function ConnectedLibraryPage({
       if (!isCurrentAction()) return;
       if (!(await refreshAfterAction(requestId))) return;
       setActionState({ kind: "idle" });
-      focusLater(() => cancelButtonReferences.current.get(rootId) ?? null);
+      restoreFocus(
+        () => cancelButtonReferences.current.get(rootId) ?? null,
+        isCurrentAction,
+      );
     } catch (error) {
       if (!isCurrentAction()) return;
       await refreshAfterAction(requestId);
@@ -911,16 +877,18 @@ function ConnectedLibraryPage({
             ? "Scanning is unavailable. Restart Fruitboard to continue; saved Library results are still available."
             : scanErrorMessages[code],
       });
-      focusLater(
+      restoreFocus(
         () =>
           retryButtonReferences.current.get(rootId) ??
           scanButtonReferences.current.get(rootId) ??
           null,
+        isCurrentAction,
       );
     }
   };
 
   const cancelScan = async (status: ScanStatus) => {
+    const restoreFocus = prepareFocus();
     const rootId = status.root.id;
     if (status.jobId === null) {
       setActionState({
@@ -928,7 +896,7 @@ function ConnectedLibraryPage({
         rootId,
         message: cancelUnavailableMessage,
       });
-      focusLater(() => cancelButtonReferences.current.get(rootId) ?? null);
+      restoreFocus(() => cancelButtonReferences.current.get(rootId) ?? null);
       void loadStatuses();
       return;
     }
@@ -944,9 +912,15 @@ function ConnectedLibraryPage({
     try {
       await adapter.cancelScan(status.jobId);
       if (!isCurrentAction()) return;
-      pendingCancelFocus.current = { rootId, requestId };
       if (!(await refreshAfterAction(requestId))) return;
       setActionState({ kind: "idle" });
+      restoreFocus(
+        () =>
+          retryButtonReferences.current.get(rootId) ??
+          scanButtonReferences.current.get(rootId) ??
+          null,
+        isCurrentAction,
+      );
     } catch {
       if (!isCurrentAction()) return;
       await refreshAfterAction(requestId);
@@ -956,7 +930,10 @@ function ConnectedLibraryPage({
         rootId,
         message: cancelUnavailableMessage,
       });
-      focusLater(() => cancelButtonReferences.current.get(rootId) ?? null);
+      restoreFocus(
+        () => cancelButtonReferences.current.get(rootId) ?? null,
+        isCurrentAction,
+      );
     }
   };
 
@@ -964,7 +941,7 @@ function ConnectedLibraryPage({
     if (pageState.kind !== "ready" || pageState.page.nextCursor === null)
       return;
     pageRequestSequence.current += 1;
-    pendingPageFocus.current = true;
+    pendingPageFocus.current = prepareFocus();
     setPaginationNotice(null);
     setPageState({ kind: "loading" });
     setCursorHistory((history) => [...history, pagePosition]);
@@ -979,7 +956,7 @@ function ConnectedLibraryPage({
     const previousPosition = cursorHistory[cursorHistory.length - 1];
     if (previousPosition === undefined) return;
     pageRequestSequence.current += 1;
-    pendingPageFocus.current = true;
+    pendingPageFocus.current = prepareFocus();
     setPaginationNotice(null);
     setPageState({ kind: "loading" });
     setCursorHistory((history) => history.slice(0, -1));

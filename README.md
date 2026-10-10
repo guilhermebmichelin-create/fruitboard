@@ -3,89 +3,58 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Current status - 2026-09-29
+## Current status - 2026-10-09
 
-This block supersedes the dated status sections below; they remain as
-historical record.
+Source baseline: `266327058fbf3f6dfd2cfa2fedd51ceb09ea3fa2` (merged PR #301).
+The review dated 2026-10-08 used the earlier `b27b761` baseline.
 
 - **Phases**: Phase 0 accepted 2026-09-04, Phase 1 accepted 2026-09-06, and
   Phase 2 accepted with known gaps on 2026-09-14
   ([acceptance record](docs/review/phase-2-integration/acceptance-2026-09-14.md)).
-  Epic #33 is closed. Issues #38 and #40 remain open for the narrowed P2-08
-  evidence residual; P2-08 itself stays Partial.
-- **Parser**: the Rust FLP parser was selected on 2026-09-28
-  ([ADR-002](docs/adr/002-flp-parser-process.md)) and the `flp-parser` crate
-  landed with bounded extraction for three saved FL Studio builds. It is not
-  yet wired into the scanner or packaged with the app.
-- **Product surface**: the Tauri/React shell, the Rust-owned local SQLite
-  library, scan roots, durable scan execution (feature-gated behind
-  `scan-console`), and the Library list are implemented. Production scanning
-  stays inactive by default until an explicit owner action. Kanban, search,
-  project workflow, Google Drive sync, and the PWA are not implemented.
-- **Performance**: unqualified; the measured warm nearest-rank p95 was
-  10,173 ms against a 10,000 ms target on source `69f27f6`.
-- **Repository**: public since 2026-09-07 (visibility re-verified 2026-09-29),
-  branch protection with ten required checks, and the GitHub-native security
-  products activated 2026-09-29: secret scanning, push protection, and
-  Dependabot alerts, plus informational CodeQL and dependency review
-  workflows (#148).
+  Epic #33 is closed. Issues #38 and #40 carry the narrowed P2-08 evidence
+  residual; P2-08 remains Partial. Phase 3 exit and resource budgets remain
+  unaccepted; later phases are not authorized by these deliveries.
+- **Parser and analysis**: Rust was selected on 2026-09-28
+  ([ADR-002](docs/adr/002-flp-parser-process.md)). The real parser is packaged
+  in the unsigned Windows development smoke, with durable native analysis
+  in the explicit `analysis-jobs` composition. The default desktop has no
+  scanner or automatic FLP content reads. The [readiness packet](docs/review/flp-intelligence-readiness/README.md)
+  records the implemented workflow and its narrow compatibility.
+- **Library**: the app displays current saved facts, channels, sample/plugin
+  references, a saved Plugin Explorer, pattern names/counts and
+  [pattern note-record counts](docs/review/library-pattern-notes-294/README.md)
+  (PR #295). [Explicit sample checks](docs/review/sample-presence-ui-284/README.md)
+  (PR #285) observe metadata only for eligible literal absolute paths inside
+  the selected local NTFS root. Relative, placeholder, external-folder and
+  cloud resolution remain open.
+- **Mixer**: approved F18-F21
+  [independent qualification](docs/research/parser-mixer-inserts-298-result.md)
+  (PR #299) and bounded extraction/full native validation (PR #301) are
+  delivered for the exact FL Studio 26.1.0.5530 eighteen-record layout.
+  [Parser contract](crates/flp-parser/README.md#initial-native-result-validation)
+  counts sixteen ordinary saved records, with honest missing-name states.
+  Mixer storage projection and Library display remain open.
+- **Product scope**: the Tauri/React shell, Rust-owned SQLite library, scan
+  roots and feature-gated durable scanning are implemented. Production
+  activation is still a separate owner decision. Kanban, search, project
+  workflow, Google Drive sync and the PWA are not implemented.
+- **Performance**: scanner qualification remains unaccepted; the historical
+  warm nearest-rank p95 was 10,173 ms against a 10,000 ms target on source
+  `69f27f6`. Later [native analysis/Explorer observations](docs/review/explorer-performance-259/README.md)
+  do not replace scanner or whole-app qualification.
+- **Repository**: public since 2026-09-07, with ten checks required by the
+  working agreement. Live GitHub API verification on 2026-10-09 reports
+  `main` unprotected and no rulesets; these are currently manual merge gates.
+  Restoring server-side protection remains an owner decision. Secret scanning,
+  push protection and Dependabot are enabled;
+  validity checks and non-provider patterns remain off. CodeQL and dependency
+  review remain informational. Private vulnerability reporting is enabled
+  (verified 2026-10-09); use the [security policy](SECURITY.md#vulnerability-handling).
 
-## Project status (superseded - see Current status above)
-
-Fruitboard's **Phase 0 architecture is accepted**; the manual governance
-exception recorded for the private GitHub Free repository was superseded on
-2026-09-07 when the repository became public, and enforced branch protection is
-enabled on `main` (2026-09-07; see [DEVELOPMENT.md](DEVELOPMENT.md#enforced-branch-protection)).
-**Phase 1 is
-accepted**: the reproducible Tauri/React shell now includes Rust-owned local
-SQLite, one persisted startup-view preference, automated quality/security
-gates, and a Windows packaging smoke. At that checkpoint the parser work,
-project workflow, sync, and PWA had not started, and Phase 2 was tracked
-under epic #33. The verified source baseline for
-the 2026-09-13/14 documentation refresh was
-`71848732216d4ab4e13e73c820b2b8e4d17bddbe`, which includes the squash merges
-of #110 (`e2948f1`), #111 (`914d7bd`), the merged #112 (`00884ba`), and #114
-(`7184873`); that pin is historical, not the current head. The
-[Phase 2 integration index](docs/review/phase-2-integration/README.md) carries
-the dated post-acceptance and publication addenda that record later heads and
-merge state. Historical merge, tested-source, and CI references remain in the
-integration index and dated reports.
-
-Implemented behavior, automated evidence, installed evidence, and owner
-acceptance stay separate. The owner accepted Phase 2 with known gaps on
-2026-09-14 ([acceptance
-record](docs/review/phase-2-integration/acceptance-2026-09-14.md)); P2-08
-remains Partial (PR #85's older `Complete` row is superseded) and no
-full-criterion P2-08 acceptance is recorded. That acceptance does not activate
-production scanning; activation remains a separate owner action.
-
-The canonical installed validation remains the merged PR #106 report
-`installed-journey/run-20260909-fixed-validation.md`: S1–S4 PASS, S6 PASS,
-and S5 is the terminal-follow-up/successor path. Merged #110 separately
-publishes Agent 2's queued/running/terminal, queued disable/remove, and
-genuine running-lease same-job evidence; it remains installed evidence and
-does not close #107 or accept Phase 2. The #111 NTFS report remains tied to its
-tested product source even though the PR's product and evidence changes are
-now merged.
-
-The [Phase 2 integration index](docs/review/phase-2-integration/README.md),
-[execution plan](docs/PHASE_2_EXECUTION_PLAN.md), and [2026-09-12 acceptance
-packet](docs/review/phase-2-integration/acceptance-packet-2026-09-12.md)
-carry the current dependency map, evidence boundaries, and owner decision
-list. Historical failed replays remain historical and performance remains
-unqualified.
-
-The source sequence is now merged #110 -> #111 -> #112 -> #114. #112's
-diagnostic changes and #114's executable qualification runbook/validator are
-in main, but no qualification run or acceptance is recorded. PR #113 remains
-an older synthetic candidate. Agents prepare and verify; the owner retains Phase 2 acceptance,
-scope, budget, and issue-closure authority.
-
-Tracking starts at
-[Phase 2 epic #33](https://github.com/guilhermebmichelin-create/fruitboard/issues/33)
-(Phase 1 epic
-[#10](https://github.com/guilhermebmichelin-create/fruitboard/issues/10)
-is closed on acceptance).
+The [archived README status](docs/archive/readme-status-20260929.md) preserves
+the superseded status blocks, source pins, installed evidence and links.
+Dated evidence remains tied to its tested source; a current documentation
+update does not rerun an installed journey or accept a phase.
 
 ## Development
 
@@ -94,9 +63,9 @@ environment. Start with [DEVELOPMENT.md](DEVELOPMENT.md); after installing the
 pinned tools, `pnpm check` is the single local verification entry point and
 `pnpm dev` launches the Windows desktop shell.
 
-CI mirrors that gate through stable per-area jobs, enforced as required checks
-on `main` by branch protection (enabled 2026-09-07); see [the governance
-details](DEVELOPMENT.md#github-governance).
+CI mirrors that gate through stable per-area jobs. The working agreement
+requires ten checks before an owner merge, but GitHub does not currently enforce
+them on `main`; see [the live governance verification and historical policy](DEVELOPMENT.md#github-governance).
 
 The current shell's information hierarchy, responsive evidence, accessibility
 coverage, and intentional limitations are recorded in the
@@ -148,26 +117,3 @@ applies, and merge authority is exercised only for reviewed, checked pull
 requests; agents prepare and review changes, while owner acceptance and
 decision authority remain separate. A documentation merge does not accept
 Phase 2 or authorize production scanning.
-
-## Post-#152 follow-up status — 2026-09-21 (superseded — see Current status above)
-
-The current publication boundary is `main` at
-`73775453e9e4021c7b6b4ade381fd87300f47c32`, the squash merge of #152. Its
-product tree matches the reviewed #152 head
-`79da7e97f7b8481eab1f01661fe54ab0b33d98aa`. The merged fix covers the explicit
-Retry and cancellation-finalization races; this follow-up records additional
-UI evidence and narrowly scoped accessibility/focus corrections without
-reopening that native implementation.
-
-The feature-enabled installed candidate exercised ten native local-NTFS
-scenarios, visible root/settings/library controls, real Windows keyboard input,
-Scan now, Cancel, focus retention, and committed-row preservation. The retained
-raw evidence is outside Git under the `post152-autonomous-followup-20260921`
-evidence root; its final driver result is `pass: true`, qualified for local NTFS
-only. FAT32, DriveFS, network, cross-volume, and performance support remain
-unclaimed.
-
-Phase 2 remains accepted with known gaps. Issues #38 and #40 stay open for the
-narrowed P2-08 evidence residual, and production scanning remains a separate
-owner decision. This follow-up does not activate repository security products,
-add parser code or fixtures, or record a new acceptance decision.
