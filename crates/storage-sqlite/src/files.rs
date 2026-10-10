@@ -10,9 +10,11 @@ const DATABASE_FILES: [&str; 4] = [
     "fruitboard.db-shm",
 ];
 
-// These checks reject pre-existing links/reparse points. The per-user directory
-// is the access boundary; this does not defend against another process running
-// as the same user racing filesystem operations.
+// These checks reject pre-existing links/reparse points. private_file also
+// validates the opened leaf before permission changes or returning it for
+// writes. The per-user directory remains the access boundary: pathname checks
+// do not pin parent directories, and another process running as the same user
+// can still race later filesystem operations or SQLite's separate open.
 pub(crate) fn check_path(path: &Path) -> Result<()> {
     if !path.is_absolute() || path.components().any(|c| matches!(c, Component::ParentDir)) {
         return Err(StorageError::UnsafeLocation);
@@ -35,8 +37,15 @@ pub(crate) fn check_path(path: &Path) -> Result<()> {
                 #[cfg(windows)]
                 {
                     use std::os::windows::fs::MetadataExt;
-                    if metadata.file_attributes() & 0x400 != 0 {
+                    use windows_sys::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
+                    if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
                         return Err(StorageError::UnsafeLocation);
+                    }
+                    if metadata.is_file() {
+                        // A metadata-only handle checks the existing object,
+                        // including database/lock/backup hardlinks, before any
+                        // caller opens it in SQLite or requests write access.
+                        check_opened_file(&metadata_file(ancestor)?)?;
                     }
                 }
                 #[cfg(unix)]
@@ -49,6 +58,57 @@ pub(crate) fn check_path(path: &Path) -> Result<()> {
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn metadata_file(path: &Path) -> Result<File> {
+    use std::os::windows::fs::OpenOptionsExt;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES,
+    };
+    Ok(OpenOptions::new()
+        .read(true)
+        .access_mode(FILE_READ_ATTRIBUTES)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)?)
+}
+
+fn check_opened_file(file: &File) -> Result<()> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Storage::FileSystem::{
+            BY_HANDLE_FILE_INFORMATION, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT,
+            GetFileInformationByHandle,
+        };
+        // SAFETY: this POD output is initialized by the OS; the borrowed
+        // File owns a live handle throughout the query. No mutation occurs.
+        let mut information: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+        if unsafe { GetFileInformationByHandle(file.as_raw_handle(), &mut information) } == 0 {
+            return Err(std::io::Error::last_os_error().into());
+        }
+        if information.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)
+            != 0
+            || information.nNumberOfLinks != 1
+        {
+            return Err(StorageError::UnsafeLocation);
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let metadata = file.metadata()?;
+        if !metadata.is_file() {
+            return Err(StorageError::UnsafeLocation);
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            if metadata.nlink() != 1 {
+                return Err(StorageError::UnsafeLocation);
+            }
         }
     }
     Ok(())
@@ -73,6 +133,19 @@ pub(crate) fn private_directory(path: &Path) -> Result<()> {
 }
 
 pub(crate) fn private_file(path: &Path, new: bool) -> Result<File> {
+    private_file_inner(path, new, || {})
+}
+
+#[cfg(test)]
+pub(crate) fn private_file_before_open(
+    path: &Path,
+    new: bool,
+    before_open: impl FnOnce(),
+) -> Result<File> {
+    private_file_inner(path, new, before_open)
+}
+
+fn private_file_inner(path: &Path, new: bool, before_open: impl FnOnce()) -> Result<File> {
     check_path(path)?;
     let mut options = OpenOptions::new();
     options.read(true).write(true);
@@ -86,7 +159,15 @@ pub(crate) fn private_file(path: &Path, new: bool) -> Result<File> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    before_open();
     let file = options.open(path)?;
+    check_opened_file(&file)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
