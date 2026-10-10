@@ -28,11 +28,12 @@ use windows_sys::Win32::Foundation::{
     WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT,
-    FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OVERLAPPED, FILE_LIST_DIRECTORY,
-    FILE_NOTIFY_CHANGE_DIR_NAME, FILE_NOTIFY_CHANGE_FILE_NAME, FILE_NOTIFY_CHANGE_LAST_WRITE,
-    FILE_NOTIFY_CHANGE_SIZE, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
-    GetFileAttributesW, INVALID_FILE_ATTRIBUTES, OPEN_EXISTING, ReadDirectoryChangesW,
+    BY_HANDLE_FILE_INFORMATION, CreateFileW, FILE_ATTRIBUTE_DIRECTORY,
+    FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+    FILE_FLAG_OVERLAPPED, FILE_LIST_DIRECTORY, FILE_NOTIFY_CHANGE_DIR_NAME,
+    FILE_NOTIFY_CHANGE_FILE_NAME, FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_NOTIFY_CHANGE_SIZE,
+    FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, GetFileAttributesW,
+    GetFileInformationByHandle, INVALID_FILE_ATTRIBUTES, OPEN_EXISTING, ReadDirectoryChangesW,
 };
 use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
 use windows_sys::Win32::System::Threading::{CreateEventW, SetEvent, WaitForMultipleObjects};
@@ -62,8 +63,8 @@ const MAX_VALIDITY_POLL_MS: u32 = 10_000;
 /// previous generation for the same root (durable root generation contract).
 /// The watcher never reuses a generation; downstream consumers key hints by
 /// `(root, generation)` and must discard stale-generation signals (see
-/// README). In debug builds the coalescer asserts this monotonicity when a
-/// restart replaces pending state.
+/// README). The coalescer rejects and counts older generations while the
+/// root has pending state; it retains no history after those hints drain.
 #[derive(Clone, Copy, Debug)]
 pub struct WatcherConfig {
     /// Caller-owned monotonic generation (durable root generation contract).
@@ -116,6 +117,10 @@ pub struct WatcherStats {
     /// Records surfaced as obscured because their action code or path bytes
     /// could not be validated.
     pub obscured_events: u64,
+    /// Signals rejected because the bounded coalescer had no room.
+    pub rejected_coalescer_signals: u64,
+    /// Older-generation signals rejected against pending coalescer state.
+    pub stale_generation_signals: u64,
 }
 
 pub(crate) struct Shared {
@@ -432,6 +437,30 @@ fn root_present_code(root_path: &[u16]) -> Result<(), u32> {
     }
 }
 
+fn check_root_attributes(attributes: u32) -> Result<(), StartError> {
+    if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        Err(StartError::ReparseRootExcluded)
+    } else if attributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
+        Err(StartError::NotADirectory)
+    } else {
+        Ok(())
+    }
+}
+
+fn check_opened_root(watch: &WorkerHandle) -> Result<(), StartError> {
+    // SAFETY: BY_HANDLE_FILE_INFORMATION is a POD output structure. The
+    // live handle has FILE_READ_ATTRIBUTES access and stays owned throughout
+    // this query; a failure is reported before any worker starts.
+    let mut information: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    if unsafe { GetFileInformationByHandle(watch.get(), &mut information) } == 0 {
+        // SAFETY: immediate failure reporting; no parameters.
+        return Err(StartError::RootUnavailable {
+            os_code: unsafe { GetLastError() },
+        });
+    }
+    check_root_attributes(information.dwFileAttributes)
+}
+
 /// One live handle-bound watch. Not `Sync`: drive it from one thread.
 ///
 /// The starter-owned stop event lives in `stop` and is closed only after the
@@ -458,6 +487,26 @@ impl HandleBoundWatcher {
         root_path: &OsStr,
         config: WatcherConfig,
     ) -> Result<Self, StartError> {
+        Self::start_inner(root, root_path, config, || {})
+    }
+
+    /// Deterministic test seam for replacing the root after the path check.
+    #[cfg(test)]
+    pub(crate) fn start_with_pre_open(
+        root: RootId,
+        root_path: &OsStr,
+        config: WatcherConfig,
+        before_open: impl FnOnce(),
+    ) -> Result<Self, StartError> {
+        Self::start_inner(root, root_path, config, before_open)
+    }
+
+    fn start_inner(
+        root: RootId,
+        root_path: &OsStr,
+        config: WatcherConfig,
+        before_open: impl FnOnce(),
+    ) -> Result<Self, StartError> {
         let coalescer = Coalescer::new(CoalescerConfig {
             window: config.window,
             max_tracked_roots: COALESCER_ROOT_BOUND,
@@ -474,19 +523,14 @@ impl HandleBoundWatcher {
         let (buffer_bytes, validity_poll) = config.normalized();
 
         // Policy pre-check. `GetFileAttributesW` does not follow the final
-        // path component, so it can see reparse attributes that `CreateFileW`
-        // (which opens through junctions) would hide. Reparse roots are a
-        // policy exclusion, deliberately distinct from I/O failures.
+        // path component. Reparse roots are a policy exclusion, deliberately
+        // distinct from I/O failures.
         //
-        // TOCTOU limitation (tied to #47/#48): this check races with
-        // `CreateFileW` below — the root could be replaced by a junction or
-        // symlink in between, and parent-directory junctions are followed by
-        // both calls. TODO(#47): consider opening with
-        // `FILE_FLAG_OPEN_REPARSE_POINT` plus a post-open reparse verify to
-        // close the final-component window; parent-junction pass-through
-        // would still need enumeration-boundary enforcement. No traversal
-        // safety is claimed here: nested reparse reports remain hints for
-        // the authoritative enumeration boundary.
+        // This path check is only an early classification. The open below
+        // does not follow the final component, and policy is verified on
+        // the actual opened handle before worker launch. Parent-directory
+        // junctions are still followed by the OS; nested reparse reports
+        // remain hints for the authoritative enumeration boundary.
         // SAFETY: `wide` is a NUL-terminated UTF-16 path.
         let attributes = unsafe { GetFileAttributesW(wide.as_ptr()) };
         if attributes == INVALID_FILE_ATTRIBUTES {
@@ -495,23 +539,19 @@ impl HandleBoundWatcher {
                 os_code: unsafe { GetLastError() },
             });
         }
-        if attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
-            return Err(StartError::ReparseRootExcluded);
-        }
-        if attributes & FILE_ATTRIBUTE_DIRECTORY == 0 {
-            return Err(StartError::NotADirectory);
-        }
+        check_root_attributes(attributes)?;
+        before_open();
 
         // SAFETY: `wide` is a NUL-terminated UTF-16 path; the security
         // attribute and template handle are unused.
         let watch = WorkerHandle(unsafe {
             CreateFileW(
                 wide.as_ptr(),
-                FILE_LIST_DIRECTORY,
+                FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES,
                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
                 std::ptr::null(),
                 OPEN_EXISTING,
-                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
+                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED | FILE_FLAG_OPEN_REPARSE_POINT,
                 std::ptr::null_mut(),
             )
         });
@@ -521,6 +561,10 @@ impl HandleBoundWatcher {
                 os_code: unsafe { GetLastError() },
             });
         }
+        // A root swapped to a reparse point after the path check is opened
+        // as the reparse object itself and rejected here. `watch` closes via
+        // RAII on every failure, before stop/I/O events or a worker exist.
+        check_opened_root(&watch)?;
         // SAFETY: unnamed manual-reset event; attributes unused.
         let stop = WorkerHandle(unsafe { CreateEventW(std::ptr::null(), 1, 0, std::ptr::null()) });
         if stop.get().is_null() || stop.get() == INVALID_HANDLE_VALUE {
@@ -641,6 +685,8 @@ impl HandleBoundWatcher {
             dropped_raw_events: self.shared.dropped_raw_events.load(Ordering::Relaxed),
             notify_buffer_overflows: self.shared.notify_buffer_overflows.load(Ordering::Relaxed),
             obscured_events: self.shared.obscured_events.load(Ordering::Relaxed),
+            rejected_coalescer_signals: self.coalescer.rejected_signals(),
+            stale_generation_signals: self.coalescer.stale_generation_signals(),
         }
     }
 
@@ -717,10 +763,25 @@ mod platform_unit_tests {
     use super::{
         ERROR_ACCESS_DENIED, ERROR_BAD_NET_NAME, ERROR_BAD_NETPATH, ERROR_DELETE_PENDING,
         ERROR_DIRECTORY, ERROR_FILE_NOT_FOUND, ERROR_INVALID_HANDLE, ERROR_NETNAME_DELETED,
-        ERROR_NOT_READY, classify_start_failure, terminal_reason,
+        ERROR_NOT_READY, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT,
+        check_root_attributes, classify_start_failure, terminal_reason,
     };
     use crate::{EndReason, StartError};
     use windows_sys::Win32::Foundation::{ERROR_PATH_NOT_FOUND, ERROR_SHARING_VIOLATION};
+
+    #[test]
+    fn root_attributes_require_a_directory_and_reject_all_reparse_shapes() {
+        assert_eq!(check_root_attributes(FILE_ATTRIBUTE_DIRECTORY), Ok(()));
+        assert_eq!(check_root_attributes(0), Err(StartError::NotADirectory));
+        assert_eq!(
+            check_root_attributes(FILE_ATTRIBUTE_REPARSE_POINT),
+            Err(StartError::ReparseRootExcluded)
+        );
+        assert_eq!(
+            check_root_attributes(FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT),
+            Err(StartError::ReparseRootExcluded)
+        );
+    }
 
     #[test]
     fn terminal_reason_maps_root_lost_codes() {
