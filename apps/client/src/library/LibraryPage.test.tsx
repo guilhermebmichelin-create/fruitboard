@@ -635,6 +635,38 @@ describe("LibraryPage", () => {
     });
   });
 
+  it("keeps focus on the root selector if the user moves there while a page loads", async () => {
+    const fake = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      pageLimit: 1,
+      files: [
+        makeRecord(rootA, "location-a", "First.flp", "First.flp"),
+        makeRecord(rootA, "location-b", "Second.flp", "Second.flp"),
+      ],
+    });
+    const nextPage = deferred<LibraryPageData>();
+    let pendingRequest: LibraryPageRequest | undefined;
+    const adapter: LibraryScanAdapter = {
+      ...fake,
+      getLibraryPage(request) {
+        if (request.cursor === null) return fake.getLibraryPage(request);
+        pendingRequest = request;
+        return nextPage.promise;
+      },
+    };
+    renderLibrary(adapter);
+    await screen.findByRole("heading", { name: "First.flp" });
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Next library page" }));
+    const selector = screen.getByRole("combobox", { name: "Scan root" });
+    selector.focus();
+    expect(pendingRequest).toBeDefined();
+    await settle(nextPage, await fake.getLibraryPage(pendingRequest!));
+    await screen.findByRole("heading", { name: "Second.flp" });
+    expect(document.activeElement).toBe(selector);
+  });
+
   it("discards a stale response when switching roots while a request is pending", async () => {
     const harness = makeDeferredAdapter([rootA, rootB]);
     renderLibrary(harness.adapter);
@@ -1075,6 +1107,71 @@ describe("LibraryPage", () => {
         screen.getByRole("button", { name: "Scan now Projects" }),
       ),
     );
+  });
+
+  it("restores scan focus when its active status arrives after the acknowledgement refresh", async () => {
+    const user = userEvent.setup();
+    const fake = createFakeLibraryScanAdapter({ roots: [rootA] });
+    const idleStatuses = await fake.listScanStatuses();
+    let exposeActiveStatus = false;
+    const adapter: LibraryScanAdapter = {
+      ...fake,
+      listScanStatuses: () =>
+        exposeActiveStatus
+          ? fake.listScanStatuses()
+          : Promise.resolve(idleStatuses),
+    };
+    renderLibrary(adapter);
+    await screen.findByRole("heading", { name: "No committed files yet" });
+    await user.click(screen.getByRole("button", { name: "Scan now Projects" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Scan now Projects" }),
+      ).toHaveProperty("disabled", false),
+    );
+    // Status delivery can be much slower than the old ten zero-delay retries.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    exposeActiveStatus = true;
+    act(() => fake.advanceRun(rootA.id));
+    await screen.findByText("Running");
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Cancel scan Projects" }),
+    );
+  });
+
+  it("keeps the user's new focus when cancellation finishes later", async () => {
+    const user = userEvent.setup();
+    const fake = createFakeLibraryScanAdapter({ roots: [rootA] });
+    const adapter: LibraryScanAdapter = {
+      ...fake,
+      cancelScan: (jobId) =>
+        Promise.resolve({
+          rootId: rootA.id,
+          jobId,
+          runId: "fake-run-1",
+          outcome: "cancellation_requested" as const,
+        }),
+    };
+    renderLibrary(adapter);
+    await screen.findByRole("heading", { name: "No committed files yet" });
+    await user.click(screen.getByRole("button", { name: "Scan now Projects" }));
+    act(() => fake.advanceRun(rootA.id));
+    await screen.findByText("Running");
+    await user.click(
+      screen.getByRole("button", { name: "Cancel scan Projects" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Cancel scan Projects" }),
+      ).toHaveProperty("disabled", false),
+    );
+    const selector = screen.getByRole("combobox", { name: "Scan root" });
+    selector.focus();
+    await act(async () => {
+      await fake.cancelScan("fake-job-1");
+    });
+    await screen.findByText("Cancelled");
+    expect(document.activeElement).toBe(selector);
   });
 
   it("allows unknown availability to recover without presenting it as a live check", async () => {
