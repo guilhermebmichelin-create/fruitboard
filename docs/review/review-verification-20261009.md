@@ -29,6 +29,15 @@ bounded read-only parser inputs, exact dependency/toolchain pins, privacy
 regressions, and an explicit RustSec exception list. These do not establish
 production activation, parser sandbox qualification, or performance acceptance.
 
+A live governance check found a further discrepancy: GitHub currently reports
+`main` unprotected, the classic protection endpoint returns HTTP 404, and the
+repository has no rulesets. The ten CI contexts exist and remain required by
+the working agreement, but they are not currently enforced by GitHub. The
+2026-09-07 documented enablement is a historical record; when or why protection
+changed is unknown. Current documentation is corrected. Restoring the recorded
+controls remains an owner governance decision; no protection settings were
+changed during this review.
+
 ## Verification of the twelve urgent claims
 
 | Claim                                                    | Independent conclusion and action                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -125,14 +134,17 @@ The remaining gate stages were completed directly, including the production
 build. Thus the evidence is equivalent stage coverage, not a claim that the
 literal default local driver passed.
 
-Fresh pull-request CI applies to the new head. Required checks and the
-owner's manual merge decision remain intact; baseline CI is not substituted.
+Fresh pull-request CI applies to the new head. The working agreement's ten
+check requirements and the owner's manual merge authority remain intact;
+baseline CI is not substituted and current server-side enforcement is not
+claimed.
 
 ## Remaining decisions
 
 Owner decisions remain license selection, production activation/release
-support, stronger optional secret-scanning settings, promotion of informational
-CI contexts, and public-history removal. A future focused task can address
+support, restoration of the documented `main` protection, stronger optional
+secret-scanning settings, promotion of informational CI contexts, and
+public-history removal. A future focused task can address
 low-severity KaTeX tooling migration, broader client extraction, browser
 contrast coverage, bounded migration-ledger streaming, or an explicit
 pending-backup maintenance command. None is represented as completed here.

@@ -157,11 +157,15 @@ are procedural; no automatic deletion or monitoring service is installed.
 
 ## GitHub governance
 
-Protect `main` with these long-term goals. Not all of them are enforced today;
-the configuration GitHub actually enforces is recorded in
-[Enforced branch protection](#enforced-branch-protection) below (this is a
-single-maintainer repository, so approving-review counts, stale-approval
-dismissal, conversation resolution, and the merge queue are currently off):
+Protect `main` with these long-term goals. Live GitHub API verification on
+2026-10-09 reports `main` as unprotected, the classic protection endpoint as
+HTTP 404 ("Branch not protected"), and an empty ruleset list. The earlier
+documented owner policy is preserved in
+[Enforced branch protection](#enforced-branch-protection) below; it is not proof
+of current enforcement. Restoration is an owner governance decision. The
+manual issue/PR/check/review/owner-merge working agreement still applies.
+Approving-review counts, stale-approval dismissal, conversation resolution and
+the merge queue were omitted from the recorded single-maintainer policy.
 
 - pull requests required, one approving review, stale approvals dismissed after
   material changes;
@@ -181,14 +185,15 @@ governance exception for the private GitHub Free repository. That exception was
 based on private-repository plan limits and is **superseded on 2026-09-07**: the
 repository is now public, where branch protection and rulesets are available on
 the current plan, and the owner approved and enabled enforced branch protection
-on 2026-09-07 (see below). The manual practices remain as working discipline on
-top of the enforced rules: issues, feature branches, PR checklists, test
+on 2026-09-07 (historical record below). Current enforcement is absent; this
+verification does not establish when or why it changed. Manual practices remain
+the working discipline: issues, feature branches, PR checklists, test
 evidence, and external review when an eligible reviewer is available.
 
 ### Enforced branch protection
 
-Status: **Enabled on 2026-09-07 by owner decision.** GitHub enforces the
-configuration below on `main`:
+Status: **Recorded enabled on 2026-09-07; not enforced at 2026-10-09 verification.**
+The documented owner-approved policy below remains the intended merge policy:
 
 - Require pull requests before merging; no direct pushes to `main`, including
   by the administrator (enforcement applies to admins).
@@ -206,8 +211,9 @@ configuration below on `main`:
   PRs, so a self-approval requirement would be unsatisfiable. Resolved
   conversation and stale-approval enforcement stays off for the same reason.
 
-This configuration does not change CI workflows, job names, or their commands;
-it enforces the checks that already run.
+These intended requirements do not change CI workflows, job names or commands.
+Workflow files alone do not install server-side protection. The ten checks
+still run, and the owner must apply the manual gate while protection is absent.
 
 Use labels by type (`epic`, `feature`, `bug`, `spike`, `docs`, `security`), area
 (`desktop`, `scanner`, `parser`, `database`, `client`, `pwa`, `sync`), and phase.
@@ -530,7 +536,8 @@ smallest regression test that would have caught it.
 
 `.github/workflows/foundation.yml` runs ten stable, always-present jobs for
 pull requests to `main`, pushes to `main`, and manual dispatch. The separate
-`windows-packaging-smoke` workflow supplies the tenth required status context.
+`windows-packaging-smoke` workflow supplies the tenth context designated by the
+working agreement; the live enforcement limitation above still applies.
 Jobs do not use path filters or job-level conditions, so a skipped check cannot
 look like a successful quality signal.
 
@@ -585,12 +592,13 @@ private advisory. CODEOWNERS names the actual current maintainer for repository
 policy, native code, security policy, and migrations; it is an ownership signal,
 not a substitute for independent review.
 
-Trigger decision: with the enforced branch protection,
-`windows-packaging-smoke` is a required status check and must report on every
+Historical trigger decision: the protection rollout designated
+`windows-packaging-smoke` as a required status check reporting on every
 pull request, so its initial `paths:` filter was dropped (with the
 enforced-protection rollout) and an expensive full installer build on every tiny
 PR is the accepted current cost. That cost is revisited only by an explicit
-owner decision to remove the check from branch protection. Add a macOS
+owner decision to change the intended check policy. Current server-side
+enforcement is absent; restoring it is a separate decision. Add a macOS
 compile/package lane before declaring macOS portability, not after
 platform-specific assumptions accumulate.
 
@@ -604,7 +612,8 @@ behavior without claiming an interactive desktop. The complete local equivalent
 is `pnpm.cmd smoke:windows:foundation`, which additionally proves WebView2
 inspection, audio capability signals, timings, and graceful window close. Of
 the ten always-present Foundation CI jobs, nine plus this smoke are the ten
-required checks enforced on `main`; `flp-parser-portable` runs on every pull
+checks designated as required by the working agreement, currently applied
+manually; `flp-parser-portable` runs on every pull
 request as an additional always-present job and is deliberately not yet a
 required context. Promotion is an owner decision after the current open
 pull-request wave merges, because a newly required context blocks every pull
