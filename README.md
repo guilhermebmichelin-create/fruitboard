@@ -42,10 +42,11 @@ The review dated 2026-10-08 used the earlier `b27b761` baseline.
   warm nearest-rank p95 was 10,173 ms against a 10,000 ms target on source
   `69f27f6`. Later [native analysis/Explorer observations](docs/review/explorer-performance-259/README.md)
   do not replace scanner or whole-app qualification.
-- **Repository**: public since 2026-09-07, with ten checks required by the
-  working agreement. Live GitHub API verification on 2026-10-09 reports
-  `main` unprotected and no rulesets; these are currently manual merge gates.
-  Restoring server-side protection remains an owner decision. Secret scanning,
+- **Repository**: public since 2026-09-07. The owner approved restoration of
+  `main` protection on 2026-10-10 after verification found it absent on
+  2026-10-09. GitHub now requires PRs and all ten checks, including for admins,
+  with branches up to date, linear history, and no force pushes or deletion.
+  Secret scanning,
   push protection and Dependabot are enabled;
   validity checks and non-provider patterns remain off. CodeQL and dependency
   review remain informational. Private vulnerability reporting is enabled
@@ -64,8 +65,8 @@ pinned tools, `pnpm check` is the single local verification entry point and
 `pnpm dev` launches the Windows desktop shell.
 
 CI mirrors that gate through stable per-area jobs. The working agreement
-requires ten checks before an owner merge, but GitHub does not currently enforce
-them on `main`; see [the live governance verification and historical policy](DEVELOPMENT.md#github-governance).
+requires ten checks before an owner merge, now enforced by GitHub on `main`;
+see [the live governance verification and historical policy](DEVELOPMENT.md#github-governance).
 
 The current shell's information hierarchy, responsive evidence, accessibility
 coverage, and intentional limitations are recorded in the

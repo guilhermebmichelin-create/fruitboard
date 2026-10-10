@@ -29,14 +29,16 @@ bounded read-only parser inputs, exact dependency/toolchain pins, privacy
 regressions, and an explicit RustSec exception list. These do not establish
 production activation, parser sandbox qualification, or performance acceptance.
 
-A live governance check found a further discrepancy: GitHub currently reports
-`main` unprotected, the classic protection endpoint returns HTTP 404, and the
-repository has no rulesets. The ten CI contexts exist and remain required by
-the working agreement, but they are not currently enforced by GitHub. The
-2026-09-07 documented enablement is a historical record; when or why protection
-changed is unknown. Current documentation is corrected. Restoring the recorded
-controls remains an owner governance decision; no protection settings were
-changed during this review.
+A live governance check on 2026-10-09 found a further discrepancy: GitHub
+reported `main` unprotected, the classic protection endpoint returned HTTP 404,
+and the repository had no rulesets. The ten CI contexts existed but were not
+enforced. When or why protection changed after the documented 2026-09-07
+enablement remains unknown. On 2026-10-10, the owner explicitly approved
+restoration. The update and an independent API read verified required PRs,
+all ten checks with branches up to date, admin enforcement, linear history,
+and disabled force pushes and deletion. No approving review is required under
+the documented single-maintainer policy. Current documentation reflects this
+restoration; optional informational checks were not promoted.
 
 ## Verification of the twelve urgent claims
 
@@ -93,7 +95,7 @@ shared client focus hook and regression tests, privacy policy checks, three
 documentation-tool overrides/lock entries, the audit threshold and CI policy
 assertion, a Windows Vitest thread-pool setting, and status/security
 documentation. No schema or parser-result
-migration, scan activation, phase acceptance, branch-protection promotion,
+migration, scan activation, phase acceptance, informational-check promotion,
 license selection, installed qualification, or performance qualification is
 part of this change.
 
@@ -146,15 +148,14 @@ fixes and governance correction. The last addition changes only the Windows
 test-pool configuration and this assessment; it requires fresh current-head CI
 but does not invalidate the unchanged native/application build evidence.
 
-Fresh pull-request CI applies to the new head. The working agreement's ten
-check requirements and the owner's manual merge authority remain intact;
-baseline CI is not substituted and current server-side enforcement is not
-claimed.
+Fresh pull-request CI applies to the new head. The ten required checks are
+enforced by the restored protection; the owner's manual merge authority remains
+intact. Baseline CI is not substituted for required checks on an updated head.
 
 ## Remaining decisions
 
 Owner decisions remain license selection, production activation/release
-support, restoration of the documented `main` protection, stronger optional
+support, stronger optional
 secret-scanning settings, promotion of informational CI contexts, and
 public-history removal. A future focused task can address
 low-severity KaTeX tooling migration, broader client extraction, browser
