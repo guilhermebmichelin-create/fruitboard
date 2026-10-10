@@ -44,16 +44,54 @@ snapshots.
 
 ## Validation and resource handoff
 
-Automated checks passed: 131 repository-policy tests, 408 client tests, 536
-workspace Rust tests, 118 scanner-enabled desktop tests, 159 analysis-enabled
-tests and four supervised native-parser tests. Default/workspace and both
-enabled desktop configurations passed warning-denied Clippy. The genuine
-mixer cases are compared with the independently registered expectations.
-Installed/build evidence will be recorded after those checks complete.
-Approved fixture hashes must remain unchanged. Constructed malformed,
-older, limit and delayed-transport cases are refusal/UI evidence, not genuine
-compatibility. Installed tests use a fresh development identity; personal and
-Foundation Smoke profiles stay untouched.
+The complete pinned Windows `pnpm check` passed, including toolchain/SQLite/
+privacy checks, formatting, lint, TypeScript, 131 repository-policy tests,
+408 client tests, 536 workspace Rust tests and the optimized default desktop
+build. Default/workspace and scanner/analysis-enabled desktop configurations
+passed warning-denied Clippy; the enabled suites passed 118 and 159 tests,
+respectively. Four supervised native-parser tests passed, including genuine
+publication of all four approved mixer fixtures against independent registered
+expectations. `pnpm audit --audit-level moderate` passed with one low advisory.
+
+An independently retained, analysis-enabled NSIS package was built from
+`01a907ad33fd0cd392556684f712b46c9ce39343` (tree
+`e20cabddffb5615186803c8d073dbbc0b9604ec3`). The installed Windows app used
+a fresh dedicated development identity and the genuine supervised parser;
+no seeded database or personal profile was substituted. Its WebView2 version
+was 154.0.4258.62. The following installed checks passed:
+
+| Check                                              | Observed result                                                                                                                                 |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| All approved F18-F21 files                         | Exactly sixteen ordinary records, IDs 1-16; names and missing-name states match independent expectations; Master/Current excluded               |
+| Refresh / explicit Analyze again                   | Refresh preserves snapshot and attempt count; explicit analysis creates a new snapshot and increments attempts                                  |
+| Restart / uninstall and reinstall                  | Saved snapshot and attempt count survive; installers leave the review database byte-identical                                                   |
+| Changed fingerprint / missing file / disabled root | Old details return no current result and hide mixer fields; restoring the owned file copy restores readable results                             |
+| Loading / close / held late reply                  | Old mixer fields clear; keyboard close retains focus; late reply does not reopen details                                                        |
+| Accessibility / layout                             | Mixer section has zero axe WCAG A/AA violations with contrast enabled at desktop, 390px viewport and 200% text; no horizontal document overflow |
+
+The older, absent, unverified-layout, limit, malformed and held-reply renderer
+cases were constructed transport responses. They demonstrate refusal, fixed
+explanations and stale-response handling, not additional FLP compatibility.
+Component-scale disclosure tests likewise do not qualify larger native layouts.
+All nineteen approved source fixture hashes and both personal/Foundation Smoke
+profile inventories remained unchanged. Only independent copies were renamed
+or had timestamps changed. Both owned review installations were uninstalled,
+their registration and host lock removed, and the review database retained.
+
+### Installed screenshots
+
+These are visible mixer-section captures from the actual installed app using
+the approved named fixture. The 390px image is a narrow desktop viewport,
+not a separate mobile-platform qualification. A screenshot-only reinstall used
+the retained dedicated review profile and preserved its saved snapshot.
+
+![Saved mixer inserts in the installed desktop app](mixer-desktop.png)
+
+![Saved mixer inserts at a 390px viewport](mixer-390.png)
+
+![Saved mixer inserts with 200 percent text](mixer-text-200.png)
+
+### Reuse and cleanup
 
 The existing `desktop-feature-tests` validation cache is reused, owner
 **Codex /root**; its absolute path is recorded in the private handoff.
@@ -61,6 +99,12 @@ Native builds run sequentially after preflight, keeping 30 GiB
 free after expected output. Installed tests run alone under the shared host lock
 after builds. Private evidence and independently copied binaries remain at
 the private `library-mixer-inserts-20261010` evidence packet, outside caches.
-No compiler cleanup or new per-PR cache is planned. Final head CI and
-owner review/manual merge remain required. No broader Phase 3, resource,
-production activation, licensing or distribution acceptance is implied.
+The final installed cleanup measured 31.37 GiB free on the build/evidence
+volume, above the 30 GiB reserve. No compiler intermediates were deleted;
+reclaim from manual cache cleanup and its rebuild cost are both zero.
+The cache remains reusable under its named owner. Independently copied
+installer/main/parser/smoke binaries, provenance and hashes, checks, screenshots,
+fixture copies and the review database must remain outside disposable caches.
+Final head CI and owner review/manual merge remain required. No broader
+Phase 3, resource, production activation, licensing or distribution acceptance
+is implied.
