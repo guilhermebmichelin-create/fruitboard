@@ -3,9 +3,9 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Current status - 2026-10-09
+## Current status - 2026-10-10
 
-Source baseline: `266327058fbf3f6dfd2cfa2fedd51ceb09ea3fa2` (merged PR #301).
+Source baseline: `719cf51511b1e54b5e606cf1f1745c378e0e0d8b` (merged PR #303).
 The review dated 2026-10-08 used the earlier `b27b761` baseline.
 
 - **Phases**: Phase 0 accepted 2026-09-04, Phase 1 accepted 2026-09-06, and
@@ -33,7 +33,8 @@ The review dated 2026-10-08 used the earlier `b27b761` baseline.
   delivered for the exact FL Studio 26.1.0.5530 eighteen-record layout.
   [Parser contract](crates/flp-parser/README.md#initial-native-result-validation)
   counts sixteen ordinary saved records, with honest missing-name states.
-  Mixer storage projection and Library display remain open.
+  [Application slice #304](docs/review/library-mixer-inserts-304/README.md)
+  adds immutable selected storage and Library display; broader layouts remain open.
 - **Product scope**: the Tauri/React shell, Rust-owned SQLite library, scan
   roots and feature-gated durable scanning are implemented. Production
   activation is still a separate owner decision. Kanban, search, project

@@ -2,6 +2,10 @@ import { LibraryAdapterError, type PublishedFileLocation } from "./contracts";
 import { parseProjectAnalysis, type ProjectAnalysis } from "./projectAnalysis";
 import { parseProjectPatterns, type ProjectPatterns } from "./projectPatterns";
 import {
+  parseProjectMixerInserts,
+  type ProjectMixerInserts,
+} from "./projectMixerInserts";
+import {
   parseProjectPatternNotes,
   type ProjectPatternNotes,
 } from "./projectPatternNotes";
@@ -66,6 +70,7 @@ export type ProjectDetails = {
       readonly channels: readonly ProjectChannel[];
       readonly patterns?: ProjectPatterns;
       readonly patternNoteCounts?: ProjectPatternNotes;
+      readonly mixerInserts?: ProjectMixerInserts;
       readonly sampleReferences?: readonly ProjectSampleReference[];
       readonly pluginReferences?: ProjectPluginReferences;
       readonly analysis?: ProjectAnalysis;
@@ -100,6 +105,7 @@ export function parseProjectDetails(
       value["channels"] !== undefined ||
       value["patterns"] !== undefined ||
       value["patternNoteCounts"] !== undefined ||
+      value["mixerInserts"] !== undefined ||
       value["sampleReferences"] !== undefined ||
       value["pluginReferences"] !== undefined ||
       value["warnings"] !== undefined ||
@@ -297,6 +303,14 @@ export function parseProjectDetails(
           ),
         }),
     ...(patterns === undefined ? {} : { patterns }),
+    ...(value["mixerInserts"] === undefined
+      ? {}
+      : {
+          mixerInserts: parseProjectMixerInserts(
+            value["mixerInserts"],
+            facts[0]?.value ?? "",
+          ),
+        }),
     ...(patternNoteCounts === undefined ? {} : { patternNoteCounts }),
     ...(value["sampleReferences"] === undefined
       ? {}

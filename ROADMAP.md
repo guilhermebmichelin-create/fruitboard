@@ -14,22 +14,22 @@ The product roadmap remains broadly sound. The principal changes are:
 
 ## Phase gates
 
-| Phase | Outcome | Entry gate | Exit evidence |
-| --- | --- | --- | --- |
-| 0 Product & Architecture | Reviewed architecture and bounded uncertainties | Requirements | Accepted ADRs/review questions; PoCs scheduled |
-| 1 Application Foundation | Installable/tested shell and durable foundation | Phase 0 accepted | CI, migrations, logging/errors, accessible shell; no scanner |
-| 2 Scanner MVP | Roots discover and monitor FLPs safely, filesystem-only | Shared scanner contracts; qualified filesystem scope | Reconciliation/recovery tests; safe metadata-error isolation; visible Library workflow |
-| 3 FLP Intelligence | Useful normalized FLP/dependency metadata | Parser matrix and license gate passed | Field reliability matrix; diagnostics; Plugin Explorer MVP |
-| 4 Project Identity & Versions | Reversible logical grouping | Stable file/snapshot model | Suggestions/merge/split/reject with evidence tests |
-| 5 Project Management | Core creative workflow | Project identity stable | Kanban, fields, notes, journal, tasks, timeline |
-| 6 Project Workspace & Polish | Coherent deep workspace and OS actions | Management model stable | Responsive/a11y states; open FL/folder safety tests |
-| 7 Audio Exports | Confirmable exports and desktop playback | Media threat model accepted | Matching tests; safe streaming/player flows |
-| 8 Releases | Albums/EPs/collections | Project workflow stable | Ordered M:N releases and completion summary |
-| 9 Analytics | Actionable local insights | Reliable source data | Metric definitions, query tests, restrained dashboard |
-| 10 Work-Time Tracking | Honest prospective sessions | Signals validated on Windows | Heuristic audit, manual correction, limitation UX |
-| 11 Google Drive Sync | Recoverable optional metadata sync | Protocol/security/encryption ADR accepted | OAuth, replay/conflict/recovery/large-log tests |
-| 12 PWA | Installable iPhone companion | Sync stable; real-device PoC passed | Offline mutations, foreground sync, iPhone a11y/audio tests |
-| 13 Advanced | Evaluated optional features | Usage evidence | Separate accepted issues/ADRs per feature |
+| Phase                         | Outcome                                                 | Entry gate                                           | Exit evidence                                                                          |
+| ----------------------------- | ------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 0 Product & Architecture      | Reviewed architecture and bounded uncertainties         | Requirements                                         | Accepted ADRs/review questions; PoCs scheduled                                         |
+| 1 Application Foundation      | Installable/tested shell and durable foundation         | Phase 0 accepted                                     | CI, migrations, logging/errors, accessible shell; no scanner                           |
+| 2 Scanner MVP                 | Roots discover and monitor FLPs safely, filesystem-only | Shared scanner contracts; qualified filesystem scope | Reconciliation/recovery tests; safe metadata-error isolation; visible Library workflow |
+| 3 FLP Intelligence            | Useful normalized FLP/dependency metadata               | Parser matrix and license gate passed                | Field reliability matrix; diagnostics; Plugin Explorer MVP                             |
+| 4 Project Identity & Versions | Reversible logical grouping                             | Stable file/snapshot model                           | Suggestions/merge/split/reject with evidence tests                                     |
+| 5 Project Management          | Core creative workflow                                  | Project identity stable                              | Kanban, fields, notes, journal, tasks, timeline                                        |
+| 6 Project Workspace & Polish  | Coherent deep workspace and OS actions                  | Management model stable                              | Responsive/a11y states; open FL/folder safety tests                                    |
+| 7 Audio Exports               | Confirmable exports and desktop playback                | Media threat model accepted                          | Matching tests; safe streaming/player flows                                            |
+| 8 Releases                    | Albums/EPs/collections                                  | Project workflow stable                              | Ordered M:N releases and completion summary                                            |
+| 9 Analytics                   | Actionable local insights                               | Reliable source data                                 | Metric definitions, query tests, restrained dashboard                                  |
+| 10 Work-Time Tracking         | Honest prospective sessions                             | Signals validated on Windows                         | Heuristic audit, manual correction, limitation UX                                      |
+| 11 Google Drive Sync          | Recoverable optional metadata sync                      | Protocol/security/encryption ADR accepted            | OAuth, replay/conflict/recovery/large-log tests                                        |
+| 12 PWA                        | Installable iPhone companion                            | Sync stable; real-device PoC passed                  | Offline mutations, foreground sync, iPhone a11y/audio tests                            |
+| 13 Advanced                   | Evaluated optional features                             | Usage evidence                                       | Separate accepted issues/ADRs per feature                                              |
 
 Each phase ends with an explicit review issue/discussion and stops. “Exit
 evidence” means merged, tested behavior and updated documentation—not a demo
@@ -262,7 +262,9 @@ issue #296, PR299 independently qualifies approved F18-F21 and PR301 delivers
 bounded parsing and full native validation. This covers only FL Studio
 26.1.0.5530's complete eighteen-record section, with sixteen ordinary saved
 records; names may be unavailable and record count does not imply use.
-Mixer storage projection and Library display remain open, as do broader layouts.
+[Application slice #304](docs/review/library-mixer-inserts-304/README.md) adds
+immutable selected storage, authorized Library display and installed validation.
+Broader layouts remain open; this narrow step does not complete G6.
 Automation/MIDI, mixer effects/nested plugins and richer arrangements remain open.
 
 ### Epic: Phase 3 — FLP intelligence
@@ -342,18 +344,18 @@ Keep these as outlines until the preceding design is informed by real usage.
 ## Phase 0 acceptance checklist
 
 - [x] Product owner answers the five review questions in
-  [docs/PHASE_0_REVIEW.md](docs/PHASE_0_REVIEW.md#review-questions).
+      [docs/PHASE_0_REVIEW.md](docs/PHASE_0_REVIEW.md#review-questions).
 - [x] ADR statuses are accepted or amended.
 - [x] Product/distribution license direction is recorded; PyFLP remains blocked
-  until GPL compatibility is resolved.
+      until GPL compatibility is resolved.
 - [x] Phase 1 issue list is approved.
 - [x] Phase 1 epic #10 and issues #11–#18 were created after final acceptance.
 - [x] The owner accepts the documented GitHub Free manual-governance exception
-  because private-repository protection is unavailable and GitHub Pro was
-  declined. (Condition superseded on 2026-09-07: the repository became public
-  and enforced branch protection was enabled on `main`; see
-  [DEVELOPMENT.md](DEVELOPMENT.md#enforced-branch-protection). This historical
-  acceptance is not rewritten.)
+      because private-repository protection is unavailable and GitHub Pro was
+      declined. (Condition superseded on 2026-09-07: the repository became public
+      and enforced branch protection was enabled on `main`; see
+      [DEVELOPMENT.md](DEVELOPMENT.md#enforced-branch-protection). This historical
+      acceptance is not rewritten.)
 - [x] No application feature implementation has entered Phase 0.
 - [x] Phase 0 PRs were accepted and merged in order #6 → #7 → #8 → #9.
 

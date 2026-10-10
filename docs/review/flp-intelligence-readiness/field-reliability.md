@@ -45,7 +45,8 @@ a complete parse does not make every field extracted or universally supported.
 | File size/modified/filesystem-created time   | Native held-handle authority and independent source checks; filesystem creation optional                                                                                                               | Size/modified shown in Library; optional creation in details                              | File creation differs from embedded creation. Details are saved facts matching a scanned observation, not continuous live inspection.                                |
 | Top-level plugin references                  | Verified built-in Sampler/3x Osc and bounded saved strings; recognized wrapper name/vendor handling has constructed tests                                                                              | Stored/displayed; Explorer groups exact name/class/vendor and provenance                  | No approved external VST wrapper fixture. No exhaustive mixer/nested coverage, installed-plugin inventory or plugin load. Empty coverage is not proof of no plugins. |
 | Saved pattern note records                   | Approved F16 counts 3/2/4, F17 omitted payload; PR291/293/295 and [installed delivery](../library-pattern-notes-294/README.md)                                                                         | Validated, immutably stored and displayed per pattern                                     | Exact 26.1.0.5530 initial content series; no explicit-zero qualification, raw notes, audible count or Playlist multiplication.                                       |
-| Automation/MIDI/mixer summaries              | No implemented app summary or approved matching fixture; [mixer design #296](../mixer-inserts-296/README.md) only                                                                                      | Not delivered                                                                             | Saved note records, patterns and top-level plugin references do not imply these capabilities.                                                                        |
+| Saved mixer insert records                   | Approved F18-F21, PR299/301 and [application slice #304](../library-mixer-inserts-304/README.md)                                                                                                       | Validated, immutably stored and displayed                                                 | Exact complete 26.1.0.5530 layout only: sixteen ordinary positions; no usage/audibility, effects, routing, sparse layouts or persistent IDs.                         |
+| Automation/MIDI summaries                    | No implemented application summary or approved matching fixture                                                                                                                                        | Not delivered                                                                             | Saved notes, patterns and mixer record names do not imply automation/MIDI support.                                                                                   |
 | Ephemeral sample metadata observations       | ADR-007/PR285; actual NTFS rights/race and authorized-host tests, installed constructed host mapping plus unchanged F12 outside-root/F15 no-reference cases                                            | Explicit Library checks in `analysis-jobs`; no persisted availability                     | Exact eligible absolute paths inside selected local NTFS root only; time-of-check presence/absence, no audio/content reads or broader FL Studio resolution.          |
 
 The [saved pattern note-count proposal](../pattern-notes-288/README.md), #288,
@@ -61,12 +62,12 @@ cover limits/ambiguity; [native validation tests](../../../crates/flp-parser/tes
 reject malformed advertised data. [PR295 / issue #294](../library-pattern-notes-294/README.md)
 delivers immutable count/state persistence and per-pattern Library display, with
 older-result explanations, strict matching-ID/limit checks and existing source
-freshness fences. Automation/MIDI/mixer summaries stay open. The next
-[mixer insert count/name design](../mixer-inserts-296/README.md), #296, has no
-independently qualified mixer expectations, extraction or application support
-yet. Its proposed ordinary-insert identity, complete-record count and saved-name
-semantics require the genuine fixture gate; existing corpus approvals are not
-repurposed as mixer ground truth.
+freshness fences. [Mixer insert design #296](../mixer-inserts-296/README.md)
+now has approved F18-F21 evidence in PR299 and bounded parsing/full validation
+in PR301. [Application slice #304](../library-mixer-inserts-304/README.md) adds
+immutable storage and authorized display with independent installed validation.
+Only the complete qualified sixteen-ordinary-record layout is supported;
+broader mixer effects/nested plugins and automation/MIDI summaries remain open.
 
 ## Tests and independent checks
 

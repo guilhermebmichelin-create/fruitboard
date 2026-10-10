@@ -161,6 +161,7 @@ pub(super) fn encode(metadata: &ValidatedProjectMetadata) -> Result<String> {
         "channelGeneratorNames":generators(metadata.channel_generators()),
         "patterns":patterns(metadata.patterns()),
         "patternNoteCounts":pattern_notes(metadata.pattern_note_counts()),
+        "mixerInserts":mixer_inserts(metadata.mixer_inserts()),
         "sampleReferences":list(initial.sample_references()),
         "projectCreatedLocal":project(metadata.project_created_local()),
         "flStudioTimeSpentMs":project(metadata.fl_studio_time_spent_ms()),
@@ -174,6 +175,48 @@ pub(super) fn encode(metadata: &ValidatedProjectMetadata) -> Result<String> {
     let mut writer = BoundedJson(Vec::new());
     serde_json::to_writer(&mut writer, &value).map_err(|_| StorageError::InvalidSchema)?;
     String::from_utf8(writer.0).map_err(|_| StorageError::InvalidSchema)
+}
+
+fn mixer_inserts(value: &SavedMixerInserts) -> Value {
+    let coverage = "explicit-saved-mixer-insert-records";
+    match value {
+        SavedMixerInserts::NotAdvertised => {
+            json!({"status":"unsupported","reason":"MIXER_INSERTS_NOT_ADVERTISED"})
+        }
+        SavedMixerInserts::Unavailable(reason) | SavedMixerInserts::Unsupported(reason) => {
+            let status = if matches!(value, SavedMixerInserts::Unavailable(_)) {
+                "unavailable"
+            } else {
+                "unsupported"
+            };
+            let field = json!({"status":status,"reason":reason.as_str(),"coverage":coverage});
+            json!({"count":field,"names":field})
+        }
+        SavedMixerInserts::Entries(items) => {
+            let mut missing = false;
+            let entries: Vec<Value> = items
+                .iter()
+                .map(|item| {
+                    let name = match item.name() {
+                        MixerInsertName::Extracted(name) => {
+                            json!({"status":"extracted","value":name})
+                        }
+                        MixerInsertName::Unavailable => {
+                            missing = true;
+                            json!({"status":"unavailable","reason":"MIXER_INSERT_NAME_NOT_STORED"})
+                        }
+                    };
+                    json!({"savedInsertId":item.id(),"name":name})
+                })
+                .collect();
+            let names = if missing {
+                json!({"status":"unavailable","reason":"MIXER_INSERT_NAMES_INCOMPLETE","coverage":coverage,"items":entries})
+            } else {
+                json!({"status":"extracted","coverage":coverage,"value":entries})
+            };
+            json!({"count":{"status":"extracted","coverage":coverage,"value":items.len()},"names":names})
+        }
+    }
 }
 
 fn pattern_notes(value: &PatternNoteCounts) -> Value {
