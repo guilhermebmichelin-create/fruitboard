@@ -91,7 +91,8 @@ changed during this review.
 Changes are restricted to watcher/storage file guards and their tests, a
 shared client focus hook and regression tests, privacy policy checks, three
 documentation-tool overrides/lock entries, the audit threshold and CI policy
-assertion, and status/security documentation. No schema or parser-result
+assertion, a Windows Vitest thread-pool setting, and status/security
+documentation. No schema or parser-result
 migration, scan activation, phase acceptance, branch-protection promotion,
 license selection, installed qualification, or performance qualification is
 part of this change.
@@ -111,7 +112,8 @@ Validation on the pinned Windows toolchain passed:
   TypeScript checks;
 - workspace Clippy and enabled `analysis-jobs` Clippy, both with warnings denied;
 - all 131 Node policy/regression tests;
-- all 392 client tests across 31 files, using Vitest's thread pool with one worker;
+- all 392 client tests across 31 files, including the normal client test command
+  after configuring Vitest's thread pool on Windows (one local worker);
 - all 535 workspace Rust tests, using one test thread; 12 explicitly unverified
   environment fixtures remain ignored;
 - all 157 enabled native-analysis tests; four explicitly unverified/manual
@@ -122,17 +124,27 @@ Validation on the pinned Windows toolchain passed:
 - SHA-256 comparison proving all 19 approved FLP fixtures byte-identical after
   the complete native suites.
 
-The literal local `pnpm check` run stalled in Vitest's default process pool
-before tests began. The complete client suite passed with
+The initial literal local `pnpm check` run stalled in Vitest's default process
+pool before tests began. The complete client suite first passed with
 `node node_modules/vitest/vitest.mjs run --pool=threads --maxWorkers=1` from
-`apps/client`. A subsequent default parallel workspace run failed three
+`apps/client`. Windows now selects threads in `vitest.config.ts`, preserving
+per-file isolation; Linux retains forks. The normal
+`pnpm --filter @fruitboard/client test` then passed all 392 tests without a
+pool override. This addresses the reproduced local Windows startup problem;
+it is not a claim that Vitest and Vite versions are incompatible or that the
+hosted Windows pool failed. A subsequent default parallel workspace run failed three
 unchanged parser-supervisor tests against their two-second deadlines; the full
 workspace passed with `cargo test --workspace --locked -- --test-threads=1`.
-No deadline, assertion, production behavior or committed runner configuration
-was relaxed. Both initial failures and the equivalent passing runs are retained.
+No deadline, assertion, per-file isolation or production behavior was relaxed.
+Both initial failures and the equivalent passing runs are retained.
 The remaining gate stages were completed directly, including the production
 build. Thus the evidence is equivalent stage coverage, not a claim that the
 literal default local driver passed.
+
+All fifteen CI statuses passed on `284d373`, which contains the application
+fixes and governance correction. The last addition changes only the Windows
+test-pool configuration and this assessment; it requires fresh current-head CI
+but does not invalidate the unchanged native/application build evidence.
 
 Fresh pull-request CI applies to the new head. The working agreement's ten
 check requirements and the owner's manual merge authority remain intact;
