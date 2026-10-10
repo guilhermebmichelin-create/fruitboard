@@ -312,7 +312,7 @@ jobs:
       - name: Verify privacy and npm advisories
         run: |
           node scripts/verify-repository-privacy.mjs
-          pnpm audit --audit-level high
+          pnpm audit --audit-level moderate
       - name: Set up pinned Rust
         run: |
           rustup set profile minimal
