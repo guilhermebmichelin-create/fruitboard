@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PlatformError } from "../platform/contracts";
@@ -325,6 +325,41 @@ describe("ScanRootsManager", () => {
         screen.getByRole("button", { name: "Add folder" }),
       );
     });
+  });
+
+  it("keeps later user focus when removing a folder finishes slowly", async () => {
+    const user = userEvent.setup();
+    const platform = createFakePlatform();
+    await platform.addScanRoot("Projects", "C:\\Music\\Projects");
+    let releaseRemoval!: () => void;
+    const pendingRemoval = new Promise<void>((resolve) => {
+      releaseRemoval = resolve;
+    });
+    const removeScanRoot = platform.removeScanRoot.bind(platform);
+    vi.spyOn(platform, "removeScanRoot").mockImplementation(async (id) => {
+      await pendingRemoval;
+      return removeScanRoot(id);
+    });
+    render(
+      <>
+        <button>Elsewhere</button>
+        <ScanRootsManager platform={platform} />
+      </>,
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Remove Projects" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Confirm removal of Projects" }),
+    );
+    const elsewhere = screen.getByRole("button", { name: "Elsewhere" });
+    elsewhere.focus();
+    await act(async () => {
+      releaseRemoval();
+      await pendingRemoval;
+    });
+    await screen.findByText("Folder removed.");
+    expect(document.activeElement).toBe(elsewhere);
   });
 
   it("keeps same-name removal confirmation and cancellation in the keyboard flow", async () => {

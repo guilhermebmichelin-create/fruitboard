@@ -1173,6 +1173,121 @@ fn rejects_relative_locations_and_preexisting_links() {
     }
 }
 
+#[cfg(any(unix, windows))]
+#[test]
+fn rejects_a_hardlinked_database_before_sqlite_without_changing_original_bytes() {
+    let directory = TestDirectory::new();
+    let outside = TestDirectory::new();
+    {
+        let mut database = Database::open(outside.path()).unwrap();
+        database.set_startup_view(StartupView::Board).unwrap();
+    }
+    let original = outside.database();
+    let before = fs::read(&original).unwrap();
+    fs::create_dir(directory.path().join("storage")).unwrap();
+    fs::hard_link(&original, directory.database()).unwrap();
+
+    assert!(matches!(
+        Database::open(directory.path()),
+        Err(StorageError::UnsafeLocation)
+    ));
+    assert_eq!(fs::read(&original).unwrap(), before);
+    assert_eq!(fs::read(directory.database()).unwrap(), before);
+    assert!(!directory.path().join("storage/backups").exists());
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn rejects_a_hardlinked_owner_lock_without_changing_original_bytes_or_permissions() {
+    let directory = TestDirectory::new();
+    let outside = TestDirectory::new();
+    let original = outside.path().join("original.lock");
+    fs::write(&original, b"outside owner lock must stay untouched").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&original, fs::Permissions::from_mode(0o644)).unwrap();
+    }
+    fs::create_dir(directory.path().join("storage")).unwrap();
+    fs::hard_link(&original, directory.path().join("storage/owner.lock")).unwrap();
+
+    assert!(matches!(
+        Database::open(directory.path()),
+        Err(StorageError::UnsafeLocation)
+    ));
+    assert_eq!(
+        fs::read(&original).unwrap(),
+        b"outside owner lock must stay untouched"
+    );
+    assert!(!directory.database().exists());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(&original).unwrap().permissions().mode() & 0o777,
+            0o644
+        );
+    }
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn rejects_a_hardlinked_backup_before_creating_the_recovery_destination() {
+    let directory = TestDirectory::new();
+    let outside = TestDirectory::new();
+    let backup = {
+        let mut database = Database::open(directory.path()).unwrap();
+        database.set_startup_view(StartupView::Library).unwrap();
+        database.create_backup().unwrap()
+    };
+    let before = fs::read(&backup).unwrap();
+    let alias = outside.path().join("linked.backup.db");
+    fs::hard_link(&backup, &alias).unwrap();
+    let destination = outside.path().join("recovered");
+
+    assert!(matches!(
+        Database::recover_to(&alias, &destination),
+        Err(StorageError::InvalidBackup)
+    ));
+    assert_eq!(fs::read(&backup).unwrap(), before);
+    assert_eq!(fs::read(&alias).unwrap(), before);
+    assert!(!destination.exists());
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn opened_file_guard_rejects_a_late_hardlink_before_permission_changes_or_writes() {
+    let directory = TestDirectory::new();
+    let outside = TestDirectory::new();
+    let original = outside.path().join("original.db");
+    fs::write(&original, b"outside file must stay untouched").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&original, fs::Permissions::from_mode(0o644)).unwrap();
+    }
+    let leaf = directory.path().join("owned.db");
+    let result = crate::files::private_file_before_open(&leaf, false, || {
+        // Add the link after check_path has passed. Only the validation of
+        // the actual opened file can catch this change before Unix chmod.
+        fs::hard_link(&original, &leaf).unwrap();
+    });
+
+    assert!(matches!(result, Err(StorageError::UnsafeLocation)));
+    assert_eq!(
+        fs::read(&original).unwrap(),
+        b"outside file must stay untouched"
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            fs::metadata(&original).unwrap().permissions().mode() & 0o777,
+            0o644
+        );
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn unix_database_and_backup_permissions_are_private() {

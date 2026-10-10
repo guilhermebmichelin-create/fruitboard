@@ -24,6 +24,10 @@ const blockedTrackedExtensions = new Set([
   ".wave",
 ]);
 
+// SQLite companion suffixes are part of the extension (for example .db-wal),
+// so the ordinary database extension block does not cover them.
+const sqliteCompanionSuffix = /\.(?:db|sqlite3?)-(?:wal|shm|journal)$/iu;
+
 // Only these separately approved public parser fixtures bypass the FLP block.
 // Both the exact repository path and SHA-256 must match.
 const approvedFlpFixtureHashes = new Map([
@@ -188,6 +192,15 @@ export function inspectTrackedPath(path, sha256 = null) {
     });
   }
 
+  if (sqliteCompanionSuffix.test(basename)) {
+    violations.push({
+      line: null,
+      message: "tracked private/generated SQLite companion file",
+      path,
+      rule: "sqlite-companion",
+    });
+  }
+
   if (basename.startsWith(".env") && basename !== ".env.example") {
     violations.push({
       line: null,
@@ -327,6 +340,7 @@ export function inspectRepositoryEntries(entries) {
 export function formatPrivacyViolation(violation) {
   const sensitivePathRule = new Set([
     "blocked-extension",
+    "sqlite-companion",
     "environment-file",
     "fixture-hash-mismatch",
   ]).has(violation.rule);

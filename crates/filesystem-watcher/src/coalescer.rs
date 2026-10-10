@@ -23,11 +23,12 @@ pub struct CoalescerConfig {
 
 impl Default for CoalescerConfig {
     fn default() -> Self {
-        // One second in nanoseconds; a small root budget matches the
-        // deployment bound of at most 100 configured roots.
+        // One second in nanoseconds; the standalone budget matches the
+        // deployment bound of at most 100 configured roots. The platform
+        // watcher supplies its own smaller per-watch budget.
         Self {
             window: 1_000_000_000,
-            max_tracked_roots: 64,
+            max_tracked_roots: 100,
         }
     }
 }
@@ -48,12 +49,16 @@ struct WindowState {
 /// `max_tracked_roots` pending coverage-loss marks (drained on the next
 /// poll). Signals beyond the bound are rejected and counted; they are never
 /// queued, so memory cannot grow with event volume.
+/// Older generations are rejected while their root has pending state; no
+/// generation history is retained after polling drains it. Callers must
+/// still filter stale generations against their durable root state.
 pub struct Coalescer {
     window: u64,
     max_tracked_roots: usize,
     windows: BTreeMap<RootId, WindowState>,
     lost: BTreeMap<RootId, u64>,
     rejected: u64,
+    stale: u64,
 }
 
 impl Coalescer {
@@ -67,6 +72,7 @@ impl Coalescer {
             windows: BTreeMap::new(),
             lost: BTreeMap::new(),
             rejected: 0,
+            stale: 0,
         })
     }
 
@@ -74,20 +80,18 @@ impl Coalescer {
     ///
     /// The first activity opens a fixed window closing at `now + window`;
     /// activity inside an open window never extends it, so bursts collapse
-    /// into at most one hint per window. Activity stamped with a different
-    /// generation than the open window replaces it: a restart must never
+    /// into at most one hint per window. Activity stamped with a newer
+    /// generation than the pending state replaces it: a restart must never
     /// inherit the previous watch's pending state. Callers must supply a
     /// fresh generation per restart that is strictly greater than the
     /// previous generation for the same root; downstream consumers key hints
     /// by `(root, generation)` and discard stale-generation signals.
     pub fn record_activity(&mut self, root: RootId, generation: u64, now: u64) {
+        if self.reject_stale(root, generation) {
+            return;
+        }
         if let Some(state) = self.windows.get_mut(&root) {
             if state.generation != generation {
-                debug_assert!(
-                    generation > state.generation,
-                    "watcher generations must be monotonic per root: got {generation} after {}",
-                    state.generation
-                );
                 *state = WindowState {
                     generation,
                     closes_at: now.saturating_add(self.window),
@@ -102,17 +106,13 @@ impl Coalescer {
             // Coverage loss from a dead generation is moot once a fresh
             // generation observes activity. Fresh means greater: restarts
             // must never reuse a generation.
-            debug_assert!(
-                generation > lost_generation,
-                "watcher generations must be monotonic per root: got {generation} after {lost_generation}"
-            );
             self.lost.remove(&root);
         }
         if !self.windows.contains_key(&root)
             && !self.lost.contains_key(&root)
             && self.windows.len() + self.lost.len() >= self.max_tracked_roots
         {
-            self.rejected += 1;
+            self.rejected = self.rejected.saturating_add(1);
             return;
         }
         self.windows.insert(
@@ -127,22 +127,25 @@ impl Coalescer {
     /// Marks that events were missed for `root` (OS notification overflow,
     /// queue drop, truncated batch, or the watch ended). Sticky until the
     /// next poll, and delivered immediately — never windowed. A stale-
-    /// generation loss for a currently tracked root is ignored: that window
-    /// already belongs to a newer watch.
+    /// generation loss for a currently tracked root is rejected and counted.
+    /// A newer generation replaces the previous watch's pending state.
     pub fn record_coverage_lost(&mut self, root: RootId, generation: u64) {
-        if let Some(state) = self.windows.get(&root) {
-            // A stale-generation loss for a currently tracked root is
-            // ignored: that window already belongs to a newer watch.
-            if state.generation != generation {
-                return;
-            }
+        if self.reject_stale(root, generation) {
+            return;
+        }
+        if self
+            .windows
+            .get(&root)
+            .is_some_and(|state| generation > state.generation)
+        {
+            self.windows.remove(&root);
         }
         if self.lost.get(&root) == Some(&generation) {
             return; // already sticky for this generation
         }
         let tracked = self.windows.contains_key(&root) || self.lost.contains_key(&root);
         if !tracked && self.windows.len() + self.lost.len() >= self.max_tracked_roots {
-            self.rejected += 1;
+            self.rejected = self.rejected.saturating_add(1);
             return;
         }
         self.lost.insert(root, generation);
@@ -184,8 +187,32 @@ impl Coalescer {
         self.windows.len()
     }
 
+    /// Number of coverage-loss marks waiting for the next poll.
+    pub fn pending_coverage_losses(&self) -> usize {
+        self.lost.len()
+    }
+
     /// Count of signals rejected by the tracking bound.
     pub fn rejected_signals(&self) -> u64 {
         self.rejected
+    }
+
+    /// Count of older-generation signals rejected while a root is tracked.
+    pub fn stale_generation_signals(&self) -> u64 {
+        self.stale
+    }
+
+    fn reject_stale(&mut self, root: RootId, generation: u64) -> bool {
+        let window_generation = self.windows.get(&root).map(|state| state.generation);
+        let lost_generation = self.lost.get(&root).copied();
+        if window_generation
+            .max(lost_generation)
+            .is_some_and(|tracked| generation < tracked)
+        {
+            self.stale = self.stale.saturating_add(1);
+            true
+        } else {
+            false
+        }
     }
 }

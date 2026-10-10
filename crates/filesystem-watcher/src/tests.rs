@@ -172,6 +172,7 @@ fn stale_generation_loss_for_a_tracked_root_is_ignored() {
     let mut coalescer = coalescer(1_000, 8);
     coalescer.record_activity(RootId(1), 2, 0);
     coalescer.record_coverage_lost(RootId(1), 1);
+    assert_eq!(coalescer.stale_generation_signals(), 1);
     assert_eq!(
         coalescer.poll(1_000),
         [WatchHint {
@@ -180,6 +181,126 @@ fn stale_generation_loss_for_a_tracked_root_is_ignored() {
             kind: HintKind::ReconciliationRequested
         }]
     );
+}
+
+#[test]
+fn stale_activity_cannot_replace_a_newer_window_or_extend_its_deadline() {
+    let mut coalescer = coalescer(1_000, 1);
+    coalescer.record_activity(RootId(1), 7, 0);
+    coalescer.record_activity(RootId(1), 6, 999);
+    assert_eq!(coalescer.stale_generation_signals(), 1);
+    assert_eq!(coalescer.rejected_signals(), 0);
+    assert_eq!(
+        coalescer.poll(1_000),
+        [WatchHint {
+            root: RootId(1),
+            generation: 7,
+            kind: HintKind::ReconciliationRequested
+        }]
+    );
+    assert!(coalescer.poll(1_999).is_empty());
+}
+
+#[test]
+fn stale_activity_and_loss_cannot_replace_a_newer_pending_loss() {
+    let mut coalescer = coalescer(1_000, 1);
+    coalescer.record_coverage_lost(RootId(1), 7);
+    coalescer.record_activity(RootId(1), 6, 0);
+    coalescer.record_coverage_lost(RootId(1), 6);
+    assert_eq!(coalescer.stale_generation_signals(), 2);
+    assert_eq!(coalescer.open_windows(), 0);
+    assert_eq!(coalescer.pending_coverage_losses(), 1);
+    assert_eq!(
+        coalescer.poll(0),
+        [WatchHint {
+            root: RootId(1),
+            generation: 7,
+            kind: HintKind::CoverageLost
+        }]
+    );
+}
+
+#[test]
+fn stale_activity_preserves_the_newer_windows_sticky_coverage_loss() {
+    let mut coalescer = coalescer(1_000, 1);
+    coalescer.record_activity(RootId(1), 7, 0);
+    coalescer.record_coverage_lost(RootId(1), 7);
+    coalescer.record_activity(RootId(1), 6, 10);
+    assert_eq!(coalescer.stale_generation_signals(), 1);
+    assert_eq!(
+        coalescer.poll(10),
+        [WatchHint {
+            root: RootId(1),
+            generation: 7,
+            kind: HintKind::CoverageLost
+        }]
+    );
+    assert!(coalescer.poll(1_000).is_empty());
+}
+
+#[test]
+fn newer_loss_replaces_old_windows_and_losses_without_losing_coverage() {
+    let mut coalescer = coalescer(1_000, 1);
+    coalescer.record_activity(RootId(1), 6, 0);
+    coalescer.record_coverage_lost(RootId(1), 7);
+    coalescer.record_coverage_lost(RootId(1), 8);
+    coalescer.record_coverage_lost(RootId(1), 8);
+    coalescer.record_activity(RootId(1), 7, 10);
+    assert_eq!(coalescer.stale_generation_signals(), 1);
+    assert_eq!(coalescer.rejected_signals(), 0);
+    assert_eq!(coalescer.open_windows(), 0);
+    assert_eq!(
+        coalescer.poll(10),
+        [WatchHint {
+            root: RootId(1),
+            generation: 8,
+            kind: HintKind::CoverageLost
+        }]
+    );
+    assert!(coalescer.poll(1_000).is_empty());
+}
+
+#[test]
+fn newer_activity_replaces_a_pending_loss_without_a_window() {
+    let mut coalescer = coalescer(1_000, 1);
+    coalescer.record_coverage_lost(RootId(1), 6);
+    coalescer.record_activity(RootId(1), 7, 10);
+    assert_eq!(coalescer.pending_coverage_losses(), 0);
+    assert!(coalescer.poll(10).is_empty());
+    assert_eq!(
+        coalescer.poll(1_010),
+        [WatchHint {
+            root: RootId(1),
+            generation: 7,
+            kind: HintKind::ReconciliationRequested
+        }]
+    );
+}
+
+#[test]
+fn generation_checks_reuse_the_bounded_pending_state_without_retaining_history() {
+    let mut coalescer = coalescer(1_000, 1);
+    for index in 0..1_000 {
+        let root = RootId(index);
+        coalescer.record_coverage_lost(root, 2);
+        coalescer.record_activity(root, 1, 0);
+        coalescer.record_coverage_lost(RootId(index + 1), 2);
+        assert_eq!(coalescer.open_windows(), 0);
+        assert_eq!(coalescer.pending_coverage_losses(), 1);
+        let hints = coalescer.poll(0);
+        assert_eq!(hints.len(), 1);
+        assert_eq!(hints[0].root, root);
+        assert_eq!(hints[0].generation, 2);
+        assert_eq!(coalescer.open_windows(), 0);
+        assert_eq!(coalescer.pending_coverage_losses(), 0);
+
+        // Once drained, the coalescer has no historical generation for this
+        // root. The durable consumer owns filtering against its current watch.
+        coalescer.record_coverage_lost(root, 1);
+        assert_eq!(coalescer.poll(0)[0].generation, 1);
+    }
+    assert_eq!(coalescer.stale_generation_signals(), 1_000);
+    assert_eq!(coalescer.rejected_signals(), 1_000);
 }
 
 #[test]

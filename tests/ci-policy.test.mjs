@@ -177,7 +177,7 @@ test("security checks cover repository privacy and both dependency locks", () =>
 
   assert.match(packageJson.scripts.check, /pnpm privacy:check/);
   assert.match(workflow, /node scripts\/verify-repository-privacy\.mjs/);
-  assert.match(workflow, /pnpm audit --audit-level high/);
+  assert.match(workflow, /pnpm audit --audit-level moderate/);
   assert.match(
     workflow,
     /cargo install cargo-audit --locked --version 0\.22\.2/,

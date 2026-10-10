@@ -28,14 +28,18 @@
 //!   with a fresh caller-supplied generation that must be strictly greater
 //!   than the previous generation for the same root. Hints are keyed by
 //!   `(root, generation)` so downstream consumers can discard
-//!   stale-generation signals.
+//!   stale-generation signals. The coalescer rejects/counts older signals
+//!   against bounded pending state in every build; the durable consumer must
+//!   still filter stale generations after that state drains.
 //! - Reparse points are policy exclusions, distinct from I/O failures: a
 //!   reparse-point root observed at start is refused with
-//!   [`StartError::ReparseRootExcluded`] without any I/O claim. Limitation
-//!   (tied to #47/#48): the pre-check races with the handle open
-//!   (GetFileAttributesW-to-CreateFileW window), parent-directory junctions
-//!   are followed by the OS open, and nested reparse activity inside the
-//!   subtree still arrives as hints. No traversal safety is claimed; the
+//!   [`StartError::ReparseRootExcluded`] without any I/O claim. The open uses
+//!   `FILE_FLAG_OPEN_REPARSE_POINT` and verifies attributes on the opened
+//!   handle before worker launch, so final-component reparse replacements
+//!   cannot bypass the path check. Limitations (tied to #47/#48) remain:
+//!   parent-directory junctions are followed by the OS open, and nested
+//!   reparse activity inside the subtree still arrives as hints. No traversal
+//!   safety is claimed; the
 //!   watcher performs no per-event I/O and enforcement of nested reparse
 //!   exclusions belongs to the authoritative enumeration boundary.
 //! - Privacy: no public type can carry an absolute path. Notification names

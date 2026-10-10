@@ -5,6 +5,7 @@ import {
   type ScanRoot,
   type ScanRootMode,
 } from "../platform/contracts";
+import { useFocusAfterCommit } from "./useFocusAfterCommit";
 
 type LoadState =
   | { readonly kind: "loading" }
@@ -57,16 +58,7 @@ export function ScanRootsManager({
   const renameButtonReferences = useRef(new Map<string, HTMLButtonElement>());
   const removeButtonReferences = useRef(new Map<string, HTMLButtonElement>());
   const keepButtonReferences = useRef(new Map<string, HTMLButtonElement>());
-
-  const focusLater = (target: () => HTMLElement | null) => {
-    // Defer past the commit so focus lands on a live node, not one React is
-    // about to replace.
-    window.setTimeout(() => {
-      if (mounted.current) {
-        target()?.focus();
-      }
-    }, 0);
-  };
+  const { requestFocus, prepareFocus } = useFocusAfterCommit();
 
   useEffect(() => {
     mounted.current = true;
@@ -169,6 +161,7 @@ export function ScanRootsManager({
   };
 
   const removeRoot = async (id: string) => {
+    const restoreFocus = prepareFocus();
     setConfirmingRemoval(null);
     setActionState({ kind: "working", action: "Removing the folder…" });
     try {
@@ -179,7 +172,7 @@ export function ScanRootsManager({
         (error.code === "not_found" || error.code === "conflict")
       ) {
         await refreshAfterMutation("Folder removed.");
-        focusLater(() => addButtonReference.current);
+        restoreFocus(() => addButtonReference.current);
         return;
       }
       if (mounted.current) {
@@ -191,10 +184,11 @@ export function ScanRootsManager({
       return;
     }
     await refreshAfterMutation("Folder removed.");
-    focusLater(() => addButtonReference.current);
+    restoreFocus(() => addButtonReference.current);
   };
 
   const saveRename = async (id: string, draft: string) => {
+    const restoreFocus = prepareFocus();
     const displayName = draft.trim();
     setActionState({ kind: "working", action: "Saving the name…" });
     try {
@@ -216,7 +210,7 @@ export function ScanRootsManager({
       setRenameState({ kind: "closed" });
     }
     await refreshAfterMutation("Name saved.");
-    focusLater(() => renameButtonReferences.current.get(id) ?? null);
+    restoreFocus(() => renameButtonReferences.current.get(id) ?? null);
   };
 
   const toggleEnabled = async (root: ScanRoot) => {
@@ -330,7 +324,7 @@ export function ScanRootsManager({
                         if (event.key === "Escape") {
                           setRenameState({ kind: "closed" });
                           setActionState({ kind: "idle" });
-                          focusLater(
+                          requestFocus(
                             () =>
                               renameButtonReferences.current.get(root.id) ??
                               null,
@@ -354,7 +348,7 @@ export function ScanRootsManager({
                         onClick={() => {
                           setRenameState({ kind: "closed" });
                           setActionState({ kind: "idle" });
-                          focusLater(
+                          requestFocus(
                             () =>
                               renameButtonReferences.current.get(root.id) ??
                               null,
@@ -407,7 +401,7 @@ export function ScanRootsManager({
                           draft: root.displayName,
                         });
                         setActionState({ kind: "idle" });
-                        focusLater(() => renameInputReference.current);
+                        requestFocus(() => renameInputReference.current);
                       }}
                       ref={(element) => {
                         if (element) {
@@ -437,7 +431,7 @@ export function ScanRootsManager({
                           disabled={busy}
                           onClick={() => {
                             setConfirmingRemoval(null);
-                            focusLater(
+                            requestFocus(
                               () =>
                                 removeButtonReferences.current.get(root.id) ??
                                 null,
@@ -465,7 +459,7 @@ export function ScanRootsManager({
                         disabled={busy}
                         onClick={() => {
                           setConfirmingRemoval(root.id);
-                          focusLater(
+                          requestFocus(
                             () =>
                               keepButtonReferences.current.get(root.id) ?? null,
                           );

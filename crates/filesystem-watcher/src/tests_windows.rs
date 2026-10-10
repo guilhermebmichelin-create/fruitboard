@@ -4,7 +4,7 @@
 //! shares, ACL revocation, real OS buffer-overflow timing) are `#[ignore]`d
 //! and explicitly labeled unverified; they are never evidence of support.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64};
@@ -31,6 +31,24 @@ fn temp_root(name: &str) -> PathBuf {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp root must be creatable");
     dir
+}
+
+fn create_junction(link: &Path, target: &Path) {
+    use std::os::windows::process::CommandExt;
+    let output = Command::new("cmd")
+        .arg("/C")
+        .raw_arg(format!(
+            "mklink /J \"{}\" \"{}\"",
+            link.display(),
+            target.display()
+        ))
+        .output()
+        .expect("mklink must be invocable");
+    assert!(
+        output.status.success(),
+        "junction fixture must be creatable: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 fn wait_for_hint(
@@ -214,21 +232,7 @@ fn policy_exclusions_are_typed_and_distinct_from_io_failures() {
         target.file_name().unwrap().to_string_lossy()
     ));
     let _ = std::fs::remove_dir_all(&link);
-    use std::os::windows::process::CommandExt;
-    let output = Command::new("cmd")
-        .arg("/C")
-        .raw_arg(format!(
-            "mklink /J \"{}\" \"{}\"",
-            link.display(),
-            target.display()
-        ))
-        .output()
-        .expect("mklink must be invocable");
-    assert!(
-        output.status.success(),
-        "junction fixture must be creatable: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    create_junction(&link, &target);
 
     // A reparse-point root is a policy exclusion, not an I/O failure.
     assert!(matches!(
@@ -265,6 +269,64 @@ fn policy_exclusions_are_typed_and_distinct_from_io_failures() {
 
     let _ = std::fs::remove_dir_all(&link);
     let _ = std::fs::remove_dir_all(&target);
+}
+
+#[test]
+fn root_replaced_by_a_junction_after_the_path_check_is_excluded() {
+    let fixture = temp_root("open-reparse-race");
+    let root = fixture.join("root");
+    let original = fixture.join("original");
+    let target = fixture.join("target");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::create_dir(&target).unwrap();
+    let sentinel = target.join("sentinel.txt");
+    std::fs::write(&sentinel, b"target must stay untouched").unwrap();
+
+    let started = HandleBoundWatcher::start_with_pre_open(
+        RootId(22),
+        root.as_os_str(),
+        watcher_config(1, 1_000_000_000, 64),
+        || {
+            std::fs::rename(&root, &original).unwrap();
+            create_junction(&root, &target);
+        },
+    );
+    assert!(matches!(started, Err(StartError::ReparseRootExcluded)));
+    assert_eq!(
+        std::fs::read(&sentinel).unwrap(),
+        b"target must stay untouched"
+    );
+
+    // Remove only the junction itself, then the explicitly owned fixture
+    // files/directories. Never recursively traverse the link target.
+    std::fs::remove_dir(&root).unwrap();
+    std::fs::remove_file(&sentinel).unwrap();
+    std::fs::remove_dir(&target).unwrap();
+    std::fs::remove_dir(&original).unwrap();
+    std::fs::remove_dir(&fixture).unwrap();
+}
+
+#[test]
+fn root_replaced_by_a_file_after_the_path_check_is_not_a_directory() {
+    let fixture = temp_root("open-file-race");
+    let root = fixture.join("root");
+    let original = fixture.join("original");
+    std::fs::create_dir(&root).unwrap();
+
+    let started = HandleBoundWatcher::start_with_pre_open(
+        RootId(23),
+        root.as_os_str(),
+        watcher_config(1, 1_000_000_000, 64),
+        || {
+            std::fs::rename(&root, &original).unwrap();
+            std::fs::write(&root, b"file instead of directory").unwrap();
+        },
+    );
+    assert!(matches!(started, Err(StartError::NotADirectory)));
+
+    std::fs::remove_file(&root).unwrap();
+    std::fs::remove_dir(&original).unwrap();
+    std::fs::remove_dir(&fixture).unwrap();
 }
 
 #[test]
