@@ -71,6 +71,14 @@ candidate. CPU snapshots cannot certify terminated or inaccessible workloads.
 Installed measurements hold the shared host lock; all artifacts are independent
 retained copies, with source/configuration/hash provenance.
 
+Review correction, 2026-10-11: the original scripts used a process-name filter
+that omitted FL Studio above this unchanged limit. All nineteen retained
+windows are now characterization after a conservative audit of all recorded
+non-owned, non-instrumentation CPU deltas, including system/service work.
+Six original pass decisions are retained separately from corrected failures.
+The thresholds and exclusions above are not narrowed retrospectively. Future
+qualification must cover all unrelated applications; no new run is claimed here.
+
 The owner can accept or revise these **specific boundaries and candidates**
 after reviewing results. Approval must be recorded with date, scope and any
 unmet cases. It does not accept broader FLP compatibility, scanner performance,

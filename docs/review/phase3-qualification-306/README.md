@@ -1,6 +1,6 @@
 # Current Phase 3 resource and checkpoint review
 
-Status: **Mixed quiet observations and characterization; qualification incomplete.**
+Status: **Correctness verified; resource characterization only; qualification incomplete.**
 Date: 2026-10-11. Issue
 [#306](https://github.com/guilhermebmichelin-create/fruitboard/issues/306),
 following [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259).
@@ -11,34 +11,37 @@ Application baseline: merged PR305,
 
 The installed development app returned complete Explorer results for 100,
 1,000 and 2,000 fully analyzed projects. At 2,001 projects it refused aggregation
-without showing partial totals. The settled Explorer and mixer refresh windows
-passed the declared quiet-host guards and met the proposed limits.
+without showing partial totals. Resource measurements remain provisional:
+review found that the scripts omitted active FL Studio from the declared CPU
+guard. Six originally reported quiet passes are reclassified; all nineteen
+current measurement windows fail a conservative reassessment of retained CPU
+deltas. Original samples, receipts and decisions are preserved.
 
-Startup, memory and native-worker results remain characterization. The final
-native Explorer window passed its quiet guards but measured **203.61 ms** at
-2,000 entries against the proposed 200 ms. That is a current measured candidate
-shortfall, following two retained noisy windows. Targets were not raised and
-failed attempts were retained. Broader Phase 3 gaps remain open.
+Explorer IPC/UI and mixer timings were below their candidates, but do not
+qualify them. The final native Explorer observation was **203.61 ms** at 2,000
+entries against proposed 200 ms in a noisy window. It does not establish a
+qualified shortfall or a controlled regression. Targets and broader Phase 3
+gaps remain unchanged.
 
 Review the [budget proposal](budget-proposal.md) and
 [checkpoint decisions](checkpoint.md) separately. Merging this evidence does not
 accept budgets or Phase 3. [Results](results.json) retain first requests, excluded
 warm-ups, all ten warm samples, guards and sanitized provenance.
 
-## Installed app: settled refresh windows
+## Installed app: settled scans, refresh characterization
 
 | Selected root entries | Explorer IPC warm p95 | Explorer refresh warm p95 | Quiet guard | Result                                 |
 | --------------------- | --------------------: | ------------------------: | ----------- | -------------------------------------- |
-| 100                   |              24.00 ms |                  25.30 ms | Passed      | Complete counts; meets proposed limits |
-| 1,000                 |             177.30 ms |                 178.60 ms | Passed      | Complete counts; meets proposed limits |
-| 2,000                 |             297.60 ms |                 299.00 ms | Passed      | Complete counts; meets proposed limits |
+| 100                   |              24.00 ms |                  25.30 ms | Failed      | Complete counts; characterization only |
+| 1,000                 |             177.30 ms |                 178.60 ms | Failed      | Complete counts; characterization only |
+| 2,000                 |             297.60 ms |                 299.00 ms | Failed      | Complete counts; characterization only |
 
 IPC includes native work, JSON and WebView transport through the returned
 envelope. UI refresh includes validation and rendering through ready DOM plus
 the next animation frame. Candidates remain 300 ms and 500 ms respectively;
-the 2,000-entry IPC observation leaves only 2.40 ms below its candidate.
+the 2,000-entry IPC observation is only 2.40 ms below its candidate and is unqualified.
 Mixer details refresh was **15.00 ms** warm p95 against the proposed 100 ms,
-with a passed quiet guard and an unchanged immutable details snapshot.
+with a failed corrected quiet guard and an unchanged immutable details snapshot.
 
 Initial scan/analysis and copies were outside these timers. All roots were
 terminal before each settled refresh window, and scan status/publication
@@ -46,6 +49,12 @@ boundaries were equal before and after it. The earlier series is retained as
 preliminary setup observations because scan quietness was not proven. Its
 2,000-entry IPC p95 was 348.60 ms and failed the quiet guard; it is not substituted
 for the settled result or erased.
+
+Settled scans establish application readiness, not host quietness. FL Studio
+(`FL64`) consumed 1.140625, 5.953125 and 10.921875 CPU-seconds in the settled
+100/1,000/2,000 windows, and 0.515625 in the mixer window, exceeding the
+unchanged per-process 0.5 CPU-second limit. The preliminary 1,000-entry window
+also omitted 6 CPU-seconds and is reclassified. Its setup remains unverified.
 
 ## Installed startup and memory: characterization
 
@@ -75,19 +84,19 @@ actual intervals and observed membership are retained in results. Peaks and
 brief processes can be missed. Working-set sums can double-count shared pages;
 private commit is not physical RAM.
 
-## Current native results: guarded Explorer shortfall and worker characterization
+## Current native results: Explorer and worker characterization
 
-| Explorer entries | First noisy matrix warm p95 | Repeated noisy matrix warm p95 | Final guarded matrix warm p95 | Result                                      |
-| ---------------- | --------------------------: | -----------------------------: | ----------------------------: | ------------------------------------------- |
-| 100              |                    11.82 ms |                       11.28 ms |                      11.19 ms | Ready; complete                             |
-| 1,000            |                   121.18 ms |                      109.71 ms |                     102.46 ms | Ready; complete                             |
-| 2,000            |                   207.14 ms |                      256.00 ms |                     203.61 ms | Ready; guarded result above proposed 200 ms |
-| 2,001            |                     3.66 ms |                        6.55 ms |                       3.71 ms | Limited; no partial aggregation             |
+| Explorer entries | First noisy matrix warm p95 | Repeated noisy matrix warm p95 | Final noisy matrix warm p95 | Result                                         |
+| ---------------- | --------------------------: | -----------------------------: | --------------------------: | ---------------------------------------------- |
+| 100              |                    11.82 ms |                       11.28 ms |                    11.19 ms | Ready; complete                                |
+| 1,000            |                   121.18 ms |                      109.71 ms |                   102.46 ms | Ready; complete                                |
+| 2,000            |                   207.14 ms |                      256.00 ms |                   203.61 ms | Ready; noisy observation above proposed 200 ms |
+| 2,001            |                     3.66 ms |                        6.55 ms |                     3.71 ms | Limited; no partial aggregation                |
 
-The first two full matrices failed their background CPU guards. The final matrix
-passed both initial CPU and background guards after an additional settling
-interval. Its 2,000-entry p95 missed the candidate by 3.61 ms (1.81%). Profile
-that exact boundary before a separate performance implementation PR.
+All three full matrices failed the corrected background CPU guard. The final
+matrix passed initial CPU load but omitted 31.484375 CPU-seconds of FL Studio
+work. Its 2,000-entry p95 was 3.61 ms (1.81%) above the candidate; obtain a
+valid quiet measurement before treating this as a performance defect.
 Additional attempts were
 refused before collecting samples when initial processor load exceeded 20%.
 Names containing “quiet” in private attempt labels describe the intended run,
@@ -138,8 +147,13 @@ Every latency series records the first request, one excluded warm-up and ten
 warm measurements. Nearest-rank p95 equals the largest of those ten values.
 The declared guards remain initial CPU at most 20% and at most 0.5 CPU-seconds
 per unrelated application/build/test process. Coding-interface activity was
-not silently excluded. Boundary CPU snapshots omit terminated or inaccessible
-processes, so a passed guard has that limitation.
+counted, but the original scripts' name filter omitted FL Studio and other
+processes. The correction audits all retained deltas, excluding only explicitly
+recorded instrumentation and owned measured identities. It conservatively counts
+system/service work as well, with no process-name filter or retrospective
+narrowing of the original rule. Corrected violations and original decisions
+appear separately in results; raw receipts remain unchanged. Boundary snapshots
+still omit terminated or inaccessible processes.
 
 Optimized native probes and an analysis-enabled unsigned NSIS package were
 built from the baseline source with pinned tools. The existing parser binary
@@ -168,9 +182,9 @@ that CI. Documentation/privacy/script/policy checks validate this packet;
 normal CI on the final PR head is still required. A redundant full local
 `pnpm check` was not run for documentation-only changes.
 
-Keep #259 and #306 open for the remaining qualification. Profile the native
-2,000-entry query's measured candidate shortfall and propose a focused fix.
-Repeat worker, startup and memory in a coordinated quiet window, retaining
+Keep #259 and #306 open for the remaining qualification. Repeat native Explorer,
+worker and all installed latency/memory windows in a coordinated quiet window
+with a guard covering all unrelated applications, retaining
 the same boundaries and targets. A final worker repeat was refused before
 measurement because initial CPU again exceeded 20%; existing fixture copies
 and all earlier closed probe databases remain retained for reuse. Broader genuine

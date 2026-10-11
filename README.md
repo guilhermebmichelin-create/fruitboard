@@ -44,8 +44,9 @@ The review dated 2026-10-08 used the earlier `b27b761` baseline.
   warm nearest-rank p95 was 10,173 ms against a 10,000 ms target on source
   `69f27f6`. Later [native analysis/Explorer observations](docs/review/explorer-performance-259/README.md)
   do not replace scanner qualification. The [current resource/checkpoint review](docs/review/phase3-qualification-306/README.md)
-  records complete installed scale/refusal checks and quiet settled IPC/UI/mixer
-  observations; current native/startup/memory qualification and explicit
+  records complete installed scale/refusal checks and provisional resource
+  observations. Review found omitted FL Studio activity; all current resource
+  windows are characterization. Resource qualification and explicit
   budget/phase decisions remain open.
 - **Repository**: public since 2026-09-07. The owner approved restoration of
   `main` protection on 2026-10-10 after verification found it absent on

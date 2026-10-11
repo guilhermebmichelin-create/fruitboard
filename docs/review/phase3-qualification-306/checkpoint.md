@@ -7,10 +7,11 @@ Date: 2026-10-11. Application source: merged PR305, `0e86b8e`.
 
 Continue within Phase 3. Its bounded Library workflow is delivered, including
 saved pattern notes, ordinary mixer record names and explicit within-root sample
-observations. The current installed scale/refusal checks pass. Quiet settled
-Explorer and mixer refresh observations meet candidates. The final guarded
-native 2,000-entry Explorer measured 203.61 ms against proposed 200 ms;
-worker/startup/memory qualification remains incomplete. The broader roadmap is
+observations. The current installed scale/refusal checks pass. All current
+resource windows are characterization after review found omitted FL Studio
+CPU activity; the six original quiet passes are withdrawn. The noisy native
+2,000-entry Explorer observation was 203.61 ms against proposed 200 ms;
+all native and installed resource qualification remains incomplete. The broader roadmap is
 not satisfied by this milestone.
 
 ## Separate decisions
@@ -30,7 +31,7 @@ characterization into a pass. No row is approved merely by merging this packet.
 
 | Gap                              | Next reviewable result                                                                                                | Acceptance boundary                                                             |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| G1/G4 resource qualification     | Profile native 2,000-entry query's guarded 203.61 ms shortfall; quiet worker/startup/memory repeat                    | Same proposals, complete samples and guards; explicit budget decision afterward |
+| G1/G4 resource qualification     | Repeat native Explorer/worker and installed latency/memory with all unrelated applications covered by the CPU guard   | Same proposals, complete samples and guards; explicit budget decision afterward |
 | G3 compatibility/ground truth    | One separately scoped genuine fixture addition with independent FL Studio observations and approved sanitized bytes   | Exact build/fields recorded before extraction; no invented version-wide support |
 | G5 broader dependency resolution | Design for relative/placeholder/external-folder/cloud references and any required grants                              | ADR-007's existing within-root metadata authority is not expanded implicitly    |
 | G6 richer intelligence           | Choose a narrow automation/MIDI, effects/nested-plugin or richer-arrangement slice and qualify its real saved records | Notes and ordinary mixer names do not establish these fields                    |
@@ -45,14 +46,15 @@ why; there is no implicit removal of automation/MIDI or compatibility work.
 ## What this review proves and teaches
 
 This source returned complete or explicit limited Explorer responses through
-the real installed pipeline at the declared counts. It met proposed settled
-IPC/UI/mixer candidates in guarded windows. Source fixtures and personal
+the real installed pipeline at the declared counts. Its IPC/UI/mixer values
+were below proposals, but omitted FL Studio activity invalidated the quiet
+classification. These measurements do not qualify the limits. Source fixtures and personal
 profiles stayed unchanged, and the review installation was removed while its
 database and evidence were retained.
 
 A performance result needs both a stated boundary and a valid environment.
 The same 2,000-entry installed IPC boundary showed 348.60 ms in a preliminary
-noisy window and 297.60 ms in the settled guarded window. Neither omission of
+noisy window and 297.60 ms with settled scans but a noisy host. Neither omission of
 the first result nor comparison of noisy current native results to old quiet
 results would establish an application regression. Ten samples also provide
 only a small single-host observation, not a production tail estimate.

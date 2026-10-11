@@ -1,7 +1,7 @@
 {
   "schema": "fruitboard/phase3-resource-review/1",
   "date": "2026-10-11",
-  "status": "mixed quiet observations and characterization; budget and Phase 3 acceptance pending",
+  "status": "Installed scale/refusal correctness verified; all current resource windows are characterization; qualification, budget and Phase 3 acceptance pending",
   "sourceSha": "0e86b8efb2ccdeeed37caec37ca1ac175c2a2583",
   "sourceTree": "adc7d2364dfab4eb28965862b61638e4f151b66e",
   "provenance": {
@@ -76,8 +76,16 @@
       "durationMs": 31718.150100000003,
       "noiseGuardViolations": [
         {
+          "process": "audiodg",
+          "cpuSeconds": 5.84375
+        },
+        {
           "process": "T3 Code (Alpha)",
           "cpuSeconds": 1.03125
+        },
+        {
+          "process": "FL64",
+          "cpuSeconds": 33.671875
         }
       ],
       "cases": [
@@ -158,7 +166,19 @@
           },
           "responseBytes": 171
         }
-      ]
+      ],
+      "recordedNoiseGuardPassed": false,
+      "recordedNoiseGuardViolations": [
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 1.03125
+        }
+      ],
+      "classification": "characterization; quiet-host guard failed",
+      "guardReassessment": {
+        "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+        "rawReceiptUnchanged": true
+      }
     },
     {
       "kind": "explorer",
@@ -169,15 +189,23 @@
       "noiseGuardViolations": [
         {
           "process": "T3 Code (Alpha)",
-          "cpuSeconds": 4.359375
-        },
-        {
-          "process": "T3 Code (Alpha)",
           "cpuSeconds": 1.65625
         },
         {
           "process": "opencode",
           "cpuSeconds": 1.5
+        },
+        {
+          "process": "FL64",
+          "cpuSeconds": 32.984375
+        },
+        {
+          "process": "audiodg",
+          "cpuSeconds": 6.25
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 4.359375
         }
       ],
       "cases": [
@@ -259,15 +287,44 @@
           },
           "responseBytes": 171
         }
-      ]
+      ],
+      "recordedNoiseGuardPassed": false,
+      "recordedNoiseGuardViolations": [
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 4.359375
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 1.65625
+        },
+        {
+          "process": "opencode",
+          "cpuSeconds": 1.5
+        }
+      ],
+      "classification": "characterization; quiet-host guard failed",
+      "guardReassessment": {
+        "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+        "rawReceiptUnchanged": true
+      }
     },
     {
       "kind": "explorer",
       "label": "explorer-matrix-settled-final",
-      "noiseGuardPassed": true,
+      "noiseGuardPassed": false,
       "processorLoadPercent": 18,
       "durationMs": 29402.8717,
-      "noiseGuardViolations": [],
+      "noiseGuardViolations": [
+        {
+          "process": "audiodg",
+          "cpuSeconds": 5.71875
+        },
+        {
+          "process": "FL64",
+          "cpuSeconds": 31.484375
+        }
+      ],
       "cases": [
         {
           "entries": 100,
@@ -345,7 +402,14 @@
           },
           "responseBytes": 171
         }
-      ]
+      ],
+      "recordedNoiseGuardPassed": true,
+      "recordedNoiseGuardViolations": [],
+      "classification": "characterization; quiet-host guard failed",
+      "guardReassessment": {
+        "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+        "rawReceiptUnchanged": true
+      }
     },
     {
       "kind": "worker",
@@ -358,11 +422,19 @@
       "noiseGuardViolations": [
         {
           "process": "T3 Code (Alpha)",
-          "cpuSeconds": 0.75
+          "cpuSeconds": 0.859375
+        },
+        {
+          "process": "FL64",
+          "cpuSeconds": 27.09375
+        },
+        {
+          "process": "audiodg",
+          "cpuSeconds": 5.890625
         },
         {
           "process": "T3 Code (Alpha)",
-          "cpuSeconds": 0.859375
+          "cpuSeconds": 0.75
         }
       ],
       "cases": [
@@ -528,7 +600,23 @@
             "privateCommitMiB": 64.97265625
           }
         }
-      ]
+      ],
+      "recordedNoiseGuardPassed": false,
+      "recordedNoiseGuardViolations": [
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 0.75
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 0.859375
+        }
+      ],
+      "classification": "characterization; quiet-host guard failed",
+      "guardReassessment": {
+        "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+        "rawReceiptUnchanged": true
+      }
     },
     {
       "kind": "worker",
@@ -539,20 +627,24 @@
       "durationMs": 23292.1533,
       "noiseGuardViolations": [
         {
-          "process": "chrome",
-          "cpuSeconds": 0.75
-        },
-        {
-          "process": "T3 Code (Alpha)",
-          "cpuSeconds": 1.0625
-        },
-        {
           "process": "T3 Code (Alpha)",
           "cpuSeconds": 2.546875
         },
         {
           "process": "T3 Code (Alpha)",
           "cpuSeconds": 3.09375
+        },
+        {
+          "process": "explorer",
+          "cpuSeconds": 0.734375
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 1.0625
+        },
+        {
+          "process": "chrome",
+          "cpuSeconds": 0.75
         }
       ],
       "coordination": "Owner reported development workloads paused; unrelated windows closed before attempts 2 and 3. Attempt 3 withheld intermediate tool updates during measurements.",
@@ -722,7 +814,31 @@
             "privateCommitMiB": 64.9453125
           }
         }
-      ]
+      ],
+      "recordedNoiseGuardPassed": false,
+      "recordedNoiseGuardViolations": [
+        {
+          "process": "chrome",
+          "cpuSeconds": 0.75
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 1.0625
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 2.546875
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 3.09375
+        }
+      ],
+      "classification": "characterization; quiet-host guard failed",
+      "guardReassessment": {
+        "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+        "rawReceiptUnchanged": true
+      }
     },
     {
       "kind": "worker",
@@ -734,11 +850,11 @@
       "noiseGuardViolations": [
         {
           "process": "T3 Code (Alpha)",
-          "cpuSeconds": 2.5625
+          "cpuSeconds": 3.140625
         },
         {
           "process": "T3 Code (Alpha)",
-          "cpuSeconds": 3.140625
+          "cpuSeconds": 2.5625
         }
       ],
       "coordination": "Owner reported development workloads paused; unrelated windows closed before attempts 2 and 3. Attempt 3 withheld intermediate tool updates during measurements.",
@@ -906,7 +1022,23 @@
             "privateCommitMiB": 64.9765625
           }
         }
-      ]
+      ],
+      "recordedNoiseGuardPassed": false,
+      "recordedNoiseGuardViolations": [
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 2.5625
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 3.140625
+        }
+      ],
+      "classification": "characterization; quiet-host guard failed",
+      "guardReassessment": {
+        "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+        "rawReceiptUnchanged": true
+      }
     },
     {
       "kind": "worker",
@@ -1090,7 +1222,23 @@
             "privateCommitMiB": 64.98046875
           }
         }
-      ]
+      ],
+      "recordedNoiseGuardPassed": false,
+      "recordedNoiseGuardViolations": [
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 2.59375
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 3.578125
+        }
+      ],
+      "classification": "characterization; quiet-host guard failed",
+      "guardReassessment": {
+        "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+        "rawReceiptUnchanged": true
+      }
     }
   ],
   "installed": {
@@ -1133,7 +1281,12 @@
           "initialProcessorLoadPercent": [31],
           "initialPreconditionPassed": false,
           "noiseGuardPassed": false,
-          "noiseGuardViolations": [],
+          "noiseGuardViolations": [
+            {
+              "process": "FL64",
+              "cpuSeconds": 1.078125
+            }
+          ],
           "scanBoundaryVerified": null,
           "peakConcurrentWorkingSetMiB": 427.734375,
           "peakConcurrentPrivateCommitMiB": 240.51953125,
@@ -1142,7 +1295,14 @@
             "median": 168.5747,
             "max": 169.75030000000004
           },
-          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"],
+          "recordedNoiseGuardPassed": false,
+          "recordedNoiseGuardViolations": [],
+          "classification": "characterization; quiet-host guard failed",
+          "guardReassessment": {
+            "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+            "rawReceiptUnchanged": true
+          }
         }
       },
       {
@@ -1182,8 +1342,17 @@
           "sampleCount": 29,
           "initialProcessorLoadPercent": [20],
           "initialPreconditionPassed": true,
-          "noiseGuardPassed": true,
-          "noiseGuardViolations": [],
+          "noiseGuardPassed": false,
+          "noiseGuardViolations": [
+            {
+              "process": "FL64",
+              "cpuSeconds": 6
+            },
+            {
+              "process": "audiodg",
+              "cpuSeconds": 1.109375
+            }
+          ],
           "scanBoundaryVerified": null,
           "peakConcurrentWorkingSetMiB": 492.1328125,
           "peakConcurrentPrivateCommitMiB": 302.8671875,
@@ -1192,7 +1361,14 @@
             "median": 157.41510000000017,
             "max": 387.4692
           },
-          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"],
+          "recordedNoiseGuardPassed": true,
+          "recordedNoiseGuardViolations": [],
+          "classification": "characterization; quiet-host guard failed",
+          "guardReassessment": {
+            "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+            "rawReceiptUnchanged": true
+          }
         }
       },
       {
@@ -1237,6 +1413,14 @@
             {
               "process": "T3 Code (Alpha)",
               "cpuSeconds": 0.8125
+            },
+            {
+              "process": "FL64",
+              "cpuSeconds": 11.34375
+            },
+            {
+              "process": "audiodg",
+              "cpuSeconds": 1.984375
             }
           ],
           "scanBoundaryVerified": null,
@@ -1247,7 +1431,19 @@
             "median": 158.12760000000003,
             "max": 414.617400000001
           },
-          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"],
+          "recordedNoiseGuardPassed": false,
+          "recordedNoiseGuardViolations": [
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 0.8125
+            }
+          ],
+          "classification": "characterization; quiet-host guard failed",
+          "guardReassessment": {
+            "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+            "rawReceiptUnchanged": true
+          }
         }
       }
     ],
@@ -1289,8 +1485,13 @@
           "sampleCount": 5,
           "initialProcessorLoadPercent": [18],
           "initialPreconditionPassed": true,
-          "noiseGuardPassed": true,
-          "noiseGuardViolations": [],
+          "noiseGuardPassed": false,
+          "noiseGuardViolations": [
+            {
+              "process": "FL64",
+              "cpuSeconds": 1.140625
+            }
+          ],
           "scanBoundaryVerified": true,
           "peakConcurrentWorkingSetMiB": 427.28125,
           "peakConcurrentPrivateCommitMiB": 234.26953125,
@@ -1299,7 +1500,14 @@
             "median": 161.7072,
             "max": 164.67859999999996
           },
-          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"],
+          "recordedNoiseGuardPassed": true,
+          "recordedNoiseGuardViolations": [],
+          "classification": "characterization; quiet-host guard failed",
+          "guardReassessment": {
+            "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+            "rawReceiptUnchanged": true
+          }
         }
       },
       {
@@ -1340,8 +1548,17 @@
           "sampleCount": 29,
           "initialProcessorLoadPercent": [20],
           "initialPreconditionPassed": true,
-          "noiseGuardPassed": true,
-          "noiseGuardViolations": [],
+          "noiseGuardPassed": false,
+          "noiseGuardViolations": [
+            {
+              "process": "FL64",
+              "cpuSeconds": 5.953125
+            },
+            {
+              "process": "audiodg",
+              "cpuSeconds": 1.4375
+            }
+          ],
           "scanBoundaryVerified": true,
           "peakConcurrentWorkingSetMiB": 508.5546875,
           "peakConcurrentPrivateCommitMiB": 317.046875,
@@ -1350,7 +1567,14 @@
             "median": 156.73750000000018,
             "max": 384.4714999999999
           },
-          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"],
+          "recordedNoiseGuardPassed": true,
+          "recordedNoiseGuardViolations": [],
+          "classification": "characterization; quiet-host guard failed",
+          "guardReassessment": {
+            "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+            "rawReceiptUnchanged": true
+          }
         }
       },
       {
@@ -1390,8 +1614,17 @@
           "sampleCount": 55,
           "initialProcessorLoadPercent": [20],
           "initialPreconditionPassed": true,
-          "noiseGuardPassed": true,
-          "noiseGuardViolations": [],
+          "noiseGuardPassed": false,
+          "noiseGuardViolations": [
+            {
+              "process": "FL64",
+              "cpuSeconds": 10.921875
+            },
+            {
+              "process": "audiodg",
+              "cpuSeconds": 2.03125
+            }
+          ],
           "scanBoundaryVerified": true,
           "peakConcurrentWorkingSetMiB": 515.87890625,
           "peakConcurrentPrivateCommitMiB": 319.26171875,
@@ -1400,7 +1633,14 @@
             "median": 156.6792000000005,
             "max": 375.6884999999993
           },
-          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"],
+          "recordedNoiseGuardPassed": true,
+          "recordedNoiseGuardViolations": [],
+          "classification": "characterization; quiet-host guard failed",
+          "guardReassessment": {
+            "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+            "rawReceiptUnchanged": true
+          }
         }
       }
     ],
@@ -1433,11 +1673,23 @@
           "noiseGuardViolations": [
             {
               "process": "T3 Code (Alpha)",
-              "cpuSeconds": 1.046875
+              "cpuSeconds": 1.03125
+            },
+            {
+              "process": "audiodg",
+              "cpuSeconds": 5.6875
+            },
+            {
+              "process": "explorer",
+              "cpuSeconds": 1.15625
             },
             {
               "process": "T3 Code (Alpha)",
-              "cpuSeconds": 1.03125
+              "cpuSeconds": 1.046875
+            },
+            {
+              "process": "FL64",
+              "cpuSeconds": 18.28125
             }
           ],
           "scanBoundaryVerified": null,
@@ -1448,7 +1700,23 @@
             "median": 188.54339999999956,
             "max": 1349.0057
           },
-          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"],
+          "recordedNoiseGuardPassed": false,
+          "recordedNoiseGuardViolations": [
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 1.046875
+            },
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 1.03125
+            }
+          ],
+          "classification": "characterization; quiet-host guard failed",
+          "guardReassessment": {
+            "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+            "rawReceiptUnchanged": true
+          }
         }
       },
       {
@@ -1479,11 +1747,23 @@
           "noiseGuardViolations": [
             {
               "process": "T3 Code (Alpha)",
-              "cpuSeconds": 1.09375
+              "cpuSeconds": 1.1875
+            },
+            {
+              "process": "FL64",
+              "cpuSeconds": 17.125
+            },
+            {
+              "process": "explorer",
+              "cpuSeconds": 0.890625
+            },
+            {
+              "process": "audiodg",
+              "cpuSeconds": 4.234375
             },
             {
               "process": "T3 Code (Alpha)",
-              "cpuSeconds": 1.1875
+              "cpuSeconds": 1.09375
             }
           ],
           "scanBoundaryVerified": null,
@@ -1498,7 +1778,23 @@
             "fruitboard-desktop",
             "msedgewebview2",
             null
-          ]
+          ],
+          "recordedNoiseGuardPassed": false,
+          "recordedNoiseGuardViolations": [
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 1.09375
+            },
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 1.1875
+            }
+          ],
+          "classification": "characterization; quiet-host guard failed",
+          "guardReassessment": {
+            "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+            "rawReceiptUnchanged": true
+          }
         }
       },
       {
@@ -1530,6 +1826,18 @@
             {
               "process": "T3 Code (Alpha)",
               "cpuSeconds": 0.734375
+            },
+            {
+              "process": "FL64",
+              "cpuSeconds": 17.140625
+            },
+            {
+              "process": "explorer",
+              "cpuSeconds": 1.1875
+            },
+            {
+              "process": "audiodg",
+              "cpuSeconds": 5.5
             }
           ],
           "scanBoundaryVerified": null,
@@ -1544,7 +1852,19 @@
             "fruitboard-desktop",
             "msedgewebview2",
             null
-          ]
+          ],
+          "recordedNoiseGuardPassed": false,
+          "recordedNoiseGuardViolations": [
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 0.734375
+            }
+          ],
+          "classification": "characterization; quiet-host guard failed",
+          "guardReassessment": {
+            "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+            "rawReceiptUnchanged": true
+          }
         }
       }
     ],
@@ -1571,13 +1891,25 @@
         "sampleCount": 1,
         "initialProcessorLoadPercent": [19],
         "initialPreconditionPassed": true,
-        "noiseGuardPassed": true,
-        "noiseGuardViolations": [],
+        "noiseGuardPassed": false,
+        "noiseGuardViolations": [
+          {
+            "process": "FL64",
+            "cpuSeconds": 0.515625
+          }
+        ],
         "scanBoundaryVerified": true,
         "peakConcurrentWorkingSetMiB": 421.734375,
         "peakConcurrentPrivateCommitMiB": 234,
         "actualSampleIntervalsMs": {},
-        "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+        "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"],
+        "recordedNoiseGuardPassed": true,
+        "recordedNoiseGuardViolations": [],
+        "classification": "characterization; quiet-host guard failed",
+        "guardReassessment": {
+          "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+          "rawReceiptUnchanged": true
+        }
       }
     },
     "memory": {
@@ -1592,7 +1924,20 @@
         "initialProcessorLoadPercent": [26],
         "initialPreconditionPassed": false,
         "noiseGuardPassed": false,
-        "noiseGuardViolations": [],
+        "noiseGuardViolations": [
+          {
+            "process": "FL64",
+            "cpuSeconds": 11.03125
+          },
+          {
+            "process": "audiodg",
+            "cpuSeconds": 1.359375
+          },
+          {
+            "process": "nvcontainer",
+            "cpuSeconds": 0.59375
+          }
+        ],
         "scanBoundaryVerified": true,
         "peakConcurrentWorkingSetMiB": 436.10546875,
         "peakConcurrentPrivateCommitMiB": 243.3828125,
@@ -1601,7 +1946,14 @@
           "median": 155.26250000000073,
           "max": 352.009
         },
-        "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+        "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"],
+        "recordedNoiseGuardPassed": false,
+        "recordedNoiseGuardViolations": [],
+        "classification": "characterization; quiet-host guard failed",
+        "guardReassessment": {
+          "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+          "rawReceiptUnchanged": true
+        }
       },
       "analysis": {
         "label": "analysis-64mib",
@@ -1610,7 +1962,16 @@
         "initialProcessorLoadPercent": [21],
         "initialPreconditionPassed": false,
         "noiseGuardPassed": false,
-        "noiseGuardViolations": [],
+        "noiseGuardViolations": [
+          {
+            "process": "FL64",
+            "cpuSeconds": 5.15625
+          },
+          {
+            "process": "audiodg",
+            "cpuSeconds": 0.828125
+          }
+        ],
         "scanBoundaryVerified": true,
         "peakConcurrentWorkingSetMiB": 574.64453125,
         "peakConcurrentPrivateCommitMiB": 358.11328125,
@@ -1624,7 +1985,14 @@
           "fruitboard-desktop",
           "fruitboard-flp-parser",
           "msedgewebview2"
-        ]
+        ],
+        "recordedNoiseGuardPassed": false,
+        "recordedNoiseGuardViolations": [],
+        "classification": "characterization; quiet-host guard failed",
+        "guardReassessment": {
+          "method": "All retained positive process CPU deltas; exclude only explicitly recorded instrumentation and owned measured process identities. No name filter. Conservative: system/service work is also retained as a violation.",
+          "rawReceiptUnchanged": true
+        }
       }
     },
     "correctness": {
@@ -1717,8 +2085,8 @@
     "freeGiB": 33.22
   },
   "limitations": [
-    "Candidates remain proposals; quiet observation is not approved-budget or phase acceptance.",
-    "First two native Explorer matrices and worker failed quiet guards; final native Explorer passed guards but exceeded the 200 ms candidate at 2,000 entries.",
+    "Candidates remain proposals; all current resource observations are characterization, without budget or phase acceptance.",
+    "All current native matrices failed the corrected quiet-host guard; the final 203.61 ms observation is characterization, not a qualified candidate shortfall.",
     "First installed Explorer series has unverified scan quietness and is not substituted for settled series.",
     "Native worker uses fixed-clock authority and excludes desktop lease renewal and shutdown races.",
     "Repeated approved sample bytes are scale cases, not diverse representative FLPs.",
@@ -1727,6 +2095,18 @@
     "CPU boundary snapshots omit terminated/inaccessible background workloads; coding interface activity remains subject to the unchanged guard.",
     "Working-set sums can double-count shared pages; private commit is not physical RAM.",
     "No broad compatibility, scanner qualification, production activation, license/distribution or later-phase approval.",
-    "Three worker repeats after owner-reported workload pause passed initial load guards but failed background CPU guards. T3 interface activity remained counted, including a run without intermediate tool updates. Startup/memory were not repeated in this window."
-  ]
+    "Three worker repeats after owner-reported workload pause passed initial load guards but failed background CPU guards. T3 interface activity remained counted, including a run without intermediate tool updates. Startup/memory were not repeated in this window.",
+    "Six originally reported quiet passes omitted FL Studio above the unchanged CPU guard; all 19 windows now fail conservative reassessment. Settled scan boundaries establish application readiness, not host quietness."
+  ],
+  "guardCorrection": {
+    "date": "2026-10-11",
+    "review": "https://github.com/guilhermebmichelin-create/fruitboard/pull/307#discussion_r4242083206",
+    "cause": "Original native and installed scripts used a process-name filter that omitted active FL64 and other unrelated processes.",
+    "measurementWindowsAudited": 19,
+    "previousPassesReclassified": 6,
+    "originalRawReceiptsPreserved": true,
+    "samplesAndHashesUnchanged": true,
+    "newMeasurements": false,
+    "policy": "Original 20% initial CPU and 0.5 CPU-second unrelated-process limits unchanged. Conservative reassessment includes all recorded non-owned/non-instrumentation work, including system/service processes. Original decisions are retained separately for traceability."
+  }
 }
