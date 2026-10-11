@@ -42,8 +42,12 @@ full native validation on adapter 0.1.3, protocol 1/schema 2. Only the complete
 26.1.0.5530 eighteen-record layout is qualified: ordinary positions 1-16,
 excluding Master/Current. Saved IDs are section positions, not persistent IDs.
 Missing names remain unavailable; counts do not establish usage or audibility.
-Storage/Library integration and installed qualification follow separately under
-the [accepted mixer design](docs/review/mixer-inserts-296/README.md).
+Issue #304 adds immutable storage and Library display under the
+[application slice](docs/review/library-mixer-inserts-304/README.md). Stored reads
+and the renderer recheck the qualified build, count and ordinary identity set.
+Older results explain that mixer details were not saved; refresh never rewrites
+or parses them. Installed evidence is recorded in that slice separately from
+parser compatibility and broader Phase 3 acceptance.
 
 PyFLP was tested as the comparison candidate. Its stable release returned no
 complete parse on the approved corpus. It remains outside the product, and the
