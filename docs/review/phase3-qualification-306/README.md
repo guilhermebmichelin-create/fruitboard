@@ -110,6 +110,15 @@ values were below their proposed limits. These are separate lifetime peaks,
 not simultaneous whole-app memory. Fixed-clock probes exclude desktop lease
 monitoring and shutdown races; the hard ten-second parser deadline is unchanged.
 
+Three further worker matrices followed the owner's reported workload pause.
+Initial CPU loads were 17%, 5% and 6%, all within the existing guard. All three
+still failed the background CPU guard. Closing unrelated windows removed Chrome
+from the violations, but two T3 Code processes remained above 0.5 CPU-seconds;
+the last attempt also withheld intermediate tool updates during measurement.
+All twelve samples per case and unchanged source hashes are retained in
+`results.json`. These observations remain characterization. No guard was relaxed,
+and startup/memory measurements were not repeated in this window.
+
 ## Correctness, provenance and limits
 
 The installed run used actual scan, supervised parsing, immutable publication

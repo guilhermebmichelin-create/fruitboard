@@ -529,6 +529,568 @@
           }
         }
       ]
+    },
+    {
+      "kind": "worker",
+      "label": "worker-matrix-owner-paused-1",
+      "noiseGuardPassed": false,
+      "processorLoadPercent": 17,
+      "initialPreconditionPassed": true,
+      "durationMs": 23292.1533,
+      "noiseGuardViolations": [
+        {
+          "process": "chrome",
+          "cpuSeconds": 0.75
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 1.0625
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 2.546875
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 3.09375
+        }
+      ],
+      "coordination": "Owner reported development workloads paused; unrelated windows closed before attempts 2 and 3. Attempt 3 withheld intermediate tool updates during measurements.",
+      "cases": [
+        {
+          "case": "sample",
+          "bytes": 46703,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 38.8608,
+            "excludedWarmupMs": 9.0536,
+            "warm": {
+              "samplesMs": [
+                8.088899999999999, 9.0522, 9.3629, 9.3643, 8.0834, 8.0197,
+                9.2346, 8.5327, 10.1395, 10.4392
+              ],
+              "medianMs": 9.1434,
+              "nearestRankP95Ms": 10.4392,
+              "maxMs": 10.4392
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 2.5554,
+            "excludedWarmupMs": 1.5791,
+            "warm": {
+              "samplesMs": [
+                1.6258, 1.7038000000000002, 1.7522, 1.9397, 1.7221, 1.6251,
+                1.6566, 1.8626999999999998, 1.9055, 2.296
+              ],
+              "medianMs": 1.73715,
+              "nearestRankP95Ms": 2.296,
+              "maxMs": 2.296
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 7.6015625,
+            "privateCommitMiB": 2.24609375
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 4.36328125,
+            "privateCommitMiB": 0.91796875
+          }
+        },
+        {
+          "case": "reported",
+          "bytes": 4601596,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 116.30550000000001,
+            "excludedWarmupMs": 90.63690000000001,
+            "warm": {
+              "samplesMs": [
+                106.0541, 101.2188, 110.56299999999999, 95.47229999999999,
+                96.9238, 107.4054, 104.83109999999999, 110.9815, 95.3596,
+                103.6392
+              ],
+              "medianMs": 104.23515,
+              "nearestRankP95Ms": 110.9815,
+              "maxMs": 110.9815
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 42.3598,
+            "excludedWarmupMs": 41.0229,
+            "warm": {
+              "samplesMs": [
+                50.8315, 44.8983, 49.4906, 42.3848, 46.486, 47.292, 49.9454,
+                48.9894, 44.4635, 43.5592
+              ],
+              "medianMs": 46.888999999999996,
+              "nearestRankP95Ms": 50.8315,
+              "maxMs": 50.8315
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 11.94921875,
+            "privateCommitMiB": 6.7578125
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 8.640625,
+            "privateCommitMiB": 5.25
+          }
+        },
+        {
+          "case": "25mb",
+          "bytes": 25000000,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 492.3482,
+            "excludedWarmupMs": 444.12780000000004,
+            "warm": {
+              "samplesMs": [
+                448.2156, 460.8842, 454.67269999999996, 447.15880000000004,
+                471.945, 471.317, 498.6628, 466.67019999999997,
+                431.98609999999996, 434.8558
+              ],
+              "medianMs": 457.77845,
+              "nearestRankP95Ms": 498.6628,
+              "maxMs": 498.6628
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 221.0142,
+            "excludedWarmupMs": 212.76600000000002,
+            "warm": {
+              "samplesMs": [
+                209.03379999999999, 220.6776, 228.5132, 219.0095, 217.7274,
+                232.18259999999998, 244.1809, 223.9449, 206.8986,
+                212.97150000000002
+              ],
+              "medianMs": 219.84355,
+              "nearestRankP95Ms": 244.1809,
+              "maxMs": 244.1809
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 31.31640625,
+            "privateCommitMiB": 26.12890625
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 28.11328125,
+            "privateCommitMiB": 24.73828125
+          }
+        },
+        {
+          "case": "64mib",
+          "bytes": 67108864,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 1334.6043,
+            "excludedWarmupMs": 1137.924,
+            "warm": {
+              "samplesMs": [
+                1119.5855, 1134.9877, 1116.4562, 1128.9247, 1123.5952,
+                1116.7422, 1185.5359999999998, 1136.8044, 1127.4478000000001,
+                1134.4832000000001
+              ],
+              "medianMs": 1128.1862500000002,
+              "nearestRankP95Ms": 1185.5359999999998,
+              "maxMs": 1185.5359999999998
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 553.4027,
+            "excludedWarmupMs": 552.5337999999999,
+            "warm": {
+              "samplesMs": [
+                544.4227000000001, 557.1664, 541.9578, 548.311, 542.6166,
+                543.1890000000001, 589.3605, 564.4146, 554.5793,
+                555.1179000000001
+              ],
+              "medianMs": 551.44515,
+              "nearestRankP95Ms": 589.3605,
+              "maxMs": 589.3605
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 71.5,
+            "privateCommitMiB": 66.3984375
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 68.2578125,
+            "privateCommitMiB": 64.9453125
+          }
+        }
+      ]
+    },
+    {
+      "kind": "worker",
+      "label": "worker-matrix-owner-paused-2",
+      "noiseGuardPassed": false,
+      "processorLoadPercent": 5,
+      "initialPreconditionPassed": true,
+      "durationMs": 23377.081000000002,
+      "noiseGuardViolations": [
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 2.5625
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 3.140625
+        }
+      ],
+      "coordination": "Owner reported development workloads paused; unrelated windows closed before attempts 2 and 3. Attempt 3 withheld intermediate tool updates during measurements.",
+      "cases": [
+        {
+          "case": "sample",
+          "bytes": 46703,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 30.8075,
+            "excludedWarmupMs": 8.822999999999999,
+            "warm": {
+              "samplesMs": [
+                8.7469, 7.7842, 7.7323, 8.5238, 8.4175, 7.6745, 7.5934, 8.897,
+                10.1534, 10.2319
+              ],
+              "medianMs": 8.47065,
+              "nearestRankP95Ms": 10.2319,
+              "maxMs": 10.2319
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 1.6186,
+            "excludedWarmupMs": 1.6139999999999999,
+            "warm": {
+              "samplesMs": [
+                1.5284, 1.581, 1.4877, 1.4832, 1.6036, 1.7084, 1.4778, 1.5,
+                2.0393, 1.5673
+              ],
+              "medianMs": 1.54785,
+              "nearestRankP95Ms": 2.0393,
+              "maxMs": 2.0393
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 7.58984375,
+            "privateCommitMiB": 2.0703125
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 4.3671875,
+            "privateCommitMiB": 0.921875
+          }
+        },
+        {
+          "case": "reported",
+          "bytes": 4601596,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 106.2576,
+            "excludedWarmupMs": 85.9405,
+            "warm": {
+              "samplesMs": [
+                83.68480000000001, 81.0177, 83.09370000000001, 83.8421, 81.0226,
+                90.9511, 87.87150000000001, 89.901, 85.3534, 85.8348
+              ],
+              "medianMs": 84.59774999999999,
+              "nearestRankP95Ms": 90.9511,
+              "maxMs": 90.9511
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 37.614000000000004,
+            "excludedWarmupMs": 38.405300000000004,
+            "warm": {
+              "samplesMs": [
+                38.119800000000005, 37.143, 36.526700000000005, 36.886, 36.6884,
+                40.7749, 39.683099999999996, 38.7985, 38.529399999999995,
+                38.1448
+              ],
+              "medianMs": 38.1323,
+              "nearestRankP95Ms": 40.7749,
+              "maxMs": 40.7749
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 11.9453125,
+            "privateCommitMiB": 6.7421875
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 8.59375,
+            "privateCommitMiB": 5.171875
+          }
+        },
+        {
+          "case": "25mb",
+          "bytes": 25000000,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 448.7656,
+            "excludedWarmupMs": 423.9939,
+            "warm": {
+              "samplesMs": [
+                423.5253, 428.0031, 427.2821, 416.7668, 417.828, 432.7195,
+                429.1944, 432.3501, 432.5966, 412.8869
+              ],
+              "medianMs": 427.6426,
+              "nearestRankP95Ms": 432.7195,
+              "maxMs": 432.7195
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 206.4749,
+            "excludedWarmupMs": 202.2143,
+            "warm": {
+              "samplesMs": [
+                205.22129999999999, 204.59269999999998, 210.74519999999998,
+                201.8785, 201.6143, 210.6363, 209.0546, 205.0598, 201.6331,
+                198.2109
+              ],
+              "medianMs": 204.82625,
+              "nearestRankP95Ms": 210.74519999999998,
+              "maxMs": 210.74519999999998
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 31.33984375,
+            "privateCommitMiB": 26.1484375
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 28.109375,
+            "privateCommitMiB": 24.73828125
+          }
+        },
+        {
+          "case": "64mib",
+          "bytes": 67108864,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 1170.7658000000001,
+            "excludedWarmupMs": 1124.0938,
+            "warm": {
+              "samplesMs": [
+                1099.9267, 1124.0645, 1109.172, 1141.8823, 1108.8351,
+                1120.7939000000001, 1113.2196999999999, 1135.4602, 1120.0602,
+                1114.4283
+              ],
+              "medianMs": 1117.24425,
+              "nearestRankP95Ms": 1141.8823,
+              "maxMs": 1141.8823
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 554.3493000000001,
+            "excludedWarmupMs": 555.693,
+            "warm": {
+              "samplesMs": [
+                537.5881, 551.3761999999999, 542.7474, 549.948, 544.9039,
+                547.2623, 544.9558, 553.1641000000001, 549.342, 545.1591
+              ],
+              "medianMs": 546.2107,
+              "nearestRankP95Ms": 553.1641000000001,
+              "maxMs": 553.1641000000001
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 71.4765625,
+            "privateCommitMiB": 66.41796875
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 68.2578125,
+            "privateCommitMiB": 64.9765625
+          }
+        }
+      ]
+    },
+    {
+      "kind": "worker",
+      "label": "worker-matrix-owner-paused-3",
+      "noiseGuardPassed": false,
+      "processorLoadPercent": 6,
+      "initialPreconditionPassed": true,
+      "durationMs": 23340.27,
+      "noiseGuardViolations": [
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 2.59375
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 3.578125
+        }
+      ],
+      "coordination": "Owner reported development workloads paused; unrelated windows closed before attempts 2 and 3. Attempt 3 withheld intermediate tool updates during measurements.",
+      "cases": [
+        {
+          "case": "sample",
+          "bytes": 46703,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 28.0655,
+            "excludedWarmupMs": 8.4412,
+            "warm": {
+              "samplesMs": [
+                7.1932, 7.8934999999999995, 7.6436, 8.1625, 8.757, 8.7113,
+                8.834399999999999, 8.1832, 7.6588, 7.595700000000001
+              ],
+              "medianMs": 8.027999999999999,
+              "nearestRankP95Ms": 8.834399999999999,
+              "maxMs": 8.834399999999999
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 1.5706,
+            "excludedWarmupMs": 1.4424,
+            "warm": {
+              "samplesMs": [
+                1.5625, 1.4178000000000002, 1.5430000000000001, 1.4857, 1.8342,
+                1.9493, 1.9009, 1.4302, 1.5408, 1.3944999999999999
+              ],
+              "medianMs": 1.5419,
+              "nearestRankP95Ms": 1.9493,
+              "maxMs": 1.9493
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 7.60546875,
+            "privateCommitMiB": 2.21875
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 4.3671875,
+            "privateCommitMiB": 0.91796875
+          }
+        },
+        {
+          "case": "reported",
+          "bytes": 4601596,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 104.7113,
+            "excludedWarmupMs": 85.8947,
+            "warm": {
+              "samplesMs": [
+                85.67030000000001, 87.3348, 88.2969, 89.47579999999999, 86.4456,
+                84.2825, 80.6615, 82.4668, 85.2985, 85.6546
+              ],
+              "medianMs": 85.66245,
+              "nearestRankP95Ms": 89.47579999999999,
+              "maxMs": 89.47579999999999
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 38.1465,
+            "excludedWarmupMs": 38.4574,
+            "warm": {
+              "samplesMs": [
+                37.784400000000005, 40.184999999999995, 39.858,
+                39.838899999999995, 38.0588, 38.7083, 37.0407, 36.669, 37.327,
+                37.636500000000005
+              ],
+              "medianMs": 37.9216,
+              "nearestRankP95Ms": 40.184999999999995,
+              "maxMs": 40.184999999999995
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 11.94140625,
+            "privateCommitMiB": 6.74609375
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 8.640625,
+            "privateCommitMiB": 5.26171875
+          }
+        },
+        {
+          "case": "25mb",
+          "bytes": 25000000,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 443.7044,
+            "excludedWarmupMs": 420.4685,
+            "warm": {
+              "samplesMs": [
+                411.36060000000003, 423.8847, 430.9919, 431.2957, 426.4387,
+                418.9574, 419.973, 425.8168, 425.32779999999997, 426.3328
+              ],
+              "medianMs": 425.5723,
+              "nearestRankP95Ms": 431.2957,
+              "maxMs": 431.2957
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 203.1039,
+            "excludedWarmupMs": 204.967,
+            "warm": {
+              "samplesMs": [
+                201.407, 206.9614, 211.16080000000002, 209.7867, 205.2968,
+                196.94039999999998, 205.3198, 205.39260000000002, 206.8417,
+                208.36260000000001
+              ],
+              "medianMs": 206.11715,
+              "nearestRankP95Ms": 211.16080000000002,
+              "maxMs": 211.16080000000002
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 31.33984375,
+            "privateCommitMiB": 26.11328125
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 28.09765625,
+            "privateCommitMiB": 24.74609375
+          }
+        },
+        {
+          "case": "64mib",
+          "bytes": 67108864,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 1154.0531,
+            "excludedWarmupMs": 1124.2086,
+            "warm": {
+              "samplesMs": [
+                1156.9468000000002, 1119.1548, 1171.8881, 1117.6793,
+                1125.3383999999999, 1113.9921, 1120.4785, 1104.2016999999998,
+                1115.5183, 1119.0321999999999
+              ],
+              "medianMs": 1119.0935,
+              "nearestRankP95Ms": 1171.8881,
+              "maxMs": 1171.8881
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 551.219,
+            "excludedWarmupMs": 549.9603,
+            "warm": {
+              "samplesMs": [
+                562.4877, 552.4511, 589.7997, 555.4065, 552.3422,
+                546.1302000000001, 553.0285, 542.6236, 553.5129, 541.971
+              ],
+              "medianMs": 552.7398000000001,
+              "nearestRankP95Ms": 589.7997,
+              "maxMs": 589.7997
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 71.5703125,
+            "privateCommitMiB": 66.46484375
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 68.25390625,
+            "privateCommitMiB": 64.98046875
+          }
+        }
+      ]
     }
   ],
   "installed": {
@@ -1164,6 +1726,7 @@
     "Requested 100 ms memory sampling and one-second tree refresh can miss brief processes and peaks; actual intervals retained.",
     "CPU boundary snapshots omit terminated/inaccessible background workloads; coding interface activity remains subject to the unchanged guard.",
     "Working-set sums can double-count shared pages; private commit is not physical RAM.",
-    "No broad compatibility, scanner qualification, production activation, license/distribution or later-phase approval."
+    "No broad compatibility, scanner qualification, production activation, license/distribution or later-phase approval.",
+    "Three worker repeats after owner-reported workload pause passed initial load guards but failed background CPU guards. T3 interface activity remained counted, including a run without intermediate tool updates. Startup/memory were not repeated in this window."
   ]
 }
