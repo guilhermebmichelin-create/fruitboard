@@ -1,6 +1,9 @@
 # FLP intelligence gaps and next implementation
 
 Status: **Open gaps and proposals; no acceptance or later-phase authorization.**
+Current application baseline: merged PR305, `0e86b8e`.
+[Resource/checkpoint review #306](../phase3-qualification-306/README.md)
+updates G1/G4 without accepting budgets or the phase.
 Historical baseline: merged PR261. G2 was delivered by merged PR264;
 see the [patterns review](../library-patterns-263/README.md). Issue #265 covers the
 [current installed journey](../installed-combined-265/README.md) and corrects its
@@ -9,16 +12,16 @@ it does not erase their failures or promote their source boundaries.
 
 ## Current gaps
 
-| ID  | Gap                                                                                  | Evidence/decision needed                                                                                                                                                                     | Effect on readiness                                                                                                                                                              |
-| --- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| G1  | Native resource budgets remain proposed                                              | Explicit owner accept/revise decision on [the bounded proposal](../explorer-performance-259/budget-proposal.md), recorded with date/scope; #259 stays open                                   | Quiet measurements meet candidates, but approved-budget qualification is not claimed.                                                                                            |
-| G2  | Saved pattern count/names integration delivered by merged PR264                      | Typed advertised-field validation, bounded immutable projection and authorized Library display using existing F13                                                                            | G2 delivered; current installed integration is also covered by #265. Automation/MIDI remain G6.                                                                                  |
-| G3  | Compatibility/field ground truth is narrow                                           | Separately approved genuine fixtures: additional exact builds, absent tempo/zero channels, multi-Sampler provenance, richer arrangements and external wrapper metadata                       | No broad supported-version/plugin or complete duration claim. Dates/time counter lack independent GUI qualification.                                                             |
-| G4  | Installed combined workflow covered; whole-app resource decisions pending            | [Fresh installed journey and reflow regression](../installed-combined-265/README.md); still needs approved startup/UI/IPC/memory boundaries and representative/limit-scale measurements      | #265 passes the bounded current workflow and characterizes seven-entry installed resources. This does not accept budgets, qualify scale or replace historical failures.          |
-| G5  | Bounded sample presence delivered as PR285; broader resolution open                  | Merged explicit local metadata observations under ADR-007; relative, placeholder, external-folder and cloud resolution need separate accepted scope                                          | Saved reference text alone proves no availability; delivered observations cover only eligible exact paths inside the selected local NTFS root.                                   |
-| G6  | Saved notes and qualified mixer record names delivered; broader summaries incomplete | PR291/293/295 cover note records; PR299/301 qualify and parse mixer records; [application slice #304](../library-mixer-inserts-304/README.md) stores/displays them with installed validation | Exact-build notes and ordinary mixer records are app-visible. Automation/MIDI, effects/nested plugins, tempo changes and richer arrangements remain open; Phase 3 is incomplete. |
-| G7  | Production/distribution gates open                                                   | Explicit activation decision, representative compatibility/provenance review, license selection and protected signing/update/rollback process                                                | Development feature, unsigned test build and green CI are not a public release.                                                                                                  |
-| G8  | Earlier Scanner MVP gaps and qualification failures                                  | Existing separate scanner evidence/decisions; retain unchanged targets and historical results                                                                                                | Native metadata speedup does not qualify scanner performance or DriveFS/FAT32.                                                                                                   |
+| ID  | Gap                                                                                      | Evidence/decision needed                                                                                                                                                                                    | Effect on readiness                                                                                                                                                              |
+| --- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1  | Resource budgets remain proposed; current native qualification incomplete                | Native 2,000-entry shortfall profiling, quiet worker repeat and explicit decision on [native/whole-app candidates](../phase3-qualification-306/budget-proposal.md), with date/scope; #259 stays open        | Historical native quiet results remain valid for their older source. Final guarded 2,000-entry native p95 is 203.61 ms versus proposed 200 ms; no approved-budget pass.          |
+| G2  | Saved pattern count/names integration delivered by merged PR264                          | Typed advertised-field validation, bounded immutable projection and authorized Library display using existing F13                                                                                           | G2 delivered; current installed integration is also covered by #265. Automation/MIDI remain G6.                                                                                  |
+| G3  | Compatibility/field ground truth is narrow                                               | Separately approved genuine fixtures: additional exact builds, absent tempo/zero channels, multi-Sampler provenance, richer arrangements and external wrapper metadata                                      | No broad supported-version/plugin or complete duration claim. Dates/time counter lack independent GUI qualification.                                                             |
+| G4  | Installed complete/refusal scale checks and quiet settled refresh observations delivered | [Current installed pipeline at 100/1,000/2,000 and 2,001 refusal](../phase3-qualification-306/README.md); quiet startup/memory repeat, representative FLPs and explicit budget decisions                    | #306 meets proposed IPC/UI/mixer refresh candidates in guarded windows. Startup/memory remain characterization; budgets/phase acceptance and broader compatibility stay open.    |
+| G5  | Bounded sample presence delivered as PR285; broader resolution open                      | Merged explicit local metadata observations under ADR-007; relative, placeholder, external-folder and cloud resolution need separate accepted scope                                                         | Saved reference text alone proves no availability; delivered observations cover only eligible exact paths inside the selected local NTFS root.                                   |
+| G6  | Saved notes and qualified mixer record names delivered; broader summaries incomplete     | PR291/293/295 cover note records; PR299/301 qualify and parse mixer records; merged PR305 / [application slice #304](../library-mixer-inserts-304/README.md) stores/displays them with installed validation | Exact-build notes and ordinary mixer records are app-visible. Automation/MIDI, effects/nested plugins, tempo changes and richer arrangements remain open; Phase 3 is incomplete. |
+| G7  | Production/distribution gates open                                                       | Explicit activation decision, representative compatibility/provenance review, license selection and protected signing/update/rollback process                                                               | Development feature, unsigned test build and green CI are not a public release.                                                                                                  |
+| G8  | Earlier Scanner MVP gaps and qualification failures                                      | Existing separate scanner evidence/decisions; retain unchanged targets and historical results                                                                                                               | Native metadata speedup does not qualify scanner performance or DriveFS/FAT32.                                                                                                   |
 
 G8 carries the [accepted Phase 2 record](../phase-2-integration/acceptance-2026-09-14.md)
 and later [scanner recovery evidence](../phase-2-integration/installed-journey/run-20260930-scanner-recovery.md).
@@ -92,6 +95,10 @@ This does not close
 G3 or qualify additional saved builds, arrangements or external plugins.
 
 Issue #259 remains open for G1 and the remaining qualification/checkpoint review.
+Issue #306 declares whole-app candidates before measurement and records the current
+source's settled IPC/UI/mixer observations plus retained characterization and
+failed/precondition-refused attempts. See its [checkpoint](../phase3-qualification-306/checkpoint.md)
+for separate target, milestone, scope and phase decisions. Merging it accepts none.
 
 Issue #278 provided the accepted G5 design review:
 [ADR-007 and authority/implementation packet](../sample-presence-278/README.md).
@@ -122,11 +129,12 @@ The demonstrated ordering/build is qualified. PR293 delivers the bounded parser
 and full typed validation. [PR295 / issue #294](../library-pattern-notes-294/README.md)
 delivers immutable per-pattern count/state persistence and Library display with
 matching-ID/build/limit checks, old-result explanations and current-source fences.
-G6 remains open. The next proposal is [saved mixer insert counts and names](../mixer-inserts-296/README.md),
-issue #296, with genuine record/identity/section qualification and exact fixture
-approval before extraction. No mixer implementation or new fixture approval
-is supplied by the proposal.
-Automation/MIDI, mixer/nested plugins, tempo changes and richer arrangements
+G6 remains open. The [saved mixer insert design](../mixer-inserts-296/README.md)
+was followed by approved F18-F21 qualification in PR299, extraction/native
+validation in PR301 and [application storage/Library display](../library-mixer-inserts-304/README.md)
+in merged PR305. That delivery covers sixteen ordinary positions in the exact
+qualified 2026 layout; effects, routing and broader layouts are not inferred.
+Automation/MIDI, mixer effects/nested plugins, tempo changes and richer arrangements
 remain open; accepting a first note-count scope does not remove those roadmap items.
 Merging this packet supplies a maintained evidence map; it does not close gaps,
 accept budgets, accept Phase 3 or open a later-phase milestone.

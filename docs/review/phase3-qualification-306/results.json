@@ -1,0 +1,1169 @@
+{
+  "schema": "fruitboard/phase3-resource-review/1",
+  "date": "2026-10-11",
+  "status": "mixed quiet observations and characterization; budget and Phase 3 acceptance pending",
+  "sourceSha": "0e86b8efb2ccdeeed37caec37ca1ac175c2a2583",
+  "sourceTree": "adc7d2364dfab4eb28965862b61638e4f151b66e",
+  "provenance": {
+    "artifacts": [
+      {
+        "name": "explorer-probe.exe",
+        "bytes": 8696320,
+        "sha256": "54DDA26DB1A024F790954BE0DF1A2A710A99C971D532D3EB30CBF3C3C0C41BE3",
+        "independentRetainedCopy": true
+      },
+      {
+        "name": "worker-probe.exe",
+        "bytes": 3027456,
+        "sha256": "42DD1758A1B314169CA0CB8BB186F234610199105AC595FD534A0D8BFCEF4A01",
+        "independentRetainedCopy": true
+      },
+      {
+        "name": "fruitboard-flp-parser.exe",
+        "bytes": 575488,
+        "sha256": "50F619A0CC87C6A58E51660D84285F21B585E47C39A5DBC0D6AA9EBB908B69A2",
+        "independentRetainedCopy": true
+      },
+      {
+        "name": "installer.exe",
+        "bytes": 3322723,
+        "sha256": "707248CFD4D1EB51804088553273CC96D832E155B6DBEE7909B23D49DD71FB04",
+        "independentRetainedCopy": true
+      },
+      {
+        "name": "fruitboard-desktop.exe",
+        "bytes": 11042816,
+        "sha256": "1DD17D7D101D937BFE27A477D795A320D8E73EE3C30688B6123454BD48C95A6A",
+        "independentRetainedCopy": true
+      },
+      {
+        "name": "fruitboard-sidecar-smoke.exe",
+        "bytes": 156160,
+        "sha256": "F20810A72F6BE8E437E520A54DA42E9B800F92F3EC32C31B56B81A812814C7C6",
+        "independentRetainedCopy": true
+      }
+    ],
+    "parserRetainedBuildSource": "01a907ad33fd0cd392556684f712b46c9ce39343",
+    "parserSourceAndLockedGraphEquivalent": true,
+    "baselinePr": 305,
+    "baselinePrHead": "9c6e1903a761259af562ba128d2f3d1137ca1c73",
+    "baselinePrMerge": "0e86b8efb2ccdeeed37caec37ca1ac175c2a2583",
+    "baselinePrSuccessfulChecks": 15,
+    "reviewIdentifier": "com.fruitboard.desktop.resource-review-20261011-306"
+  },
+  "host": {
+    "os": "Microsoft Windows NT 10.0.26200.0",
+    "cpu": "Intel(R) Core(TM) i7-10750H CPU @ 2.60GHz",
+    "logicalProcessors": 12,
+    "physicalMemoryBytes": 17041244160,
+    "powerPlan": "High performance"
+  },
+  "protocol": {
+    "warmSamplesPerCase": 10,
+    "firstRequestRecorded": true,
+    "excludedWarmupRequests": 1,
+    "nearestRankP95IsWarmMaximum": true,
+    "cachesFlushed": false,
+    "initialCpuLoadLimitPercent": 20,
+    "perProcessUnrelatedCpuLimitSeconds": 0.5
+  },
+  "native": [
+    {
+      "kind": "explorer",
+      "label": "explorer-matrix",
+      "noiseGuardPassed": false,
+      "processorLoadPercent": 9,
+      "durationMs": 31718.150100000003,
+      "noiseGuardViolations": [
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 1.03125
+        }
+      ],
+      "cases": [
+        {
+          "entries": 100,
+          "state": "ready",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 11.2359,
+            "excludedWarmupMs": 9.7775,
+            "warm": {
+              "samplesMs": [
+                9.7808, 9.114199999999999, 9.1102, 9.178, 9.1654, 9.2441,
+                9.6016, 11.815000000000001, 9.9757, 9.9607
+              ],
+              "medianMs": 9.42285,
+              "nearestRankP95Ms": 11.815000000000001,
+              "maxMs": 11.815000000000001
+            }
+          },
+          "responseBytes": 47162
+        },
+        {
+          "entries": 1000,
+          "state": "ready",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 107.18469999999999,
+            "excludedWarmupMs": 103.43130000000001,
+            "warm": {
+              "samplesMs": [
+                117.3097, 116.0295, 98.8783, 97.3557, 98.416, 97.1573, 104.7048,
+                121.1843, 102.6477, 97.75280000000001
+              ],
+              "medianMs": 100.763,
+              "nearestRankP95Ms": 121.1843,
+              "maxMs": 121.1843
+            }
+          },
+          "responseBytes": 466564
+        },
+        {
+          "entries": 2000,
+          "state": "ready",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 210.5312,
+            "excludedWarmupMs": 204.854,
+            "warm": {
+              "samplesMs": [
+                192.8608, 204.33409999999998, 192.7092, 200.274,
+                194.13479999999998, 200.7883, 196.95319999999998, 198.1866,
+                207.1364, 198.28709999999998
+              ],
+              "medianMs": 198.23685,
+              "nearestRankP95Ms": 207.1364,
+              "maxMs": 207.1364
+            }
+          },
+          "responseBytes": 932564
+        },
+        {
+          "entries": 2001,
+          "state": "limited",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 4.4677,
+            "excludedWarmupMs": 3.2673,
+            "warm": {
+              "samplesMs": [
+                3.1819, 3.2526, 3.1062, 3.1035, 3.333, 3.1573, 3.3876, 3.6561,
+                3.5988, 3.5887
+              ],
+              "medianMs": 3.2928,
+              "nearestRankP95Ms": 3.6561,
+              "maxMs": 3.6561
+            }
+          },
+          "responseBytes": 171
+        }
+      ]
+    },
+    {
+      "kind": "explorer",
+      "label": "explorer-matrix-quiet-2",
+      "noiseGuardPassed": false,
+      "processorLoadPercent": 20,
+      "durationMs": 31492.3516,
+      "noiseGuardViolations": [
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 4.359375
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 1.65625
+        },
+        {
+          "process": "opencode",
+          "cpuSeconds": 1.5
+        }
+      ],
+      "cases": [
+        {
+          "entries": 100,
+          "state": "ready",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 10.6697,
+            "excludedWarmupMs": 10.3638,
+            "warm": {
+              "samplesMs": [
+                9.7385, 9.3577, 9.1643, 9.076600000000001, 9.8343, 9.1128,
+                11.2844, 9.2526, 9.815900000000001, 10.0801
+              ],
+              "medianMs": 9.5481,
+              "nearestRankP95Ms": 11.2844,
+              "maxMs": 11.2844
+            }
+          },
+          "responseBytes": 47162
+        },
+        {
+          "entries": 1000,
+          "state": "ready",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 109.8129,
+            "excludedWarmupMs": 110.12280000000001,
+            "warm": {
+              "samplesMs": [
+                109.70530000000001, 101.0517, 97.03779999999999, 98.3121,
+                98.23469999999999, 107.43270000000001, 97.9962, 97.3218,
+                96.2777, 99.9209
+              ],
+              "medianMs": 98.2734,
+              "nearestRankP95Ms": 109.70530000000001,
+              "maxMs": 109.70530000000001
+            }
+          },
+          "responseBytes": 466564
+        },
+        {
+          "entries": 2000,
+          "state": "ready",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 213.6247,
+            "excludedWarmupMs": 198.29,
+            "warm": {
+              "samplesMs": [
+                200.687, 199.3701, 227.4349, 240.40230000000003,
+                231.28199999999998, 245.5473, 215.699, 206.1354, 202.8943,
+                255.9979
+              ],
+              "medianMs": 221.56695000000002,
+              "nearestRankP95Ms": 255.9979,
+              "maxMs": 255.9979
+            }
+          },
+          "responseBytes": 932564
+        },
+        {
+          "entries": 2001,
+          "state": "limited",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 7.4136999999999995,
+            "excludedWarmupMs": 6.5469,
+            "warm": {
+              "samplesMs": [
+                6.554, 5.4691, 5.8642, 5.3056, 6.1974, 6.0784,
+                5.591600000000001, 5.5615, 5.3736, 5.7078
+              ],
+              "medianMs": 5.6497,
+              "nearestRankP95Ms": 6.554,
+              "maxMs": 6.554
+            }
+          },
+          "responseBytes": 171
+        }
+      ]
+    },
+    {
+      "kind": "explorer",
+      "label": "explorer-matrix-settled-final",
+      "noiseGuardPassed": true,
+      "processorLoadPercent": 18,
+      "durationMs": 29402.8717,
+      "noiseGuardViolations": [],
+      "cases": [
+        {
+          "entries": 100,
+          "state": "ready",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 12.0067,
+            "excludedWarmupMs": 10.5788,
+            "warm": {
+              "samplesMs": [
+                9.992700000000001, 10.484, 9.8403, 10.067400000000001, 9.6259,
+                9.031, 9.3555, 9.0296, 11.1879, 9.2394
+              ],
+              "medianMs": 9.7331,
+              "nearestRankP95Ms": 11.1879,
+              "maxMs": 11.1879
+            }
+          },
+          "responseBytes": 47162
+        },
+        {
+          "entries": 1000,
+          "state": "ready",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 103.2155,
+            "excludedWarmupMs": 103.2892,
+            "warm": {
+              "samplesMs": [
+                102.4565, 96.8734, 95.3272, 97.6763, 96.7439, 98.3367, 97.7247,
+                96.2687, 95.0611, 99.5778
+              ],
+              "medianMs": 97.27485,
+              "nearestRankP95Ms": 102.4565,
+              "maxMs": 102.4565
+            }
+          },
+          "responseBytes": 466564
+        },
+        {
+          "entries": 2000,
+          "state": "ready",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 208.1644,
+            "excludedWarmupMs": 198.0576,
+            "warm": {
+              "samplesMs": [
+                194.33790000000002, 196.999, 197.7676, 201.9397, 195.3505,
+                197.2441, 195.53470000000002, 197.9951, 203.6121, 202.6269
+              ],
+              "medianMs": 197.50585,
+              "nearestRankP95Ms": 203.6121,
+              "maxMs": 203.6121
+            }
+          },
+          "responseBytes": 932564
+        },
+        {
+          "entries": 2001,
+          "state": "limited",
+          "completeCountsOrNoPartialResults": true,
+          "commandAndSerialization": {
+            "firstMs": 4.0549,
+            "excludedWarmupMs": 3.3371999999999997,
+            "warm": {
+              "samplesMs": [
+                3.4814, 3.3865000000000003, 3.4536, 3.2625, 3.7122, 3.3332,
+                3.399, 3.2433, 3.2965999999999998, 3.4562
+              ],
+              "medianMs": 3.3927500000000004,
+              "nearestRankP95Ms": 3.7122,
+              "maxMs": 3.7122
+            }
+          },
+          "responseBytes": 171
+        }
+      ]
+    },
+    {
+      "kind": "worker",
+      "label": "worker-matrix-characterization-1",
+      "noiseGuardPassed": false,
+      "processorLoadPercent": 27,
+      "initialPreconditionPassed": false,
+      "explicitCharacterization": true,
+      "durationMs": 25573.4552,
+      "noiseGuardViolations": [
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 0.75
+        },
+        {
+          "process": "T3 Code (Alpha)",
+          "cpuSeconds": 0.859375
+        }
+      ],
+      "cases": [
+        {
+          "case": "sample",
+          "bytes": 46703,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 77.2579,
+            "excludedWarmupMs": 12.121599999999999,
+            "warm": {
+              "samplesMs": [
+                10.7138, 10.161399999999999, 9.461300000000001, 9.2784,
+                10.447700000000001, 9.8023, 8.6739, 10.510200000000001, 10.5038,
+                12.6032
+              ],
+              "medianMs": 10.304549999999999,
+              "nearestRankP95Ms": 12.6032,
+              "maxMs": 12.6032
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 2.1575,
+            "excludedWarmupMs": 1.9356,
+            "warm": {
+              "samplesMs": [
+                1.7705, 1.7731999999999999, 1.9921000000000002, 2.0732, 1.9619,
+                2.2295000000000003, 1.6979, 1.9673999999999998, 2.0712, 2.3752
+              ],
+              "medianMs": 1.9797500000000001,
+              "nearestRankP95Ms": 2.3752,
+              "maxMs": 2.3752
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 8.03125,
+            "privateCommitMiB": 2.24609375
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 4.37109375,
+            "privateCommitMiB": 0.92578125
+          }
+        },
+        {
+          "case": "reported",
+          "bytes": 4601596,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 121.5613,
+            "excludedWarmupMs": 92.8317,
+            "warm": {
+              "samplesMs": [
+                99.2029, 96.3261, 105.4648, 103.7327, 100.63990000000001,
+                94.8195, 94.0219, 91.5367, 98.13080000000001, 94.2508
+              ],
+              "medianMs": 97.22845000000001,
+              "nearestRankP95Ms": 105.4648,
+              "maxMs": 105.4648
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 45.8133,
+            "excludedWarmupMs": 42.939699999999995,
+            "warm": {
+              "samplesMs": [
+                45.9649, 44.6076, 45.5319, 45.133399999999995, 44.9114,
+                43.187999999999995, 43.09, 42.1006, 44.9292, 43.1605
+              ],
+              "medianMs": 44.7595,
+              "nearestRankP95Ms": 45.9649,
+              "maxMs": 45.9649
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 12,
+            "privateCommitMiB": 6.75
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 8.6484375,
+            "privateCommitMiB": 5.26171875
+          }
+        },
+        {
+          "case": "25mb",
+          "bytes": 25000000,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 493.8341,
+            "excludedWarmupMs": 486.1601,
+            "warm": {
+              "samplesMs": [
+                474.0036, 477.1409, 471.0845, 474.5585, 478.3185, 476.0356,
+                475.8419, 474.36240000000004, 478.2686, 492.90430000000003
+              ],
+              "medianMs": 475.93875,
+              "nearestRankP95Ms": 492.90430000000003,
+              "maxMs": 492.90430000000003
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 229.65540000000001,
+            "excludedWarmupMs": 231.8094,
+            "warm": {
+              "samplesMs": [
+                228.9845, 231.7653, 229.5768, 231.3826, 235.5402, 231.7517,
+                234.9023, 230.2045, 229.3392, 239.406
+              ],
+              "medianMs": 231.56715,
+              "nearestRankP95Ms": 239.406,
+              "maxMs": 239.406
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 31.33984375,
+            "privateCommitMiB": 26.1328125
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 28.1171875,
+            "privateCommitMiB": 24.7578125
+          }
+        },
+        {
+          "case": "64mib",
+          "bytes": 67108864,
+          "independentCopies": 12,
+          "sourceHashesMatch": true,
+          "worker": {
+            "firstMs": 1295.0344,
+            "excludedWarmupMs": 1258.7294,
+            "warm": {
+              "samplesMs": [
+                1260.5268, 1288.0253, 1263.3657, 1250.3275999999998, 1247.6757,
+                1264.8343, 1261.047, 1263.6951999999999, 1256.8052, 1408.7429
+              ],
+              "medianMs": 1262.20635,
+              "nearestRankP95Ms": 1408.7429,
+              "maxMs": 1408.7429
+            }
+          },
+          "supervisedParse": {
+            "firstMs": 623.1853000000001,
+            "excludedWarmupMs": 617.126,
+            "warm": {
+              "samplesMs": [
+                623.4100999999999, 634.6514, 621.5629, 612.1164, 609.2293,
+                620.0817, 613.9504000000001, 623.5808000000001, 614.2046,
+                736.741
+              ],
+              "medianMs": 620.8223,
+              "nearestRankP95Ms": 736.741,
+              "maxMs": 736.741
+            }
+          },
+          "parentLifetimePeak": {
+            "workingSetMiB": 71.55859375,
+            "privateCommitMiB": 66.53125
+          },
+          "parserLifetimePeak": {
+            "workingSetMiB": 68.26171875,
+            "privateCommitMiB": 64.97265625
+          }
+        }
+      ]
+    }
+  ],
+  "installed": {
+    "preliminaryExplorer": [
+      {
+        "entries": 100,
+        "setupVerified": false,
+        "ipc": {
+          "firstMs": 20.5,
+          "excludedWarmupMs": 27.40000009536743,
+          "warm": {
+            "samplesMs": [
+              19.100000143051147, 17.199999809265137, 13.199999809265137,
+              23.700000047683716, 15.5, 14.600000143051147, 14.700000047683716,
+              16.5, 17.799999952316284, 15.299999952316284
+            ],
+            "medianMs": 16,
+            "nearestRankP95Ms": 23.700000047683716,
+            "maxMs": 23.700000047683716
+          }
+        },
+        "ui": {
+          "firstMs": 28.5,
+          "excludedWarmupMs": 23.899999856948853,
+          "warm": {
+            "samplesMs": [
+              22.399999856948853, 25.40000009536743, 23.40000009536743,
+              26.399999856948853, 16.200000047683716, 18.200000047683716, 17,
+              23, 18.40000009536743, 17.799999952316284
+            ],
+            "medianMs": 20.399999976158142,
+            "nearestRankP95Ms": 26.399999856948853,
+            "maxMs": 26.399999856948853
+          }
+        },
+        "window": {
+          "label": "scale-100",
+          "durationMs": 1038.2936,
+          "sampleCount": 4,
+          "initialProcessorLoadPercent": [31],
+          "initialPreconditionPassed": false,
+          "noiseGuardPassed": false,
+          "noiseGuardViolations": [],
+          "scanBoundaryVerified": null,
+          "peakConcurrentWorkingSetMiB": 427.734375,
+          "peakConcurrentPrivateCommitMiB": 240.51953125,
+          "actualSampleIntervalsMs": {
+            "min": 151.59889999999996,
+            "median": 168.5747,
+            "max": 169.75030000000004
+          },
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+        }
+      },
+      {
+        "entries": 1000,
+        "setupVerified": false,
+        "ipc": {
+          "firstMs": 147.80000019073486,
+          "excludedWarmupMs": 142,
+          "warm": {
+            "samplesMs": [
+              147.70000004768372, 137.70000004768372, 155.79999995231628,
+              135.19999980926514, 143.20000004768372, 150.80000019073486,
+              156.90000009536743, 132.59999990463257, 174.79999995231628, 139
+            ],
+            "medianMs": 145.45000004768372,
+            "nearestRankP95Ms": 174.79999995231628,
+            "maxMs": 174.79999995231628
+          }
+        },
+        "ui": {
+          "firstMs": 147.79999995231628,
+          "excludedWarmupMs": 152.30000019073486,
+          "warm": {
+            "samplesMs": [
+              188.20000004768372, 139.60000014305115, 149.29999995231628,
+              157.79999995231628, 175.5, 144.09999990463257, 146.40000009536743,
+              162.10000014305115, 145.20000004768372, 143.19999980926514
+            ],
+            "medianMs": 147.85000002384186,
+            "nearestRankP95Ms": 188.20000004768372,
+            "maxMs": 188.20000004768372
+          }
+        },
+        "window": {
+          "label": "scale-1000",
+          "durationMs": 5732.459400000001,
+          "sampleCount": 29,
+          "initialProcessorLoadPercent": [20],
+          "initialPreconditionPassed": true,
+          "noiseGuardPassed": true,
+          "noiseGuardViolations": [],
+          "scanBoundaryVerified": null,
+          "peakConcurrentWorkingSetMiB": 492.1328125,
+          "peakConcurrentPrivateCommitMiB": 302.8671875,
+          "actualSampleIntervalsMs": {
+            "min": 145.06940000000031,
+            "median": 157.41510000000017,
+            "max": 387.4692
+          },
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+        }
+      },
+      {
+        "entries": 2000,
+        "setupVerified": false,
+        "ipc": {
+          "firstMs": 265.59999990463257,
+          "excludedWarmupMs": 272.7000000476837,
+          "warm": {
+            "samplesMs": [
+              256.09999990463257, 289.2000000476837, 251.5, 246.59999990463257,
+              326.5, 280.5, 260.7999999523163, 256, 253.10000014305115,
+              348.60000014305115
+            ],
+            "medianMs": 258.4499999284744,
+            "nearestRankP95Ms": 348.60000014305115,
+            "maxMs": 348.60000014305115
+          }
+        },
+        "ui": {
+          "firstMs": 285.19999980926514,
+          "excludedWarmupMs": 269.90000009536743,
+          "warm": {
+            "samplesMs": [
+              265.5, 273.60000014305115, 293, 290.40000009536743,
+              301.60000014305115, 333.80000019073486, 277.7000000476837, 276,
+              329.89999985694885, 325.90000009536743
+            ],
+            "medianMs": 291.7000000476837,
+            "nearestRankP95Ms": 333.80000019073486,
+            "maxMs": 333.80000019073486
+          }
+        },
+        "window": {
+          "label": "scale-2000",
+          "durationMs": 10698.7373,
+          "sampleCount": 56,
+          "initialProcessorLoadPercent": [23],
+          "initialPreconditionPassed": false,
+          "noiseGuardPassed": false,
+          "noiseGuardViolations": [
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 0.8125
+            }
+          ],
+          "scanBoundaryVerified": null,
+          "peakConcurrentWorkingSetMiB": 532.90234375,
+          "peakConcurrentPrivateCommitMiB": 334.20703125,
+          "actualSampleIntervalsMs": {
+            "min": 146.2409,
+            "median": 158.12760000000003,
+            "max": 414.617400000001
+          },
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+        }
+      }
+    ],
+    "settledExplorer": [
+      {
+        "entries": 100,
+        "setupVerified": true,
+        "ipc": {
+          "firstMs": 17.200000047683716,
+          "excludedWarmupMs": 16.5,
+          "warm": {
+            "samplesMs": [
+              15.799999952316284, 14.099999904632568, 15, 14, 24,
+              15.700000047683716, 13.599999904632568, 14.599999904632568,
+              14.600000143051147, 15.5
+            ],
+            "medianMs": 14.800000071525574,
+            "nearestRankP95Ms": 24,
+            "maxMs": 24
+          }
+        },
+        "ui": {
+          "firstMs": 25.299999952316284,
+          "excludedWarmupMs": 25,
+          "warm": {
+            "samplesMs": [
+              22.90000009536743, 19.700000047683716, 24.300000190734863,
+              25.199999809265137, 21.90000009536743, 25.300000190734863, 25, 24,
+              15.900000095367432, 18.300000190734863
+            ],
+            "medianMs": 23.450000047683716,
+            "nearestRankP95Ms": 25.300000190734863,
+            "maxMs": 25.300000190734863
+          }
+        },
+        "window": {
+          "label": "scale-100-settled",
+          "durationMs": 1115.6534000000001,
+          "sampleCount": 5,
+          "initialProcessorLoadPercent": [18],
+          "initialPreconditionPassed": true,
+          "noiseGuardPassed": true,
+          "noiseGuardViolations": [],
+          "scanBoundaryVerified": true,
+          "peakConcurrentWorkingSetMiB": 427.28125,
+          "peakConcurrentPrivateCommitMiB": 234.26953125,
+          "actualSampleIntervalsMs": {
+            "min": 154.3324,
+            "median": 161.7072,
+            "max": 164.67859999999996
+          },
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+        }
+      },
+      {
+        "entries": 1000,
+        "setupVerified": true,
+        "ipc": {
+          "firstMs": 137,
+          "excludedWarmupMs": 143.09999990463257,
+          "warm": {
+            "samplesMs": [
+              134.20000004768372, 144.5, 151, 132.20000004768372,
+              127.09999990463257, 139.09999990463257, 177.29999995231628,
+              136.89999985694885, 136.40000009536743, 121.29999995231628
+            ],
+            "medianMs": 136.64999997615814,
+            "nearestRankP95Ms": 177.29999995231628,
+            "maxMs": 177.29999995231628
+          }
+        },
+        "ui": {
+          "firstMs": 143.19999980926514,
+          "excludedWarmupMs": 141.10000014305115,
+          "warm": {
+            "samplesMs": [
+              168.59999990463257, 148.70000004768372, 133.10000014305115,
+              148.59999990463257, 142.59999990463257, 178.59999990463257,
+              151.40000009536743, 135.40000009536743, 152.70000004768372,
+              167.79999995231628
+            ],
+            "medianMs": 150.05000007152557,
+            "nearestRankP95Ms": 178.59999990463257,
+            "maxMs": 178.59999990463257
+          }
+        },
+        "window": {
+          "label": "scale-1000-settled",
+          "durationMs": 5668.6341,
+          "sampleCount": 29,
+          "initialProcessorLoadPercent": [20],
+          "initialPreconditionPassed": true,
+          "noiseGuardPassed": true,
+          "noiseGuardViolations": [],
+          "scanBoundaryVerified": true,
+          "peakConcurrentWorkingSetMiB": 508.5546875,
+          "peakConcurrentPrivateCommitMiB": 317.046875,
+          "actualSampleIntervalsMs": {
+            "min": 143.75149999999985,
+            "median": 156.73750000000018,
+            "max": 384.4714999999999
+          },
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+        }
+      },
+      {
+        "entries": 2000,
+        "setupVerified": true,
+        "ipc": {
+          "firstMs": 278.5,
+          "excludedWarmupMs": 275.19999980926514,
+          "warm": {
+            "samplesMs": [
+              297.59999990463257, 279.2000000476837, 265.5, 273.7000000476837,
+              289, 277.40000009536743, 282.09999990463257, 270.2000000476837,
+              249, 266
+            ],
+            "medianMs": 275.5500000715256,
+            "nearestRankP95Ms": 297.59999990463257,
+            "maxMs": 297.59999990463257
+          }
+        },
+        "ui": {
+          "firstMs": 270.90000009536743,
+          "excludedWarmupMs": 261.2999999523163,
+          "warm": {
+            "samplesMs": [
+              280.2999999523163, 264.40000009536743, 268.2000000476837,
+              273.09999990463257, 268.7000000476837, 279, 269.5, 282, 299,
+              281.60000014305115
+            ],
+            "medianMs": 276.0499999523163,
+            "nearestRankP95Ms": 299,
+            "maxMs": 299
+          }
+        },
+        "window": {
+          "label": "scale-2000-settled",
+          "durationMs": 10323.4144,
+          "sampleCount": 55,
+          "initialProcessorLoadPercent": [20],
+          "initialPreconditionPassed": true,
+          "noiseGuardPassed": true,
+          "noiseGuardViolations": [],
+          "scanBoundaryVerified": true,
+          "peakConcurrentWorkingSetMiB": 515.87890625,
+          "peakConcurrentPrivateCommitMiB": 319.26171875,
+          "actualSampleIntervalsMs": {
+            "min": 142.28940000000057,
+            "median": 156.6792000000005,
+            "max": 375.6884999999993
+          },
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+        }
+      }
+    ],
+    "startup": [
+      {
+        "entries": 100,
+        "boundary": "process creation through observed populated Library including CDP discovery/attachment; selected root measured after selection because root choice is not persistent",
+        "startup": {
+          "firstMs": 970.4049000000014,
+          "excludedWarmupMs": 1044.7256000000016,
+          "warm": {
+            "samplesMs": [
+              1061.7423000000017, 1321.542300000001, 1061.3389000000025,
+              1107.2933000000012, 1217.1306000000004, 1402.7616000000016,
+              960.4745000000003, 1033.1049999999996, 1028.0236000000004,
+              1300.255799999999
+            ],
+            "medianMs": 1084.5178000000014,
+            "nearestRankP95Ms": 1402.7616000000016,
+            "maxMs": 1402.7616000000016
+          }
+        },
+        "window": {
+          "label": "startup-100-stable",
+          "durationMs": 18551.4512,
+          "sampleCount": 42,
+          "initialProcessorLoadPercent": [20],
+          "initialPreconditionPassed": true,
+          "noiseGuardPassed": false,
+          "noiseGuardViolations": [
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 1.046875
+            },
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 1.03125
+            }
+          ],
+          "scanBoundaryVerified": null,
+          "peakConcurrentWorkingSetMiB": 395.9296875,
+          "peakConcurrentPrivateCommitMiB": 233.34375,
+          "actualSampleIntervalsMs": {
+            "min": 151.20340000000033,
+            "median": 188.54339999999956,
+            "max": 1349.0057
+          },
+          "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+        }
+      },
+      {
+        "entries": 1000,
+        "boundary": "process creation through observed populated Library including CDP discovery/attachment; selected root measured after selection because root choice is not persistent",
+        "startup": {
+          "firstMs": 907.7946000000011,
+          "excludedWarmupMs": 994.3004999999976,
+          "warm": {
+            "samplesMs": [
+              1130.9685000000027, 1063.1931000000004, 1048.3780000000006,
+              966.663700000001, 1052.1713999999993, 1113.3538999999982,
+              983.0810999999994, 1188.0988999999972, 1136.6466,
+              1009.8057999999983
+            ],
+            "medianMs": 1057.6822499999998,
+            "nearestRankP95Ms": 1188.0988999999972,
+            "maxMs": 1188.0988999999972
+          }
+        },
+        "window": {
+          "label": "startup-1000-stable",
+          "durationMs": 17726.4419,
+          "sampleCount": 34,
+          "initialProcessorLoadPercent": [27],
+          "initialPreconditionPassed": false,
+          "noiseGuardPassed": false,
+          "noiseGuardViolations": [
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 1.09375
+            },
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 1.1875
+            }
+          ],
+          "scanBoundaryVerified": null,
+          "peakConcurrentWorkingSetMiB": 394.04296875,
+          "peakConcurrentPrivateCommitMiB": 226.21875,
+          "actualSampleIntervalsMs": {
+            "min": 129.39850000000024,
+            "median": 186.2527999999984,
+            "max": 1298.8305
+          },
+          "observedOwnedProcessNames": [
+            "fruitboard-desktop",
+            "msedgewebview2",
+            null
+          ]
+        }
+      },
+      {
+        "entries": 2000,
+        "boundary": "process creation through observed populated Library including CDP discovery/attachment; selected root measured after selection because root choice is not persistent",
+        "startup": {
+          "firstMs": 1018.6585999999988,
+          "excludedWarmupMs": 1033.487100000002,
+          "warm": {
+            "samplesMs": [
+              965.7862999999998, 1041.4399000000012, 959.1719999999987,
+              1004.7631999999976, 1070.9056999999993, 998.9932000000008,
+              986.8679000000011, 1004.0213000000003, 1044.9703999999983,
+              1327.913000000004
+            ],
+            "medianMs": 1004.392249999999,
+            "nearestRankP95Ms": 1327.913000000004,
+            "maxMs": 1327.913000000004
+          }
+        },
+        "window": {
+          "label": "startup-2000-stable",
+          "durationMs": 17698.8826,
+          "sampleCount": 35,
+          "initialProcessorLoadPercent": [17],
+          "initialPreconditionPassed": true,
+          "noiseGuardPassed": false,
+          "noiseGuardViolations": [
+            {
+              "process": "T3 Code (Alpha)",
+              "cpuSeconds": 0.734375
+            }
+          ],
+          "scanBoundaryVerified": null,
+          "peakConcurrentWorkingSetMiB": 390.78515625,
+          "peakConcurrentPrivateCommitMiB": 227.67578125,
+          "actualSampleIntervalsMs": {
+            "min": 126.50579999999991,
+            "median": 187.32210000000123,
+            "max": 1326.7943000000002
+          },
+          "observedOwnedProcessNames": [
+            "fruitboard-desktop",
+            "msedgewebview2",
+            null
+          ]
+        }
+      }
+    ],
+    "mixerDetails": {
+      "ordinaryRecords": 16,
+      "immutableSnapshotUnchanged": true,
+      "refresh": {
+        "firstMs": 21.799999952316284,
+        "excludedWarmupMs": 13.100000143051147,
+        "warm": {
+          "samplesMs": [
+            12.299999952316284, 10.899999856948853, 15, 12.700000047683716,
+            14.099999904632568, 13.5, 13.700000047683716, 12.799999952316284,
+            13.700000047683716, 13.900000095367432
+          ],
+          "medianMs": 13.600000023841858,
+          "nearestRankP95Ms": 15,
+          "maxMs": 15
+        }
+      },
+      "window": {
+        "label": "mixer-details-corrected",
+        "durationMs": 493.535,
+        "sampleCount": 1,
+        "initialProcessorLoadPercent": [19],
+        "initialPreconditionPassed": true,
+        "noiseGuardPassed": true,
+        "noiseGuardViolations": [],
+        "scanBoundaryVerified": true,
+        "peakConcurrentWorkingSetMiB": 421.734375,
+        "peakConcurrentPrivateCommitMiB": 234,
+        "actualSampleIntervalsMs": {},
+        "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+      }
+    },
+    "memory": {
+      "populatedEntriesBeforeLarge": 3119,
+      "selectedRootEntries": 2000,
+      "largeInputBytes": 67108864,
+      "largeInputUnchanged": true,
+      "steady": {
+        "label": "steady-2000",
+        "durationMs": 10301.285300000001,
+        "sampleCount": 56,
+        "initialProcessorLoadPercent": [26],
+        "initialPreconditionPassed": false,
+        "noiseGuardPassed": false,
+        "noiseGuardViolations": [],
+        "scanBoundaryVerified": true,
+        "peakConcurrentWorkingSetMiB": 436.10546875,
+        "peakConcurrentPrivateCommitMiB": 243.3828125,
+        "actualSampleIntervalsMs": {
+          "min": 139.91300000000047,
+          "median": 155.26250000000073,
+          "max": 352.009
+        },
+        "observedOwnedProcessNames": ["fruitboard-desktop", "msedgewebview2"]
+      },
+      "analysis": {
+        "label": "analysis-64mib",
+        "durationMs": 4965.4287,
+        "sampleCount": 24,
+        "initialProcessorLoadPercent": [21],
+        "initialPreconditionPassed": false,
+        "noiseGuardPassed": false,
+        "noiseGuardViolations": [],
+        "scanBoundaryVerified": true,
+        "peakConcurrentWorkingSetMiB": 574.64453125,
+        "peakConcurrentPrivateCommitMiB": 358.11328125,
+        "actualSampleIntervalsMs": {
+          "min": 148.83619999999974,
+          "median": 169.70679999999993,
+          "max": 390.0683999999999
+        },
+        "observedOwnedProcessNames": [
+          "conhost",
+          "fruitboard-desktop",
+          "fruitboard-flp-parser",
+          "msedgewebview2"
+        ]
+      }
+    },
+    "correctness": {
+      "approvedCorpusEntries": 19,
+      "currentMetadataEntries": 16,
+      "expectedTerminalNegativeEntries": 3,
+      "mixerFixtureCases": 4,
+      "ordinaryMixerRecordsPerCase": 16,
+      "fullyAnalyzedScaleRoots": [100, 1000, 2000],
+      "limitCase": {
+        "entries": 2001,
+        "state": "limited",
+        "noPartialCountsGroupsOrEntries": true,
+        "fullAnalysisRequired": false,
+        "runLastOutsideAllTimers": true
+      }
+    }
+  },
+  "preconditionFailures": [
+    {
+      "utc": "2026-10-11T04:28:48.1796246Z",
+      "processorLoadPercent": 34,
+      "guardPercent": 20,
+      "measurementsStarted": false
+    },
+    {
+      "utc": "2026-10-11T04:54:16.4686019Z",
+      "processorLoadPercent": 23,
+      "guardPercent": 20,
+      "measurementsStarted": false
+    },
+    {
+      "utc": "2026-10-11T05:05:57.6875306Z",
+      "processorLoadPercent": 25,
+      "guardPercent": 20,
+      "measurementsStarted": false
+    },
+    {
+      "utc": "2026-10-11T05:18:48.9404147Z",
+      "processorLoadPercent": 28,
+      "guardPercent": 20,
+      "measurementsStarted": false
+    }
+  ],
+  "operationalFailures": [
+    {
+      "case": "initial Explorer launch",
+      "cause": "Processor load above guard before measurements",
+      "retained": true
+    },
+    {
+      "case": "1,000-entry preparation",
+      "cause": "Harness used an absent pagination field and stopped at 200; corrected to nextCursor, resumed existing root and verified all 1,000 current entries",
+      "productChanged": false,
+      "retained": true
+    },
+    {
+      "case": "initial installed Explorer series",
+      "cause": "Scan quietness not proven at the boundaries; preserved as preliminary setup observations and repeated with stable scan-boundary assertions",
+      "productChanged": false,
+      "retained": true
+    },
+    {
+      "case": "initial mixer timing",
+      "cause": "Details panel disappeared during setup with scan work pending; corrected setup and preserved failed attempt",
+      "productChanged": false,
+      "retained": true
+    },
+    {
+      "case": "accidental harness syntax invocation",
+      "cause": "Syntax flag placed after script path launched harness in unknown mode; failed immediately, retained and corrected flag position",
+      "productChanged": false,
+      "retained": true
+    },
+    {
+      "case": "initial startup-100 timing",
+      "cause": "Sampler raced process exit reading start identity; corrected sampler, retained failed attempt and repeated all twelve launches",
+      "productChanged": false,
+      "retained": true
+    }
+  ],
+  "cleanup": {
+    "reviewUninstalled": true,
+    "reviewRegistrationRemoved": true,
+    "reviewDatabaseRetained": true,
+    "databaseUnchangedByUninstall": true,
+    "personalProfilesUnchanged": true,
+    "all19ApprovedSourceFixturesUnchanged": true,
+    "exclusiveHostLockReleased": true,
+    "freeGiB": 33.22
+  },
+  "limitations": [
+    "Candidates remain proposals; quiet observation is not approved-budget or phase acceptance.",
+    "First two native Explorer matrices and worker failed quiet guards; final native Explorer passed guards but exceeded the 200 ms candidate at 2,000 entries.",
+    "First installed Explorer series has unverified scan quietness and is not substituted for settled series.",
+    "Native worker uses fixed-clock authority and excludes desktop lease renewal and shutdown races.",
+    "Repeated approved sample bytes are scale cases, not diverse representative FLPs.",
+    "Startup includes CDP discovery/attachment and explicit root selection; OS caches are not flushed.",
+    "Requested 100 ms memory sampling and one-second tree refresh can miss brief processes and peaks; actual intervals retained.",
+    "CPU boundary snapshots omit terminated/inaccessible background workloads; coding interface activity remains subject to the unchanged guard.",
+    "Working-set sums can double-count shared pages; private commit is not physical RAM.",
+    "No broad compatibility, scanner qualification, production activation, license/distribution or later-phase approval."
+  ]
+}

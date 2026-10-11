@@ -3,9 +3,9 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Current status - 2026-10-10
+## Current status - 2026-10-11
 
-Source baseline: `719cf51511b1e54b5e606cf1f1745c378e0e0d8b` (merged PR #303).
+Source baseline: `0e86b8efb2ccdeeed37caec37ca1ac175c2a2583` (merged PR #305).
 The review dated 2026-10-08 used the earlier `b27b761` baseline.
 
 - **Phases**: Phase 0 accepted 2026-09-04, Phase 1 accepted 2026-09-06, and
@@ -34,7 +34,8 @@ The review dated 2026-10-08 used the earlier `b27b761` baseline.
   [Parser contract](crates/flp-parser/README.md#initial-native-result-validation)
   counts sixteen ordinary saved records, with honest missing-name states.
   [Application slice #304](docs/review/library-mixer-inserts-304/README.md)
-  adds immutable selected storage and Library display; broader layouts remain open.
+  delivers immutable selected storage and Library display in merged PR #305;
+  broader layouts remain open.
 - **Product scope**: the Tauri/React shell, Rust-owned SQLite library, scan
   roots and feature-gated durable scanning are implemented. Production
   activation is still a separate owner decision. Kanban, search, project
@@ -42,7 +43,10 @@ The review dated 2026-10-08 used the earlier `b27b761` baseline.
 - **Performance**: scanner qualification remains unaccepted; the historical
   warm nearest-rank p95 was 10,173 ms against a 10,000 ms target on source
   `69f27f6`. Later [native analysis/Explorer observations](docs/review/explorer-performance-259/README.md)
-  do not replace scanner or whole-app qualification.
+  do not replace scanner qualification. The [current resource/checkpoint review](docs/review/phase3-qualification-306/README.md)
+  records complete installed scale/refusal checks and quiet settled IPC/UI/mixer
+  observations; current native/startup/memory qualification and explicit
+  budget/phase decisions remain open.
 - **Repository**: public since 2026-09-07. The owner approved restoration of
   `main` protection on 2026-10-10 after verification found it absent on
   2026-10-09. GitHub now requires PRs and all ten checks, including for admins,
