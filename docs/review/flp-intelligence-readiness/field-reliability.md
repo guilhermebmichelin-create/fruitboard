@@ -1,26 +1,28 @@
 # Maintained saved-field reliability matrix
 
 Historical baseline: merged PR261, `19b95362a66a82c91cba56fc8f2226c6ef899cc2`.
-Current integration adds issue #263 on merged PR262; see the
-[saved patterns review](../library-patterns-263/README.md). Historical ground
-truth and measured source boundaries below are unchanged.
+Current integration is merged PR308, `8e9d90d`, with application code equivalent
+to merged PR305, `0e86b8e`. The current matrix includes saved patterns, note
+records, ordinary mixer records and separate sample-presence observations.
+Updated: 2026-10-14. Historical ground truth and measured source boundaries
+below are unchanged.
 This records the opt-in Windows development composition, not production enablement
 or full Phase 3 acceptance. Changes to extraction, validation, persistence,
 display or corpus coverage must update this matrix in the same PR.
 
 ## Saved-build coverage
 
-| Exact saved build  | Approved genuine-save derivatives | Independently checked coverage                                                                                                                     |
-| ------------------ | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 24.1.0.4225        | F01/F04/F05                       | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                                                 |
-| 25.1.3.4922        | F06                               | Minimal Sampler, 130 BPM, displayed default name by labeled inference and absent sample references.                                                |
-| 26.1.0.5530        | F11/F12/F13/F14/F15/F16/F17       | Minimal; explicit sample/name; patterns/placements; 3x Osc; cloned empty Samplers; registered ordinary/slide/step records and named-empty absence. |
-| FL Studio 20/21    | F02/F03 are not covered           | No runnable matching build or genuine-save fixture here; no supported-build claim.                                                                 |
-| Other saved builds | No approved row                   | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                               |
+| Exact saved build  | Approved genuine-save derivatives           | Independently checked coverage                                                                                                                                                                                 |
+| ------------------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 24.1.0.4225        | F01/F04/F05                                 | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                                                                                                             |
+| 25.1.3.4922        | F06                                         | Minimal Sampler, 130 BPM, displayed default name by labeled inference and absent sample references.                                                                                                            |
+| 26.1.0.5530        | F11/F12/F13/F14/F15/F16/F17/F18/F19/F20/F21 | Minimal; explicit sample/name; patterns/placements; 3x Osc; cloned empty Samplers; note records/absence; one complete eighteen-record mixer section with sixteen ordinary positions and controlled name cases. |
+| FL Studio 20/21    | F02/F03 are not covered                     | No runnable matching build or genuine-save fixture here; no supported-build claim.                                                                                                                             |
+| Other saved builds | No approved row                             | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                                                                                           |
 
 The [manifest](../../../fixtures/parser-corpus/manifest.md) owns approval,
-provenance, license, expected values and SHA-256. Fifteen files are committed:
-eleven genuine-save derivatives and four approved robustness derivatives.
+provenance, license, expected values and SHA-256. Nineteen files are committed:
+fifteen genuine-save derivatives and four approved robustness derivatives.
 F07-F10 exercise failure/partial handling; they add no saved-build coverage.
 
 ## Field reliability and application reach
