@@ -48,6 +48,10 @@ const approvedFlpFixtureHashes = new Map([
     "745f3cbb7ec095b8e03ab010ad6463c90e2c3616d4d671b868ef6fdbc9fe5fc5",
   ],
   [
+    "fixtures/parser-corpus/FIX-FL2025-MULTISAMPLER.flp",
+    "2216b6d131360c0cafb20d2bee2ab82c0217e21303c3a1260c5c8f4a7cd42eeb",
+  ],
+  [
     "fixtures/parser-corpus/FIX-FL2026-MIN.flp",
     "e0471d55032b7dfaa8bbcd496c487147149b9ce18e0b250882cc6f67f47480ee",
   ],
@@ -116,6 +120,7 @@ const inspectableFlpFixtures = new Set([
   "fixtures/parser-corpus/FIX-FL2024-A.flp",
   "fixtures/parser-corpus/FIX-FL2024-B.flp",
   "fixtures/parser-corpus/FIX-FL2025-MIN.flp",
+  "fixtures/parser-corpus/FIX-FL2025-MULTISAMPLER.flp",
 ]);
 
 const nonPersonalHomeNames = new Set([

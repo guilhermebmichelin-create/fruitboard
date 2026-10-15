@@ -1,9 +1,9 @@
 ﻿# FLP intelligence readiness review
 
 Status: **Review packet; budgets and Phase 3 exit are not accepted.**
-Updated: 2026-10-14. Related issue:
+Updated: 2026-10-15. Related issue:
 [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259).
-Current application baseline: merged PR308, `8e9d90d`; application code is equivalent to merged PR305, `0e86b8e`.
+Current application baseline: merged PR318, `fa0dbdd`; application code is equivalent to merged PR305, `0e86b8e`.
 The [current resource/checkpoint review](../phase3-qualification-306/README.md)
 records complete installed scale/refusal checks and resource characterization.
 The original review found omitted FL Studio CPU activity; its six reclassified passes remain withdrawn. The [October 14 repeat](../resource-repeat-20261014/README.md) records guarded worker observations, Explorer guard failures including an idle active-session attempt, and a close timeout after installed 1,000-entry preparation. A debugging repeat closed normally but did not explain that earlier failure. Installed resource windows and budget/phase decisions remain open. The [next-slice proposals](../phase3-next-slices-20261014/README.md) define further G3/G5/G6 work without accepting it.
@@ -146,6 +146,13 @@ It exposed invented numbered channel labels; the correction retains duplicate
 inferences. The owner approved the exact F15 bytes and expectations on 2026-10-05;
 PR268 includes its immutable fixture and read-only regression. Other
 compatibility cases and the full Phase 3 checkpoint remain open.
+
+Issue #319 adds an exact owner-approved FL 2025 case: cloning the original empty
+Sampler twice yields three literal `Sampler` labels in the already-covered
+25.1.3.4922 build. The [F22 result](../../research/parser-fl2025-multisampler-319-result.md)
+records the approved hashes and limits. It adds one authoring path, not a saved
+version; publication regressions and updated-head checks remain part of this
+change. G3 and the full Phase 3 checkpoint remain open.
 
 Issue #278 supplied the accepted [bounded sample presence design](../sample-presence-278/README.md)
 for G5. It checks literal saved absolute paths only within the
