@@ -6,7 +6,7 @@ Updated: 2026-10-14. Related issue:
 Current application baseline: merged PR308, `8e9d90d`; application code is equivalent to merged PR305, `0e86b8e`.
 The [current resource/checkpoint review](../phase3-qualification-306/README.md)
 records complete installed scale/refusal checks and resource characterization.
-The original review found omitted FL Studio CPU activity; its six reclassified passes remain withdrawn. The [October 14 repeat](../resource-repeat-20261014/README.md) records guarded worker observations, noisy Explorer timings and a close timeout after installed 1,000-entry preparation. Installed resource windows and budget/phase decisions remain open. The [next-slice proposals](../phase3-next-slices-20261014/README.md) define further G3/G5/G6 work without accepting it.
+The original review found omitted FL Studio CPU activity; its six reclassified passes remain withdrawn. The [October 14 repeat](../resource-repeat-20261014/README.md) records guarded worker observations, Explorer guard failures including an idle active-session attempt, and a close timeout after installed 1,000-entry preparation. A debugging repeat closed normally but did not explain that earlier failure. Installed resource windows and budget/phase decisions remain open. The [next-slice proposals](../phase3-next-slices-20261014/README.md) define further G3/G5/G6 work without accepting it.
 Historical application baseline: merged
 [PR #261](https://github.com/guilhermebmichelin-create/fruitboard/pull/261),
 `19b95362a66a82c91cba56fc8f2226c6ef899cc2` (tree identical to its tested head

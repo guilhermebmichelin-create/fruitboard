@@ -6,17 +6,18 @@ Phase 3 acceptance.** Source: merged PR308, `8e9d90d`.
 The owner authorized work on current qualification and the remaining Phase 3
 gaps. This packet defines concrete next slices while the
 [resource repeat](../resource-repeat-20261014/README.md) preserves the worker
-observations, noisy Explorer results and installed shutdown failure. Work stays
+observations, noisy Explorer results, the installed shutdown failure and a
+successful debugging repeat that did not reproduce it. Work stays
 inside Phase 3; it does not authorize project grouping, production or release.
 
 ## Proposed order
 
-| Work                               | Concrete next output                                                                                                                        | Boundary before implementation/publication                                                                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| G1/G4 resource/error qualification | Identify the 1,000-entry close timeout, validate any fix, then collect the remaining windows in a genuinely quiet period                    | Same timed boundaries and noise limits; T3 stays open and counted; budgets still need a separate owner decision                                                |
-| G3 compatibility                   | One genuine three-cloned-Sampler save in exact FL Studio 2025 build `25.1.3.4922`, with independent GUI labels registered before extraction | Exact executable/build and privately reviewed observations; exact sanitized bytes/hash require owner approval before committing                                |
-| G5 sample references               | A constrained project-folder-relative candidate rule inside the already selected local NTFS root                                            | Review an explicit ADR-007 amendment; accepted absolute-only policy remains unchanged; a real saved reference must establish any FL Studio compatibility claim |
-| G6 richer intelligence             | One saved automation clip with three independently visible control points in exact build `26.1.0.5530`; initially counts only               | Demonstrate bounded saved records without opaque-state or note-layout guesses; exact fixture approval precedes parser/application work                         |
+| Work                               | Concrete next output                                                                                                                                 | Boundary before implementation/publication                                                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G1/G4 resource/error qualification | Retain the unexplained timeout and successful debugging repeat; capture shutdown phases if it recurs, then qualify remaining windows on a quiet host | Same timed boundaries and noise limits; T3 stays open and counted; a new storage preflight must pass; budgets still need a separate owner decision             |
+| G3 compatibility                   | One genuine three-cloned-Sampler save in exact FL Studio 2025 build `25.1.3.4922`, with independent GUI labels registered before extraction          | Exact executable/build and privately reviewed observations; exact sanitized bytes/hash require owner approval before committing                                |
+| G5 sample references               | A constrained project-folder-relative candidate rule inside the already selected local NTFS root                                                     | Review an explicit ADR-007 amendment; accepted absolute-only policy remains unchanged; a real saved reference must establish any FL Studio compatibility claim |
+| G6 richer intelligence             | One saved automation clip with three independently visible control points in exact build `26.1.0.5530`; initially counts only                        | Demonstrate bounded saved records without opaque-state or note-layout guesses; exact fixture approval precedes parser/application work                         |
 
 The detailed [sample-reference proposal](reference-resolution.md) compares
 within-root relative candidates with external-folder grants and placeholder

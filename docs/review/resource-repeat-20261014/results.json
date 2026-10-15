@@ -1,7 +1,7 @@
 {
   "schema": "fruitboard/phase3-resource-repeat/1",
   "date": "2026-10-14",
-  "status": "Worker guarded observations pass proposals; Explorer characterization and installed close failure; qualification and phase pending",
+  "status": "Worker guarded observations pass proposals; Explorer guards fail including idle session; installed close timeout not reproduced; resource qualification and phase pending",
   "source": {
     "mergedMain": "8e9d90dbd13f8f42a2e8a4b9b976cfdd0dfb5154",
     "reviewedPR308Head": "890d149b5082bdecefaf4366a359cacc1b6fb261",
@@ -388,7 +388,7 @@
     "stoppedAt": "Graceful desktop close after preparation of 1000 entries",
     "closeDeadlineMs": 10000,
     "closeHelperExitStatus": 3,
-    "rootCause": "Under investigation; preparation passed before close wait timed out",
+    "rootCause": "Original timeout unexplained; exact-process 19/100/1000 debugging repeat exited within 88 ms, no product fix supported",
     "newTimedWindowsCollected": 0,
     "pending": [
       "2000 and 2001 preparation",
@@ -415,6 +415,174 @@
     "CPU boundary snapshots omit terminated or inaccessible processes",
     "Working set/private commit worker peaks are separate lifetime peaks; not simultaneous whole-app memory",
     "No target, qualification or phase approval follows from a guard pass or PR merge",
-    "An app shutdown timeout cannot be turned into a pass by increasing the deadline or forcing closure"
-  ]
+    "An app shutdown timeout cannot be turned into a pass by increasing the deadline or forcing closure",
+    "A later idle active-session Explorer attempt still failed initial-load and T3 CPU guards; no CPU exemption or limit change was made",
+    "Later host free capacity fell below the 30 GiB workflow reserve; new build/fixture windows require a fresh passing preflight"
+  ],
+  "nativeExplorerIdleRetry": {
+    "observationUtc": "2026-10-15T00:06:39.5543745Z",
+    "localDate": "2026-10-14",
+    "classification": "characterization; quiet-host guard failed",
+    "sessionActivity": "All three subagents completed; root paused for 120 seconds with no chat/tool/build/test activity during the recorded native window; T3 remained open and all observed CPU counted",
+    "assessment": {
+      "noiseGuardPassed": false,
+      "initialLoadPercent": [24],
+      "limits": {
+        "initialProcessorLoadPercent": 20,
+        "unrelatedProcessCpuSeconds": 0.5
+      },
+      "violations": [
+        {
+          "name": "T3 Code (Alpha)",
+          "cpuSeconds": 2.828125
+        },
+        {
+          "name": "T3 Code (Alpha)",
+          "cpuSeconds": 9.265625
+        },
+        {
+          "name": "T3 Code (Alpha)",
+          "cpuSeconds": 0.96875
+        }
+      ],
+      "excludedRoles": ["instrumentation"]
+    },
+    "cases": [
+      {
+        "entries": 100,
+        "state": "complete",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 10.0705,
+          "excludedWarmupMs": 9.153599999999999,
+          "warm": {
+            "samplesMs": [
+              9.4393, 9.151, 8.8424, 9.001999999999999, 8.9107, 8.8055,
+              8.441600000000001, 9.5058, 8.9103, 9.1204
+            ],
+            "medianMs": 8.95635,
+            "nearestRankP95Ms": 9.5058
+          }
+        },
+        "within200MsProposal": true
+      },
+      {
+        "entries": 1000,
+        "state": "complete",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 98.2223,
+          "excludedWarmupMs": 102.5706,
+          "warm": {
+            "samplesMs": [
+              101.06179999999999, 94.4974, 92.6483, 92.61909999999999, 91.6452,
+              94.9801, 94.0346, 95.55279999999999, 96.4891, 95.3626
+            ],
+            "medianMs": 94.73875,
+            "nearestRankP95Ms": 101.06179999999999
+          }
+        },
+        "within200MsProposal": true
+      },
+      {
+        "entries": 2000,
+        "state": "complete",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 221.73930000000001,
+          "excludedWarmupMs": 209.5814,
+          "warm": {
+            "samplesMs": [
+              200.1703, 208.8863, 212.3197, 202.66, 211.92430000000002,
+              240.88760000000002, 276.8712, 245.32979999999998, 212.7483,
+              209.0949
+            ],
+            "medianMs": 212.122,
+            "nearestRankP95Ms": 276.8712
+          }
+        },
+        "within200MsProposal": false
+      },
+      {
+        "entries": 2001,
+        "state": "limited",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 3.3148,
+          "excludedWarmupMs": 3.0255,
+          "warm": {
+            "samplesMs": [
+              3.0417, 2.9251, 3.0113000000000003, 2.8974, 3.4257, 2.7413, 3.277,
+              2.8733, 2.9677000000000002, 3.9499
+            ],
+            "medianMs": 2.9895000000000005,
+            "nearestRankP95Ms": 3.9499
+          }
+        },
+        "within200MsProposal": true
+      }
+    ],
+    "priorPreconditionStop": {
+      "utc": "2026-10-15T00:03:44.3570805Z",
+      "initialLoadPercent": 23,
+      "limitPercent": 20,
+      "samplesCollected": 0
+    },
+    "inferenceLimit": "Shows failure during this idle active-session attempt; does not establish that every inactive session or other host would fail"
+  },
+  "installedShutdownReproduction": {
+    "classification": "debugging only; original close timeout did not reproduce",
+    "sourceApplicationUnchanged": true,
+    "performanceWindowsCollected": 0,
+    "closeDeadlineMs": 10000,
+    "stages": [
+      {
+        "entries": 19,
+        "exactProcessIdentityMatched": true,
+        "scanAndAnalysisTerminalBeforeClose": true,
+        "closeAccepted": true,
+        "exitedWithin10000Ms": true,
+        "elapsedMs": 87.3,
+        "cdpDisconnected": true
+      },
+      {
+        "entries": 100,
+        "exactProcessIdentityMatched": true,
+        "scanAndAnalysisTerminalBeforeClose": true,
+        "closeAccepted": true,
+        "exitedWithin10000Ms": true,
+        "elapsedMs": 69,
+        "cdpDisconnected": true
+      },
+      {
+        "entries": 1000,
+        "exactProcessIdentityMatched": true,
+        "scanAndAnalysisTerminalBeforeClose": true,
+        "closeAccepted": true,
+        "exitedWithin10000Ms": true,
+        "elapsedMs": 60.1,
+        "cdpDisconnected": true
+      }
+    ],
+    "originalTimeoutStillUnexplained": true,
+    "productFixImplemented": false,
+    "privateRunner": {
+      "originalExitCode": 1,
+      "cause": "Cleanup read a timeout-only optional property from a successful-close receipt under PowerShell StrictMode",
+      "originalFailurePreserved": true,
+      "optionalFieldRecoveryValidatedWithSuccessAndTimeoutReceipts": true,
+      "ownedCleanupRecoveryExitCode": 0,
+      "secondaryCloseSent": false,
+      "forcedTerminationSent": false
+    },
+    "retention": {
+      "currentDatabaseHashVerified": true,
+      "previousAttemptDatabaseArchiveHashVerified": true,
+      "protectedProfileFilesVerified": 671,
+      "approvedFixturesVerified": 19,
+      "archivedPriorProfileFilesVerified": 283,
+      "ownedRegistrationRemoved": true,
+      "sharedLockReleased": true
+    }
+  }
 }
