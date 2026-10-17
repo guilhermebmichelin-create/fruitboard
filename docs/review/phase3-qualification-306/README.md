@@ -175,6 +175,10 @@ final storage preflight, with the 30 GiB reserve maintained.
 
 ## Validation and next work
 
+The [runner preparation](../resource-qualification-runner-306/README.md) adds a
+reviewable shared guard and regression tests, plus a private unattended runner.
+Its plumbing check is characterization; quiet repeats are still pending.
+
 Application/corpus/lockfiles are unchanged from PR305's tested head `9c6e190`;
 its fifteen checks passed and its merged source is this application baseline.
 Current optimized probes, installed correctness and measurements supplement

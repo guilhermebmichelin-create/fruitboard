@@ -1,0 +1,2149 @@
+{
+  "schema": "fruitboard/explorer-current-read-comparison/1",
+  "status": "Characterization only; quiet-host qualification, budget and phase acceptance remain open.",
+  "baselineMergedSource": "fa0dbdd2fc9b7f2952fc6386fcb8fd444c2e180b",
+  "baselineArtifactBuildSource": "0e86b8efb2ccdeeed37caec37ca1ac175c2a2583",
+  "implementationSource": "834350cce237bdcb05c7e62011da1f7b8f29e591",
+  "candidateCommandAndSerializationP95Ms": 200,
+  "candidateApproved": false,
+  "guardLimits": {
+    "initialProcessorLoadPercent": 20,
+    "unrelatedProcessCpuSeconds": 0.5
+  },
+  "cases": {
+    "before": [
+      {
+        "baselineMemory": {
+          "lifetimePeakCommitBytes": 2691072,
+          "lifetimePeakWorkingSetBytes": 9752576,
+          "privateCommitBytes": 2691072,
+          "workingSetBytes": 9752576
+        },
+        "completeCountsOrNoPartialResults": true,
+        "entries": 100,
+        "probe": "plugin-explorer",
+        "runs": [
+          {
+            "commandAndSerializationMs": 8.9212,
+            "memory": {
+              "lifetimePeakCommitBytes": 3153920,
+              "lifetimePeakWorkingSetBytes": 10428416,
+              "privateCommitBytes": 3018752,
+              "workingSetBytes": 10317824
+            },
+            "phase": "first_run",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.7878,
+            "memory": {
+              "lifetimePeakCommitBytes": 3432448,
+              "lifetimePeakWorkingSetBytes": 10571776,
+              "privateCommitBytes": 3432448,
+              "workingSetBytes": 10498048
+            },
+            "phase": "warm_up",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 8.1736,
+            "memory": {
+              "lifetimePeakCommitBytes": 3706880,
+              "lifetimePeakWorkingSetBytes": 10801152,
+              "privateCommitBytes": 3465216,
+              "workingSetBytes": 10510336
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.8413,
+            "memory": {
+              "lifetimePeakCommitBytes": 3776512,
+              "lifetimePeakWorkingSetBytes": 10833920,
+              "privateCommitBytes": 3555328,
+              "workingSetBytes": 10649600
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.572500000000001,
+            "memory": {
+              "lifetimePeakCommitBytes": 3776512,
+              "lifetimePeakWorkingSetBytes": 10858496,
+              "privateCommitBytes": 3674112,
+              "workingSetBytes": 10698752
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.5535000000000005,
+            "memory": {
+              "lifetimePeakCommitBytes": 3776512,
+              "lifetimePeakWorkingSetBytes": 10858496,
+              "privateCommitBytes": 3670016,
+              "workingSetBytes": 10698752
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.7968,
+            "memory": {
+              "lifetimePeakCommitBytes": 3776512,
+              "lifetimePeakWorkingSetBytes": 10862592,
+              "privateCommitBytes": 3543040,
+              "workingSetBytes": 10657792
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.452,
+            "memory": {
+              "lifetimePeakCommitBytes": 3776512,
+              "lifetimePeakWorkingSetBytes": 10866688,
+              "privateCommitBytes": 3743744,
+              "workingSetBytes": 10706944
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.528,
+            "memory": {
+              "lifetimePeakCommitBytes": 3776512,
+              "lifetimePeakWorkingSetBytes": 10874880,
+              "privateCommitBytes": 3682304,
+              "workingSetBytes": 10719232
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.4988,
+            "memory": {
+              "lifetimePeakCommitBytes": 3842048,
+              "lifetimePeakWorkingSetBytes": 10932224,
+              "privateCommitBytes": 3747840,
+              "workingSetBytes": 10780672
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.5071,
+            "memory": {
+              "lifetimePeakCommitBytes": 3846144,
+              "lifetimePeakWorkingSetBytes": 10940416,
+              "privateCommitBytes": 3747840,
+              "workingSetBytes": 10780672
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.7288,
+            "memory": {
+              "lifetimePeakCommitBytes": 3846144,
+              "lifetimePeakWorkingSetBytes": 10940416,
+              "privateCommitBytes": 3624960,
+              "workingSetBytes": 10735616
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          }
+        ],
+        "savedQueryComparisonMs": 200,
+        "schema": "fruitboard/native-resource-result/1",
+        "state": "ready",
+        "subsequentComponentProfile": {
+          "runs": [
+            {
+              "envelopeSerializationMs": 0.0384,
+              "phase": "first_profile",
+              "projectionAndBudgetSerializationMs": 3.7428,
+              "storageMs": 3.7323
+            },
+            {
+              "envelopeSerializationMs": 0.078,
+              "phase": "warm_up",
+              "projectionAndBudgetSerializationMs": 3.7721999999999998,
+              "storageMs": 3.862
+            },
+            {
+              "envelopeSerializationMs": 0.0379,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 3.9188,
+              "storageMs": 3.735
+            },
+            {
+              "envelopeSerializationMs": 0.0384,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 4.1703,
+              "storageMs": 3.5455
+            },
+            {
+              "envelopeSerializationMs": 0.0374,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 4.0028,
+              "storageMs": 3.5345
+            },
+            {
+              "envelopeSerializationMs": 0.038099999999999995,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 3.7471,
+              "storageMs": 3.8768000000000002
+            },
+            {
+              "envelopeSerializationMs": 0.0373,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 3.7304999999999997,
+              "storageMs": 3.8145000000000002
+            },
+            {
+              "envelopeSerializationMs": 0.0608,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 4.7573,
+              "storageMs": 3.8314999999999997
+            },
+            {
+              "envelopeSerializationMs": 0.0582,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 3.941,
+              "storageMs": 3.6614999999999998
+            },
+            {
+              "envelopeSerializationMs": 0.0374,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 4.852600000000001,
+              "storageMs": 3.4984
+            },
+            {
+              "envelopeSerializationMs": 0.035500000000000004,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 3.8796,
+              "storageMs": 3.8397
+            },
+            {
+              "envelopeSerializationMs": 0.0412,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 3.8977,
+              "storageMs": 3.8880999999999997
+            }
+          ],
+          "warmEnvelopeSerialization": {
+            "maxMs": 0.0608,
+            "medianMs": 0.038,
+            "nearestRankP95Ms": 0.0608,
+            "samples": [
+              0.0379, 0.0384, 0.0374, 0.038099999999999995, 0.0373, 0.0608,
+              0.0582, 0.0374, 0.035500000000000004, 0.0412
+            ]
+          },
+          "warmProjectionAndBudgetSerialization": {
+            "maxMs": 4.852600000000001,
+            "medianMs": 3.9299,
+            "nearestRankP95Ms": 4.852600000000001,
+            "samples": [
+              3.9188, 4.1703, 4.0028, 3.7471, 3.7304999999999997, 4.7573, 3.941,
+              4.852600000000001, 3.8796, 3.8977
+            ]
+          },
+          "warmStorage": {
+            "maxMs": 3.8880999999999997,
+            "medianMs": 3.77475,
+            "nearestRankP95Ms": 3.8880999999999997,
+            "samples": [
+              3.735, 3.5455, 3.5345, 3.8768000000000002, 3.8145000000000002,
+              3.8314999999999997, 3.6614999999999998, 3.4984, 3.8397,
+              3.8880999999999997
+            ]
+          }
+        },
+        "warmCommandAndSerialization": {
+          "maxMs": 8.1736,
+          "medianMs": 7.563000000000001,
+          "nearestRankP95Ms": 8.1736,
+          "samples": [
+            8.1736, 7.8413, 7.572500000000001, 7.5535000000000005, 7.7968,
+            7.452, 7.528, 7.4988, 7.5071, 7.7288
+          ]
+        }
+      },
+      {
+        "baselineMemory": {
+          "lifetimePeakCommitBytes": 4812800,
+          "lifetimePeakWorkingSetBytes": 11218944,
+          "privateCommitBytes": 4739072,
+          "workingSetBytes": 11218944
+        },
+        "completeCountsOrNoPartialResults": true,
+        "entries": 1000,
+        "probe": "plugin-explorer",
+        "runs": [
+          {
+            "commandAndSerializationMs": 89.4106,
+            "memory": {
+              "lifetimePeakCommitBytes": 9658368,
+              "lifetimePeakWorkingSetBytes": 16429056,
+              "privateCommitBytes": 7798784,
+              "workingSetBytes": 14442496
+            },
+            "phase": "first_run",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 88.2532,
+            "memory": {
+              "lifetimePeakCommitBytes": 10272768,
+              "lifetimePeakWorkingSetBytes": 16781312,
+              "privateCommitBytes": 9072640,
+              "workingSetBytes": 15171584
+            },
+            "phase": "warm_up",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 84.6875,
+            "memory": {
+              "lifetimePeakCommitBytes": 11145216,
+              "lifetimePeakWorkingSetBytes": 17432576,
+              "privateCommitBytes": 8486912,
+              "workingSetBytes": 15147008
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 85.845,
+            "memory": {
+              "lifetimePeakCommitBytes": 11452416,
+              "lifetimePeakWorkingSetBytes": 17805312,
+              "privateCommitBytes": 8716288,
+              "workingSetBytes": 15396864
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 84.8688,
+            "memory": {
+              "lifetimePeakCommitBytes": 11673600,
+              "lifetimePeakWorkingSetBytes": 18276352,
+              "privateCommitBytes": 8929280,
+              "workingSetBytes": 15507456
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 86.3353,
+            "memory": {
+              "lifetimePeakCommitBytes": 12161024,
+              "lifetimePeakWorkingSetBytes": 18632704,
+              "privateCommitBytes": 9355264,
+              "workingSetBytes": 15925248
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 84.6269,
+            "memory": {
+              "lifetimePeakCommitBytes": 12460032,
+              "lifetimePeakWorkingSetBytes": 18673664,
+              "privateCommitBytes": 10280960,
+              "workingSetBytes": 15912960
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 85.91210000000001,
+            "memory": {
+              "lifetimePeakCommitBytes": 12775424,
+              "lifetimePeakWorkingSetBytes": 18706432,
+              "privateCommitBytes": 9293824,
+              "workingSetBytes": 15933440
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 82.79780000000001,
+            "memory": {
+              "lifetimePeakCommitBytes": 12775424,
+              "lifetimePeakWorkingSetBytes": 18755584,
+              "privateCommitBytes": 9367552,
+              "workingSetBytes": 16007168
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 84.59740000000001,
+            "memory": {
+              "lifetimePeakCommitBytes": 12775424,
+              "lifetimePeakWorkingSetBytes": 18767872,
+              "privateCommitBytes": 9871360,
+              "workingSetBytes": 15994880
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 86.964,
+            "memory": {
+              "lifetimePeakCommitBytes": 12775424,
+              "lifetimePeakWorkingSetBytes": 18767872,
+              "privateCommitBytes": 9048064,
+              "workingSetBytes": 15646720
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 85.34479999999999,
+            "memory": {
+              "lifetimePeakCommitBytes": 12775424,
+              "lifetimePeakWorkingSetBytes": 18767872,
+              "privateCommitBytes": 9478144,
+              "workingSetBytes": 15888384
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          }
+        ],
+        "savedQueryComparisonMs": 200,
+        "schema": "fruitboard/native-resource-result/1",
+        "state": "ready",
+        "subsequentComponentProfile": {
+          "runs": [
+            {
+              "envelopeSerializationMs": 0.7477999999999999,
+              "phase": "first_profile",
+              "projectionAndBudgetSerializationMs": 44.0809,
+              "storageMs": 48.1795
+            },
+            {
+              "envelopeSerializationMs": 0.3549,
+              "phase": "warm_up",
+              "projectionAndBudgetSerializationMs": 41.2353,
+              "storageMs": 45.0009
+            },
+            {
+              "envelopeSerializationMs": 0.464,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 39.0237,
+              "storageMs": 43.335
+            },
+            {
+              "envelopeSerializationMs": 0.48040000000000005,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 38.9682,
+              "storageMs": 44.267300000000006
+            },
+            {
+              "envelopeSerializationMs": 0.3573,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 39.768,
+              "storageMs": 45.7291
+            },
+            {
+              "envelopeSerializationMs": 0.3776,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 38.8566,
+              "storageMs": 43.9004
+            },
+            {
+              "envelopeSerializationMs": 0.5256,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 39.1416,
+              "storageMs": 43.9289
+            },
+            {
+              "envelopeSerializationMs": 0.37120000000000003,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 39.6003,
+              "storageMs": 46.671499999999995
+            },
+            {
+              "envelopeSerializationMs": 0.5366000000000001,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 38.6674,
+              "storageMs": 45.1729
+            },
+            {
+              "envelopeSerializationMs": 0.37070000000000003,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 41.6772,
+              "storageMs": 43.304700000000004
+            },
+            {
+              "envelopeSerializationMs": 0.579,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 38.9724,
+              "storageMs": 43.373000000000005
+            },
+            {
+              "envelopeSerializationMs": 0.6043,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 43.0192,
+              "storageMs": 43.9369
+            }
+          ],
+          "warmEnvelopeSerialization": {
+            "maxMs": 0.6043,
+            "medianMs": 0.47220000000000006,
+            "nearestRankP95Ms": 0.6043,
+            "samples": [
+              0.464, 0.48040000000000005, 0.3573, 0.3776, 0.5256,
+              0.37120000000000003, 0.5366000000000001, 0.37070000000000003,
+              0.579, 0.6043
+            ]
+          },
+          "warmProjectionAndBudgetSerialization": {
+            "maxMs": 43.0192,
+            "medianMs": 39.08265,
+            "nearestRankP95Ms": 43.0192,
+            "samples": [
+              39.0237, 38.9682, 39.768, 38.8566, 39.1416, 39.6003, 38.6674,
+              41.6772, 38.9724, 43.0192
+            ]
+          },
+          "warmStorage": {
+            "maxMs": 46.671499999999995,
+            "medianMs": 43.932900000000004,
+            "nearestRankP95Ms": 46.671499999999995,
+            "samples": [
+              43.335, 44.267300000000006, 45.7291, 43.9004, 43.9289,
+              46.671499999999995, 45.1729, 43.304700000000004,
+              43.373000000000005, 43.9369
+            ]
+          }
+        },
+        "warmCommandAndSerialization": {
+          "maxMs": 86.964,
+          "medianMs": 85.10679999999999,
+          "nearestRankP95Ms": 86.964,
+          "samples": [
+            84.6875, 85.845, 84.8688, 86.3353, 84.6269, 85.91210000000001,
+            82.79780000000001, 84.59740000000001, 86.964, 85.34479999999999
+          ]
+        }
+      },
+      {
+        "baselineMemory": {
+          "lifetimePeakCommitBytes": 6356992,
+          "lifetimePeakWorkingSetBytes": 12378112,
+          "privateCommitBytes": 5701632,
+          "workingSetBytes": 11841536
+        },
+        "completeCountsOrNoPartialResults": true,
+        "entries": 2000,
+        "probe": "plugin-explorer",
+        "runs": [
+          {
+            "commandAndSerializationMs": 184.879,
+            "memory": {
+              "lifetimePeakCommitBytes": 15323136,
+              "lifetimePeakWorkingSetBytes": 21917696,
+              "privateCommitBytes": 11956224,
+              "workingSetBytes": 18300928
+            },
+            "phase": "first_run",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 169.3246,
+            "memory": {
+              "lifetimePeakCommitBytes": 15659008,
+              "lifetimePeakWorkingSetBytes": 22102016,
+              "privateCommitBytes": 13262848,
+              "workingSetBytes": 18669568
+            },
+            "phase": "warm_up",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 171.4742,
+            "memory": {
+              "lifetimePeakCommitBytes": 16728064,
+              "lifetimePeakWorkingSetBytes": 22888448,
+              "privateCommitBytes": 12697600,
+              "workingSetBytes": 18837504
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 166.8064,
+            "memory": {
+              "lifetimePeakCommitBytes": 16859136,
+              "lifetimePeakWorkingSetBytes": 23187456,
+              "privateCommitBytes": 12783616,
+              "workingSetBytes": 19099648
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 168.5839,
+            "memory": {
+              "lifetimePeakCommitBytes": 17674240,
+              "lifetimePeakWorkingSetBytes": 23916544,
+              "privateCommitBytes": 13205504,
+              "workingSetBytes": 19161088
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 169.6243,
+            "memory": {
+              "lifetimePeakCommitBytes": 18112512,
+              "lifetimePeakWorkingSetBytes": 24117248,
+              "privateCommitBytes": 13570048,
+              "workingSetBytes": 19709952
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 167.3384,
+            "memory": {
+              "lifetimePeakCommitBytes": 18243584,
+              "lifetimePeakWorkingSetBytes": 24391680,
+              "privateCommitBytes": 14143488,
+              "workingSetBytes": 20058112
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 169.1445,
+            "memory": {
+              "lifetimePeakCommitBytes": 18583552,
+              "lifetimePeakWorkingSetBytes": 24694784,
+              "privateCommitBytes": 13279232,
+              "workingSetBytes": 19640320
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 168.39489999999998,
+            "memory": {
+              "lifetimePeakCommitBytes": 19136512,
+              "lifetimePeakWorkingSetBytes": 25329664,
+              "privateCommitBytes": 13795328,
+              "workingSetBytes": 19755008
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 167.671,
+            "memory": {
+              "lifetimePeakCommitBytes": 19345408,
+              "lifetimePeakWorkingSetBytes": 25329664,
+              "privateCommitBytes": 13783040,
+              "workingSetBytes": 19808256
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 177.5495,
+            "memory": {
+              "lifetimePeakCommitBytes": 19853312,
+              "lifetimePeakWorkingSetBytes": 26079232,
+              "privateCommitBytes": 13725696,
+              "workingSetBytes": 19931136
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 167.2333,
+            "memory": {
+              "lifetimePeakCommitBytes": 20140032,
+              "lifetimePeakWorkingSetBytes": 26079232,
+              "privateCommitBytes": 13856768,
+              "workingSetBytes": 19877888
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          }
+        ],
+        "savedQueryComparisonMs": 200,
+        "schema": "fruitboard/native-resource-result/1",
+        "state": "ready",
+        "subsequentComponentProfile": {
+          "runs": [
+            {
+              "envelopeSerializationMs": 0.856,
+              "phase": "first_profile",
+              "projectionAndBudgetSerializationMs": 79.72219999999999,
+              "storageMs": 90.8874
+            },
+            {
+              "envelopeSerializationMs": 0.8924,
+              "phase": "warm_up",
+              "projectionAndBudgetSerializationMs": 80.1882,
+              "storageMs": 87.2339
+            },
+            {
+              "envelopeSerializationMs": 0.8086,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 79.6303,
+              "storageMs": 87.25829999999999
+            },
+            {
+              "envelopeSerializationMs": 0.8533,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 79.9285,
+              "storageMs": 87.49270000000001
+            },
+            {
+              "envelopeSerializationMs": 0.9092,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 82.85249999999999,
+              "storageMs": 86.0455
+            },
+            {
+              "envelopeSerializationMs": 0.8904,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 79.984,
+              "storageMs": 88.37
+            },
+            {
+              "envelopeSerializationMs": 0.8075,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 79.5688,
+              "storageMs": 85.9713
+            },
+            {
+              "envelopeSerializationMs": 0.8254,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 78.9874,
+              "storageMs": 95.11699999999999
+            },
+            {
+              "envelopeSerializationMs": 0.8618,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 81.4238,
+              "storageMs": 89.22420000000001
+            },
+            {
+              "envelopeSerializationMs": 0.9014,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 79.7088,
+              "storageMs": 90.056
+            },
+            {
+              "envelopeSerializationMs": 0.8505,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 80.58269999999999,
+              "storageMs": 88.7366
+            },
+            {
+              "envelopeSerializationMs": 0.8431,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 80.6285,
+              "storageMs": 87.4017
+            }
+          ],
+          "warmEnvelopeSerialization": {
+            "maxMs": 0.9092,
+            "medianMs": 0.8519,
+            "nearestRankP95Ms": 0.9092,
+            "samples": [
+              0.8086, 0.8533, 0.9092, 0.8904, 0.8075, 0.8254, 0.8618, 0.9014,
+              0.8505, 0.8431
+            ]
+          },
+          "warmProjectionAndBudgetSerialization": {
+            "maxMs": 82.85249999999999,
+            "medianMs": 79.95625,
+            "nearestRankP95Ms": 82.85249999999999,
+            "samples": [
+              79.6303, 79.9285, 82.85249999999999, 79.984, 79.5688, 78.9874,
+              81.4238, 79.7088, 80.58269999999999, 80.6285
+            ]
+          },
+          "warmStorage": {
+            "maxMs": 95.11699999999999,
+            "medianMs": 87.93135000000001,
+            "nearestRankP95Ms": 95.11699999999999,
+            "samples": [
+              87.25829999999999, 87.49270000000001, 86.0455, 88.37, 85.9713,
+              95.11699999999999, 89.22420000000001, 90.056, 88.7366, 87.4017
+            ]
+          }
+        },
+        "warmCommandAndSerialization": {
+          "maxMs": 177.5495,
+          "medianMs": 168.4894,
+          "nearestRankP95Ms": 177.5495,
+          "samples": [
+            171.4742, 166.8064, 168.5839, 169.6243, 167.3384, 169.1445,
+            168.39489999999998, 167.671, 177.5495, 167.2333
+          ]
+        }
+      },
+      {
+        "baselineMemory": {
+          "lifetimePeakCommitBytes": 6365184,
+          "lifetimePeakWorkingSetBytes": 12369920,
+          "privateCommitBytes": 5623808,
+          "workingSetBytes": 11808768
+        },
+        "completeCountsOrNoPartialResults": true,
+        "entries": 2001,
+        "probe": "plugin-explorer",
+        "runs": [
+          {
+            "commandAndSerializationMs": 3.0753,
+            "memory": {
+              "lifetimePeakCommitBytes": 6365184,
+              "lifetimePeakWorkingSetBytes": 12677120,
+              "privateCommitBytes": 5099520,
+              "workingSetBytes": 11689984
+            },
+            "phase": "first_run",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.627,
+            "memory": {
+              "lifetimePeakCommitBytes": 6520832,
+              "lifetimePeakWorkingSetBytes": 12972032,
+              "privateCommitBytes": 5144576,
+              "workingSetBytes": 11739136
+            },
+            "phase": "warm_up",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.6814,
+            "memory": {
+              "lifetimePeakCommitBytes": 6520832,
+              "lifetimePeakWorkingSetBytes": 12972032,
+              "privateCommitBytes": 5357568,
+              "workingSetBytes": 11759616
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.5776000000000003,
+            "memory": {
+              "lifetimePeakCommitBytes": 6520832,
+              "lifetimePeakWorkingSetBytes": 12972032,
+              "privateCommitBytes": 5431296,
+              "workingSetBytes": 11845632
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.8434,
+            "memory": {
+              "lifetimePeakCommitBytes": 6897664,
+              "lifetimePeakWorkingSetBytes": 13066240,
+              "privateCommitBytes": 5345280,
+              "workingSetBytes": 11759616
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.6998,
+            "memory": {
+              "lifetimePeakCommitBytes": 6897664,
+              "lifetimePeakWorkingSetBytes": 13066240,
+              "privateCommitBytes": 5414912,
+              "workingSetBytes": 11837440
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.6016,
+            "memory": {
+              "lifetimePeakCommitBytes": 6897664,
+              "lifetimePeakWorkingSetBytes": 13090816,
+              "privateCommitBytes": 5361664,
+              "workingSetBytes": 11788288
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.4861000000000004,
+            "memory": {
+              "lifetimePeakCommitBytes": 6897664,
+              "lifetimePeakWorkingSetBytes": 13090816,
+              "privateCommitBytes": 5423104,
+              "workingSetBytes": 11845632
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.8583,
+            "memory": {
+              "lifetimePeakCommitBytes": 6897664,
+              "lifetimePeakWorkingSetBytes": 13094912,
+              "privateCommitBytes": 5345280,
+              "workingSetBytes": 11771904
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.5153,
+            "memory": {
+              "lifetimePeakCommitBytes": 6897664,
+              "lifetimePeakWorkingSetBytes": 13094912,
+              "privateCommitBytes": 5431296,
+              "workingSetBytes": 11853824
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.936,
+            "memory": {
+              "lifetimePeakCommitBytes": 6897664,
+              "lifetimePeakWorkingSetBytes": 13094912,
+              "privateCommitBytes": 5353472,
+              "workingSetBytes": 11780096
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.5818,
+            "memory": {
+              "lifetimePeakCommitBytes": 6897664,
+              "lifetimePeakWorkingSetBytes": 13094912,
+              "privateCommitBytes": 5431296,
+              "workingSetBytes": 11853824
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          }
+        ],
+        "savedQueryComparisonMs": 200,
+        "schema": "fruitboard/native-resource-result/1",
+        "state": "limited",
+        "subsequentComponentProfile": {
+          "runs": [
+            {
+              "envelopeSerializationMs": 0.0011,
+              "phase": "first_profile",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.5297
+            },
+            {
+              "envelopeSerializationMs": 0.0012,
+              "phase": "warm_up",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.6242
+            },
+            {
+              "envelopeSerializationMs": 0.0018,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.6873
+            },
+            {
+              "envelopeSerializationMs": 0.0011,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.6403
+            },
+            {
+              "envelopeSerializationMs": 0.0011,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.6469
+            },
+            {
+              "envelopeSerializationMs": 0.0009,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.5172
+            },
+            {
+              "envelopeSerializationMs": 0.0014,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.4421999999999997
+            },
+            {
+              "envelopeSerializationMs": 0.0013,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.733
+            },
+            {
+              "envelopeSerializationMs": 0.0015999999999999999,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 3.5848
+            },
+            {
+              "envelopeSerializationMs": 0.0013,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.8725
+            },
+            {
+              "envelopeSerializationMs": 0.0013,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.6166
+            },
+            {
+              "envelopeSerializationMs": 0.001,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.7538
+            }
+          ],
+          "warmEnvelopeSerialization": {
+            "maxMs": 0.0018,
+            "medianMs": 0.0013,
+            "nearestRankP95Ms": 0.0018,
+            "samples": [
+              0.0018, 0.0011, 0.0011, 0.0009, 0.0014, 0.0013,
+              0.0015999999999999999, 0.0013, 0.0013, 0.001
+            ]
+          },
+          "warmProjectionAndBudgetSerialization": {
+            "maxMs": 0.00009999999999999999,
+            "medianMs": 0.00009999999999999999,
+            "nearestRankP95Ms": 0.00009999999999999999,
+            "samples": [
+              0.00009999999999999999, 0.00009999999999999999,
+              0.00009999999999999999, 0.00009999999999999999,
+              0.00009999999999999999, 0.00009999999999999999,
+              0.00009999999999999999, 0.00009999999999999999,
+              0.00009999999999999999, 0.00009999999999999999
+            ]
+          },
+          "warmStorage": {
+            "maxMs": 3.5848,
+            "medianMs": 2.6671,
+            "nearestRankP95Ms": 3.5848,
+            "samples": [
+              2.6873, 2.6403, 2.6469, 2.5172, 2.4421999999999997, 2.733, 3.5848,
+              2.8725, 2.6166, 2.7538
+            ]
+          }
+        },
+        "warmCommandAndSerialization": {
+          "maxMs": 2.936,
+          "medianMs": 2.6414999999999997,
+          "nearestRankP95Ms": 2.936,
+          "samples": [
+            2.6814, 2.5776000000000003, 2.8434, 2.6998, 2.6016,
+            2.4861000000000004, 2.8583, 2.5153, 2.936, 2.5818
+          ]
+        }
+      }
+    ],
+    "after": [
+      {
+        "baselineMemory": {
+          "lifetimePeakCommitBytes": 2650112,
+          "lifetimePeakWorkingSetBytes": 9682944,
+          "privateCommitBytes": 2650112,
+          "workingSetBytes": 9682944
+        },
+        "completeCountsOrNoPartialResults": true,
+        "entries": 100,
+        "probe": "plugin-explorer",
+        "runs": [
+          {
+            "commandAndSerializationMs": 8.7136,
+            "memory": {
+              "lifetimePeakCommitBytes": 3035136,
+              "lifetimePeakWorkingSetBytes": 10309632,
+              "privateCommitBytes": 2891776,
+              "workingSetBytes": 10125312
+            },
+            "phase": "first_run",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 8.062,
+            "memory": {
+              "lifetimePeakCommitBytes": 3379200,
+              "lifetimePeakWorkingSetBytes": 10506240,
+              "privateCommitBytes": 3379200,
+              "workingSetBytes": 10383360
+            },
+            "phase": "warm_up",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.6552,
+            "memory": {
+              "lifetimePeakCommitBytes": 3657728,
+              "lifetimePeakWorkingSetBytes": 10747904,
+              "privateCommitBytes": 3289088,
+              "workingSetBytes": 10391552
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 8.0751,
+            "memory": {
+              "lifetimePeakCommitBytes": 3719168,
+              "lifetimePeakWorkingSetBytes": 10821632,
+              "privateCommitBytes": 3305472,
+              "workingSetBytes": 10412032
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 8.335,
+            "memory": {
+              "lifetimePeakCommitBytes": 3719168,
+              "lifetimePeakWorkingSetBytes": 10833920,
+              "privateCommitBytes": 3428352,
+              "workingSetBytes": 10485760
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.7839,
+            "memory": {
+              "lifetimePeakCommitBytes": 3719168,
+              "lifetimePeakWorkingSetBytes": 10833920,
+              "privateCommitBytes": 3424256,
+              "workingSetBytes": 10481664
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.974200000000001,
+            "memory": {
+              "lifetimePeakCommitBytes": 3719168,
+              "lifetimePeakWorkingSetBytes": 10833920,
+              "privateCommitBytes": 3424256,
+              "workingSetBytes": 10481664
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.6797,
+            "memory": {
+              "lifetimePeakCommitBytes": 3719168,
+              "lifetimePeakWorkingSetBytes": 10833920,
+              "privateCommitBytes": 3420160,
+              "workingSetBytes": 10481664
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.995900000000001,
+            "memory": {
+              "lifetimePeakCommitBytes": 3719168,
+              "lifetimePeakWorkingSetBytes": 10833920,
+              "privateCommitBytes": 3416064,
+              "workingSetBytes": 10477568
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.9504,
+            "memory": {
+              "lifetimePeakCommitBytes": 3776512,
+              "lifetimePeakWorkingSetBytes": 10874880,
+              "privateCommitBytes": 3407872,
+              "workingSetBytes": 10530816
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 7.7474,
+            "memory": {
+              "lifetimePeakCommitBytes": 3776512,
+              "lifetimePeakWorkingSetBytes": 10874880,
+              "privateCommitBytes": 3391488,
+              "workingSetBytes": 10514432
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          },
+          {
+            "commandAndSerializationMs": 8.2474,
+            "memory": {
+              "lifetimePeakCommitBytes": 3776512,
+              "lifetimePeakWorkingSetBytes": 10874880,
+              "privateCommitBytes": 3588096,
+              "workingSetBytes": 10518528
+            },
+            "phase": "measured",
+            "responseBytes": 47162
+          }
+        ],
+        "savedQueryComparisonMs": 200,
+        "schema": "fruitboard/native-resource-result/1",
+        "state": "ready",
+        "subsequentComponentProfile": {
+          "runs": [
+            {
+              "envelopeSerializationMs": 0.0388,
+              "phase": "first_profile",
+              "projectionAndBudgetSerializationMs": 3.9105,
+              "storageMs": 4.2417
+            },
+            {
+              "envelopeSerializationMs": 0.073,
+              "phase": "warm_up",
+              "projectionAndBudgetSerializationMs": 3.9813,
+              "storageMs": 4.1411
+            },
+            {
+              "envelopeSerializationMs": 0.0387,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 4.2805,
+              "storageMs": 3.6033
+            },
+            {
+              "envelopeSerializationMs": 0.0385,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 4.1986,
+              "storageMs": 3.5641000000000003
+            },
+            {
+              "envelopeSerializationMs": 0.0384,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 4.2354,
+              "storageMs": 3.6518
+            },
+            {
+              "envelopeSerializationMs": 0.0374,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 3.7304,
+              "storageMs": 4.096500000000001
+            },
+            {
+              "envelopeSerializationMs": 0.0748,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 3.7634,
+              "storageMs": 4.183
+            },
+            {
+              "envelopeSerializationMs": 0.0462,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 4.6452,
+              "storageMs": 3.7843999999999998
+            },
+            {
+              "envelopeSerializationMs": 0.0376,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 4.0568,
+              "storageMs": 3.4792
+            },
+            {
+              "envelopeSerializationMs": 0.037700000000000004,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 4.1253,
+              "storageMs": 3.4294
+            },
+            {
+              "envelopeSerializationMs": 0.0376,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 3.8154999999999997,
+              "storageMs": 3.707
+            },
+            {
+              "envelopeSerializationMs": 0.036699999999999997,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 3.6061,
+              "storageMs": 4.0186
+            }
+          ],
+          "warmEnvelopeSerialization": {
+            "maxMs": 0.0748,
+            "medianMs": 0.03805,
+            "nearestRankP95Ms": 0.0748,
+            "samples": [
+              0.0387, 0.0385, 0.0384, 0.0374, 0.0748, 0.0462, 0.0376,
+              0.037700000000000004, 0.0376, 0.036699999999999997
+            ]
+          },
+          "warmProjectionAndBudgetSerialization": {
+            "maxMs": 4.6452,
+            "medianMs": 4.09105,
+            "nearestRankP95Ms": 4.6452,
+            "samples": [
+              4.2805, 4.1986, 4.2354, 3.7304, 3.7634, 4.6452, 4.0568, 4.1253,
+              3.8154999999999997, 3.6061
+            ]
+          },
+          "warmStorage": {
+            "maxMs": 4.183,
+            "medianMs": 3.6794000000000002,
+            "nearestRankP95Ms": 4.183,
+            "samples": [
+              3.6033, 3.5641000000000003, 3.6518, 4.096500000000001, 4.183,
+              3.7843999999999998, 3.4792, 3.4294, 3.707, 4.0186
+            ]
+          }
+        },
+        "warmCommandAndSerialization": {
+          "maxMs": 8.335,
+          "medianMs": 7.962300000000001,
+          "nearestRankP95Ms": 8.335,
+          "samples": [
+            7.6552, 8.0751, 8.335, 7.7839, 7.974200000000001, 7.6797,
+            7.995900000000001, 7.9504, 7.7474, 8.2474
+          ]
+        }
+      },
+      {
+        "baselineMemory": {
+          "lifetimePeakCommitBytes": 4882432,
+          "lifetimePeakWorkingSetBytes": 15310848,
+          "privateCommitBytes": 4866048,
+          "workingSetBytes": 15278080
+        },
+        "completeCountsOrNoPartialResults": true,
+        "entries": 1000,
+        "probe": "plugin-explorer",
+        "runs": [
+          {
+            "commandAndSerializationMs": 99.6445,
+            "memory": {
+              "lifetimePeakCommitBytes": 9519104,
+              "lifetimePeakWorkingSetBytes": 20054016,
+              "privateCommitBytes": 8142848,
+              "workingSetBytes": 18522112
+            },
+            "phase": "first_run",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 91.6553,
+            "memory": {
+              "lifetimePeakCommitBytes": 10539008,
+              "lifetimePeakWorkingSetBytes": 20779008,
+              "privateCommitBytes": 8392704,
+              "workingSetBytes": 18595840
+            },
+            "phase": "warm_up",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 94.13050000000001,
+            "memory": {
+              "lifetimePeakCommitBytes": 11087872,
+              "lifetimePeakWorkingSetBytes": 21348352,
+              "privateCommitBytes": 8691712,
+              "workingSetBytes": 18755584
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 91.3543,
+            "memory": {
+              "lifetimePeakCommitBytes": 11476992,
+              "lifetimePeakWorkingSetBytes": 21790720,
+              "privateCommitBytes": 8925184,
+              "workingSetBytes": 18685952
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 91.1621,
+            "memory": {
+              "lifetimePeakCommitBytes": 11698176,
+              "lifetimePeakWorkingSetBytes": 21999616,
+              "privateCommitBytes": 9019392,
+              "workingSetBytes": 18636800
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 87.3765,
+            "memory": {
+              "lifetimePeakCommitBytes": 12271616,
+              "lifetimePeakWorkingSetBytes": 22343680,
+              "privateCommitBytes": 8736768,
+              "workingSetBytes": 19038208
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 82.8933,
+            "memory": {
+              "lifetimePeakCommitBytes": 12271616,
+              "lifetimePeakWorkingSetBytes": 22355968,
+              "privateCommitBytes": 9031680,
+              "workingSetBytes": 19509248
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 83.9134,
+            "memory": {
+              "lifetimePeakCommitBytes": 12754944,
+              "lifetimePeakWorkingSetBytes": 22781952,
+              "privateCommitBytes": 9129984,
+              "workingSetBytes": 19533824
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 83.61449999999999,
+            "memory": {
+              "lifetimePeakCommitBytes": 12754944,
+              "lifetimePeakWorkingSetBytes": 22781952,
+              "privateCommitBytes": 9129984,
+              "workingSetBytes": 19554304
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 80.7534,
+            "memory": {
+              "lifetimePeakCommitBytes": 12754944,
+              "lifetimePeakWorkingSetBytes": 22781952,
+              "privateCommitBytes": 9142272,
+              "workingSetBytes": 19582976
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 81.7891,
+            "memory": {
+              "lifetimePeakCommitBytes": 12754944,
+              "lifetimePeakWorkingSetBytes": 22781952,
+              "privateCommitBytes": 9117696,
+              "workingSetBytes": 19537920
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          },
+          {
+            "commandAndSerializationMs": 87.3986,
+            "memory": {
+              "lifetimePeakCommitBytes": 12754944,
+              "lifetimePeakWorkingSetBytes": 22781952,
+              "privateCommitBytes": 8769536,
+              "workingSetBytes": 18984960
+            },
+            "phase": "measured",
+            "responseBytes": 466564
+          }
+        ],
+        "savedQueryComparisonMs": 200,
+        "schema": "fruitboard/native-resource-result/1",
+        "state": "ready",
+        "subsequentComponentProfile": {
+          "runs": [
+            {
+              "envelopeSerializationMs": 0.5547,
+              "phase": "first_profile",
+              "projectionAndBudgetSerializationMs": 40.082,
+              "storageMs": 42.178399999999996
+            },
+            {
+              "envelopeSerializationMs": 0.3751,
+              "phase": "warm_up",
+              "projectionAndBudgetSerializationMs": 40.0083,
+              "storageMs": 42.3513
+            },
+            {
+              "envelopeSerializationMs": 0.6641,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 42.2038,
+              "storageMs": 47.291199999999996
+            },
+            {
+              "envelopeSerializationMs": 0.3685,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 42.1496,
+              "storageMs": 45.8649
+            },
+            {
+              "envelopeSerializationMs": 0.5617000000000001,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 41.544900000000005,
+              "storageMs": 45.3011
+            },
+            {
+              "envelopeSerializationMs": 0.3568,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 41.126200000000004,
+              "storageMs": 44.688199999999995
+            },
+            {
+              "envelopeSerializationMs": 0.391,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 39.6287,
+              "storageMs": 43.2774
+            },
+            {
+              "envelopeSerializationMs": 0.3828,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 40.5993,
+              "storageMs": 43.8058
+            },
+            {
+              "envelopeSerializationMs": 0.3806,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 40.2878,
+              "storageMs": 41.649499999999996
+            },
+            {
+              "envelopeSerializationMs": 0.54,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 39.9993,
+              "storageMs": 42.1659
+            },
+            {
+              "envelopeSerializationMs": 0.3925,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 40.097899999999996,
+              "storageMs": 41.9653
+            },
+            {
+              "envelopeSerializationMs": 0.3769,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 39.8505,
+              "storageMs": 42.2432
+            }
+          ],
+          "warmEnvelopeSerialization": {
+            "maxMs": 0.6641,
+            "medianMs": 0.3869,
+            "nearestRankP95Ms": 0.6641,
+            "samples": [
+              0.6641, 0.3685, 0.5617000000000001, 0.3568, 0.391, 0.3828, 0.3806,
+              0.54, 0.3925, 0.3769
+            ]
+          },
+          "warmProjectionAndBudgetSerialization": {
+            "maxMs": 42.2038,
+            "medianMs": 40.44355,
+            "nearestRankP95Ms": 42.2038,
+            "samples": [
+              42.2038, 42.1496, 41.544900000000005, 41.126200000000004, 39.6287,
+              40.5993, 40.2878, 39.9993, 40.097899999999996, 39.8505
+            ]
+          },
+          "warmStorage": {
+            "maxMs": 47.291199999999996,
+            "medianMs": 43.5416,
+            "nearestRankP95Ms": 47.291199999999996,
+            "samples": [
+              47.291199999999996, 45.8649, 45.3011, 44.688199999999995, 43.2774,
+              43.8058, 41.649499999999996, 42.1659, 41.9653, 42.2432
+            ]
+          }
+        },
+        "warmCommandAndSerialization": {
+          "maxMs": 94.13050000000001,
+          "medianMs": 85.64495,
+          "nearestRankP95Ms": 94.13050000000001,
+          "samples": [
+            94.13050000000001, 91.3543, 91.1621, 87.3765, 82.8933, 83.9134,
+            83.61449999999999, 80.7534, 81.7891, 87.3986
+          ]
+        }
+      },
+      {
+        "baselineMemory": {
+          "lifetimePeakCommitBytes": 6356992,
+          "lifetimePeakWorkingSetBytes": 12365824,
+          "privateCommitBytes": 5603328,
+          "workingSetBytes": 11747328
+        },
+        "completeCountsOrNoPartialResults": true,
+        "entries": 2000,
+        "probe": "plugin-explorer",
+        "runs": [
+          {
+            "commandAndSerializationMs": 176.45839999999998,
+            "memory": {
+              "lifetimePeakCommitBytes": 15380480,
+              "lifetimePeakWorkingSetBytes": 21966848,
+              "privateCommitBytes": 12083200,
+              "workingSetBytes": 18391040
+            },
+            "phase": "first_run",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 169.1723,
+            "memory": {
+              "lifetimePeakCommitBytes": 15998976,
+              "lifetimePeakWorkingSetBytes": 22568960,
+              "privateCommitBytes": 12247040,
+              "workingSetBytes": 18305024
+            },
+            "phase": "warm_up",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 175.8524,
+            "memory": {
+              "lifetimePeakCommitBytes": 16424960,
+              "lifetimePeakWorkingSetBytes": 22884352,
+              "privateCommitBytes": 13254656,
+              "workingSetBytes": 18714624
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 169.29579999999999,
+            "memory": {
+              "lifetimePeakCommitBytes": 16965632,
+              "lifetimePeakWorkingSetBytes": 23113728,
+              "privateCommitBytes": 13271040,
+              "workingSetBytes": 19312640
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 171.0239,
+            "memory": {
+              "lifetimePeakCommitBytes": 17788928,
+              "lifetimePeakWorkingSetBytes": 23769088,
+              "privateCommitBytes": 12775424,
+              "workingSetBytes": 18907136
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 171.536,
+            "memory": {
+              "lifetimePeakCommitBytes": 17788928,
+              "lifetimePeakWorkingSetBytes": 24023040,
+              "privateCommitBytes": 12951552,
+              "workingSetBytes": 19083264
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 169.6766,
+            "memory": {
+              "lifetimePeakCommitBytes": 18112512,
+              "lifetimePeakWorkingSetBytes": 24309760,
+              "privateCommitBytes": 13410304,
+              "workingSetBytes": 19640320
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 173.99319999999997,
+            "memory": {
+              "lifetimePeakCommitBytes": 18382848,
+              "lifetimePeakWorkingSetBytes": 24797184,
+              "privateCommitBytes": 13107200,
+              "workingSetBytes": 19378176
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 171.24429999999998,
+            "memory": {
+              "lifetimePeakCommitBytes": 18956288,
+              "lifetimePeakWorkingSetBytes": 25194496,
+              "privateCommitBytes": 14225408,
+              "workingSetBytes": 20312064
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 171.90900000000002,
+            "memory": {
+              "lifetimePeakCommitBytes": 19959808,
+              "lifetimePeakWorkingSetBytes": 25735168,
+              "privateCommitBytes": 13541376,
+              "workingSetBytes": 19656704
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 172.91019999999997,
+            "memory": {
+              "lifetimePeakCommitBytes": 20176896,
+              "lifetimePeakWorkingSetBytes": 25956352,
+              "privateCommitBytes": 13418496,
+              "workingSetBytes": 19677184
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          },
+          {
+            "commandAndSerializationMs": 169.744,
+            "memory": {
+              "lifetimePeakCommitBytes": 20176896,
+              "lifetimePeakWorkingSetBytes": 25956352,
+              "privateCommitBytes": 13250560,
+              "workingSetBytes": 19685376
+            },
+            "phase": "measured",
+            "responseBytes": 932564
+          }
+        ],
+        "savedQueryComparisonMs": 200,
+        "schema": "fruitboard/native-resource-result/1",
+        "state": "ready",
+        "subsequentComponentProfile": {
+          "runs": [
+            {
+              "envelopeSerializationMs": 0.963,
+              "phase": "first_profile",
+              "projectionAndBudgetSerializationMs": 81.905,
+              "storageMs": 90.1397
+            },
+            {
+              "envelopeSerializationMs": 0.9077,
+              "phase": "warm_up",
+              "projectionAndBudgetSerializationMs": 80.6435,
+              "storageMs": 88.4105
+            },
+            {
+              "envelopeSerializationMs": 0.9833000000000001,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 82.1865,
+              "storageMs": 85.9867
+            },
+            {
+              "envelopeSerializationMs": 1.0037,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 88.5194,
+              "storageMs": 99.3426
+            },
+            {
+              "envelopeSerializationMs": 0.9814999999999999,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 87.5624,
+              "storageMs": 100.72290000000001
+            },
+            {
+              "envelopeSerializationMs": 0.9705999999999999,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 91.8027,
+              "storageMs": 98.5503
+            },
+            {
+              "envelopeSerializationMs": 0.9521,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 88.4234,
+              "storageMs": 91.2295
+            },
+            {
+              "envelopeSerializationMs": 1.2297,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 84.4268,
+              "storageMs": 92.00500000000001
+            },
+            {
+              "envelopeSerializationMs": 0.962,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 81.5651,
+              "storageMs": 93.6926
+            },
+            {
+              "envelopeSerializationMs": 1.1572,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 81.22890000000001,
+              "storageMs": 86.2839
+            },
+            {
+              "envelopeSerializationMs": 0.8752,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 82.6541,
+              "storageMs": 88.15599999999999
+            },
+            {
+              "envelopeSerializationMs": 0.934,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 80.114,
+              "storageMs": 87.09
+            }
+          ],
+          "warmEnvelopeSerialization": {
+            "maxMs": 1.2297,
+            "medianMs": 0.9760499999999999,
+            "nearestRankP95Ms": 1.2297,
+            "samples": [
+              0.9833000000000001, 1.0037, 0.9814999999999999,
+              0.9705999999999999, 0.9521, 1.2297, 0.962, 1.1572, 0.8752, 0.934
+            ]
+          },
+          "warmProjectionAndBudgetSerialization": {
+            "maxMs": 91.8027,
+            "medianMs": 83.54044999999999,
+            "nearestRankP95Ms": 91.8027,
+            "samples": [
+              82.1865, 88.5194, 87.5624, 91.8027, 88.4234, 84.4268, 81.5651,
+              81.22890000000001, 82.6541, 80.114
+            ]
+          },
+          "warmStorage": {
+            "maxMs": 100.72290000000001,
+            "medianMs": 91.61725000000001,
+            "nearestRankP95Ms": 100.72290000000001,
+            "samples": [
+              85.9867, 99.3426, 100.72290000000001, 98.5503, 91.2295,
+              92.00500000000001, 93.6926, 86.2839, 88.15599999999999, 87.09
+            ]
+          }
+        },
+        "warmCommandAndSerialization": {
+          "maxMs": 175.8524,
+          "medianMs": 171.39015,
+          "nearestRankP95Ms": 175.8524,
+          "samples": [
+            175.8524, 169.29579999999999, 171.0239, 171.536, 169.6766,
+            173.99319999999997, 171.24429999999998, 171.90900000000002,
+            172.91019999999997, 169.744
+          ]
+        }
+      },
+      {
+        "baselineMemory": {
+          "lifetimePeakCommitBytes": 6373376,
+          "lifetimePeakWorkingSetBytes": 12382208,
+          "privateCommitBytes": 5738496,
+          "workingSetBytes": 11726848
+        },
+        "completeCountsOrNoPartialResults": true,
+        "entries": 2001,
+        "probe": "plugin-explorer",
+        "runs": [
+          {
+            "commandAndSerializationMs": 3.5258,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12701696,
+              "privateCommitBytes": 5128192,
+              "workingSetBytes": 11710464
+            },
+            "phase": "first_run",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.8376,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5132288,
+              "workingSetBytes": 11722752
+            },
+            "phase": "warm_up",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 3.1256,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5332992,
+              "workingSetBytes": 11730944
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.7277,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5386240,
+              "workingSetBytes": 11784192
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.9383,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5369856,
+              "workingSetBytes": 11767808
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.7586,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5394432,
+              "workingSetBytes": 11804672
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.666,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5341184,
+              "workingSetBytes": 11763712
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.7567,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5378048,
+              "workingSetBytes": 11804672
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.6239000000000003,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5365760,
+              "workingSetBytes": 11792384
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.6099,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5410816,
+              "workingSetBytes": 11849728
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.6265,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5328896,
+              "workingSetBytes": 11767808
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          },
+          {
+            "commandAndSerializationMs": 2.6003,
+            "memory": {
+              "lifetimePeakCommitBytes": 6537216,
+              "lifetimePeakWorkingSetBytes": 12914688,
+              "privateCommitBytes": 5390336,
+              "workingSetBytes": 11829248
+            },
+            "phase": "measured",
+            "responseBytes": 171
+          }
+        ],
+        "savedQueryComparisonMs": 200,
+        "schema": "fruitboard/native-resource-result/1",
+        "state": "limited",
+        "subsequentComponentProfile": {
+          "runs": [
+            {
+              "envelopeSerializationMs": 0.0019,
+              "phase": "first_profile",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.6719999999999997
+            },
+            {
+              "envelopeSerializationMs": 0.0013,
+              "phase": "warm_up",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.6416
+            },
+            {
+              "envelopeSerializationMs": 0.001,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.5631
+            },
+            {
+              "envelopeSerializationMs": 0.0017000000000000001,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00019999999999999998,
+              "storageMs": 2.7399999999999998
+            },
+            {
+              "envelopeSerializationMs": 0.0012,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.6024
+            },
+            {
+              "envelopeSerializationMs": 0.0015,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.6197
+            },
+            {
+              "envelopeSerializationMs": 0.0017000000000000001,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00009999999999999999,
+              "storageMs": 2.6536
+            },
+            {
+              "envelopeSerializationMs": 0.0012,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00019999999999999998,
+              "storageMs": 2.5822000000000003
+            },
+            {
+              "envelopeSerializationMs": 0.0023,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00019999999999999998,
+              "storageMs": 2.755
+            },
+            {
+              "envelopeSerializationMs": 0.0018,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00019999999999999998,
+              "storageMs": 2.8535
+            },
+            {
+              "envelopeSerializationMs": 0.0013,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0,
+              "storageMs": 2.6454999999999997
+            },
+            {
+              "envelopeSerializationMs": 0.0017000000000000001,
+              "phase": "measured",
+              "projectionAndBudgetSerializationMs": 0.00019999999999999998,
+              "storageMs": 2.6342000000000003
+            }
+          ],
+          "warmEnvelopeSerialization": {
+            "maxMs": 0.0023,
+            "medianMs": 0.0016,
+            "nearestRankP95Ms": 0.0023,
+            "samples": [
+              0.001, 0.0017000000000000001, 0.0012, 0.0015,
+              0.0017000000000000001, 0.0012, 0.0023, 0.0018, 0.0013,
+              0.0017000000000000001
+            ]
+          },
+          "warmProjectionAndBudgetSerialization": {
+            "maxMs": 0.00019999999999999998,
+            "medianMs": 0.00015,
+            "nearestRankP95Ms": 0.00019999999999999998,
+            "samples": [
+              0.00009999999999999999, 0.00019999999999999998,
+              0.00009999999999999999, 0.00009999999999999999,
+              0.00009999999999999999, 0.00019999999999999998,
+              0.00019999999999999998, 0.00019999999999999998, 0,
+              0.00019999999999999998
+            ]
+          },
+          "warmStorage": {
+            "maxMs": 2.8535,
+            "medianMs": 2.63985,
+            "nearestRankP95Ms": 2.8535,
+            "samples": [
+              2.5631, 2.7399999999999998, 2.6024, 2.6197, 2.6536,
+              2.5822000000000003, 2.755, 2.8535, 2.6454999999999997,
+              2.6342000000000003
+            ]
+          }
+        },
+        "warmCommandAndSerialization": {
+          "maxMs": 3.1256,
+          "medianMs": 2.69685,
+          "nearestRankP95Ms": 3.1256,
+          "samples": [
+            3.1256, 2.7277, 2.9383, 2.7586, 2.666, 2.7567, 2.6239000000000003,
+            2.6099, 2.6265, 2.6003
+          ]
+        }
+      }
+    ]
+  },
+  "noise": {
+    "before": {
+      "initialProcessorLoadPercent": [7],
+      "initialPreconditionPassed": true,
+      "noiseGuardPassed": false,
+      "classification": "characterization; quiet-host guard failed",
+      "violationCpuSeconds": [3.328125, 1.796875, 0.765625],
+      "observedProcesses": 109,
+      "instrumentationExcluded": 1,
+      "cpuReceiptSha256": "47b30f32f9f188fa5d1e0a863ca5ca463c0bfc2913d04fc39dc28634db3654ce",
+      "durationMs": 29163.3832
+    },
+    "after": {
+      "initialProcessorLoadPercent": [8],
+      "initialPreconditionPassed": true,
+      "noiseGuardPassed": false,
+      "classification": "characterization; quiet-host guard failed",
+      "violationCpuSeconds": [6.453125, 4.140625, 1.65625],
+      "observedProcesses": 113,
+      "instrumentationExcluded": 1,
+      "cpuReceiptSha256": "5c431b37fc32a9e3c69bb1eff482fa99a50c4675dd17941f5a7adbf5ddf5eeec",
+      "durationMs": 59406.9787
+    }
+  },
+  "artifacts": {
+    "beforeProbeSha256": "54dda26db1a024f790954be0df1a2a710a99c971d532d3eb30cbf3c3c0c41be3",
+    "afterProbeSha256": "fcc105805fc73cd94f7f98849a58b33a5ed169f48f8703b011d7b1ec6901bca7",
+    "parserSha256": "50f619a0cc87c6a58e51660d84285f21b585e47c39a5dbc0d6aa9ebb908b69a2"
+  },
+  "limitations": [
+    "Failed quiet-host guards prohibit a performance qualification or causal speedup claim.",
+    "Setup precedes command timers; the subsequent component profile does not replace full-command samples.",
+    "Ten measured warm samples have nearest-rank p95 equal to the maximum; OS caches were not flushed.",
+    "Repeated approved sample copies measure scale, not representative FLP diversity.",
+    "CPU boundary snapshots miss terminated or inaccessible background processes.",
+    "Process-lifetime memory peaks include setup; no installed whole-app qualification was run.",
+    "Existing scanner failures, the unexplained installed shutdown timeout and broader Phase 3 gaps remain open."
+  ]
+}
