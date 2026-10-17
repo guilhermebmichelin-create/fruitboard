@@ -2,9 +2,9 @@
 # (docs/review/security/issue-148-proposal-20260920.md). Informational
 # check: it is not a required context; branch protection is unchanged.
 #
-# Action SHA provenance (verified 2026-09-29 via the GitHub API):
-# - github/codeql-action@b96794f015dfd88f77b49b1c93e0fa7110f94c63 = tag v4.38.0
-#   (annotated tag 4bd7200e1f146b1c937cae12d258b50f41a53cf8 dereferences to it)
+# Action SHA provenance (verified 2026-10-17 via the GitHub API):
+# - github/codeql-action@24c54180a607b1449ed407dd24f251e4e9147c8d = tag v4.38.3
+#   (annotated tag cee97f86b972a3ded3c58d04148362b193ddc518 dereferences to it)
 # - actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 is the pin
 #   already reviewed and allowlisted for foundation.yml.
 name: CodeQL
@@ -45,11 +45,11 @@ jobs:
         with:
           persist-credentials: false
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
       - name: Analyze
-        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d
         with:
           category: /language:${{ matrix.language }}
