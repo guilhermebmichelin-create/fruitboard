@@ -1,0 +1,588 @@
+{
+  "schema": "fruitboard/phase3-resource-repeat/1",
+  "date": "2026-10-14",
+  "status": "Worker guarded observations pass proposals; Explorer guards fail including idle session; installed close timeout not reproduced; resource qualification and phase pending",
+  "source": {
+    "mergedMain": "8e9d90dbd13f8f42a2e8a4b9b976cfdd0dfb5154",
+    "reviewedPR308Head": "890d149b5082bdecefaf4366a359cacc1b6fb261",
+    "applicationEquivalentBaseline": "4fadc55db4c8bedb47322177adcec11e56b32c9c",
+    "retainedBuildBaseline": "0e86b8efb2ccdeeed37caec37ca1ac175c2a2583",
+    "compiledGraphEquivalent": true,
+    "guardSHA256": "2ab8d9c28ac95f193faffa99dd8f234eba8dd53d85f9c710566528bb2062168b",
+    "retainedArtifacts": [
+      {
+        "name": "installer.exe",
+        "bytes": 3322723,
+        "sha256": "707248cfd4d1eb51804088553273cc96d832e155b6dbee7909b23d49dd71fb04"
+      },
+      {
+        "name": "fruitboard-desktop.exe",
+        "bytes": 11042816,
+        "sha256": "1dd17d7d101d937bfe27a477d795a320d8e73ee3c30688b6123454bd48c95a6a"
+      },
+      {
+        "name": "fruitboard-flp-parser.exe",
+        "bytes": 575488,
+        "sha256": "50f619a0cc87c6a58e51660d84285f21b585e47c39a5dbc0d6aa9ebb908b69a2"
+      },
+      {
+        "name": "fruitboard-sidecar-smoke.exe",
+        "bytes": 156160,
+        "sha256": "f20810a72f6be8e437e520a54da42e9b800f92f3ec32c31b56b81a812814c7c6"
+      },
+      {
+        "name": "explorer-probe.exe",
+        "bytes": 8696320,
+        "sha256": "54dda26db1a024f790954be0df1a2a710a99c971d532d3eb30cbf3c3c0c41be3"
+      },
+      {
+        "name": "worker-probe.exe",
+        "bytes": 3027456,
+        "sha256": "42dd1758a1b314169ca0cb8bb186f234610199105ac595fd534a0d8bfcef4a01"
+      }
+    ],
+    "installedArtifacts": [
+      {
+        "name": "fruitboard-desktop.exe",
+        "sha256": "ab72bc8f5b0eb9dd37068df56db06da747ef6e8e3c5bd338998b8d852c8aa456",
+        "matchesOriginalInstalledArtifact": true
+      },
+      {
+        "name": "fruitboard-flp-parser.exe",
+        "sha256": "50f619a0cc87c6a58e51660d84285f21b585e47c39a5dbc0d6aa9ebb908b69a2",
+        "matchesOriginalInstalledArtifact": true
+      },
+      {
+        "name": "fruitboard-sidecar-smoke.exe",
+        "sha256": "f20810a72f6be8e437e520a54da42e9b800f92f3ec32c31b56b81a812814c7c6",
+        "matchesOriginalInstalledArtifact": true
+      }
+    ],
+    "packagingNote": "Installed desktop identity is pinned to the originally installed independent copy; it differs from unpackaged compiler output"
+  },
+  "decisions": {
+    "budgetsApproved": false,
+    "qualificationApproved": false,
+    "phase3Approved": false,
+    "productionApproved": false
+  },
+  "nativeWorker": {
+    "observationDate": "2026-10-11",
+    "classification": "guarded observation; proposal comparison only",
+    "assessment": {
+      "noiseGuardPassed": true,
+      "initialLoadPercent": [7],
+      "limits": {
+        "initialProcessorLoadPercent": 20,
+        "unrelatedProcessCpuSeconds": 0.5
+      },
+      "violations": [],
+      "excludedRoles": ["instrumentation"]
+    },
+    "cases": [
+      {
+        "case": "sample",
+        "inputBytes": 46703,
+        "independentCopies": 12,
+        "worker": {
+          "firstMs": 28.6836,
+          "excludedWarmupMs": 7.7935,
+          "warm": {
+            "samplesMs": [
+              8.112599999999999, 9.1152, 8.7012, 8.4306, 8.8492,
+              9.434899999999999, 8.439300000000001, 9.7452, 8.5177,
+              7.946899999999999
+            ],
+            "medianMs": 8.609449999999999,
+            "nearestRankP95Ms": 9.7452
+          }
+        },
+        "supervisedParse": {
+          "firstMs": 1.7576,
+          "excludedWarmupMs": 1.5559,
+          "warm": {
+            "samplesMs": [
+              1.4319, 1.5761, 1.5322, 1.6461, 1.7930000000000001, 1.7529,
+              1.7933999999999999, 1.9005, 1.4678, 1.4504
+            ],
+            "medianMs": 1.6111,
+            "nearestRankP95Ms": 1.9005
+          }
+        },
+        "workerCandidateMs": 1000,
+        "workerWithinProposal": true,
+        "parseWithin2000MsProposal": true,
+        "memory": {
+          "parentMemory": {
+            "lifetimePeakWorkingSetMiB": 7.65234375,
+            "lifetimePeakPrivateCommitMiB": 2.2265625,
+            "within128MiBProposal": true
+          },
+          "parserMemory": {
+            "lifetimePeakWorkingSetMiB": 4.26953125,
+            "lifetimePeakPrivateCommitMiB": 0.828125,
+            "within128MiBProposal": true
+          }
+        },
+        "sourceHashesMatch": true
+      },
+      {
+        "case": "reported",
+        "inputBytes": 4601596,
+        "independentCopies": 12,
+        "worker": {
+          "firstMs": 120.92880000000001,
+          "excludedWarmupMs": 89.7206,
+          "warm": {
+            "samplesMs": [
+              89.801, 97.7436, 87.6387, 87.2359, 87.367, 88.375, 87.8453,
+              88.5632, 87.7673, 88.4387
+            ],
+            "medianMs": 88.11015,
+            "nearestRankP95Ms": 97.7436
+          }
+        },
+        "supervisedParse": {
+          "firstMs": 36.4497,
+          "excludedWarmupMs": 35.2938,
+          "warm": {
+            "samplesMs": [
+              35.2189, 38.4377, 35.8422, 36.6981, 37.5196, 37.752599999999994,
+              35.5134, 36.1958, 35.3474, 37.1792
+            ],
+            "medianMs": 36.44695,
+            "nearestRankP95Ms": 38.4377
+          }
+        },
+        "workerCandidateMs": 1000,
+        "workerWithinProposal": true,
+        "parseWithin2000MsProposal": true,
+        "memory": {
+          "parentMemory": {
+            "lifetimePeakWorkingSetMiB": 11.984375,
+            "lifetimePeakPrivateCommitMiB": 6.73828125,
+            "within128MiBProposal": true
+          },
+          "parserMemory": {
+            "lifetimePeakWorkingSetMiB": 8.53515625,
+            "lifetimePeakPrivateCommitMiB": 5.125,
+            "within128MiBProposal": true
+          }
+        },
+        "sourceHashesMatch": true
+      },
+      {
+        "case": "25mb",
+        "inputBytes": 25000000,
+        "independentCopies": 12,
+        "worker": {
+          "firstMs": 505.9669,
+          "excludedWarmupMs": 427.8608,
+          "warm": {
+            "samplesMs": [
+              424.1016, 430.4744, 426.15180000000004, 422.3236,
+              423.34729999999996, 424.04170000000005, 428.031, 445.5577,
+              427.9855, 430.5972
+            ],
+            "medianMs": 427.06865000000005,
+            "nearestRankP95Ms": 445.5577
+          }
+        },
+        "supervisedParse": {
+          "firstMs": 195.74530000000001,
+          "excludedWarmupMs": 189.6474,
+          "warm": {
+            "samplesMs": [
+              189.84400000000002, 194.666, 191.00410000000002, 190.3898,
+              188.629, 188.8225, 190.3811, 193.81619999999998, 192.9576,
+              195.9071
+            ],
+            "medianMs": 190.69695000000002,
+            "nearestRankP95Ms": 195.9071
+          }
+        },
+        "workerCandidateMs": 1000,
+        "workerWithinProposal": true,
+        "parseWithin2000MsProposal": true,
+        "memory": {
+          "parentMemory": {
+            "lifetimePeakWorkingSetMiB": 31.3203125,
+            "lifetimePeakPrivateCommitMiB": 25.94140625,
+            "within128MiBProposal": true
+          },
+          "parserMemory": {
+            "lifetimePeakWorkingSetMiB": 28.01953125,
+            "lifetimePeakPrivateCommitMiB": 24.62890625,
+            "within128MiBProposal": true
+          }
+        },
+        "sourceHashesMatch": true
+      },
+      {
+        "case": "64mib",
+        "inputBytes": 67108864,
+        "independentCopies": 12,
+        "worker": {
+          "firstMs": 1319.6299000000001,
+          "excludedWarmupMs": 1145.8809999999999,
+          "warm": {
+            "samplesMs": [
+              1163.683, 1130.5042999999998, 1122.2764, 1127.8686, 1121.3006,
+              1123.9711, 1126.4665, 1128.6716999999999, 1135.1806, 1129.6603
+            ],
+            "medianMs": 1128.2701499999998,
+            "nearestRankP95Ms": 1163.683
+          }
+        },
+        "supervisedParse": {
+          "firstMs": 515.9126000000001,
+          "excludedWarmupMs": 512.9477999999999,
+          "warm": {
+            "samplesMs": [
+              537.5014, 511.2139, 510.6216, 517.4322, 508.7264, 512.6081,
+              513.5007, 511.0241, 514.9802999999999, 510.08450000000005
+            ],
+            "medianMs": 511.91100000000006,
+            "nearestRankP95Ms": 537.5014
+          }
+        },
+        "workerCandidateMs": 3000,
+        "workerWithinProposal": true,
+        "parseWithin2000MsProposal": true,
+        "memory": {
+          "parentMemory": {
+            "lifetimePeakWorkingSetMiB": 71.578125,
+            "lifetimePeakPrivateCommitMiB": 66.53125,
+            "within128MiBProposal": true
+          },
+          "parserMemory": {
+            "lifetimePeakWorkingSetMiB": 68.171875,
+            "lifetimePeakPrivateCommitMiB": 64.859375,
+            "within128MiBProposal": true
+          }
+        },
+        "sourceHashesMatch": true
+      }
+    ]
+  },
+  "nativeExplorer": {
+    "observationDate": "2026-10-14",
+    "classification": "characterization; noise guard failed",
+    "assessment": {
+      "noiseGuardPassed": false,
+      "initialLoadPercent": [16],
+      "limits": {
+        "initialProcessorLoadPercent": 20,
+        "unrelatedProcessCpuSeconds": 0.5
+      },
+      "violations": [
+        {
+          "name": "codex",
+          "cpuSeconds": 0.640625
+        },
+        {
+          "name": "T3 Code (Alpha)",
+          "cpuSeconds": 6.375
+        },
+        {
+          "name": "T3 Code (Alpha)",
+          "cpuSeconds": 6.703125
+        },
+        {
+          "name": "nvsphelper64",
+          "cpuSeconds": 0.53125
+        },
+        {
+          "name": "explorer",
+          "cpuSeconds": 0.890625
+        },
+        {
+          "name": "T3 Code (Alpha)",
+          "cpuSeconds": 1.53125
+        }
+      ],
+      "excludedRoles": ["instrumentation"]
+    },
+    "cases": [
+      {
+        "entries": 100,
+        "state": "complete",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 9.1405,
+          "excludedWarmupMs": 8.6674,
+          "warm": {
+            "samplesMs": [
+              9.4574, 10.599300000000001, 9.3089, 9.8399, 9.0209, 9.2003,
+              8.255500000000001, 11.2256, 8.308599999999998, 8.8933
+            ],
+            "medianMs": 9.2546,
+            "nearestRankP95Ms": 11.2256
+          }
+        },
+        "within200MsProposal": true
+      },
+      {
+        "entries": 1000,
+        "state": "complete",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 103.48150000000001,
+          "excludedWarmupMs": 96.5458,
+          "warm": {
+            "samplesMs": [
+              96.3451, 100.76259999999999, 83.1221, 94.4565, 103.8765, 102.5299,
+              105.8475, 119.2025, 106.1183, 110.49879999999999
+            ],
+            "medianMs": 103.2032,
+            "nearestRankP95Ms": 119.2025
+          }
+        },
+        "within200MsProposal": true
+      },
+      {
+        "entries": 2000,
+        "state": "complete",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 201.8441,
+          "excludedWarmupMs": 180.0136,
+          "warm": {
+            "samplesMs": [
+              182.12300000000002, 194.9989, 179.2817, 184.3591, 176.695,
+              170.3978, 168.7206, 175.63590000000002, 182.7763,
+              179.77489999999997
+            ],
+            "medianMs": 179.5283,
+            "nearestRankP95Ms": 194.9989
+          }
+        },
+        "within200MsProposal": true
+      },
+      {
+        "entries": 2001,
+        "state": "limited",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 3.1511,
+          "excludedWarmupMs": 3.6073,
+          "warm": {
+            "samplesMs": [
+              2.7404, 2.5002, 2.6123000000000003, 2.4656000000000002, 2.3851,
+              2.8344, 2.5096, 2.5648, 2.6771, 2.6202
+            ],
+            "medianMs": 2.58855,
+            "nearestRankP95Ms": 2.8344
+          }
+        },
+        "within200MsProposal": true
+      }
+    ],
+    "overlap": "This session answered owner questions during the run. Counts retain T3 and agent CPU; the attempt does not prove whether T3 would exceed the guard while fully idle."
+  },
+  "installed": {
+    "approvedPipelineEntries": 19,
+    "approvedMixerOrdinaryRecords": 16,
+    "preparedCounts": [100, 1000],
+    "fullyPreparedCohort": 1119,
+    "stoppedAt": "Graceful desktop close after preparation of 1000 entries",
+    "closeDeadlineMs": 10000,
+    "closeHelperExitStatus": 3,
+    "rootCause": "Original timeout unexplained; exact-process 19/100/1000 debugging repeat exited within 88 ms, no product fix supported",
+    "newTimedWindowsCollected": 0,
+    "pending": [
+      "2000 and 2001 preparation",
+      "Explorer IPC/UI",
+      "mixer refresh",
+      "populated startup",
+      "whole-app steady and analysis memory"
+    ],
+    "priorInstalledEvidence": "Original source-equivalent complete/refusal correctness is retained separately; this attempt does not repeat its full cohort"
+  },
+  "retention": {
+    "approvedSourceFixtureHashCount": 19,
+    "approvedSourceFixturesUnchanged": true,
+    "protectedProfileInventoriesMatchedAtRun": true,
+    "ownedDatabaseUnchangedThroughUninstall": true,
+    "ownedRegistrationRemoved": true,
+    "temporaryTaskRemoved": true,
+    "t3Preserved": true,
+    "rawEvidencePrivate": true
+  },
+  "limitations": [
+    "Ten measured warm samples; nearest-rank p95 equals their maximum",
+    "OS caches not flushed; single host and constructed repeated sample matrix",
+    "CPU boundary snapshots omit terminated or inaccessible processes",
+    "Working set/private commit worker peaks are separate lifetime peaks; not simultaneous whole-app memory",
+    "No target, qualification or phase approval follows from a guard pass or PR merge",
+    "An app shutdown timeout cannot be turned into a pass by increasing the deadline or forcing closure",
+    "A later idle active-session Explorer attempt still failed initial-load and T3 CPU guards; no CPU exemption or limit change was made",
+    "Later host free capacity fell below the 30 GiB workflow reserve; new build/fixture windows require a fresh passing preflight"
+  ],
+  "nativeExplorerIdleRetry": {
+    "observationUtc": "2026-10-15T00:06:39.5543745Z",
+    "localDate": "2026-10-14",
+    "classification": "characterization; quiet-host guard failed",
+    "sessionActivity": "All three subagents completed; root paused for 120 seconds with no chat/tool/build/test activity during the recorded native window; T3 remained open and all observed CPU counted",
+    "assessment": {
+      "noiseGuardPassed": false,
+      "initialLoadPercent": [24],
+      "limits": {
+        "initialProcessorLoadPercent": 20,
+        "unrelatedProcessCpuSeconds": 0.5
+      },
+      "violations": [
+        {
+          "name": "T3 Code (Alpha)",
+          "cpuSeconds": 2.828125
+        },
+        {
+          "name": "T3 Code (Alpha)",
+          "cpuSeconds": 9.265625
+        },
+        {
+          "name": "T3 Code (Alpha)",
+          "cpuSeconds": 0.96875
+        }
+      ],
+      "excludedRoles": ["instrumentation"]
+    },
+    "cases": [
+      {
+        "entries": 100,
+        "state": "complete",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 10.0705,
+          "excludedWarmupMs": 9.153599999999999,
+          "warm": {
+            "samplesMs": [
+              9.4393, 9.151, 8.8424, 9.001999999999999, 8.9107, 8.8055,
+              8.441600000000001, 9.5058, 8.9103, 9.1204
+            ],
+            "medianMs": 8.95635,
+            "nearestRankP95Ms": 9.5058
+          }
+        },
+        "within200MsProposal": true
+      },
+      {
+        "entries": 1000,
+        "state": "complete",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 98.2223,
+          "excludedWarmupMs": 102.5706,
+          "warm": {
+            "samplesMs": [
+              101.06179999999999, 94.4974, 92.6483, 92.61909999999999, 91.6452,
+              94.9801, 94.0346, 95.55279999999999, 96.4891, 95.3626
+            ],
+            "medianMs": 94.73875,
+            "nearestRankP95Ms": 101.06179999999999
+          }
+        },
+        "within200MsProposal": true
+      },
+      {
+        "entries": 2000,
+        "state": "complete",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 221.73930000000001,
+          "excludedWarmupMs": 209.5814,
+          "warm": {
+            "samplesMs": [
+              200.1703, 208.8863, 212.3197, 202.66, 211.92430000000002,
+              240.88760000000002, 276.8712, 245.32979999999998, 212.7483,
+              209.0949
+            ],
+            "medianMs": 212.122,
+            "nearestRankP95Ms": 276.8712
+          }
+        },
+        "within200MsProposal": false
+      },
+      {
+        "entries": 2001,
+        "state": "limited",
+        "correctnessAssertionsPassed": true,
+        "timing": {
+          "firstMs": 3.3148,
+          "excludedWarmupMs": 3.0255,
+          "warm": {
+            "samplesMs": [
+              3.0417, 2.9251, 3.0113000000000003, 2.8974, 3.4257, 2.7413, 3.277,
+              2.8733, 2.9677000000000002, 3.9499
+            ],
+            "medianMs": 2.9895000000000005,
+            "nearestRankP95Ms": 3.9499
+          }
+        },
+        "within200MsProposal": true
+      }
+    ],
+    "priorPreconditionStop": {
+      "utc": "2026-10-15T00:03:44.3570805Z",
+      "initialLoadPercent": 23,
+      "limitPercent": 20,
+      "samplesCollected": 0
+    },
+    "inferenceLimit": "Shows failure during this idle active-session attempt; does not establish that every inactive session or other host would fail"
+  },
+  "installedShutdownReproduction": {
+    "classification": "debugging only; original close timeout did not reproduce",
+    "sourceApplicationUnchanged": true,
+    "performanceWindowsCollected": 0,
+    "closeDeadlineMs": 10000,
+    "stages": [
+      {
+        "entries": 19,
+        "exactProcessIdentityMatched": true,
+        "scanAndAnalysisTerminalBeforeClose": true,
+        "closeAccepted": true,
+        "exitedWithin10000Ms": true,
+        "elapsedMs": 87.3,
+        "cdpDisconnected": true
+      },
+      {
+        "entries": 100,
+        "exactProcessIdentityMatched": true,
+        "scanAndAnalysisTerminalBeforeClose": true,
+        "closeAccepted": true,
+        "exitedWithin10000Ms": true,
+        "elapsedMs": 69,
+        "cdpDisconnected": true
+      },
+      {
+        "entries": 1000,
+        "exactProcessIdentityMatched": true,
+        "scanAndAnalysisTerminalBeforeClose": true,
+        "closeAccepted": true,
+        "exitedWithin10000Ms": true,
+        "elapsedMs": 60.1,
+        "cdpDisconnected": true
+      }
+    ],
+    "originalTimeoutStillUnexplained": true,
+    "productFixImplemented": false,
+    "privateRunner": {
+      "originalExitCode": 1,
+      "cause": "Cleanup read a timeout-only optional property from a successful-close receipt under PowerShell StrictMode",
+      "originalFailurePreserved": true,
+      "optionalFieldRecoveryValidatedWithSuccessAndTimeoutReceipts": true,
+      "ownedCleanupRecoveryExitCode": 0,
+      "secondaryCloseSent": false,
+      "forcedTerminationSent": false
+    },
+    "retention": {
+      "currentDatabaseHashVerified": true,
+      "previousAttemptDatabaseArchiveHashVerified": true,
+      "protectedProfileFilesVerified": 671,
+      "approvedFixturesVerified": 19,
+      "archivedPriorProfileFilesVerified": 283,
+      "ownedRegistrationRemoved": true,
+      "sharedLockReleased": true
+    }
+  }
+}
