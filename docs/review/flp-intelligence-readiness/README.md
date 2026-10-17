@@ -1,9 +1,11 @@
 ﻿# FLP intelligence readiness review
 
 Status: **Review packet; budgets and Phase 3 exit are not accepted.**
-Updated: 2026-10-15. Related issue:
+Updated: 2026-10-17. Related issue:
 [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259).
-Current application baseline: merged PR318, `fa0dbdd`; application code is equivalent to merged PR305, `0e86b8e`.
+Current source baseline: merged PR323, `929cf4df`. Earlier installed evidence
+keeps its original source boundary; the metadata-read optimization does not
+promote historical performance results.
 The [current resource/checkpoint review](../phase3-qualification-306/README.md)
 records complete installed scale/refusal checks and resource characterization.
 The original review found omitted FL Studio CPU activity; its six reclassified passes remain withdrawn. The [October 14 repeat](../resource-repeat-20261014/README.md) records guarded worker observations, Explorer guard failures including an idle active-session attempt, and a close timeout after installed 1,000-entry preparation. A debugging repeat closed normally but did not explain that earlier failure. Installed resource windows and budget/phase decisions remain open. The [next-slice proposals](../phase3-next-slices-20261014/README.md) define further G3/G5/G6 work without accepting it.
@@ -34,6 +36,12 @@ packet does not authorize Phase 4, production activation or public distribution.
 Use the [field reliability matrix](field-reliability.md) to distinguish real
 saved-file evidence from constructed tests and from fields visible in the app.
 The [gap ledger](gap-ledger.md) records what remains and the next focused change.
+
+The exact approved [F23 fixture](../../research/parser-automation-322-result.md)
+adds independent GUI evidence of one saved automation clip with three points.
+Its regression checks retain unsupported automation/Playlist interpretation.
+Automation extraction and Library display remain the next separate G6 steps.
+The corpus is twenty-one files, including both approved F22 and F23.
 
 ## Delivered behavior and evidence
 

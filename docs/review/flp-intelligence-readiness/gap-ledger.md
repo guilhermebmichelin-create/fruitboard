@@ -1,7 +1,8 @@
 ﻿# FLP intelligence gaps and next implementation
 
 Status: **Open gaps and proposals; no acceptance or later-phase authorization.**
-Current application baseline: merged PR318, `fa0dbdd`, with application code equivalent to PR305 `0e86b8e`. Updated: 2026-10-15.
+Current source baseline: merged PR323, `929cf4df`. Updated: 2026-10-17.
+Installed and measured evidence retains its recorded source boundaries.
 [Resource/checkpoint review #306](../phase3-qualification-306/README.md)
 and the [October 14 repeat](../resource-repeat-20261014/README.md) update G1/G4 without accepting budgets or the phase. The [next-slice scopes](../phase3-next-slices-20261014/README.md) propose G3/G5/G6 work; they do not approve new fields or authority.
 Historical baseline: merged PR261. G2 was delivered by merged PR264;
@@ -34,6 +35,18 @@ Issues [#47](https://github.com/guilhermebmichelin-create/fruitboard/issues/47),
 and [#40](https://github.com/guilhermebmichelin-create/fruitboard/issues/40)
 retain their actual dispositions. A stale issue body is not evidence of a new
 implementation defect or of an accepted fix; use the linked merged source/tests.
+
+## F23 automation fixture progress
+
+The owner approved the exact F23 fixture/expectations on 2026-10-16;
+[issue #322's result](../../research/parser-automation-322-result.md) records
+one GUI-observed saved automation clip and three control points in exact build
+26.1.0.5530. Public corpus and actual supervised typed-validation regressions
+preserve basic metadata, unsupported automation generator/Playlist fields and
+unchanged bytes. Point-record/count relationships remain unqualified and no
+automation summary is advertised. The next G6 step is independent saved-record
+qualification before bounded extraction/full validation, then a separate
+immutable Library slice. G6 and Phase 3 remain open. PR320 integrates F22 without changing the F23 evidence.
 
 ## G2 implementation
 

@@ -276,6 +276,96 @@ fn approved_fl2025_three_sampler_save_keeps_qualified_labels_read_only() {
 }
 
 #[test]
+fn approved_automation_gui_case_keeps_unqualified_fields_unsupported_read_only() {
+    // GUI oracle registered before byte inspection; exact F23 files approved
+    // on 2026-10-16. Counts below describe the GUI, not parser extraction.
+    let registered =
+        include_bytes!("../../../fixtures/parser-corpus/fl2026-automation-expectations.json");
+    assert_eq!(
+        fruitboard_flp_parser::sha256_hex(registered),
+        "f59bee2a0f2860cb5fc1739b7381113c2eb0db6d6aec5dc4b3356c1f972b64a9"
+    );
+    let oracle: Value = serde_json::from_slice(registered).unwrap();
+    assert_eq!(oracle["registeredGuiFacts"]["automationClipCount"], 1);
+    assert_eq!(
+        oracle["registeredGuiFacts"]["automationControlPointCount"],
+        3
+    );
+    assert_eq!(
+        oracle["independentlyObservedFraming"]["pointRecordLayoutQualified"],
+        false
+    );
+    let path = fixture(oracle["fixture"].as_str().unwrap());
+    let before = fs::read(&path).unwrap();
+    let hash = oracle["sha256"].as_str().unwrap();
+    assert_eq!(before.len() as u64, oracle["bytes"].as_u64().unwrap());
+    assert_eq!(fruitboard_flp_parser::sha256_hex(&before), hash);
+    let metadata = fs::metadata(&path).unwrap();
+    let parsed = parse_file(
+        &path,
+        ExpectedFingerprint {
+            size: metadata.len(),
+            modified_at_ms: modified_at_ms(&metadata).unwrap(),
+        },
+    );
+    assert_eq!(parsed["outcome"], "complete");
+    assert_eq!(parsed["savedVersion"]["value"], "26.1.0.5530");
+    assert_eq!(parsed["baseTempoBpm"]["value"], 130.0);
+    assert_eq!(parsed["channelCount"]["value"], 2);
+    assert_eq!(
+        parsed["channelNames"]["value"],
+        oracle["registeredGuiFacts"]["channelLabels"]
+    );
+    assert_eq!(parsed["channelNames"]["status"], "inferred");
+    assert_eq!(
+        parsed["channelNames"]["method"],
+        "mixed-extracted-and-sampler-label"
+    );
+    assert_eq!(parsed["channelNames"]["confidence"], "medium");
+    assert_eq!(parsed["channelNames"]["items"][0]["status"], "inferred");
+    assert_eq!(parsed["channelNames"]["items"][0]["confidence"], "high");
+    assert_eq!(parsed["channelNames"]["items"][1]["status"], "extracted");
+    assert_eq!(parsed["channelGeneratorNames"]["status"], "unsupported");
+    assert_eq!(
+        parsed["channelGeneratorNames"]["items"][1]["name"]["reason"],
+        "GENERATOR_CLASS_UNVERIFIED"
+    );
+    for field in [
+        "playlistPatternClips",
+        "playlistPatternEndTick",
+        "playlistPatternSpanBars",
+        "playlistPatternNominalSeconds",
+    ] {
+        assert_eq!(parsed[field]["status"], "unsupported", "{field}");
+        assert_eq!(
+            parsed[field]["reason"], "PLAYLIST_CLIP_KIND_UNVERIFIED",
+            "{field}"
+        );
+        assert!(parsed[field].get("value").is_none(), "{field}");
+    }
+    assert!(
+        parsed
+            .as_object()
+            .unwrap()
+            .keys()
+            .all(|key| !key.to_ascii_lowercase().contains("automation"))
+    );
+    assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
+    assert_eq!(parsed["inputFingerprint"]["hash"]["value"], hash);
+    assert_eq!(fs::read(&path).unwrap(), before);
+    // F11 remains the genuine empty-Playlist control, not an inferred
+    // automation-count oracle: no automation summary exists yet.
+    let control_path = fixture("FIX-FL2026-MIN.flp");
+    let control = fs::read(&control_path).unwrap();
+    let parsed_control = parse_bytes(&control);
+    assert_eq!(
+        parsed_control["playlistPatternClips"]["value"],
+        serde_json::json!([])
+    );
+    assert_eq!(fs::read(control_path).unwrap(), control);
+}
+
+#[test]
 fn read_only_file_parse_checks_expected_fingerprint_and_hides_path() {
     let path = fixture("FIX-FL2026-SAMPLE.flp");
     let bytes_before = fs::read(&path).unwrap();
