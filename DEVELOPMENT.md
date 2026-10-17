@@ -268,6 +268,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | TypeScript                | 6.0.3           | Strict shared-client compilation               |
 | ESLint                    | 10.12.0         | Client lint rules                              |
 | Vitest                    | 5.0.3           | Client and adapter contract tests              |
+| typescript-eslint         | 8.71.1          | Typed client lint integration                  |
 
 Dependency versions remain exact in their generated lockfiles. Updating a pin
 requires a focused PR that regenerates locks, runs the full check, and updates
