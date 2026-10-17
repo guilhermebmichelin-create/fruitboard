@@ -57,6 +57,7 @@ test("the committed parser corpus passes its binary privacy scan", () => {
     "FIX-FL2024-A",
     "FIX-FL2024-B",
     "FIX-FL2025-MIN",
+    "FIX-FL2025-MULTISAMPLER",
     "FIX-FL2026-MIN",
     "FIX-FL2026-SAMPLE",
     "FIX-FL2026-PATTERNS",
@@ -78,6 +79,53 @@ test("the committed parser corpus passes its binary privacy scan", () => {
     const bytes = readFileSync(new URL(`../${path}`, import.meta.url));
     assert.deepEqual(inspectApprovedFixtureBinary(path, bytes), [], name);
   }
+});
+
+test("F22 permits only its approved fixture and expectation bytes", () => {
+  const registered = readFileSync(
+    new URL(
+      "../fixtures/parser-corpus/fl2025-multisampler-expectations.json",
+      import.meta.url,
+    ),
+  );
+  assert.equal(registered.length, 3546);
+  assert.equal(
+    createHash("sha256").update(registered).digest("hex"),
+    "b7715ef0c57a27adc3fcb0c22700fa321d668bd3a2b8eb172cc4486b1621637d",
+  );
+  const expected = JSON.parse(registered.toString("utf8"));
+  const path = `fixtures/parser-corpus/${expected.fixture}`;
+  const bytes = readFileSync(new URL(`../${path}`, import.meta.url));
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  assert.equal(bytes.length, expected.bytes);
+  assert.equal(hash, expected.sha256);
+  assert.deepEqual(inspectTrackedPath(path, hash), []);
+  const changed = Buffer.from(bytes);
+  changed[changed.length - 1] ^= 1;
+  assert.equal(
+    inspectTrackedPath(
+      path,
+      createHash("sha256").update(changed).digest("hex"),
+    )[0].rule,
+    "fixture-hash-mismatch",
+  );
+  assert.equal(
+    inspectTrackedPath(`other/${expected.fixture}`, hash)[0].rule,
+    "blocked-extension",
+  );
+  // Keep the event walk enabled for this 2025 save, including its bounds check.
+  assert.ok(
+    inspectApprovedFixtureBinary(path, smallFlp(200)).some(
+      ({ rule }) => rule === "fixture-registration-metadata",
+    ),
+  );
+  const truncated = smallFlp(201);
+  truncated[23] = 127;
+  assert.ok(
+    inspectApprovedFixtureBinary(path, truncated).some(
+      ({ rule }) => rule === "fixture-event-framing",
+    ),
+  );
 });
 
 test("note fixtures permit only their approved bytes and paths", () => {
