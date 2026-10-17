@@ -62,6 +62,7 @@ test("the committed parser corpus passes its binary privacy scan", () => {
     "FIX-FL2026-PATTERNS",
     "FIX-FL2026-3XOSC",
     "FIX-FL2026-MULTISAMPLER",
+    "FIX-FL2026-AUTOMATION",
     "FIX-FL2026-NOTES",
     "FIX-FL2026-NAMED-EMPTY",
     "FIX-FL2026-MIXER-DEFAULT",
@@ -151,6 +152,56 @@ test("mixer fixtures permit only their approved bytes, paths and expectations", 
       inspectTrackedPath(`other/${expected.file}`, hash)[0].rule,
       "blocked-extension",
     );
+  }
+});
+
+test("automation fixture permits only its exact approved bytes, path and expectations", () => {
+  const registered = readFileSync(
+    new URL(
+      "../fixtures/parser-corpus/fl2026-automation-expectations.json",
+      import.meta.url,
+    ),
+  );
+  assert.equal(
+    createHash("sha256").update(registered).digest("hex"),
+    "f59bee2a0f2860cb5fc1739b7381113c2eb0db6d6aec5dc4b3356c1f972b64a9",
+  );
+  assert.equal(registered.length, 5942);
+  const expected = JSON.parse(registered.toString("utf8"));
+  const path = `fixtures/parser-corpus/${expected.fixture}`;
+  const bytes = readFileSync(new URL(`../${path}`, import.meta.url));
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  assert.equal(bytes.length, expected.bytes);
+  assert.equal(hash, expected.sha256);
+  assert.deepEqual(inspectTrackedPath(path, hash), []);
+  const changed = Buffer.from(bytes);
+  changed[changed.length - 1] ^= 1;
+  assert.equal(
+    inspectTrackedPath(
+      path,
+      createHash("sha256").update(changed).digest("hex"),
+    )[0].rule,
+    "fixture-hash-mismatch",
+  );
+  assert.equal(inspectTrackedPath(path)[0].rule, "fixture-hash-mismatch");
+  assert.equal(
+    inspectTrackedPath(`other/${expected.fixture}`, hash)[0].rule,
+    "blocked-extension",
+  );
+  // The 2026 static scan is bounded text inspection, not opaque-state decoding.
+  // Check both UTF-16 alignments as well as the single-byte path rejection.
+  for (const encoding of ["latin1", "utf16le"]) {
+    for (const prefix of [Buffer.alloc(0), Buffer.from([0])]) {
+      assert.ok(
+        inspectApprovedFixtureBinary(
+          path,
+          Buffer.concat([
+            prefix,
+            Buffer.from("C:\\Users\\person\\Documents\\", encoding),
+          ]),
+        ).some(({ rule }) => rule === "fixture-personal-home-path"),
+      );
+    }
   }
 });
 
