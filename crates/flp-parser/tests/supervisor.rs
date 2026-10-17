@@ -97,7 +97,8 @@ fn actual_parser_health_describe_and_approved_file_share_one_supervisor() {
 #[test]
 fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutation() {
     use fruitboard_flp_parser::validation::{
-        MetadataOutcome, MixerInsertName, NoteRecordCount, ParseContext, PatternNoteCounts,
+        ChannelGenerators, Confidence, GeneratorReason, ListStatus, MetadataOutcome,
+        MixerInsertName, NameInference, NoteRecordCount, ParseContext, PatternNoteCounts,
         ProjectField, ProjectReason, SavedMixerInserts, ValidatedProjectReply, validate_descriptor,
         validate_project_reply,
     };
@@ -140,7 +141,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
         .filter(|path| path.extension().is_some_and(|extension| extension == "flp"))
         .collect::<Vec<_>>();
     fixtures.sort();
-    assert_eq!(fixtures.len(), 20, "only the maintained approved corpus");
+    assert_eq!(fixtures.len(), 21, "only the maintained approved corpus");
     for (index, path) in fixtures.into_iter().enumerate() {
         let before = fs::read(&path).unwrap();
         let attributes = fs::metadata(&path).unwrap();
@@ -194,6 +195,29 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                 "{name}"
             );
             assert_eq!(metadata.file_size_bytes(), expected.size);
+            if name == "FIX-FL2025-MULTISAMPLER.flp" {
+                assert_eq!(metadata.initial().channel_count(), 3);
+                let names = metadata.initial().channel_names();
+                assert_eq!(
+                    names.status(),
+                    ListStatus::Inferred {
+                        method: NameInference::SamplerLabelForKnownBuild,
+                        confidence: Confidence::Medium,
+                    }
+                );
+                assert_eq!(
+                    names
+                        .entries()
+                        .iter()
+                        .map(|item| item.value())
+                        .collect::<Vec<_>>(),
+                    [Some("Sampler"), Some("Sampler"), Some("Sampler")]
+                );
+                assert!(matches!(
+                    metadata.channel_generators(),
+                    ChannelGenerators::Unsupported(GeneratorReason::UnverifiedBuild)
+                ));
+            }
             if name == "FIX-FL2026-AUTOMATION.flp" {
                 assert_eq!(
                     sha256_hex(&before),

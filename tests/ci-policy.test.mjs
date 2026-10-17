@@ -56,7 +56,7 @@ test("workflow permissions and third-party execution fail closed", () => {
   const approvedActionReferences = new Set([
     "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-    "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+    "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
     "astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884",
   ]);
   assert.ok(actionReferences.length > 0);
@@ -87,8 +87,8 @@ test("security workflows stay pinned, read-only, and informational", () => {
   const approvedSecurityActionReferences = new Set([
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
-    "github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63",
-    "github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63",
+    "github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d",
+    "github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d",
   ]);
 
   for (const securityWorkflow of securityWorkflows) {
@@ -248,4 +248,22 @@ test("portable CI exercises parser filesystem authorization on Linux", () => {
     /cargo clippy -p fruitboard-flp-parser --all-targets --locked -- -D warnings/,
   );
   assert.match(portable, /cargo test -p fruitboard-flp-parser --locked/);
+});
+
+test("CodeQL initialization and analysis use the same reviewed release", () => {
+  const codeql = readFileSync(
+    new URL("../.github/workflows/codeql.yml", import.meta.url),
+    "utf8",
+  );
+  const pins = [
+    ...codeql.matchAll(
+      /^\s*uses:\s*github\/codeql-action\/(?:init|analyze)@([0-9a-f]{40})$/gm,
+    ),
+  ].map((match) => match[1]);
+  assert.equal(pins.length, 2);
+  assert.equal(
+    new Set(pins).size,
+    1,
+    "CodeQL cannot mix initialization and analysis versions",
+  );
 });
