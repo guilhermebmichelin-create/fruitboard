@@ -3,68 +3,73 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Current status - 2026-10-16
+## Current status - 2026-10-17
 
-Merged baseline: `fa0dbdd2fc9b7f2952fc6386fcb8fd444c2e180b` (PR #318).
-Its application source is unchanged from merged PR #305, `0e86b8e`.
-The [current development step](docs/review/explorer-current-read-259/README.md)
-consolidates current-metadata reads for Plugin Explorer under issue #259.
+Merged baseline: `65969d093806d63f1aba101e8fa0d1e16cfd0735`
+([PR #325](https://github.com/guilhermebmichelin-create/fruitboard/pull/325),
+documentation and research only). The application includes the current-metadata
+read-path change from [PR #321](https://github.com/guilhermebmichelin-create/fruitboard/pull/321),
+merged as `803ef43`. It consolidates current Plugin Explorer reads under
+existing freshness checks; its measurements did not establish a speedup or
+qualify resource limits. The [current status assessment](docs/review/development-status-20261017/README.md)
+records the phase gates, evidence boundaries, live tracker discrepancies, and
+next work.
 
-- **Phases**: Phase 0 accepted 2026-09-04, Phase 1 accepted 2026-09-06, and
+- **Phases**: Phase 0 was accepted 2026-09-04, Phase 1 on 2026-09-06, and
   Phase 2 accepted with known gaps on 2026-09-14
   ([acceptance record](docs/review/phase-2-integration/acceptance-2026-09-14.md)).
-  Epic #33 is closed. Issues #38 and #40 carry the narrowed P2-08 evidence
-  residual; P2-08 remains Partial. Phase 3 exit and resource budgets remain
-  unaccepted; later phases are not authorized by these deliveries.
+  P2-08 remains Partial. Phase 3 FLP Intelligence is active; its budgets and
+  exit are not accepted. Later phases, production activation, and public
+  distribution remain separate decisions.
 - **Parser and analysis**: Rust was selected on 2026-09-28
-  ([ADR-002](docs/adr/002-flp-parser-process.md)). The real parser is packaged
-  in the unsigned Windows development smoke, with durable native analysis
-  in the explicit `analysis-jobs` composition. The default desktop has no
-  scanner or automatic FLP content reads. The [readiness packet](docs/review/flp-intelligence-readiness/README.md)
-  records the implemented workflow and its narrow compatibility.
-- **Library**: the app displays current saved facts, channels, sample/plugin
-  references, a saved Plugin Explorer, pattern names/counts and
-  [pattern note-record counts](docs/review/library-pattern-notes-294/README.md)
-  (PR #295). [Explicit sample checks](docs/review/sample-presence-ui-284/README.md)
-  (PR #285) observe metadata only for eligible literal absolute paths inside
-  the selected local NTFS root. Relative, placeholder, external-folder and
-  cloud resolution remain open.
-- **Mixer**: approved F18-F21
-  [independent qualification](docs/research/parser-mixer-inserts-298-result.md)
-  (PR #299) and bounded extraction/full native validation (PR #301) are
-  delivered for the exact FL Studio 26.1.0.5530 eighteen-record layout.
-  [Parser contract](crates/flp-parser/README.md#initial-native-result-validation)
-  counts sixteen ordinary saved records, with honest missing-name states.
-  [Application slice #304](docs/review/library-mixer-inserts-304/README.md)
-  delivers immutable selected storage and Library display in merged PR #305;
-  broader layouts remain open.
-- **Compatibility review**: [PR #320](https://github.com/guilhermebmichelin-create/fruitboard/pull/320)
-  adds an approved three-cloned-Sampler case for exact build `25.1.3.4922`.
-  Its fifteen checks passed on `9e3979c`; owner review and manual merge remain
-  pending. The merged corpus still has nineteen files. This case adds no
-  supported build or generator-name claim.
-- **Product scope**: the Tauri/React shell, Rust-owned SQLite library, scan
-  roots and feature-gated durable scanning are implemented. Production
-  activation is still a separate owner decision. Kanban, search, project
-  workflow, Google Drive sync and the PWA are not implemented.
-- **Performance**: scanner qualification remains unaccepted; the historical
-  warm nearest-rank p95 was 10,173 ms against a 10,000 ms target on source
-  `69f27f6`. Later [native analysis/Explorer observations](docs/review/explorer-performance-259/README.md)
-  do not replace scanner qualification. The [current resource/checkpoint review](docs/review/phase3-qualification-306/README.md)
-  records complete installed scale/refusal checks and provisional resource
-  observations. The [October 14 follow-up](docs/review/resource-repeat-20261014/README.md)
-  records guarded worker observations, noisy Explorer windows and an unexplained
-  installed shutdown timeout followed by a successful debugging repeat.
-  Remaining resource qualification and explicit budget/phase decisions stay open.
-- **Repository**: public since 2026-09-07. The owner approved restoration of
-  `main` protection on 2026-10-10 after verification found it absent on
-  2026-10-09. GitHub now requires PRs and all ten checks, including for admins,
-  with branches up to date, linear history, and no force pushes or deletion.
-  Secret scanning,
-  push protection and Dependabot are enabled;
-  validity checks and non-provider patterns remain off. CodeQL and dependency
-  review remain informational. Private vulnerability reporting is enabled
-  (verified 2026-10-09); use the [security policy](SECURITY.md#vulnerability-handling).
+  ([ADR-002](docs/adr/002-flp-parser-process.md)). The parser is packaged in
+  the unsigned Windows development build, and durable analysis is available
+  through the explicit `analysis-jobs` composition. The default desktop does
+  not scan or read FLP content automatically. See the
+  [readiness review](docs/review/flp-intelligence-readiness/README.md) for
+  exact field and build limits.
+- **Library**: the development workflow displays saved facts, channels, inert
+  sample/plugin references, Plugin Explorer groups, pattern names/counts,
+  note-record counts, and qualified mixer record names. Explicit sample checks
+  observe metadata only for eligible literal absolute paths inside the
+  selected local NTFS root; relative, placeholder, external-folder, and cloud
+  resolution remain open. See the
+  [sample-check review](docs/review/sample-presence-ui-284/README.md) and
+  [mixer slice](docs/review/library-mixer-inserts-304/README.md).
+- **Compatibility and automation**: the approved parser corpus now has 21
+  files. [PR #320](https://github.com/guilhermebmichelin-create/fruitboard/pull/320)
+  adds the exact-build F22 cloned-Sampler case; [PR #323](https://github.com/guilhermebmichelin-create/fruitboard/pull/323)
+  publishes F23 GUI evidence. F23 shows one automation clip with three visible
+  control points, but the saved event framing does not establish an object or
+  point-count grammar. Automation extraction and display remain unqualified;
+  [issue #324 research](docs/research/parser-automation-counts-324-result.md)
+  defines the evidence still needed.
+- **Resource and scanner status**: scanner qualification remains unaccepted;
+  the historical warm nearest-rank p95 was 10,173 ms against the unchanged
+  10,000 ms target on source `69f27f6`. The
+  [current resource review](docs/review/phase3-qualification-306/README.md) is
+  characterization, not qualification. The
+  [October 14 follow-up](docs/review/resource-repeat-20261014/README.md)
+  records an unexplained installed shutdown timeout and a successful debugging
+  repeat that did not establish its cause or a product fix. The proposed next
+  diagnostic slice is [issue #327](https://github.com/guilhermebmichelin-create/fruitboard/issues/327);
+  resource decisions and the Phase 3 checkpoint remain open.
+- **Reliability tracker**: GitHub still lists
+  [#220](https://github.com/guilhermebmichelin-create/fruitboard/issues/220),
+  [#221](https://github.com/guilhermebmichelin-create/fruitboard/issues/221),
+  [#222](https://github.com/guilhermebmichelin-create/fruitboard/issues/222),
+  and [#223](https://github.com/guilhermebmichelin-create/fruitboard/issues/223)
+  as open, although their scanner lifecycle, response-validation,
+  event-recovery, and bounded-publication fixes shipped in
+  [PR #225](https://github.com/guilhermebmichelin-create/fruitboard/pull/225).
+  The [review note](docs/review/application-fixes-20260929.md) maps each fix
+  to its tests. This status update does not change issue states.
+- **Repository**: public since 2026-09-07. `main` protection requires pull
+  requests and the ten configured checks, with branches up to date, linear
+  history, and no force pushes or deletion. Secret scanning, push protection,
+  and Dependabot are enabled; CodeQL and dependency review are informational.
+  Use the [security policy](SECURITY.md#vulnerability-handling) for
+  vulnerability reports.
 
 The [archived README status](docs/archive/readme-status-20260929.md) preserves
 the superseded status blocks, source pins, installed evidence and links.
