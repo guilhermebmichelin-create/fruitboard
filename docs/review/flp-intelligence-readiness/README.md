@@ -1,9 +1,9 @@
 ﻿# FLP intelligence readiness review
 
 Status: **Review packet; budgets and Phase 3 exit are not accepted.**
-Updated: 2026-10-16. Related issue:
+Updated: 2026-10-17. Related issue:
 [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259).
-Current source baseline: merged PR321, `803ef43c`. Earlier installed evidence
+Current source baseline: merged PR323, `929cf4df`. Earlier installed evidence
 keeps its original source boundary; the metadata-read optimization does not
 promote historical performance results.
 The [current resource/checkpoint review](../phase3-qualification-306/README.md)
@@ -41,7 +41,7 @@ The exact approved [F23 fixture](../../research/parser-automation-322-result.md)
 adds independent GUI evidence of one saved automation clip with three points.
 Its regression checks retain unsupported automation/Playlist interpretation.
 Automation extraction and Library display remain the next separate G6 steps.
-The corpus is twenty files; F22 remains in separate unmerged PR320.
+The corpus is twenty-one files, including both approved F22 and F23.
 
 ## Delivered behavior and evidence
 
@@ -154,6 +154,13 @@ It exposed invented numbered channel labels; the correction retains duplicate
 inferences. The owner approved the exact F15 bytes and expectations on 2026-10-05;
 PR268 includes its immutable fixture and read-only regression. Other
 compatibility cases and the full Phase 3 checkpoint remain open.
+
+Issue #319 adds an exact owner-approved FL 2025 case: cloning the original empty
+Sampler twice yields three literal `Sampler` labels in the already-covered
+25.1.3.4922 build. The [F22 result](../../research/parser-fl2025-multisampler-319-result.md)
+records the approved hashes and limits. It adds one authoring path, not a saved
+version; publication regressions and updated-head checks remain part of this
+change. G3 and the full Phase 3 checkpoint remain open.
 
 Issue #278 supplied the accepted [bounded sample presence design](../sample-presence-278/README.md)
 for G5. It checks literal saved absolute paths only within the

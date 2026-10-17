@@ -1,0 +1,113 @@
+{
+  "schema": "fruitboard/fl2025-multisampler-expectations/1",
+  "case": "Provisional F22",
+  "issue": 319,
+  "status": "Exact private candidate prepared; public inclusion pending owner approval",
+  "fixture": "FIX-FL2025-MULTISAMPLER.flp",
+  "bytes": 48062,
+  "sha256": "2216b6d131360c0cafb20d2bee2ab82c0217e21303c3a1260c5c8f4a7cd42eeb",
+  "provenance": {
+    "authoring": "Owner-authorized synthetic project saved through matching FL Studio GUI from an independent approved F06 copy",
+    "savedBuild": "25.1.3.4922",
+    "executableSHA256": "38e76a4973f8e346707019e860d78f998f6f19f44a8d4b7c16f9d65384fbd7d3",
+    "content": "Three cloned empty built-in Samplers; no personal project, imported audio, external plugin, recording or playback",
+    "license": "Owner-controlled purpose-built synthetic content; no third-party project/audio material; exact publication approval pending"
+  },
+  "registeredGuiFacts": {
+    "build": "25.1.3.4922",
+    "baseTempoBpm": 130,
+    "channelCount": 3,
+    "channelNames": [
+      "Sampler",
+      "Sampler",
+      "Sampler"
+    ],
+    "builtInGeneratorsObserved": [
+      "Sampler",
+      "Sampler",
+      "Sampler"
+    ],
+    "fileFields": [
+      "(none)",
+      "(none)",
+      "(none)"
+    ],
+    "playlistVisibleEmpty": true,
+    "noNoteStepPlaylistEditsMade": true,
+    "pianoRollIndependentlyInspected": false,
+    "registeredBeforeSaveAndExtraction": true,
+    "freshRawAndSanitizedReopensMatch": true,
+    "bytesUnchangedAfterReopens": true
+  },
+  "independentSavedStructure": {
+    "channelMarkers": [
+      0,
+      1,
+      2
+    ],
+    "ppq": 96,
+    "storedEditableLabelEvents": 0,
+    "emptyGeneratorClassEvents": 3,
+    "nonemptySampleFilenameEvents": 0,
+    "nonemptyNoteEvents": 0,
+    "playlistPayloadLengths": [
+      0
+    ]
+  },
+  "expectedParserContract": {
+    "savedVersion": {
+      "status": "extracted",
+      "value": "25.1.3.4922"
+    },
+    "baseTempoBpm": {
+      "status": "extracted",
+      "value": 130
+    },
+    "channelCount": {
+      "status": "extracted",
+      "value": 3
+    },
+    "channelNames": {
+      "status": "inferred",
+      "value": [
+        "Sampler",
+        "Sampler",
+        "Sampler"
+      ],
+      "method": "sampler-label-for-known-build",
+      "confidence": "medium",
+      "itemConfidence": [
+        "high",
+        "medium",
+        "medium"
+      ]
+    },
+    "channelGeneratorNames": {
+      "status": "unsupported",
+      "reason": "GENERATOR_NAMES_UNVERIFIED_BUILD"
+    },
+    "sampleReferences": {
+      "status": "unavailable",
+      "itemCount": 3,
+      "itemReason": "SAMPLE_REFERENCE_NOT_STORED"
+    }
+  },
+  "sanitation": {
+    "removedEvent": 200,
+    "payloadBytes": 40,
+    "framingBytes": 2,
+    "totalRemovedBytes": 42,
+    "encoding": "Encoded registration value; not decoded or equated to the visible registered-to label",
+    "otherOperation": "FLdt byte-length correction",
+    "allRetainedEventBytesIdentical": true,
+    "boundedTextAndEmbeddedSignatureChecksPassed": true,
+    "limit": "Opaque default/plugin state is not fully decoded; static checks and controlled GUI provenance do not replace privacy review"
+  },
+  "scopeLimits": [
+    "One clone-authoring case in exact 25.1.3.4922; not another supported build or all authoring paths",
+    "Default labels are inferred, not stored/extracted",
+    "2025 generator-name extraction stays unsupported despite independently observed Samplers",
+    "No automation/MIDI/mixer/layout/duration qualification",
+    "No resource-budget, full G3 or Phase 3 acceptance"
+  ]
+}
