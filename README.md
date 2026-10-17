@@ -3,10 +3,12 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Current status - 2026-10-09
+## Current status - 2026-10-16
 
-Source baseline: `266327058fbf3f6dfd2cfa2fedd51ceb09ea3fa2` (merged PR #301).
-The review dated 2026-10-08 used the earlier `b27b761` baseline.
+Merged baseline: `fa0dbdd2fc9b7f2952fc6386fcb8fd444c2e180b` (PR #318).
+Its application source is unchanged from merged PR #305, `0e86b8e`.
+The [current development step](docs/review/explorer-current-read-259/README.md)
+consolidates current-metadata reads for Plugin Explorer under issue #259.
 
 - **Phases**: Phase 0 accepted 2026-09-04, Phase 1 accepted 2026-09-06, and
   Phase 2 accepted with known gaps on 2026-09-14
@@ -33,7 +35,14 @@ The review dated 2026-10-08 used the earlier `b27b761` baseline.
   delivered for the exact FL Studio 26.1.0.5530 eighteen-record layout.
   [Parser contract](crates/flp-parser/README.md#initial-native-result-validation)
   counts sixteen ordinary saved records, with honest missing-name states.
-  Mixer storage projection and Library display remain open.
+  [Application slice #304](docs/review/library-mixer-inserts-304/README.md)
+  delivers immutable selected storage and Library display in merged PR #305;
+  broader layouts remain open.
+- **Compatibility review**: [PR #320](https://github.com/guilhermebmichelin-create/fruitboard/pull/320)
+  adds an approved three-cloned-Sampler case for exact build `25.1.3.4922`.
+  Its fifteen checks passed on `9e3979c`; owner review and manual merge remain
+  pending. The merged corpus still has nineteen files. This case adds no
+  supported build or generator-name claim.
 - **Product scope**: the Tauri/React shell, Rust-owned SQLite library, scan
   roots and feature-gated durable scanning are implemented. Production
   activation is still a separate owner decision. Kanban, search, project
@@ -41,7 +50,12 @@ The review dated 2026-10-08 used the earlier `b27b761` baseline.
 - **Performance**: scanner qualification remains unaccepted; the historical
   warm nearest-rank p95 was 10,173 ms against a 10,000 ms target on source
   `69f27f6`. Later [native analysis/Explorer observations](docs/review/explorer-performance-259/README.md)
-  do not replace scanner or whole-app qualification.
+  do not replace scanner qualification. The [current resource/checkpoint review](docs/review/phase3-qualification-306/README.md)
+  records complete installed scale/refusal checks and provisional resource
+  observations. The [October 14 follow-up](docs/review/resource-repeat-20261014/README.md)
+  records guarded worker observations, noisy Explorer windows and an unexplained
+  installed shutdown timeout followed by a successful debugging repeat.
+  Remaining resource qualification and explicit budget/phase decisions stay open.
 - **Repository**: public since 2026-09-07. The owner approved restoration of
   `main` protection on 2026-10-10 after verification found it absent on
   2026-10-09. GitHub now requires PRs and all ten checks, including for admins,

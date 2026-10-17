@@ -448,6 +448,39 @@ fn native_analysis_publishes_approved_saved_patterns() {
 #[cfg(windows)]
 #[test]
 #[ignore = "requires freshly built FRUITBOARD_ANALYSIS_TEST_PARSER; run by Windows feature CI and local validation"]
+fn native_analysis_publishes_approved_saved_mixer_inserts() {
+    let expectations: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/parser-corpus/mixer-insert-expectations.json"
+    ))
+    .unwrap();
+    for case in expectations["cases"].as_array().unwrap() {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/parser-corpus")
+            .join(case["file"].as_str().unwrap());
+        let bytes = std::fs::read(&file).unwrap();
+        assert_eq!(sha256_hex(&bytes), case["sha256"].as_str().unwrap());
+        let saved = run_native_analysis(bytes.clone());
+        assert_eq!(saved["mixerInserts"]["count"]["value"], 16);
+        let names = saved["mixerInserts"]["names"]["items"].as_array().unwrap();
+        for (index, expected) in case["savedSection"]["ordinaryRecords"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .enumerate()
+        {
+            assert_eq!(names[index]["savedInsertId"], index + 1);
+            assert_eq!(names[index]["name"]["status"], expected["name"]["status"]);
+            if expected["name"]["status"] == "extracted" {
+                assert_eq!(names[index]["name"]["value"], expected["name"]["value"]);
+            }
+        }
+        assert_eq!(std::fs::read(file).unwrap(), bytes);
+    }
+}
+
+#[cfg(windows)]
+#[test]
+#[ignore = "requires freshly built FRUITBOARD_ANALYSIS_TEST_PARSER; run by Windows feature CI and local validation"]
 fn native_analysis_accepts_ordinary_project_sizes_through_publication() {
     for size in [4_601_596, 25_000_000] {
         let mut payload = bytes();

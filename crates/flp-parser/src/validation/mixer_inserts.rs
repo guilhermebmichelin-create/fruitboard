@@ -46,6 +46,19 @@ pub enum SavedMixerInserts {
     Unsupported(MixerInsertReason),
     Entries(Vec<SavedMixerInsert>),
 }
+/// Revalidate the selected private projection using the qualified parser rules.
+/// Absence is handled by the caller; a present malformed pair is never ignored.
+pub fn validate_stored_mixer_inserts(
+    value: &Value,
+    build: &str,
+) -> Result<SavedMixerInserts, ValidationError> {
+    if value["status"] == "unsupported" && value["reason"] == "MIXER_INSERTS_NOT_ADVERTISED" {
+        shape(value, &["status", "reason"])?;
+        return Ok(SavedMixerInserts::NotAdvertised);
+    }
+    shape(value, &["count", "names"])?;
+    validate(&value["count"], &value["names"], Some((512, 512)), build)
+}
 fn shape(value: &Value, keys: &[&str]) -> Result<(), ValidationError> {
     let object = value.as_object().ok_or(ValidationError::InvalidReply)?;
     if object.len() != keys.len() || keys.iter().any(|key| !object.contains_key(*key)) {

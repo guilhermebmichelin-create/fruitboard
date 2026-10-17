@@ -1,26 +1,30 @@
 # Maintained saved-field reliability matrix
 
 Historical baseline: merged PR261, `19b95362a66a82c91cba56fc8f2226c6ef899cc2`.
-Current integration adds issue #263 on merged PR262; see the
-[saved patterns review](../library-patterns-263/README.md). Historical ground
-truth and measured source boundaries below are unchanged.
+Current source baseline is merged PR321, `803ef43c`; installed evidence below
+retains its recorded source boundaries. The current matrix includes saved
+patterns, notes, ordinary mixer records, separate sample-presence observations
+and F23's GUI automation evidence without automation extraction.
+Updated: 2026-10-16. Historical ground truth and measured source boundaries
+below are unchanged.
 This records the opt-in Windows development composition, not production enablement
 or full Phase 3 acceptance. Changes to extraction, validation, persistence,
 display or corpus coverage must update this matrix in the same PR.
 
 ## Saved-build coverage
 
-| Exact saved build  | Approved genuine-save derivatives | Independently checked coverage                                                                                                                     |
-| ------------------ | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 24.1.0.4225        | F01/F04/F05                       | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                                                 |
-| 25.1.3.4922        | F06                               | Minimal Sampler, 130 BPM, displayed default name by labeled inference and absent sample references.                                                |
-| 26.1.0.5530        | F11/F12/F13/F14/F15/F16/F17       | Minimal; explicit sample/name; patterns/placements; 3x Osc; cloned empty Samplers; registered ordinary/slide/step records and named-empty absence. |
-| FL Studio 20/21    | F02/F03 are not covered           | No runnable matching build or genuine-save fixture here; no supported-build claim.                                                                 |
-| Other saved builds | No approved row                   | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                               |
+| Exact saved build  | Approved genuine-save derivatives               | Independently checked coverage                                                                                                                                                                               |
+| ------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 24.1.0.4225        | F01/F04/F05                                     | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                                                                                                           |
+| 25.1.3.4922        | F06                                             | Minimal Sampler, 130 BPM, displayed default name by labeled inference and absent sample references.                                                                                                          |
+| 26.1.0.5530        | F11/F12/F13/F14/F15/F16/F17/F18/F19/F20/F21/F23 | Minimal; explicit sample/name; patterns/placements; 3x Osc; cloned empty Samplers; note records/absence; one complete mixer section; F23 GUI shows one automation clip/three points, extraction unqualified. |
+| FL Studio 20/21    | F02/F03 are not covered                         | No runnable matching build or genuine-save fixture here; no supported-build claim.                                                                                                                           |
+| Other saved builds | No approved row                                 | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                                                                                         |
 
 The [manifest](../../../fixtures/parser-corpus/manifest.md) owns approval,
-provenance, license, expected values and SHA-256. Fifteen files are committed:
-eleven genuine-save derivatives and four approved robustness derivatives.
+provenance, license, expected values and SHA-256. Twenty files are committed:
+sixteen genuine-save derivatives and four approved robustness derivatives.
+F22 remains in separate unmerged PR320 and is excluded from this count.
 F07-F10 exercise failure/partial handling; they add no saved-build coverage.
 
 ## Field reliability and application reach
@@ -45,7 +49,8 @@ a complete parse does not make every field extracted or universally supported.
 | File size/modified/filesystem-created time   | Native held-handle authority and independent source checks; filesystem creation optional                                                                                                               | Size/modified shown in Library; optional creation in details                              | File creation differs from embedded creation. Details are saved facts matching a scanned observation, not continuous live inspection.                                |
 | Top-level plugin references                  | Verified built-in Sampler/3x Osc and bounded saved strings; recognized wrapper name/vendor handling has constructed tests                                                                              | Stored/displayed; Explorer groups exact name/class/vendor and provenance                  | No approved external VST wrapper fixture. No exhaustive mixer/nested coverage, installed-plugin inventory or plugin load. Empty coverage is not proof of no plugins. |
 | Saved pattern note records                   | Approved F16 counts 3/2/4, F17 omitted payload; PR291/293/295 and [installed delivery](../library-pattern-notes-294/README.md)                                                                         | Validated, immutably stored and displayed per pattern                                     | Exact 26.1.0.5530 initial content series; no explicit-zero qualification, raw notes, audible count or Playlist multiplication.                                       |
-| Automation/MIDI/mixer summaries              | No implemented app summary or approved matching fixture; [mixer design #296](../mixer-inserts-296/README.md) only                                                                                      | Not delivered                                                                             | Saved note records, patterns and top-level plugin references do not imply these capabilities.                                                                        |
+| Saved mixer insert records                   | Approved F18-F21, PR299/301 and [application slice #304](../library-mixer-inserts-304/README.md)                                                                                                       | Validated, immutably stored and displayed                                                 | Exact complete 26.1.0.5530 layout only: sixteen ordinary positions; no usage/audibility, effects, routing, sparse layouts or persistent IDs.                         |
+| Automation/MIDI summaries                    | Approved F23 GUI case: one saved clip/three points; [fixture result #322](../../research/parser-automation-322-result.md). Point-record semantics remain unqualified.                                  | Not delivered; no summary advertised or emitted                                           | F23 preserves unsupported automation generator/Playlist fields. Saved GUI counts are not parser extraction or MIDI support.                                          |
 | Ephemeral sample metadata observations       | ADR-007/PR285; actual NTFS rights/race and authorized-host tests, installed constructed host mapping plus unchanged F12 outside-root/F15 no-reference cases                                            | Explicit Library checks in `analysis-jobs`; no persisted availability                     | Exact eligible absolute paths inside selected local NTFS root only; time-of-check presence/absence, no audio/content reads or broader FL Studio resolution.          |
 
 The [saved pattern note-count proposal](../pattern-notes-288/README.md), #288,
@@ -61,12 +66,12 @@ cover limits/ambiguity; [native validation tests](../../../crates/flp-parser/tes
 reject malformed advertised data. [PR295 / issue #294](../library-pattern-notes-294/README.md)
 delivers immutable count/state persistence and per-pattern Library display, with
 older-result explanations, strict matching-ID/limit checks and existing source
-freshness fences. Automation/MIDI/mixer summaries stay open. The next
-[mixer insert count/name design](../mixer-inserts-296/README.md), #296, has no
-independently qualified mixer expectations, extraction or application support
-yet. Its proposed ordinary-insert identity, complete-record count and saved-name
-semantics require the genuine fixture gate; existing corpus approvals are not
-repurposed as mixer ground truth.
+freshness fences. [Mixer insert design #296](../mixer-inserts-296/README.md)
+now has approved F18-F21 evidence in PR299 and bounded parsing/full validation
+in PR301. [Application slice #304](../library-mixer-inserts-304/README.md) adds
+immutable storage and authorized display with independent installed validation.
+Only the complete qualified sixteen-ordinary-record layout is supported;
+broader mixer effects/nested plugins and automation/MIDI summaries remain open.
 
 ## Tests and independent checks
 
