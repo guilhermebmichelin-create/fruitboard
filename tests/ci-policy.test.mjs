@@ -57,7 +57,7 @@ test("workflow permissions and third-party execution fail closed", () => {
     "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
-    "astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7",
+    "astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884",
   ]);
   assert.ok(actionReferences.length > 0);
   for (const reference of actionReferences) {
