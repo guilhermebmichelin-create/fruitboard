@@ -204,6 +204,78 @@ fn approved_three_sampler_gui_save_preserves_duplicate_labels_read_only() {
 }
 
 #[test]
+fn approved_fl2025_three_sampler_save_keeps_qualified_labels_read_only() {
+    // GUI observations were registered before saving or parsing. The owner
+    // approved these exact F22 fixture and expectation bytes on 2026-10-15.
+    let registered =
+        include_bytes!("../../../fixtures/parser-corpus/fl2025-multisampler-expectations.json");
+    assert_eq!(registered.len(), 3546);
+    assert_eq!(
+        fruitboard_flp_parser::sha256_hex(registered),
+        "b7715ef0c57a27adc3fcb0c22700fa321d668bd3a2b8eb172cc4486b1621637d"
+    );
+    let expected: Value = serde_json::from_slice(registered).unwrap();
+    let path = fixture(expected["fixture"].as_str().unwrap());
+    let before = fs::read(&path).unwrap();
+    let hash = expected["sha256"].as_str().unwrap();
+    assert_eq!(before.len() as u64, expected["bytes"].as_u64().unwrap());
+    assert_eq!(fruitboard_flp_parser::sha256_hex(&before), hash);
+    let attributes = fs::metadata(&path).unwrap();
+    let parsed = parse_file(
+        &path,
+        ExpectedFingerprint {
+            size: attributes.len(),
+            modified_at_ms: modified_at_ms(&attributes).unwrap(),
+        },
+    );
+    let gui = &expected["registeredGuiFacts"];
+    let contract = &expected["expectedParserContract"];
+    assert_eq!(parsed["outcome"], "complete");
+    assert_eq!(parsed["savedVersion"]["value"], gui["build"]);
+    assert_eq!(
+        parsed["baseTempoBpm"]["value"].as_f64().unwrap(),
+        gui["baseTempoBpm"].as_f64().unwrap()
+    );
+    assert_eq!(parsed["channelCount"]["value"], gui["channelCount"]);
+    assert_eq!(parsed["channelNames"]["value"], gui["channelNames"]);
+    for key in ["status", "method", "confidence"] {
+        assert_eq!(parsed["channelNames"][key], contract["channelNames"][key]);
+    }
+    assert_eq!(parsed["channelNames"]["items"].as_array().unwrap().len(), 3);
+    for (index, confidence) in contract["channelNames"]["itemConfidence"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .enumerate()
+    {
+        assert_eq!(parsed["channelNames"]["items"][index]["status"], "inferred");
+        assert_eq!(
+            parsed["channelNames"]["items"][index]["value"],
+            gui["channelNames"][index]
+        );
+        assert_eq!(
+            parsed["channelNames"]["items"][index]["confidence"],
+            *confidence
+        );
+    }
+    assert_eq!(
+        parsed["channelGeneratorNames"],
+        contract["channelGeneratorNames"]
+    );
+    assert!(parsed["channelGeneratorNames"].get("value").is_none());
+    assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
+    let samples = parsed["sampleReferences"]["items"].as_array().unwrap();
+    assert_eq!(samples.len(), 3);
+    for sample in samples {
+        assert_eq!(sample["status"], "unavailable");
+        assert_eq!(sample["reason"], "SAMPLE_REFERENCE_NOT_STORED");
+        assert!(sample.get("value").is_none());
+    }
+    assert_eq!(parsed["inputFingerprint"]["hash"]["value"], hash);
+    assert_eq!(fs::read(&path).unwrap(), before);
+}
+
+#[test]
 fn approved_automation_gui_case_keeps_unqualified_fields_unsupported_read_only() {
     // GUI oracle registered before byte inspection; exact F23 files approved
     // on 2026-10-16. Counts below describe the GUI, not parser extraction.
