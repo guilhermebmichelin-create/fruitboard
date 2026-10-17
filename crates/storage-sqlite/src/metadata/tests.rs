@@ -29,6 +29,88 @@ fn raw_reply() -> Value {
 }
 
 #[test]
+fn mixer_projection_rejects_invalid_replacements_and_preserves_immutable_history() {
+    let directory = TestDirectory::new();
+    let (mut db, input) = setup(&directory, MIGRATIONS.len());
+    let caps = validate_descriptor(&json!({"adapter":ADAPTER_ID,"adapterVersion":ADAPTER_VERSION,
+        "fields":["savedVersion","baseTempoBpm","channelCount","channelNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","filesystemCreatedAtMs","pluginReferences","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","mixerInsertCount","mixerInsertNames"],
+        "maxFileBytes":67108864,"maxEvents":100000,"maxChannels":256,"maxEventBytes":67108864,"maxPatterns":1024,"maxPlaylistClips":1024,"maxMixerInserts":512,"maxMixerInsertCandidates":512})).unwrap();
+    // Constructed defense payload using unchanged F12 source fingerprints.
+    let mut raw = raw_reply();
+    raw["mixerInsertCount"] =
+        json!({"status":"extracted","coverage":"explicit-saved-mixer-insert-records","value":16});
+    raw["mixerInsertNames"] = json!({"status":"extracted","coverage":"explicit-saved-mixer-insert-records","value":(1..=16).map(|id| json!({"savedInsertId":id,"name":{"status":"extracted","value":"Repeated label"}})).collect::<Vec<_>>()});
+    raw["rawMixer"] = json!({"effects":"private state must not persist"});
+    let first = db
+        .publish_metadata_snapshot(&input, &caps, ProtocolReply::Result(raw.clone()), 100)
+        .unwrap();
+    let stored = db
+        .metadata_snapshot(&first.id)
+        .unwrap()
+        .unwrap()
+        .payload_json()
+        .unwrap()
+        .to_owned();
+    let payload: Value = serde_json::from_str(&stored).unwrap();
+    assert_eq!(payload["projectionVersion"], 1);
+    assert_eq!(
+        payload["mixerInserts"],
+        json!({"count":raw["mixerInsertCount"],"names":raw["mixerInsertNames"]})
+    );
+    assert!(!stored.contains("private state") && !stored.contains("rawMixer"));
+    let input = db
+        .capture_metadata_input(&input.root_id, "location")
+        .unwrap();
+    for (pointer, bad) in [
+        ("/mixerInsertCount/value", json!(0)),
+        ("/mixerInsertCount/value", json!(17)),
+        ("/mixerInsertNames/value/0/savedInsertId", json!(0)),
+        ("/mixerInsertNames/value/0/savedInsertId", json!(2)),
+        ("/mixerInsertNames/value/0/name/value", json!("")),
+        ("/mixerInsertNames/coverage", json!("all-tracks")),
+    ] {
+        let mut invalid = raw.clone();
+        *invalid.pointer_mut(pointer).unwrap() = bad;
+        assert!(
+            db.publish_metadata_snapshot(&input, &caps, ProtocolReply::Result(invalid), 101)
+                .is_err()
+        );
+        assert_eq!(
+            db.current_metadata_snapshot("project")
+                .unwrap()
+                .unwrap()
+                .header()
+                .id,
+            first.id
+        );
+    }
+    let field = json!({"status":"unsupported","reason":"MIXER_INSERT_LAYOUT_UNVERIFIED","coverage":"explicit-saved-mixer-insert-records"});
+    raw["mixerInsertCount"] = field.clone();
+    raw["mixerInsertNames"] = field;
+    let next = db
+        .publish_metadata_snapshot(&input, &caps, ProtocolReply::Result(raw.clone()), 102)
+        .unwrap();
+    assert_eq!(
+        serde_json::from_str::<Value>(
+            db.metadata_snapshot(&next.id)
+                .unwrap()
+                .unwrap()
+                .payload_json()
+                .unwrap()
+        )
+        .unwrap()["mixerInserts"]["count"],
+        raw["mixerInsertCount"]
+    );
+    assert_eq!(
+        db.metadata_snapshot(&first.id)
+            .unwrap()
+            .unwrap()
+            .payload_json(),
+        Some(stored.as_str())
+    );
+}
+
+#[test]
 fn note_projection_rejects_invalid_replacements_and_preserves_immutable_history() {
     let directory = TestDirectory::new();
     let (mut db, input) = setup(&directory, MIGRATIONS.len());

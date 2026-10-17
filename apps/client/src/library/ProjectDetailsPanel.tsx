@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { LibraryScanAdapter, PublishedFileLocation } from "./contracts";
 import { ProjectChannels } from "./ProjectChannels";
 import { ProjectPatterns } from "./SavedPatterns";
+import { SavedMixerInserts } from "./SavedMixerInserts";
 import { ProjectSamples } from "./ProjectSamples";
 import { ProjectPlugins } from "./ProjectPlugins";
 import { ProjectAnalysisStatus } from "./ProjectAnalysisStatus";
@@ -198,6 +199,10 @@ export function ProjectDetailsPanel({
                   key={`patterns:${state.details.snapshotId}`}
                   patterns={state.details.patterns}
                   notes={state.details.patternNoteCounts}
+                />
+                <SavedMixerInserts
+                  key={`mixer:${state.details.snapshotId}`}
+                  mixer={state.details.mixerInserts}
                 />
                 <ProjectSamples
                   key={`samples:${state.details.snapshotId}`}
