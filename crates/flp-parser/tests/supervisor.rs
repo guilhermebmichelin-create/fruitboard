@@ -98,7 +98,8 @@ fn actual_parser_health_describe_and_approved_file_share_one_supervisor() {
 fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutation() {
     use fruitboard_flp_parser::validation::{
         MetadataOutcome, MixerInsertName, NoteRecordCount, ParseContext, PatternNoteCounts,
-        SavedMixerInserts, ValidatedProjectReply, validate_descriptor, validate_project_reply,
+        ProjectField, ProjectReason, SavedMixerInserts, ValidatedProjectReply, validate_descriptor,
+        validate_project_reply,
     };
     let mut supervisor = ParserSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_fruitboard-flp-parser")),
@@ -112,6 +113,19 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
             .unwrap(),
     );
     let capabilities = validate_descriptor(&descriptor).unwrap();
+    assert!(
+        descriptor["fields"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|field| {
+                !field
+                    .as_str()
+                    .unwrap()
+                    .to_ascii_lowercase()
+                    .contains("automation")
+            })
+    );
     let mixer_expectations: serde_json::Value = serde_json::from_str(include_str!(
         "../../../fixtures/parser-corpus/mixer-insert-expectations.json"
     ))
@@ -126,7 +140,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
         .filter(|path| path.extension().is_some_and(|extension| extension == "flp"))
         .collect::<Vec<_>>();
     fixtures.sort();
-    assert_eq!(fixtures.len(), 19, "only the maintained approved corpus");
+    assert_eq!(fixtures.len(), 20, "only the maintained approved corpus");
     for (index, path) in fixtures.into_iter().enumerate() {
         let before = fs::read(&path).unwrap();
         let attributes = fs::metadata(&path).unwrap();
@@ -180,6 +194,27 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                 "{name}"
             );
             assert_eq!(metadata.file_size_bytes(), expected.size);
+            if name == "FIX-FL2026-AUTOMATION.flp" {
+                assert_eq!(
+                    sha256_hex(&before),
+                    "23b764e4220fc5e48ffbd4a99c602bda092c032ef35b9b2d5b785250b622cf7f"
+                );
+                assert_eq!(metadata.initial().channel_count(), 2);
+                // Full native validation must preserve refusal rather than
+                // treating automation placement as a pattern or duration.
+                assert!(matches!(
+                    metadata.arrangement_end_tick(),
+                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
+                ));
+                assert!(matches!(
+                    metadata.arrangement_span_bars(),
+                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
+                ));
+                assert!(matches!(
+                    metadata.arrangement_estimated_seconds(),
+                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
+                ));
+            }
             if let Some(case) = mixer_expectations["cases"]
                 .as_array()
                 .unwrap()
