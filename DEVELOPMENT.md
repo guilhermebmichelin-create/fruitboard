@@ -267,6 +267,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | Vite / React plugin       | 8.3.0 / 6.1.1   | Local development and production client bundle |
 | TypeScript                | 6.0.3           | Strict shared-client compilation               |
 | Vitest                    | 5.0.0           | Client and adapter contract tests              |
+| typescript-eslint         | 8.71.1          | Typed client lint integration                  |
 
 Dependency versions remain exact in their generated lockfiles. Updating a pin
 requires a focused PR that regenerates locks, runs the full check, and updates

@@ -14,6 +14,8 @@ mod payload;
 mod source;
 pub use source::MetadataSource;
 #[cfg(test)]
+mod current_read_tests;
+#[cfg(test)]
 pub(crate) mod tests;
 
 pub const MAX_METADATA_JSON_BYTES: usize = 256 * 1024;
@@ -198,6 +200,20 @@ const HEADER_COLUMNS: &str = "snapshot.id, snapshot.project_file_id, snapshot.in
     snapshot.protocol_version, snapshot.parser_schema_version, snapshot.projection_version,
     snapshot.outcome, snapshot.parser_code, snapshot.unsupported_saved_version, snapshot.parsed_at_ms";
 
+// Both ID-only fences and payload reads must apply the same live-source rules.
+const CURRENT_SNAPSHOT_FROM: &str = "FROM project_file AS file
+    JOIN metadata_snapshot AS snapshot ON snapshot.id = file.current_metadata_snapshot_id
+    JOIN file_location AS location ON location.id = snapshot.input_location_id
+    JOIN scan_root AS root ON root.id = snapshot.input_root_id
+    WHERE file.id = ?1 AND snapshot.project_file_id = file.id
+      AND location.project_file_id = file.id AND location.scan_root_id = root.id
+      AND root.enabled = 1 AND root.mode = 'local_ntfs' AND location.presence = 'present'
+      AND root.configuration_revision = snapshot.input_root_revision
+      AND file.metadata_revision = snapshot.input_file_revision
+      AND location.metadata_revision = snapshot.input_location_revision
+      AND file.byte_size = snapshot.input_byte_size AND location.byte_size = snapshot.input_byte_size
+      AND file.modified_at_ns = snapshot.input_modified_at_ns AND location.modified_at_ns = snapshot.input_modified_at_ns";
+
 fn unsigned(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<u64> {
     let value: i64 = row.get(index)?;
     u64::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(index, value))
@@ -273,8 +289,19 @@ impl Database {
         })
     }
     pub fn metadata_snapshot(&self, id: &str) -> Result<Option<MetadataSnapshot>> {
+        self.select_metadata_snapshot(
+            "FROM metadata_snapshot AS snapshot WHERE snapshot.id = ?1",
+            id,
+        )
+    }
+
+    fn select_metadata_snapshot(
+        &self,
+        source_query: &str,
+        id: &str,
+    ) -> Result<Option<MetadataSnapshot>> {
         let selected = self.connection.prepare_cached(
-            &format!("SELECT {HEADER_COLUMNS}, CASE WHEN length(CAST(snapshot.payload_json AS BLOB)) <= {MAX_METADATA_JSON_BYTES} THEN snapshot.payload_json ELSE NULL END FROM metadata_snapshot AS snapshot WHERE snapshot.id = ?1"),
+            &format!("SELECT {HEADER_COLUMNS}, CASE WHEN length(CAST(snapshot.payload_json AS BLOB)) <= {MAX_METADATA_JSON_BYTES} THEN snapshot.payload_json ELSE NULL END {source_query}"),
         )?.query_row(
             [id], |row| Ok(MetadataSnapshot { header: read_header(row)?, payload_json: row.get(19)? }),
         ).optional()?;
@@ -309,10 +336,9 @@ impl Database {
         &self,
         project_file_id: &str,
     ) -> Result<Option<MetadataSnapshot>> {
-        self.current_metadata_snapshot_id(project_file_id)?
-            .map(|id| self.metadata_snapshot(&id))
-            .transpose()
-            .map(Option::flatten)
+        // Select the payload under the live-source fences in one statement.
+        // Cache only SQL preparation; every read rechecks the current pointer.
+        self.select_metadata_snapshot(CURRENT_SNAPSHOT_FROM, project_file_id)
     }
 
     /// Same durable freshness query without loading a saved JSON projection.
@@ -320,19 +346,11 @@ impl Database {
     pub fn current_metadata_snapshot_id(&self, project_file_id: &str) -> Result<Option<String>> {
         // Cache the prepared SQL, never a snapshot or freshness result. Bind
         // the selected file and recheck every source fence on every read.
-        let id: Option<String> = self.connection.prepare_cached("SELECT snapshot.id
-            FROM project_file AS file
-            JOIN metadata_snapshot AS snapshot ON snapshot.id = file.current_metadata_snapshot_id
-            JOIN file_location AS location ON location.id = snapshot.input_location_id
-            JOIN scan_root AS root ON root.id = snapshot.input_root_id
-            WHERE file.id = ?1 AND snapshot.project_file_id = file.id
-              AND location.project_file_id = file.id AND location.scan_root_id = root.id
-              AND root.enabled = 1 AND root.mode = 'local_ntfs' AND location.presence = 'present'
-              AND root.configuration_revision = snapshot.input_root_revision
-              AND file.metadata_revision = snapshot.input_file_revision
-              AND location.metadata_revision = snapshot.input_location_revision
-              AND file.byte_size = snapshot.input_byte_size AND location.byte_size = snapshot.input_byte_size
-              AND file.modified_at_ns = snapshot.input_modified_at_ns AND location.modified_at_ns = snapshot.input_modified_at_ns")?.query_row([project_file_id], |row| row.get(0)).optional()?;
+        let id: Option<String> = self
+            .connection
+            .prepare_cached(&format!("SELECT snapshot.id {CURRENT_SNAPSHOT_FROM}"))?
+            .query_row([project_file_id], |row| row.get(0))
+            .optional()?;
         Ok(id)
     }
 
