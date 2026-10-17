@@ -40,13 +40,19 @@ implementation defect or of an accepted fix; use the linked merged source/tests.
 
 The owner approved the exact F23 fixture/expectations on 2026-10-16;
 [issue #322's result](../../research/parser-automation-322-result.md) records
-one GUI-observed saved automation clip and three control points in exact build
-26.1.0.5530. Public corpus and actual supervised typed-validation regressions
-preserve basic metadata, unsupported automation generator/Playlist fields and
-unchanged bytes. Point-record/count relationships remain unqualified and no
-automation summary is advertised. The next G6 step is independent saved-record
-qualification before bounded extraction/full validation, then a separate
-immutable Library slice. G6 and Phase 3 remain open. PR320 integrates F22 without changing the F23 evidence.
+one GUI-observed object, one Playlist placement and three control points in
+exact build 26.1.0.5530. F11 is an existing same-build genuine no-clip control.
+The [issue #324 research result](../../research/parser-automation-counts-324-result.md)
+records complete outer-event framing for both, but no inner object, placement,
+point-count or reference grammar. Public corpus and actual supervised
+typed-validation regressions preserve basic metadata, unsupported automation
+generator/Playlist fields and unchanged bytes. No automation summary is
+advertised. The proposed meanings for zero, unavailable, unsupported, malformed
+and older results are not delivered behavior; they bound future review. The
+next G6 step is the differential genuine-save matrix in #324, followed only
+after qualification by separate extraction/full validation and an immutable
+Library slice. G6 and Phase 3 remain open. PR320 integrates F22 without
+changing the F23 evidence.
 
 ## G2 implementation
 

@@ -40,7 +40,10 @@ The [gap ledger](gap-ledger.md) records what remains and the next focused change
 The exact approved [F23 fixture](../../research/parser-automation-322-result.md)
 adds independent GUI evidence of one saved automation clip with three points.
 Its regression checks retain unsupported automation/Playlist interpretation.
-Automation extraction and Library display remain the next separate G6 steps.
+The [issue #324 count research](../../research/parser-automation-counts-324-result.md)
+confirms complete outer-event framing for F11/F23 but no qualified object,
+placement, point-count or reference grammar. Automation extraction and Library
+display remain separate future G6 steps.
 The corpus is twenty-one files, including both approved F22 and F23.
 
 ## Delivered behavior and evidence
