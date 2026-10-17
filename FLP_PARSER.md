@@ -49,6 +49,18 @@ Older results explain that mixer details were not saved; refresh never rewrites
 or parses them. Installed evidence is recorded in that slice separately from
 parser compatibility and broader Phase 3 acceptance.
 
+The approved [F23 GUI evidence from #322 (merged in #323)](docs/research/parser-automation-322-result.md)
+records one saved automation object with three actual control points for FL
+Studio 26.1.0.5530; F11 is the no-clip control. Issue #324's whole-event
+framing does not establish a point-record count or object/reference grammar, so
+counts remain unadvertised and unemitted, and automation Playlist interpretation
+remains unsupported. Future count fields must distinguish qualified values from
+unavailable or unsupported data; older results without them mean not saved,
+never zero. Zero requires a complete, qualified layout that proves the set is
+empty, and full native typed validation must enforce these rules. Immutable
+Library persistence and display are a separate later slice. See the
+[Issue #324 qualification](docs/research/parser-automation-counts-324-result.md).
+
 PyFLP was tested as the comparison candidate. Its stable release returned no
 complete parse on the approved corpus. It remains outside the product, and the
 owner's intended public open-source release does not select the exact license.
