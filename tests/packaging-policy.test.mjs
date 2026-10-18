@@ -560,3 +560,59 @@ test("the installed smoke deadline covers the bounded sidecar budget", () => {
   assert.match(script, /mode=\$Mode.*elapsedMs=/);
   assert.doesNotMatch(script, /Remove-Item/);
 });
+
+test("the installed smoke validates a fresh shutdown trace after successful exit", () => {
+  const script = readRootFile("scripts/windows-foundation-smoke.ps1");
+  const validator = readRootFile("scripts/validate-shutdown-trace.mjs");
+  const functionStart = script.indexOf("function Invoke-AppSmokeMode");
+  const functionEnd = script.indexOf(
+    "\nfunction Install-SmokePackage",
+    functionStart,
+  );
+  assert.ok(functionStart >= 0 && functionEnd > functionStart);
+  const appSmoke = script.slice(functionStart, functionEnd);
+
+  const tracePathAt = appSmoke.indexOf('"shutdown-stages.jsonl"');
+  const staleTraceGuardAt = appSmoke.indexOf(
+    "Test-Path -LiteralPath $shutdownTracePath",
+  );
+  const appLaunchAt = appSmoke.indexOf("New-AppProcess -FilePath");
+  const successfulExitGuardAt = appSmoke.indexOf(
+    "if ($exitCode -ne 0 -or -not $evidenceExists)",
+  );
+  const traceValidationAt = appSmoke.indexOf("& $nodePath @validatorArguments");
+  const summaryAttachAt = appSmoke.indexOf(
+    "Add-Member -NotePropertyName shutdown",
+  );
+  assert.ok(tracePathAt >= 0);
+  assert.ok(staleTraceGuardAt > tracePathAt && staleTraceGuardAt < appLaunchAt);
+  assert.ok(successfulExitGuardAt < traceValidationAt);
+  assert.ok(traceValidationAt < summaryAttachAt);
+  assert.match(
+    appSmoke,
+    /if \(\$AnalysisJobs\) \{ \$validatorArguments \+= "--analysis-jobs" \}/,
+  );
+  assert.match(appSmoke, /\$validatorExitCode = \$LASTEXITCODE/);
+  assert.match(
+    appSmoke,
+    /\$validatorInvocationFailed -or \$validatorExitCode -ne 0/,
+  );
+  assert.match(
+    appSmoke,
+    /\$null -eq \$shutdownSummary -or \$shutdownSummary -isnot \[pscustomobject\]/,
+  );
+  assert.match(
+    appSmoke,
+    /\$shutdownTracePath = \[IO\.Path\]::ChangeExtension\(\$OutputPath, "shutdown-stages\.jsonl"\)/,
+  );
+  assert.match(script, /shutdown = \[ordered\]@\{/);
+  assert.match(script, /seed = \$seedEvidence\.shutdown/);
+  assert.match(script, /parserMissing = \$missingEvidence\.shutdown/);
+  assert.match(script, /verify = \$verifyEvidence\.shutdown/);
+
+  assert.match(validator, /MAX_SHUTDOWN_TRACE_BYTES = 4096/);
+  assert.match(validator, /STANDARD_STAGES/);
+  assert.match(validator, /ANALYSIS_STAGES/);
+  assert.match(validator, /elapsedMs < previousElapsedMs/);
+  assert.match(validator, /records\.at\(-1\).*shutdown_end/);
+});
