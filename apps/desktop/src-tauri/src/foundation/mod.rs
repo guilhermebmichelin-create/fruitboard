@@ -17,6 +17,8 @@ pub(crate) mod sample_check;
 pub(crate) mod scan_console;
 #[cfg(feature = "scan-console")]
 pub(crate) mod scan_console_host;
+#[cfg(feature = "packaging-smoke")]
+pub(crate) mod shutdown_diagnostics;
 #[cfg(all(test, feature = "scan-console"))]
 mod watcher_lifecycle;
 #[cfg(all(feature = "scan-console", windows))]
