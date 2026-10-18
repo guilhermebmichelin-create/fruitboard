@@ -1,6 +1,7 @@
 use super::packaged_parser::{ParserEvidence, parser_evidence};
 use fruitboard_storage::StartupView;
 use serde::Serialize;
+use std::ffi::OsStr;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
@@ -35,6 +36,7 @@ const STAGE_WAIT_READY_DONE: &str = "sidecar_wait_ready_done";
 const STAGE_WAIT_TERMINATE_DONE: &str = "sidecar_wait_terminate_done";
 const STAGE_EVIDENCE_WRITTEN: &str = "evidence_written";
 const STAGE_EXIT_REQUESTED: &str = "exit_requested";
+const SHUTDOWN_DIAGNOSTICS_MODE: &str = "shutdown-diagnostics";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum SmokeMode {
@@ -49,21 +51,59 @@ pub(crate) struct SmokeRequest {
 }
 
 impl SmokeRequest {
-    pub(crate) fn from_environment() -> Option<Self> {
-        let mode = match std::env::var(MODE_VARIABLE).ok()?.as_str() {
+    // Parse one already captured environment snapshot; diagnostics-only mode
+    // deliberately does not produce a scheduled self-test request.
+    fn from_environment(mode: Option<&str>, output: &OsStr) -> Option<Self> {
+        let mode = match mode? {
             "seed" => SmokeMode::Seed,
             "verify" => SmokeMode::Verify,
             "parser-missing" => SmokeMode::ParserMissing,
             _ => return None,
         };
-        let output = PathBuf::from(std::env::var_os(OUTPUT_VARIABLE)?);
-        if !output.is_absolute()
-            || output.extension().and_then(|value| value.to_str()) != Some("json")
-        {
-            return None;
-        }
-        Some(Self { mode, output })
+        Some(Self {
+            mode,
+            output: PathBuf::from(output),
+        })
     }
+}
+
+#[derive(Default)]
+pub(crate) struct SmokeConfiguration {
+    pub(crate) smoke_request: Option<SmokeRequest>,
+    pub(crate) shutdown_diagnostics: Option<super::shutdown_diagnostics::ShutdownDiagnostics>,
+}
+
+impl SmokeConfiguration {
+    pub(crate) fn from_environment() -> Self {
+        let mode = std::env::var(MODE_VARIABLE).ok();
+        let output = std::env::var_os(OUTPUT_VARIABLE);
+        Self::parse(mode.as_deref(), output.as_deref())
+    }
+
+    fn parse(mode: Option<&str>, output: Option<&OsStr>) -> Self {
+        let Some(output) = validated_output(output) else {
+            return Self::default();
+        };
+
+        let smoke_request = SmokeRequest::from_environment(mode, output.as_os_str());
+        let diagnostics_mode = mode == Some(SHUTDOWN_DIAGNOSTICS_MODE);
+        if smoke_request.is_none() && !diagnostics_mode {
+            return Self::default();
+        }
+
+        Self {
+            smoke_request,
+            shutdown_diagnostics: Some(super::shutdown_diagnostics::ShutdownDiagnostics::new(
+                &output,
+            )),
+        }
+    }
+}
+
+fn validated_output(output: Option<&OsStr>) -> Option<PathBuf> {
+    let output = PathBuf::from(output?);
+    (output.is_absolute() && output.extension().and_then(|value| value.to_str()) == Some("json"))
+        .then_some(output)
 }
 
 #[derive(Serialize)]
@@ -259,18 +299,26 @@ fn progress_path(output: &std::path::Path) -> PathBuf {
     output.with_extension("stages.jsonl")
 }
 
+/// Separate shutdown-relative progress from the packaging schedule timeline.
+/// This keeps each JSONL stream monotonic and preserves the existing stage
+/// timing interpretation.
+pub(super) fn shutdown_progress_path(output: &std::path::Path) -> PathBuf {
+    output.with_extension("shutdown-stages.jsonl")
+}
+
 fn record_stage(output: &std::path::Path, schedule_start: &Instant, stage: &str) {
-    let elapsed_ms = schedule_start
-        .elapsed()
-        .as_millis()
-        .min(u128::from(u64::MAX)) as u64;
+    record_stage_at(&progress_path(output), schedule_start, stage);
+}
+
+pub(super) fn record_stage_at(progress_output: &std::path::Path, start: &Instant, stage: &str) {
+    let elapsed_ms = start.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
     let line = serde_json::json!({"stage": stage, "elapsedMs": elapsed_ms});
     let mut line = serde_json::to_string(&line).unwrap_or_default();
     line.push('\n');
     let _ = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(progress_path(output))
+        .open(progress_output)
         .and_then(|mut file| file.write_all(line.as_bytes()).and_then(|()| file.flush()));
 }
 
@@ -345,7 +393,7 @@ pub(crate) fn schedule(
 
 #[cfg(test)]
 mod tests {
-    use super::{normalized_event_line, progress_path};
+    use super::{SmokeConfiguration, SmokeMode, normalized_event_line, progress_path};
     use std::path::PathBuf;
 
     #[test]
@@ -367,5 +415,57 @@ mod tests {
         let progress = progress_path(&output);
         assert_eq!(progress, PathBuf::from(r"C:\smoke\raw\seed.stages.jsonl"));
         assert_ne!(progress, output);
+    }
+
+    #[test]
+    fn shutdown_diagnostics_configuration_arms_only_the_trace() {
+        let output = std::env::temp_dir().join("selected-smoke.json");
+        let config =
+            SmokeConfiguration::parse(Some("shutdown-diagnostics"), Some(output.as_os_str()));
+
+        assert!(config.smoke_request.is_none());
+        assert!(config.shutdown_diagnostics.is_some());
+    }
+
+    #[test]
+    fn scheduled_smoke_modes_keep_their_existing_request_and_diagnostics() {
+        let output = std::env::temp_dir().join("selected-smoke.json");
+        for (mode, expected_mode) in [
+            ("seed", SmokeMode::Seed),
+            ("verify", SmokeMode::Verify),
+            ("parser-missing", SmokeMode::ParserMissing),
+        ] {
+            let config = SmokeConfiguration::parse(Some(mode), Some(output.as_os_str()));
+
+            assert_eq!(
+                config.smoke_request.as_ref().map(|request| request.mode),
+                Some(expected_mode)
+            );
+            assert!(config.shutdown_diagnostics.is_some());
+        }
+    }
+
+    #[test]
+    fn invalid_modes_or_output_paths_do_not_arm_shutdown_diagnostics() {
+        let absolute_output = std::env::temp_dir().join("selected-smoke.json");
+        let invalid_mode =
+            SmokeConfiguration::parse(Some("unknown"), Some(absolute_output.as_os_str()));
+        let missing_mode = SmokeConfiguration::parse(None, Some(absolute_output.as_os_str()));
+        let missing_output = SmokeConfiguration::parse(Some("shutdown-diagnostics"), None);
+        let invalid_path = SmokeConfiguration::parse(
+            Some("shutdown-diagnostics"),
+            Some(std::ffi::OsStr::new("relative.json")),
+        );
+        let invalid_extension_output = std::env::temp_dir().join("selected-smoke.txt");
+        let invalid_extension = SmokeConfiguration::parse(
+            Some("shutdown-diagnostics"),
+            Some(invalid_extension_output.as_os_str()),
+        );
+
+        assert!(invalid_mode.shutdown_diagnostics.is_none());
+        assert!(missing_mode.shutdown_diagnostics.is_none());
+        assert!(missing_output.shutdown_diagnostics.is_none());
+        assert!(invalid_path.shutdown_diagnostics.is_none());
+        assert!(invalid_extension.shutdown_diagnostics.is_none());
     }
 }

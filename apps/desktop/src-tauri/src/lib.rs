@@ -5,7 +5,7 @@
 pub mod foundation;
 
 #[cfg(feature = "packaging-smoke")]
-use foundation::packaging_smoke::{SmokeMode, SmokeRequest};
+use foundation::packaging_smoke::{SmokeConfiguration, SmokeMode};
 
 use foundation::scan_console::{
     CancelScanResult, LibraryPageResponse, ScanConsoleService, ScanConsoleState, ScanStartResult,
@@ -234,6 +234,8 @@ struct NativeFoundation {
     scan_roots: ScanRootsService,
     scan_console: ScanConsoleService,
     sample_checks: foundation::sample_check::Service,
+    #[cfg(feature = "packaging-smoke")]
+    shutdown_diagnostics: Option<foundation::shutdown_diagnostics::ShutdownDiagnostics>,
     #[cfg(feature = "analysis-jobs")]
     analysis: foundation::analysis_host::AnalysisHost,
 }
@@ -242,6 +244,9 @@ impl NativeFoundation {
     fn new(
         log_directory: Option<PathBuf>,
         data_directory: &std::path::Path,
+        #[cfg(feature = "packaging-smoke")] shutdown_diagnostics: Option<
+            foundation::shutdown_diagnostics::ShutdownDiagnostics,
+        >,
     ) -> Result<Self, StorageError> {
         let clock: Arc<dyn Clock> = Arc::new(SystemClock);
         let ids: Arc<dyn IdGenerator> = Arc::new(SystemIdGenerator);
@@ -259,16 +264,29 @@ impl NativeFoundation {
             scan_roots: ScanRootsService::new(database.clone()),
             scan_console,
             sample_checks: foundation::sample_check::Service::new(database.clone()),
+            #[cfg(feature = "packaging-smoke")]
+            shutdown_diagnostics,
             #[cfg(feature = "analysis-jobs")]
             analysis: foundation::analysis_host::AnalysisHost::new(database),
         })
     }
 
     fn shutdown(&self) {
-        self.sample_checks.shutdown();
-        #[cfg(feature = "analysis-jobs")]
-        self.analysis.shutdown();
-        self.scan_console.shutdown();
+        #[cfg(feature = "packaging-smoke")]
+        foundation::shutdown_diagnostics::run_shutdown(
+            self.shutdown_diagnostics.as_ref(),
+            || self.sample_checks.shutdown(),
+            #[cfg(feature = "analysis-jobs")]
+            || self.analysis.shutdown(),
+            || self.scan_console.shutdown(),
+        );
+        #[cfg(not(feature = "packaging-smoke"))]
+        {
+            self.sample_checks.shutdown();
+            #[cfg(feature = "analysis-jobs")]
+            self.analysis.shutdown();
+            self.scan_console.shutdown();
+        }
     }
 }
 
@@ -766,15 +784,28 @@ pub fn run() -> tauri::Result<()> {
         .setup(|app| {
             let log_directory = app.path().app_log_dir().ok();
             let data_directory = app.path().app_local_data_dir()?;
-            let foundation =
-                NativeFoundation::new(log_directory, &data_directory).inspect_err(|error| {
-                    // StorageError is a closed set of fixed codes, without a raw
-                    // SQLite/io source, SQL statement, or filesystem path.
-                    eprintln!("{error}");
-                })?;
 
             #[cfg(feature = "packaging-smoke")]
-            let smoke = SmokeRequest::from_environment().map(|request| {
+            let smoke_configuration = SmokeConfiguration::from_environment();
+            #[cfg(feature = "packaging-smoke")]
+            let smoke_request = smoke_configuration.smoke_request;
+            #[cfg(feature = "packaging-smoke")]
+            let shutdown_diagnostics = smoke_configuration.shutdown_diagnostics;
+
+            let foundation = NativeFoundation::new(
+                log_directory,
+                &data_directory,
+                #[cfg(feature = "packaging-smoke")]
+                shutdown_diagnostics,
+            )
+            .inspect_err(|error| {
+                // StorageError is a closed set of fixed codes, without a raw
+                // SQLite/io source, SQL statement, or filesystem path.
+                eprintln!("{error}");
+            })?;
+
+            #[cfg(feature = "packaging-smoke")]
+            let smoke = smoke_request.map(|request| {
                 let storage = foundation
                     .preferences
                     .get_startup_view()
