@@ -28,13 +28,14 @@ without asking Windows to traverse a parent path.
   [AbsolutePath](../../../crates/sample-presence/src/path.rs#L3) represents a
   drive and ordinary components, and rejects relative paths and dot components.
   [CapturedInput](../../../crates/sample-presence/src/execution.rs#L39) stores
-  absolute root/source paths and validates the reference projection.
+  absolute root/source paths and validates the reference shape and size bounds.
   [Execution](../../../crates/sample-presence/src/execution.rs#L307) currently
   parses each reference as absolute. Add a distinct relative parser and bounded
   candidate representation; do not make the absolute parser a normalizer.
 - **Bind the base to the actual source.**
   [Host capture](../../../apps/desktop/src-tauri/src/foundation/sample_check/host.rs#L59)
-  obtains references and source identity from the current authorized snapshot.
+  obtains references from the current authorized snapshot and source path/identity
+  from the authorized metadata input.
   [Windows qualification](../../../crates/sample-presence/src/native.rs#L215)
   opens and retains the actual root-to-source-parent chain and source handle.
   Its lexical prefix check alone is not authority. Derive the component base
