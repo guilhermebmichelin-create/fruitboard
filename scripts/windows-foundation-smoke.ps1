@@ -20,6 +20,8 @@ Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $resolvedRepositoryRoot = (Resolve-Path -LiteralPath $repositoryRoot).Path
+$nodePath = (Get-Command node.exe -ErrorAction Stop).Source
+$shutdownTraceValidatorPath = Join-Path $PSScriptRoot "validate-shutdown-trace.mjs"
 $runId = [Guid]::NewGuid().ToString("N")
 $evidenceRoot = if ($RetainedEvidenceRoot) {
     if (-not [IO.Path]::IsPathRooted($RetainedEvidenceRoot)) { throw "RetainedEvidenceRoot must be absolute." }
@@ -167,8 +169,12 @@ function Invoke-AppSmokeMode {
     # evidence presence/size: never absolute paths or file contents.
     $timeoutSeconds = 60
     if ($AnalysisJobs) { $timeoutSeconds = 100 }
+    $shutdownTracePath = [IO.Path]::ChangeExtension($OutputPath, "shutdown-stages.jsonl")
     if (Test-Path -LiteralPath $OutputPath) {
         throw "The raw evidence destination must not already exist."
+    }
+    if (Test-Path -LiteralPath $shutdownTracePath) {
+        throw "The shutdown trace destination must not already exist."
     }
     $process = New-AppProcess -FilePath $ApplicationPath -Environment @{
         FRUITBOARD_FOUNDATION_SMOKE_MODE = $Mode
@@ -216,6 +222,61 @@ function Invoke-AppSmokeMode {
         if ($evidence.status -ne "ok") {
             throw "The installed sidecar smoke returned an error (mode=$Mode, elapsedMs=$elapsedMs, exitCode=$exitCode, evidenceBytes=$evidenceBytes)."
         }
+        $validatorArguments = @($shutdownTraceValidatorPath, $shutdownTracePath)
+        if ($AnalysisJobs) { $validatorArguments += "--analysis-jobs" }
+        $oldErrorActionPreference = $ErrorActionPreference
+        $validatorExitCode = -1
+        $validatorInvocationFailed = $false
+        $ErrorActionPreference = "Continue"
+        try {
+            try {
+                $validatorOutput = & $nodePath @validatorArguments 2>&1
+                $validatorExitCode = $LASTEXITCODE
+            }
+            catch {
+                $validatorInvocationFailed = $true
+            }
+        }
+        finally {
+            $ErrorActionPreference = $oldErrorActionPreference
+        }
+        if ($validatorInvocationFailed -or $validatorExitCode -ne 0) {
+            throw "The installed shutdown trace failed validation (mode=$Mode)."
+        }
+        try {
+            $shutdownSummary = ($validatorOutput -join [Environment]::NewLine) | ConvertFrom-Json -ErrorAction Stop
+        }
+        catch {
+            throw "The installed shutdown trace validator returned an invalid summary (mode=$Mode)."
+        }
+        if ($null -eq $shutdownSummary -or $shutdownSummary -isnot [pscustomobject]) {
+            throw "The installed shutdown trace validator returned an invalid summary (mode=$Mode)."
+        }
+        $expectedSummaryProperties = @("sampleChecksMs", "scanConsoleMs", "shutdownMs", "stageCount")
+        if ($AnalysisJobs) { $expectedSummaryProperties += "analysisHostMs" }
+        $expectedSummaryProperties = @($expectedSummaryProperties | Sort-Object)
+        $actualSummaryProperties = @(
+            $shutdownSummary.PSObject.Properties |
+                ForEach-Object { $_.Name } |
+                Sort-Object
+        )
+        if ($actualSummaryProperties.Count -ne $expectedSummaryProperties.Count -or
+            (Compare-Object -ReferenceObject $expectedSummaryProperties -DifferenceObject $actualSummaryProperties)) {
+            throw "The installed shutdown trace validator returned an invalid summary (mode=$Mode)."
+        }
+        $expectedStageCount = if ($AnalysisJobs) { 8 } else { 6 }
+        if (($shutdownSummary.stageCount -isnot [int] -and $shutdownSummary.stageCount -isnot [long]) -or
+            $shutdownSummary.stageCount -ne $expectedStageCount) {
+            throw "The installed shutdown trace validator returned an invalid summary (mode=$Mode)."
+        }
+        foreach ($timingName in @("shutdownMs", "sampleChecksMs", "scanConsoleMs", "analysisHostMs")) {
+            if (-not $shutdownSummary.PSObject.Properties[$timingName]) { continue }
+            $timingValue = $shutdownSummary.$timingName
+            if (($timingValue -isnot [int] -and $timingValue -isnot [long]) -or $timingValue -lt 0) {
+                throw "The installed shutdown trace validator returned an invalid summary (mode=$Mode)."
+            }
+        }
+        $evidence | Add-Member -NotePropertyName shutdown -NotePropertyValue $shutdownSummary
         if ($Mode -eq "parser-missing") {
             if (-not $evidence.parser.missingBinaryContained -or $crashAcknowledged) { throw "Missing parser containment was not verified." }
         } else {
@@ -356,7 +417,6 @@ if ($installedSignature.Status -ne [System.Management.Automation.SignatureStatus
 $coldLaunch = $null
 $warmLaunch = $null
 if (-not $NonInteractive) {
-    $nodePath = (Get-Command node.exe -ErrorAction Stop).Source
     $coldLaunch = Invoke-LaunchProbe -ApplicationPath $applicationPath -NodePath $nodePath
     $warmLaunch = Invoke-LaunchProbe -ApplicationPath $applicationPath -NodePath $nodePath
 }
@@ -513,6 +573,11 @@ $evidence = [ordered]@{
         reinstall = $verifyEvidence.parser
         restoredBytesVerified = $true
         noOwnedChildAfterExit = $true
+    }
+    shutdown = [ordered]@{
+        seed = $seedEvidence.shutdown
+        parserMissing = $missingEvidence.shutdown
+        verify = $verifyEvidence.shutdown
     }
     dataSafety = [ordered]@{
         databaseBytes = $databaseSize

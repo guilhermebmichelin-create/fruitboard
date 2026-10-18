@@ -20,7 +20,7 @@ mode, so reusing an output path also reuses its `*.shutdown-stages.jsonl` file.
 Each flushed JSONL record has exactly two fields:
 
 ```json
-{"stage":"sample_checks_start","elapsedMs":0}
+{ "stage": "sample_checks_start", "elapsedMs": 0 }
 ```
 
 Elapsed milliseconds start at shutdown entry. With `analysis-jobs`, the fixed
@@ -42,9 +42,30 @@ join, cancellation, or lifecycle behavior is changed.
 This is diagnostic evidence, not a fix or a qualification result. A start
 record without its matching end may mean that the process stopped during the
 phase, or that writing the end record failed. It does not identify the cause
-of a hang or prove that shutdown completed. An installed packaging-smoke run
-is still needed to determine whether the previously observed exit delay is
-reproducible and which phase, if any, accounts for it.
+of a hang or prove that shutdown completed.
+
+## Installed smoke validation
+
+The follow-up validator in [issue #330](https://github.com/guilhermebmichelin-create/fruitboard/issues/330)
+checks a fresh trace after the exact owned `seed`, `parser-missing`, and
+`verify` processes exit successfully. It rejects missing, incomplete,
+oversized, duplicated, reordered, unknown, or malformed records. The final
+report keeps only the fixed stage count and phase durations; the raw JSONL
+trace remains beside the private native smoke evidence. The hosted workflow
+exercises both the six-stage package and eight-stage `analysis-jobs` variants.
+These scheduled smoke exits validate trace plumbing on the installed app; they
+do not reproduce the earlier 1,000-entry interactive close delay or qualify
+resource budgets.
+
+The full-scale #306 resource runner does not currently collect these shutdown
+records. To capture them during a separately authorized installed resource
+run, launch the feature-enabled development app with
+`FRUITBOARD_FOUNDATION_SMOKE_MODE=shutdown-diagnostics` and a fresh absolute
+`.json` path in `FRUITBOARD_FOUNDATION_SMOKE_OUTPUT`, then close the app
+normally. The `*.shutdown-stages.jsonl` sibling is append-only: choose a new
+output path for every launch and preserve even incomplete traces. Keep the
+existing close deadline and resource guards; the trace alone is not a
+qualification result.
 
 Focused native tests:
 
