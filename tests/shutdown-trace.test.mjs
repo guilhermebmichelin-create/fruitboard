@@ -74,7 +74,7 @@ test("accepts JSON whitespace and either field order while rejecting non-JSON wh
         ? `\t{ "stage" : "${stage}", "elapsedMs" : ${elapsedMs} }\r`
         : ` { "elapsedMs" : ${elapsedMs}, "stage" : "${stage}" } `;
     }).join("\n") + "\n";
-  const invalidWhitespace = traceText(STANDARD_STAGES).replace("{", "\v{");
+  const invalidWhitespace = `\v${traceText(STANDARD_STAGES)}`;
 
   assert.equal(validateShutdownTraceText(validJsonWhitespace).shutdownMs, 15);
   assertInvalid(invalidWhitespace);
@@ -82,9 +82,13 @@ test("accepts JSON whitespace and either field order while rejecting non-JSON wh
 
 test("rejects missing, empty, truncated, blank, and appended traces", () => {
   const valid = traceText(STANDARD_STAGES);
+  const records = valid.trimEnd().split("\n");
+  const blankLine = [...records.slice(0, 1), "", ...records.slice(1), ""].join(
+    "\n",
+  );
   assertInvalid("");
   assertInvalid(valid.slice(0, -1));
-  assertInvalid(valid.replace("\n", "\n\n"));
+  assertInvalid(blankLine);
   assertInvalid(valid + valid);
 });
 
