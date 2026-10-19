@@ -13,4 +13,5 @@ silently rewriting implementation history.
 | [ADR-004](004-project-identity.md) | Separate Project, ProjectFile, and FileLocation | Accepted |
 | [ADR-005](005-google-drive-sync.md) | Drive app-data operation-log synchronization | Accepted |
 | [ADR-006](006-shared-client-architecture.md) | Shared desktop/PWA client architecture | Accepted |
-| [ADR-007](007-sample-presence-boundary.md) | Bounded checks for saved sample paths | Proposed; issue #278 design review |
+| [ADR-007](007-sample-presence-boundary.md) | Bounded checks for saved sample paths | Accepted; absolute-path slice |
+| [ADR-008](008-project-relative-sample-candidates.md) | Project-relative sample candidates | Proposed; issue #332 native-authority review and owner decision |
