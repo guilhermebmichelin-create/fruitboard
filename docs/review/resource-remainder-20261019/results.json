@@ -1,0 +1,776 @@
+{
+  "schemaVersion": 1,
+  "reportDate": "2026-10-19",
+  "result": "Attempt04 startup100 timing met its proposed candidate, but the unchanged all-process CPU guard failed; characterization only. Remaining resource qualification and Phase 3 exit remain unapproved.",
+  "source": {
+    "applicationBaselineCommit": "ce4331e9004f1a7f363f45106adaa192d1f635fb",
+    "applicationBaselineTree": "4ee79f53fc73cf76283b899e959570f22810396e",
+    "packageBuildCommit": "839e5fb6d7ca9dd2343519669ac0b93069ea70bb",
+    "packageBuildTree": "8e8d292b6282f3e6b3b2d3c0253e7034c6f4e50b",
+    "packageRebuiltForAttempt": false,
+    "runtimeGraphEquivalent": true,
+    "compiledApplicationGraphPinsMatched": 22,
+    "exactDocumentationOnlyDifferences": [
+      "docs/review/flp-intelligence-readiness/gap-ledger.md",
+      "docs/review/resource-current-20261018/README.md",
+      "docs/review/resource-current-20261018/results.json"
+    ],
+    "sourcePinSha256": "d65d81c34fec2c2ce4ccb149af7fb9b34fdf2f3f9b111f64942180bd00596dd7",
+    "staticRunnerManifestSha256": "160a94595a961d2e06a0fb84a122e7dac8b84642a7042dce809a18a5174f3e02",
+    "hostedChecks": {
+      "passed": 15,
+      "commit": "839e5fb6d7ca9dd2343519669ac0b93069ea70bb",
+      "scope": "unchanged application source only",
+      "currentDocumentationHeadChecksRequired": true,
+      "provesPerformance": false
+    }
+  },
+  "package": {
+    "features": "analysis-jobs",
+    "packageType": "unsigned NSIS",
+    "rebuilt": false,
+    "buildReceiptSha256": "f5aeb83d83d382aada419b910adf4a8d7948e4a1433a311c2af2cafd27d723e0",
+    "packageConfigSha256": "9e9e52e3996a6b1050fd4f638ade164c78900b9e265f4bcc837a1d5dd5af96f2",
+    "toolchain": {
+      "node": "24.20.0",
+      "rust": "1.98.1",
+      "cargo": "1.98.1",
+      "pnpm": "11.25.0"
+    },
+    "artifacts": {
+      "installer": {
+        "bytes": 3335936,
+        "sha256": "f993f02d358a27c8ab0894b3d149ac44460000a3285ba72eb2d2e599018bfc66"
+      },
+      "postTauriDesktop": {
+        "bytes": 11076096,
+        "sha256": "133553dd5c9072b7390f67fa4f032dc70ff386b0a3290c8da7251cea71ccf16a"
+      },
+      "installedDesktop": {
+        "bytes": 11076096,
+        "sha256": "05f518bcbd4d0600c4745f199d24ad9f36a58148b56099a51679ce77731f5bd1",
+        "distinctFromPostTauriDesktop": true
+      },
+      "parserSidecar": {
+        "bytes": 575488,
+        "sha256": "b60b67d05f1657ee3d2187df34903596f92245d311aa198164ddaaab1d6b3142"
+      },
+      "smokeSidecar": {
+        "bytes": 156160,
+        "sha256": "f20810a72f6be8e437e520a54da42e9b800f92f3ec32c31b56b81a812814c7c6"
+      },
+      "retainedCopiesAreIndependent": true,
+      "barePrebundleCargoExecutable": "Not captured; identity not inferred"
+    }
+  },
+  "reusedProfile": {
+    "entryCount": 3121,
+    "rootCount": 4,
+    "approvedBaseFiles": 21,
+    "baseTerminalComplete": 18,
+    "baseTerminalFailed": 3,
+    "baseExplorerCurrent": 18,
+    "baseExplorerStale": 3,
+    "scaleRoots": [
+      {
+        "entries": 100,
+        "allEntriesCurrent": true,
+        "countsAndGroupsMatched": true
+      },
+      {
+        "entries": 1000,
+        "allEntriesCurrent": true,
+        "countsAndGroupsMatched": true
+      },
+      {
+        "entries": 2000,
+        "allEntriesCurrent": true,
+        "countsAndGroupsMatched": true
+      }
+    ],
+    "freshCorpusScan": false,
+    "freshFixtureGeneration": false,
+    "sourceAndStagedFixturePairsUnchanged": 21,
+    "protectedProfileFileHashesUnchanged": 671,
+    "profileReuseGateDatabase": {
+      "bytes": 19324928,
+      "sha256": "e0edaaa32ce1d9e77e1b3c5a70af7184d1554d0df1245f647705d49b2919466e"
+    },
+    "profileReuseGateSha256": "335d863c72e0d20e0cd55196a8ede9126b0e97dabe1789aa2009a2faa7d98b5c",
+    "rootReviewedGateSha256": "f8d099613c05b520710f4e0da443c327aa01bb88d70d61548766c2795918c297"
+  },
+  "measurementProtocol": {
+    "startupRequests": "One first request, one excluded warm-up, then ten measured warm samples",
+    "p95": "Nearest-rank; for ten measured warm samples, p95 is the maximum",
+    "quietHostSettleSeconds": 5,
+    "initialProcessorLoadLimitPercent": 20,
+    "unrelatedProcessCpuLimitSeconds": 0.5,
+    "processBoundary": "All-process CPU snapshots; no process-name exemption",
+    "memorySampleIntervalRequestedMs": 100,
+    "processTreeRefreshIntervalMs": 1000,
+    "osCachesFlushed": false,
+    "hostCount": 1
+  },
+  "startup100": {
+    "boundary": "Process creation through CDP discovery/attachment and observing the populated Library with the selected root heading; root selection was measured after startup because it is not persistent.",
+    "rootEntryCount": 100,
+    "timedStartupRequestCount": 12,
+    "firstMs": 729.6909999999989,
+    "excludedWarmupMs": 725.2909,
+    "warmSamplesMs": [
+      731.3798000000024, 751.3158000000003, 725.6440999999977,
+      729.7318000000014, 717.9994000000006, 742.7006999999976,
+      738.1238000000012, 718.8678, 766.4242999999988, 758.4822000000058
+    ],
+    "warmSampleCount": 10,
+    "medianMs": 734.7518000000018,
+    "nearestRankP95Ms": 766.4242999999988,
+    "maxMs": 766.4242999999988,
+    "proposedCandidateMs": 1500,
+    "timingCandidateMet": true,
+    "initialProcessorLoadPercent": 2,
+    "initialLoadPreconditionPassed": true,
+    "noiseGuardPassed": false,
+    "noiseGuardClassification": "characterization; quiet-host guard failed",
+    "characterizationOnly": true,
+    "actualNoiseViolations": [
+      {
+        "processName": "explorer",
+        "cpuSeconds": 0.640625
+      },
+      {
+        "processName": "nvcontainer",
+        "cpuSeconds": 0.671875
+      }
+    ],
+    "closuresRetriesOrNameExemptions": false,
+    "selectedRootMeasuredAfterStartup": true,
+    "osCachesFlushed": false,
+    "coldStart": false,
+    "displayPaintMeasured": false,
+    "qualifyingStageAccepted": false,
+    "freshGuardPassingRunRequired": true,
+    "t3ObservedAndCounted": true,
+    "allObservedUnrelatedProcessesCounted": true,
+    "processNameExemptionsUsed": false,
+    "unrelatedApplicationClosedByHarness": false,
+    "flStudioPresenceDuringWindow": "Not established"
+  },
+  "incidentalMemory": {
+    "qualification": false,
+    "sampleCount": 49,
+    "actualIntervalCount": 48,
+    "requestedSampleIntervalMs": 100,
+    "processTreeRefreshIntervalMs": 1000,
+    "actualSampleIntervalsMs": [
+      124.65380000000005, 1159.9386, 151.3444999999997, 138.3139000000001,
+      119.57840000000033, 865.8708999999999, 150.33500000000004,
+      145.1297999999997, 136.54510000000028, 129.33799999999974,
+      718.7528000000002, 143.83440000000064, 166.97429999999986,
+      148.10769999999957, 163.7487000000001, 152.5666000000001,
+      448.91029999999955, 149.4985000000006, 137.875, 139.15170000000035,
+      139.89409999999953, 141.35070000000087, 137.59729999999945,
+      145.65949999999975, 2800.1797000000006, 150.0618999999988,
+      1082.2414000000008, 153.1165000000001, 179.01879999999983,
+      881.5740000000005, 159.6283999999996, 165.6188000000002,
+      156.60239999999976, 134.4416999999994, 643.6352999999999,
+      155.26950000000033, 155.98279999999977, 150.94200000000092,
+      154.6782000000003, 167.83449999999903, 475.27170000000115,
+      146.7524999999987, 141.4459999999999, 154.04709999999977,
+      136.13650000000052, 131.8100000000013, 145.77809999999954,
+      300.6817999999985
+    ],
+    "peakWorkingSetBytes": 369483776,
+    "peakWorkingSetMiB": 352.3671875,
+    "peakPrivateCommitBytes": 229978112,
+    "peakPrivateCommitMiB": 219.32421875,
+    "limitations": [
+      "Requested 100 ms observations can be separated by longer actual intervals; short-lived peaks and inaccessible or terminated processes can be missed.",
+      "Summed working set can double-count shared pages; private commit is not physical RAM.",
+      "These startup-window samples do not qualify steady-state or analysis-memory use."
+    ],
+    "observations": [
+      {
+        "elapsedMs": 2767.2703,
+        "workingSetBytes": 369483776,
+        "privateCommitBytes": 218783744
+      },
+      {
+        "elapsedMs": 2891.9241,
+        "workingSetBytes": 123244544,
+        "privateCommitBytes": 32595968
+      },
+      {
+        "elapsedMs": 4051.8627,
+        "workingSetBytes": 367431680,
+        "privateCommitBytes": 215281664
+      },
+      {
+        "elapsedMs": 4203.2072,
+        "workingSetBytes": 367222784,
+        "privateCommitBytes": 215068672
+      },
+      {
+        "elapsedMs": 4341.5211,
+        "workingSetBytes": 367443968,
+        "privateCommitBytes": 215252992
+      },
+      {
+        "elapsedMs": 4461.0995,
+        "workingSetBytes": 120950784,
+        "privateCommitBytes": 31010816
+      },
+      {
+        "elapsedMs": 5326.9704,
+        "workingSetBytes": 367685632,
+        "privateCommitBytes": 229326848
+      },
+      {
+        "elapsedMs": 5477.3054,
+        "workingSetBytes": 368271360,
+        "privateCommitBytes": 229703680
+      },
+      {
+        "elapsedMs": 5622.4352,
+        "workingSetBytes": 368537600,
+        "privateCommitBytes": 229978112
+      },
+      {
+        "elapsedMs": 5758.9803,
+        "workingSetBytes": 368283648,
+        "privateCommitBytes": 229724160
+      },
+      {
+        "elapsedMs": 5888.3183,
+        "workingSetBytes": 117325824,
+        "privateCommitBytes": 33460224
+      },
+      {
+        "elapsedMs": 6607.0711,
+        "workingSetBytes": 285204480,
+        "privateCommitBytes": 98217984
+      },
+      {
+        "elapsedMs": 6750.905500000001,
+        "workingSetBytes": 352583680,
+        "privateCommitBytes": 198287360
+      },
+      {
+        "elapsedMs": 6917.879800000001,
+        "workingSetBytes": 360374272,
+        "privateCommitBytes": 203194368
+      },
+      {
+        "elapsedMs": 7065.9875,
+        "workingSetBytes": 362442752,
+        "privateCommitBytes": 205086720
+      },
+      {
+        "elapsedMs": 7229.7362,
+        "workingSetBytes": 362553344,
+        "privateCommitBytes": 205197312
+      },
+      {
+        "elapsedMs": 7382.3028,
+        "workingSetBytes": 276303872,
+        "privateCommitBytes": 163266560
+      },
+      {
+        "elapsedMs": 7831.2131,
+        "workingSetBytes": 120131584,
+        "privateCommitBytes": 33353728
+      },
+      {
+        "elapsedMs": 7980.7116000000005,
+        "workingSetBytes": 137031680,
+        "privateCommitBytes": 38379520
+      },
+      {
+        "elapsedMs": 8118.5866000000005,
+        "workingSetBytes": 141500416,
+        "privateCommitBytes": 40845312
+      },
+      {
+        "elapsedMs": 8257.7383,
+        "workingSetBytes": 142372864,
+        "privateCommitBytes": 41263104
+      },
+      {
+        "elapsedMs": 8397.6324,
+        "workingSetBytes": 142409728,
+        "privateCommitBytes": 41283584
+      },
+      {
+        "elapsedMs": 8538.983100000001,
+        "workingSetBytes": 142712832,
+        "privateCommitBytes": 41558016
+      },
+      {
+        "elapsedMs": 8676.5804,
+        "workingSetBytes": 142524416,
+        "privateCommitBytes": 41369600
+      },
+      {
+        "elapsedMs": 8822.2399,
+        "workingSetBytes": 148803584,
+        "privateCommitBytes": 42668032
+      },
+      {
+        "elapsedMs": 11622.419600000001,
+        "workingSetBytes": 365445120,
+        "privateCommitBytes": 227311616
+      },
+      {
+        "elapsedMs": 11772.4815,
+        "workingSetBytes": 170582016,
+        "privateCommitBytes": 78573568
+      },
+      {
+        "elapsedMs": 12854.7229,
+        "workingSetBytes": 363376640,
+        "privateCommitBytes": 213282816
+      },
+      {
+        "elapsedMs": 13007.8394,
+        "workingSetBytes": 363450368,
+        "privateCommitBytes": 213356544
+      },
+      {
+        "elapsedMs": 13186.8582,
+        "workingSetBytes": 225972224,
+        "privateCommitBytes": 151113728
+      },
+      {
+        "elapsedMs": 14068.432200000001,
+        "workingSetBytes": 368529408,
+        "privateCommitBytes": 221147136
+      },
+      {
+        "elapsedMs": 14228.0606,
+        "workingSetBytes": 368652288,
+        "privateCommitBytes": 220987392
+      },
+      {
+        "elapsedMs": 14393.6794,
+        "workingSetBytes": 368934912,
+        "privateCommitBytes": 221261824
+      },
+      {
+        "elapsedMs": 14550.2818,
+        "workingSetBytes": 368693248,
+        "privateCommitBytes": 221020160
+      },
+      {
+        "elapsedMs": 14684.7235,
+        "workingSetBytes": 119369728,
+        "privateCommitBytes": 33714176
+      },
+      {
+        "elapsedMs": 15328.3588,
+        "workingSetBytes": 313389056,
+        "privateCommitBytes": 149504000
+      },
+      {
+        "elapsedMs": 15483.6283,
+        "workingSetBytes": 357482496,
+        "privateCommitBytes": 203100160
+      },
+      {
+        "elapsedMs": 15639.6111,
+        "workingSetBytes": 363679744,
+        "privateCommitBytes": 207224832
+      },
+      {
+        "elapsedMs": 15790.553100000001,
+        "workingSetBytes": 364212224,
+        "privateCommitBytes": 207331328
+      },
+      {
+        "elapsedMs": 15945.231300000001,
+        "workingSetBytes": 364265472,
+        "privateCommitBytes": 207413248
+      },
+      {
+        "elapsedMs": 16113.0658,
+        "workingSetBytes": 193335296,
+        "privateCommitBytes": 135507968
+      },
+      {
+        "elapsedMs": 16588.3375,
+        "workingSetBytes": 88629248,
+        "privateCommitBytes": 23781376
+      },
+      {
+        "elapsedMs": 16735.09,
+        "workingSetBytes": 115572736,
+        "privateCommitBytes": 32477184
+      },
+      {
+        "elapsedMs": 16876.536,
+        "workingSetBytes": 128974848,
+        "privateCommitBytes": 37593088
+      },
+      {
+        "elapsedMs": 17030.5831,
+        "workingSetBytes": 129761280,
+        "privateCommitBytes": 37658624
+      },
+      {
+        "elapsedMs": 17166.7196,
+        "workingSetBytes": 130662400,
+        "privateCommitBytes": 39411712
+      },
+      {
+        "elapsedMs": 17298.5296,
+        "workingSetBytes": 130707456,
+        "privateCommitBytes": 39411712
+      },
+      {
+        "elapsedMs": 17444.3077,
+        "workingSetBytes": 130973696,
+        "privateCommitBytes": 39690240
+      },
+      {
+        "elapsedMs": 17744.9895,
+        "workingSetBytes": 21958656,
+        "privateCommitBytes": 4882432
+      }
+    ]
+  },
+  "remainingStages": {
+    "startup1000": "Not collected",
+    "startup2000": "Not collected",
+    "steadyStateWholeAppMemoryAt2000": "Not collected",
+    "refusalAt2001": "Not collected; no 2,001-entry root was created for this attempt",
+    "stopReason": "Stopped at the first startup100 all-process CPU guard failure",
+    "priorFourGuardedLatencyWindowsRepeated": false,
+    "actualParserJobOnRetainedConstructed64MiBFlp": {
+      "status": "Not collected",
+      "fixtureIsGuiDerivedCompatibilityEvidence": false
+    }
+  },
+  "shutdown": {
+    "totalScheduledCloseCount": 42,
+    "attempt04VerifiedCloseCount": 14,
+    "schedule": {
+      "verifyExisting": {
+        "total": 1,
+        "collected": 1
+      },
+      "startup100": {
+        "total": 13,
+        "collected": 13,
+        "noiseGuardPassed": false,
+        "qualifyingStageAccepted": false,
+        "freshGuardPassingRunRequired": true,
+        "executionStatus": "All 13 scheduled closes ran, but the startup100 noise guard failed and this stage did not satisfy qualification."
+      },
+      "startup1000": {
+        "total": 13,
+        "collected": 0
+      },
+      "startup2000": {
+        "total": 13,
+        "collected": 0
+      },
+      "steadyStateMemory": {
+        "total": 1,
+        "collected": 0
+      },
+      "refusal2001Preparation": {
+        "total": 1,
+        "collected": 0
+      }
+    },
+    "closeRequestCountPerReceipt": 1,
+    "deadlineMs": 10000,
+    "exitCode": 0,
+    "strictEightStageTraceValidatedForAll": true,
+    "retryCount": 0,
+    "elapsedMs": {
+      "min": 334.8568,
+      "median": 357.57185000000004,
+      "nearestRankP95": 373.9609,
+      "max": 373.9609
+    },
+    "nativeShutdownMs": {
+      "min": 2,
+      "median": 3,
+      "nearestRankP95": 7,
+      "max": 7
+    },
+    "receiptsAndTraces": [
+      {
+        "sequence": 1,
+        "role": "verify-existing",
+        "elapsedMs": 352.3015,
+        "nativeShutdownMs": 3,
+        "receiptSha256": "04c32490aaefaf27cfb1de0a99139e57814f91a721104bda072f953dd23b8308",
+        "rawTraceSha256": "1890fd3ad4929ca3ffe894cc95fcc4ee1ea2c9836c0005f35d6739ce419f1395",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 2,
+        "role": "startup-preselection",
+        "elapsedMs": 334.8568,
+        "nativeShutdownMs": 3,
+        "receiptSha256": "67aa0c1527c110cb73bd2b04de73f3ca4cf98b7cfa4f1d0c35c0f704b20c31fa",
+        "rawTraceSha256": "6c93a552def63bce088a7b1870430e68cb51804e91f135c55fe5ec52b6aff27b",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 3,
+        "role": "startup100-1",
+        "elapsedMs": 363.4507,
+        "nativeShutdownMs": 3,
+        "receiptSha256": "2829dd66632722a1a9df991f8fe333c9e4456d09929aa20c94dc788b62d882c7",
+        "rawTraceSha256": "0344f1540f635294aa87053b9895a11daaead3f88c3b1074d9aea4772944fb02",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 4,
+        "role": "startup100-2",
+        "elapsedMs": 356.5042,
+        "nativeShutdownMs": 7,
+        "receiptSha256": "929ece43fb62dd08f818c04a26affbdf574543599efac1e12b16c0cd44acd173",
+        "rawTraceSha256": "c68e6b47e7fd4ad8d76acd75ede2a4ee9da59a427fd8e24760a9bf6c720e36e6",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 5,
+        "role": "startup100-3",
+        "elapsedMs": 367.8353,
+        "nativeShutdownMs": 3,
+        "receiptSha256": "ffb23ba7d6314bd59f43b064584aa6bf9ef6c4bbf3e6bb24b5817333ef24e80a",
+        "rawTraceSha256": "9f2f38d20cba1609b8bc53133a1b2c898e969dbc31c17ece4ab2c8528ceff93a",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 6,
+        "role": "startup100-4",
+        "elapsedMs": 355.0186,
+        "nativeShutdownMs": 2,
+        "receiptSha256": "cc80512fc384449d69ca284acc9a27a8d62d561a328dde41df105135f0e6bd74",
+        "rawTraceSha256": "4048bdc721b1004b023f9d391599e5e30efd38a3973f4967a9c46c91e1ffded2",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 7,
+        "role": "startup100-5",
+        "elapsedMs": 358.6395,
+        "nativeShutdownMs": 3,
+        "receiptSha256": "73816dd8c0f5d40aa44a6263f40d069183d620b4c3f80c8d346f263ad553428b",
+        "rawTraceSha256": "9f2f38d20cba1609b8bc53133a1b2c898e969dbc31c17ece4ab2c8528ceff93a",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 8,
+        "role": "startup100-6",
+        "elapsedMs": 367.629,
+        "nativeShutdownMs": 3,
+        "receiptSha256": "bd216916107485dd2ed730c0ef2cc73ea97fb65298586aa43e44399c20d564c3",
+        "rawTraceSha256": "a409d247b520941b0d5e499d72bf5f401a9a141a42ca36ddaa85c830af61edf3",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 9,
+        "role": "startup100-7",
+        "elapsedMs": 364.191,
+        "nativeShutdownMs": 7,
+        "receiptSha256": "3a848efe4b6bfc03ee6f50f1f47c803dca595b40e051ee6224d35293bed32d38",
+        "rawTraceSha256": "c68e6b47e7fd4ad8d76acd75ede2a4ee9da59a427fd8e24760a9bf6c720e36e6",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 10,
+        "role": "startup100-8",
+        "elapsedMs": 346.9636,
+        "nativeShutdownMs": 2,
+        "receiptSha256": "6420b1c6184a8ed6b1a583b7043f92c05e8178a335b3b0b14ca908453110455a",
+        "rawTraceSha256": "4048bdc721b1004b023f9d391599e5e30efd38a3973f4967a9c46c91e1ffded2",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 11,
+        "role": "startup100-9",
+        "elapsedMs": 349.5265,
+        "nativeShutdownMs": 3,
+        "receiptSha256": "675a8a9a320956bb33dc0f29859243e433be69085d3abcbdd0a4c7e975b9f13a",
+        "rawTraceSha256": "9f2f38d20cba1609b8bc53133a1b2c898e969dbc31c17ece4ab2c8528ceff93a",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 12,
+        "role": "startup100-10",
+        "elapsedMs": 373.9609,
+        "nativeShutdownMs": 5,
+        "receiptSha256": "89e3cca748bbdafbda9afbf1dea8d00cca595e81bfe47f8ccc6bc279c7c69e49",
+        "rawTraceSha256": "622f0c1f1fdd8a2246327e980a9de7bb312e48265c5dfa8940cbe15bcb28b650",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 13,
+        "role": "startup100-11",
+        "elapsedMs": 344.8816,
+        "nativeShutdownMs": 2,
+        "receiptSha256": "2eb8762b37a1c52bf8ed10d1e7bf547486e56aad52eac2ab3ea3afea6f44ebb9",
+        "rawTraceSha256": "4048bdc721b1004b023f9d391599e5e30efd38a3973f4967a9c46c91e1ffded2",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      },
+      {
+        "sequence": 14,
+        "role": "startup100-12",
+        "elapsedMs": 363.7348,
+        "nativeShutdownMs": 3,
+        "receiptSha256": "cac1b4390fc0a3ee2f4b0418e98b3d6ef0a8d0cfa069e3c31add96ef485de519",
+        "rawTraceSha256": "9f2f38d20cba1609b8bc53133a1b2c898e969dbc31c17ece4ab2c8528ceff93a",
+        "closeRequestCount": 1,
+        "deadlineMs": 10000,
+        "exitCode": 0,
+        "strictEightStageTraceValidated": true,
+        "retry": false
+      }
+    ],
+    "attempt03": {
+      "collectedCloseCount": 2,
+      "elapsedMs": [337.8481, 331.4246],
+      "nativeShutdownMs": [2, 3],
+      "mergedIntoAttempt04Statistics": false,
+      "failureReviewSha256": "3dc3c26036193c789630de23ded257928e81d624381d15b2308594b3ff0daadb",
+      "logPreservationReceiptSha256": "08034c2957fb7cde15f36981096db9841733a636992f6f00d8c0630a83db4315",
+      "finalDatabaseRetentionSha256": "86b59ba83b4d76497c93dbfe246d11c424781e6cc78b43a05b5c4417ef57d5f9",
+      "result": "Old run-folder and lock-owner-schema mismatch rejected before readiness or sampling; zero performance values."
+    },
+    "unexecutedScheduledCloseCount": 28
+  },
+  "cleanup": {
+    "ownedInstallRegistrationRemoved": true,
+    "hostLockReleased": true,
+    "ownedAppProcessesRemain": false,
+    "finalDatabase": {
+      "bytes": 19333120,
+      "sha256": "ed078476f5980a27c6d625964ceed66b8ffd88ebeff7990bc3d6ca94293ebb13",
+      "independentlyRetained": true,
+      "hardlinkCount": 1,
+      "unchangedByUninstall": true
+    },
+    "retentionReceiptSha256": "9f1f7a9251ef205c18fa8b6a3ad6aa56a7b9649248eb080cd5a38fd1a49aa460",
+    "installedWindowCloseRecordSha256": "1ad4f4b56afa53a8a3a0eef6265480592b9ece2ad32670376e4f1c78b9065d1a",
+    "cleanupReceiptSha256": "4bd3957d65da24893fb1402e404da4db3e87ae1a166a3b2bb6b998795c15b977"
+  },
+  "preReadinessArtifactReceipt": {
+    "firstIdentityApprovalExitCode": 1,
+    "appLaunchedOrSamplingStarted": false,
+    "failure": "The mutable artifact receipt lacked the installedIdentityApproval field; a null placeholder was initialized before the genuine approval.",
+    "staticArtifactManifestSha256": "4256414a65716fc82e82b22048c6497bc2d2b08017e53d68d70db426790cf6f8",
+    "initializationRecordSha256": "0f1bfc480314f6fbc529ce01069908fbf0fb66e4daa2862108f9194f312d561b",
+    "placeholderStateSha256RecordedByInitializationReceiptOnly": "ee36dcd44be5065f935bd9eec8412ed735c69377833f6c1666549e70f475409d",
+    "placeholderStateRetainedAsSeparateFile": false,
+    "postApprovalArtifactManifestSha256": "b9d4c66f51931b358430dfe15dcf58f564560dc92d4acbc248a2446424e94748",
+    "packageBytesAndApplicationCodeChanged": false
+  },
+  "earlierAttempts": [
+    "Attempt03 sampler rejected a stale run-folder/legacy lock-owner context before readiness; it collected no performance values. Its generated failure log and receipt remain privately retained; two successful closes are reported separately above.",
+    "Attempt04 receipt initialization failed before readiness; the initialized receipt enabled the subsequent genuine identity approval. This was not an application launch or measurement failure."
+  ],
+  "evidenceHashes": {
+    "startupMeasurementReportSha256": "184cf43bf74f8545297f6dd14c0d3d4bfe677524c0912fcab64ccc14eb82eb8d",
+    "rawMemoryAndCpuAggregateSha256": "8125397a14ec8fd00523fd3a7732a35d1d528276f5cd258741edc96f459f462c",
+    "noisePolicyInputSha256": "96674dab59ee41d64ab3f3a86c121c71c74711820edf250dbb7fc0c787a8a4cf",
+    "noisePolicyAssessmentSha256": "b68d3838f6816212876ef17d7c006a1796087dc96720404cb4190d97fe89a6f1",
+    "finalDatabaseRetentionRecordSha256": "9f1f7a9251ef205c18fa8b6a3ad6aa56a7b9649248eb080cd5a38fd1a49aa460",
+    "installedWindowCloseRecordSha256": "1ad4f4b56afa53a8a3a0eef6265480592b9ece2ad32670376e4f1c78b9065d1a",
+    "profileReuseGateSha256": "335d863c72e0d20e0cd55196a8ede9126b0e97dabe1789aa2009a2faa7d98b5c",
+    "profileRootReviewedGateSha256": "f8d099613c05b520710f4e0da443c327aa01bb88d70d61548766c2795918c297",
+    "staticSourcePinSha256": "d65d81c34fec2c2ce4ccb149af7fb9b34fdf2f3f9b111f64942180bd00596dd7",
+    "staticRunnerManifestSha256": "160a94595a961d2e06a0fb84a122e7dac8b84642a7042dce809a18a5174f3e02",
+    "corpusManifestSha256": "886a3eb9f861779e89b66735387c835abb3ac5fd216130d170f5d18abb3e5fa6",
+    "staticArtifactManifestSha256": "4256414a65716fc82e82b22048c6497bc2d2b08017e53d68d70db426790cf6f8",
+    "artifactManifestInitializationRecordSha256": "0f1bfc480314f6fbc529ce01069908fbf0fb66e4daa2862108f9194f312d561b",
+    "postApprovalArtifactManifestSha256": "b9d4c66f51931b358430dfe15dcf58f564560dc92d4acbc248a2446424e94748",
+    "attempt03FailureReviewSha256": "3dc3c26036193c789630de23ded257928e81d624381d15b2308594b3ff0daadb",
+    "attempt03LogPreservationReceiptSha256": "08034c2957fb7cde15f36981096db9841733a636992f6f00d8c0630a83db4315"
+  },
+  "storage": {
+    "localBuildOrCacheWriteForThisDocumentationPacket": false,
+    "estimatedAdditionalOutputGiB": 0.05,
+    "cFreeBeforeGiB": 33.57,
+    "cEstimatedFreeAfterGiB": 33.52,
+    "gUnusedGiB": 13.32,
+    "reserveGiB": 30,
+    "reserveMaintained": true,
+    "reusableValidationCacheOwner": "root",
+    "reusableValidationCacheWriteWindow": "Closed",
+    "primaryBuildOutputPreserved": true,
+    "privateEvidenceOutsideCompilerCaches": true,
+    "compilerCacheCleanupPerformed": false
+  },
+  "decisions": {
+    "budgetsAccepted": false,
+    "resourceQualificationAccepted": false,
+    "phase3ExitAccepted": false,
+    "phase4Authorized": false,
+    "issuesRemainOpen": [306, 259],
+    "adr008Accepted": false,
+    "scannerHistoricalWarmP95Ms": 10173,
+    "scannerUnchangedTargetMs": 10000,
+    "scannerGapAccepted": false
+  },
+  "privacy": {
+    "rawProcessInventoriesPidsStartTimesPersonalPathsAndDatabaseContentsPublished": false,
+    "rawMeasurementsAreLimitedToElapsedMemoryBytesAndSanitizedCpuViolations": true,
+    "privateEvidenceRetainedOutsideRepositoryAndCompilerCaches": true
+  }
+}
