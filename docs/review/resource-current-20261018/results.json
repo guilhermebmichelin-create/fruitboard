@@ -1,0 +1,620 @@
+{
+  "schemaVersion": 1,
+  "reportDate": "2026-10-18",
+  "result": "Guarded correctness and latency observations; resource budgets, qualification, and Phase 3 exit remain unapproved.",
+  "source": {
+    "applicationBaselineCommit": "d90b660ff7cb3a65d74447ce84c1cc338134447b",
+    "applicationBaselineTree": "cb13f50d84154947ef8c824a2aa4efbaecdb662e",
+    "packageBuildCommit": "839e5fb6d7ca9dd2343519669ac0b93069ea70bb",
+    "packageBuildTree": "8e8d292b6282f3e6b3b2d3c0253e7034c6f4e50b",
+    "runtimeGraphEquivalentToBaseline": true,
+    "documentationOnlyDifferences": [
+      "docs/adr/008-project-relative-sample-candidates.md",
+      "docs/adr/README.md",
+      "docs/review/phase3-next-slices-20261014/reference-resolution.md",
+      "docs/review/project-relative-candidates-332/README.md"
+    ],
+    "hostedChecks": {
+      "passed": 15,
+      "commit": "839e5fb6d7ca9dd2343519669ac0b93069ea70bb",
+      "scope": "unchanged application source only",
+      "currentDocumentationHeadChecksRequired": true,
+      "provesPerformance": false
+    }
+  },
+  "package": {
+    "features": "analysis-jobs",
+    "packageType": "unsigned NSIS",
+    "buildCommand": "node node_modules/corepack/dist/pnpm.js --filter @fruitboard/desktop tauri build --ci --no-sign --features analysis-jobs --config ROOT-package.config.json --bundles nsis -- --locked",
+    "sidecarCommand": "node scripts/prepare-foundation-sidecar.mjs (locked release Windows target)",
+    "buildReceiptSha256": "f5aeb83d83d382aada419b910adf4a8d7948e4a1433a311c2af2cafd27d723e0",
+    "packageConfigSha256": "9e9e52e3996a6b1050fd4f638ade164c78900b9e265f4bcc837a1d5dd5af96f2",
+    "toolchain": {
+      "node": "24.20.0",
+      "rust": "1.98.1",
+      "cargo": "1.98.1",
+      "pnpm": "11.25.0"
+    },
+    "artifacts": {
+      "installer": {
+        "bytes": 3335936,
+        "sha256": "f993f02d358a27c8ab0894b3d149ac44460000a3285ba72eb2d2e599018bfc66"
+      },
+      "postTauriDesktop": {
+        "bytes": 11076096,
+        "sha256": "133553dd5c9072b7390f67fa4f032dc70ff386b0a3290c8da7251cea71ccf16a"
+      },
+      "installedDesktop": {
+        "bytes": 11076096,
+        "sha256": "05f518bcbd4d0600c4745f199d24ad9f36a58148b56099a51679ce77731f5bd1",
+        "reproducedInTwoInstalls": true
+      },
+      "parserSidecar": {
+        "bytes": 575488,
+        "sha256": "b60b67d05f1657ee3d2187df34903596f92245d311aa198164ddaaab1d6b3142"
+      },
+      "smokeSidecar": {
+        "bytes": 156160,
+        "sha256": "f20810a72f6be8e437e520a54da42e9b800f92f3ec32c31b56b81a812814c7c6"
+      },
+      "retainedCopies": "Independent retained copies; each file has link count 1.",
+      "bareCargoExecutable": "Not separately captured",
+      "postTauriDesktopIsInstalledIdentity": false
+    }
+  },
+  "corpus": {
+    "sourceCommit": "d90b660ff7cb3a65d74447ce84c1cc338134447b",
+    "tree": "a5f7693e31e9427432ebfa8c75d76e21d177160f",
+    "runnerCorpusManifestSha256": "886a3eb9f861779e89b66735387c835abb3ac5fd216130d170f5d18abb3e5fa6",
+    "approvedFiles": 21,
+    "bytes": 1440299,
+    "copiedAsIndependentBytes": true,
+    "generatedFixtures": false,
+    "sourceAndStagedHashesUnchanged": true,
+    "previous19FileCohortRelabeled": false,
+    "terminalAnalysis": {
+      "complete": 18,
+      "failed": 3
+    },
+    "explorerMetadata": {
+      "current": 18,
+      "stale": 3,
+      "noAnalysis": 0,
+      "expectation": "Current for complete/partial published snapshots; stale for the three typed parser failures with negative history."
+    },
+    "partialFixture": "FIX-RB-UNKNOWN.flp: parser partial, installed analysis complete, Explorer current.",
+    "typedFailureFixtures": [
+      "FIX-RB-TRUNC.flp",
+      "FIX-RB-MALFORM.flp",
+      "FIX-RB-LIMIT.flp"
+    ],
+    "onlyLimitFailureStaleWasObservedInAttempt01": true,
+    "expectationContract": "The other two stale values are source-derived; attempt 02 observed the corrected 18/3 mapping."
+  },
+  "correctness": {
+    "approvedCohort": {
+      "terminalAssertionsPassed": 21,
+      "explorerAssertionsPassed": 21,
+      "current": 18,
+      "stale": 3
+    },
+    "scaleRoots": [
+      {
+        "entries": 100,
+        "allEntriesCurrent": true,
+        "countsAndGroupsMatch": true,
+        "sourceRepeatedFromOneApprovedSample": true
+      },
+      {
+        "entries": 1000,
+        "allEntriesCurrent": true,
+        "countsAndGroupsMatch": true,
+        "sourceRepeatedFromOneApprovedSample": true
+      },
+      {
+        "entries": 2000,
+        "allEntriesCurrent": true,
+        "countsAndGroupsMatch": true,
+        "sourceRepeatedFromOneApprovedSample": true
+      }
+    ],
+    "aggregateProfileEntries": 3121,
+    "refusal2001": "Not collected."
+  },
+  "measurementProtocol": {
+    "timingClock": "performance.now",
+    "requestSamples": "One first request, one excluded warm-up, then ten warm samples",
+    "p95": "Nearest-rank; for ten samples, p95 is the maximum",
+    "osCachesFlushed": false,
+    "hostCount": 1,
+    "repeatedCopiesTestScaleNotInputDiversity": true,
+    "memorySamplingRequestedIntervalMs": 100,
+    "processTreeRefreshIntervalMs": 1000,
+    "telemetryNotMemoryQualification": true,
+    "limitations": [
+      "Sampling intervals can exceed the requested 100 ms and short-lived processes or peaks can be missed.",
+      "Working-set sums can double-count shared pages; private commit is not physical RAM.",
+      "CPU boundary snapshots omit terminated or inaccessible processes.",
+      "DOM plus a next animation frame is not hardware paint; startup uses a populated profile and selected-root observation, not a cold-start claim."
+    ]
+  },
+  "latency": {
+    "proposalsMs": {
+      "installedRendererIpcP95": 300,
+      "installedExplorerDomRefreshP95": 500,
+      "mixerDetailsDomRefreshP95": 100,
+      "populatedStartupP95": 1500
+    },
+    "scaleWindows": [
+      {
+        "entries": 100,
+        "sourceFileSha256": "dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39",
+        "resultCountsAndGroupsMatch": true,
+        "currentEntries": 100,
+        "ipc": {
+          "firstMs": 14.599999994039536,
+          "excludedWarmupMs": 16.5,
+          "warmSamplesMs": [
+            12.599999994039536, 13.5, 13.799999982118607, 12.300000011920929,
+            12.200000017881393, 12, 12.399999976158142, 12.300000011920929,
+            11.800000011920929, 12.800000011920929
+          ],
+          "nearestRankP95Ms": 13.799999982118607,
+          "proposalMs": 300,
+          "belowProposal": true
+        },
+        "ui": {
+          "firstMs": 21.69999998807907,
+          "excludedWarmupMs": 15.899999976158142,
+          "warmSamplesMs": [
+            21.80000001192093, 20.600000023841858, 19.5, 20.100000023841858,
+            22.30000001192093, 19.899999976158142, 13.799999982118607, 14.5,
+            17.69999998807907, 14
+          ],
+          "nearestRankP95Ms": 22.30000001192093,
+          "proposalMs": 500,
+          "belowProposal": true
+        },
+        "window": {
+          "label": "scale-100-settled",
+          "durationMs": 769.8917,
+          "collectorSamples": 3,
+          "initialProcessorLoadPercent": 4,
+          "noiseGuardPassed": true,
+          "peakConcurrentWorkingSetMiB": 400.6796875,
+          "peakConcurrentPrivateCommitMiB": 233.5,
+          "memorySamplesAreIncidental": true
+        }
+      },
+      {
+        "entries": 1000,
+        "sourceFileSha256": "dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39",
+        "resultCountsAndGroupsMatch": true,
+        "currentEntries": 1000,
+        "ipc": {
+          "firstMs": 100.5,
+          "excludedWarmupMs": 97.5,
+          "warmSamplesMs": [
+            94.5, 96.09999999403954, 98.69999998807907, 92.80000001192093,
+            95.59999999403954, 96.40000000596046, 114.90000000596046, 100.5,
+            96.2999999821186, 105
+          ],
+          "nearestRankP95Ms": 114.90000000596046,
+          "proposalMs": 300,
+          "belowProposal": true
+        },
+        "ui": {
+          "firstMs": 103.2999999821186,
+          "excludedWarmupMs": 104.80000001192093,
+          "warmSamplesMs": [
+            101.5, 104.80000001192093, 103.2999999821186, 104.30000001192093,
+            102, 103.7999999821186, 100.7000000178814, 101.30000001192093, 107,
+            100.90000000596046
+          ],
+          "nearestRankP95Ms": 107,
+          "proposalMs": 500,
+          "belowProposal": true
+        },
+        "window": {
+          "label": "scale-1000-settled",
+          "durationMs": 4303.884300000001,
+          "collectorSamples": 25,
+          "initialProcessorLoadPercent": 2,
+          "noiseGuardPassed": true,
+          "peakConcurrentWorkingSetMiB": 482.05859375,
+          "peakConcurrentPrivateCommitMiB": 310.98828125,
+          "memorySamplesAreIncidental": true
+        }
+      },
+      {
+        "entries": 2000,
+        "sourceFileSha256": "dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39",
+        "resultCountsAndGroupsMatch": true,
+        "currentEntries": 2000,
+        "ipc": {
+          "firstMs": 194.09999999403954,
+          "excludedWarmupMs": 191.69999998807907,
+          "warmSamplesMs": [
+            197.09999999403954, 187.89999997615814, 194.2000000178814,
+            188.59999999403954, 195.80000001192093, 190.19999998807907,
+            190.59999999403954, 189.5, 193.59999999403954, 186.10000002384186
+          ],
+          "nearestRankP95Ms": 197.09999999403954,
+          "proposalMs": 300,
+          "belowProposal": true
+        },
+        "ui": {
+          "firstMs": 200.60000002384186,
+          "excludedWarmupMs": 201.5,
+          "warmSamplesMs": [
+            198.7000000178814, 196.90000000596046, 202.5, 196.7999999821186,
+            196.40000000596046, 201, 198.89999997615814, 199.90000000596046,
+            202.5, 196.19999998807907
+          ],
+          "nearestRankP95Ms": 202.5,
+          "proposalMs": 500,
+          "belowProposal": true
+        },
+        "window": {
+          "label": "scale-2000-settled",
+          "durationMs": 7725.6491000000005,
+          "collectorSamples": 47,
+          "initialProcessorLoadPercent": 5,
+          "noiseGuardPassed": true,
+          "peakConcurrentWorkingSetMiB": 497.8125,
+          "peakConcurrentPrivateCommitMiB": 312.80859375,
+          "memorySamplesAreIncidental": true
+        }
+      }
+    ],
+    "mixerDetails": {
+      "recordCount": 16,
+      "latency": {
+        "firstMs": 26.5,
+        "excludedWarmupMs": 11.599999994039536,
+        "warmSamplesMs": [
+          12.199999988079071, 12.699999988079071, 11.400000005960464,
+          12.900000005960464, 11.700000017881393, 12.5, 12.600000023841858,
+          12.5, 12.5, 11.599999994039536
+        ],
+        "nearestRankP95Ms": 12.900000005960464,
+        "proposalMs": 100,
+        "belowProposal": true
+      },
+      "window": {
+        "label": "mixer-details-corrected",
+        "durationMs": 463.10940000000005,
+        "collectorSamples": 1,
+        "initialProcessorLoadPercent": 4,
+        "noiseGuardPassed": true,
+        "peakConcurrentWorkingSetMiB": 411.99609375,
+        "peakConcurrentPrivateCommitMiB": 248.4140625,
+        "memorySamplesAreIncidental": true
+      }
+    },
+    "startup100": {
+      "entries": 100,
+      "boundary": "process creation through observed populated Library including CDP discovery/attachment; selected root measured after selection because root choice is not persistent",
+      "timing": {
+        "firstMs": 833.9298999999992,
+        "excludedWarmupMs": 868.7825000000012,
+        "warmSamplesMs": [
+          814.8028999999988, 822.6958000000013, 850.3783000000003,
+          812.7269000000015, 814.6942000000017, 849.7480000000032,
+          1105.5738999999994, 918.9594999999972, 749.943299999999,
+          837.5179999999964
+        ],
+        "nearestRankP95Ms": 1105.5738999999994,
+        "proposalMs": 1500,
+        "belowProposal": true
+      },
+      "window": {
+        "label": "startup-100-stable",
+        "durationMs": 22700.709600000002,
+        "collectorSamples": 48,
+        "initialProcessorLoadPercent": 5,
+        "noiseGuardPassed": false,
+        "violations": [
+          {
+            "processName": "explorer",
+            "cpuSeconds": 2.03125
+          },
+          {
+            "processName": "chrome",
+            "cpuSeconds": 1.140625
+          },
+          {
+            "processName": "chrome",
+            "cpuSeconds": 1.203125
+          },
+          {
+            "processName": "OfficeClickToRun",
+            "cpuSeconds": 14.421875
+          }
+        ],
+        "peakConcurrentWorkingSetMiB": 359.82421875,
+        "peakConcurrentPrivateCommitMiB": 229.52734375,
+        "memorySamplesAreIncidental": true
+      },
+      "classification": "Characterization only: p95 is below the proposal, but the all-process quiet-host guard failed. Further timed windows stopped."
+    },
+    "stoppedAfterStartupGuardFailure": [
+      "startup 1,000",
+      "startup 2,000",
+      "steady whole-app memory",
+      "64 MiB analysis whole-app memory",
+      "2,001-entry refusal"
+    ]
+  },
+  "noiseGuard": {
+    "initialProcessorLoadMaximumPercent": 20,
+    "unrelatedObservedProcessCpuMaximumSeconds": 0.5,
+    "nameFilters": false,
+    "T3RemainedOpenAndCounted": true,
+    "guardPassingWindows": [
+      {
+        "window": "scale-100-settled",
+        "initialProcessorLoadPercent": 4
+      },
+      {
+        "window": "scale-1000-settled",
+        "initialProcessorLoadPercent": 2
+      },
+      {
+        "window": "scale-2000-settled",
+        "initialProcessorLoadPercent": 5
+      },
+      {
+        "window": "mixer-details-corrected",
+        "initialProcessorLoadPercent": 4
+      }
+    ],
+    "startup100Failure": {
+      "initialProcessorLoadPercent": 5,
+      "violations": [
+        {
+          "processName": "explorer",
+          "cpuSeconds": 2.03125
+        },
+        {
+          "processName": "chrome",
+          "cpuSeconds": 1.140625
+        },
+        {
+          "processName": "chrome",
+          "cpuSeconds": 1.203125
+        },
+        {
+          "processName": "OfficeClickToRun",
+          "cpuSeconds": 14.421875
+        }
+      ]
+    }
+  },
+  "shutdown": {
+    "closeCount": 21,
+    "eachCloseAttemptCount": 1,
+    "exitCode": 0,
+    "traceValidationSucceededForAll": true,
+    "stagesPerTrace": 8,
+    "deadlineMs": 10000,
+    "elapsedMs": {
+      "minimum": 354.6731,
+      "median": 397.1625,
+      "nearestRankP95": 721.0451,
+      "maximum": 1401.0116
+    },
+    "nativeTraceShutdownMs": {
+      "minimum": 3,
+      "median": 4,
+      "nearestRankP95": 28,
+      "maximum": 41
+    },
+    "receipts": [
+      {
+        "sequence": 1,
+        "elapsedMs": 366.105,
+        "traceShutdownMs": 4,
+        "closeReceiptSha256": "b3d5f288edf1855870bbc2d702155c19a6392a04e34021cbb1f933eac846c6a1",
+        "traceSha256": "49e5af297e069d896207554eb3e2ae590221648b91291abc693cf510363541fe"
+      },
+      {
+        "sequence": 2,
+        "elapsedMs": 354.6731,
+        "traceShutdownMs": 5,
+        "closeReceiptSha256": "3ce8043fe1f1bd10780f01d0fe102ec7ec33a12fb5249700e6229cacbce319a0",
+        "traceSha256": "36d4271b44d9f78cce82e2ea3c9433b68713cd32855647eb748a9371e2ab61d7"
+      },
+      {
+        "sequence": 3,
+        "elapsedMs": 364.0081,
+        "traceShutdownMs": 6,
+        "closeReceiptSha256": "5c028e9ca4022360ff1549e60ce67136cd07f2d39aa66e33a20e24d56c49a080",
+        "traceSha256": "4b55d729e9d95a2d12720c4d9b59e3fe90780b15a30d0daf5c41416fa3f67c52"
+      },
+      {
+        "sequence": 4,
+        "elapsedMs": 396.3333,
+        "traceShutdownMs": 6,
+        "closeReceiptSha256": "3104225a0ea240adc6994f494e40ab24c1f109f7740585aa7d654e1d4291dcf9",
+        "traceSha256": "d5941e01299007c6a81ba007e323d3759ef7959820ca6e25dfab4c29703c3ead"
+      },
+      {
+        "sequence": 5,
+        "elapsedMs": 369.401,
+        "traceShutdownMs": 4,
+        "closeReceiptSha256": "8db5d248b2d130237b148731c540092e4d6b59f7bda9deb692e4822614a0ddb2",
+        "traceSha256": "adee1a4c521e30a41b404de8d5f7b1e74aabf64699ff7cb68183886c71f9e474"
+      },
+      {
+        "sequence": 6,
+        "elapsedMs": 366.09,
+        "traceShutdownMs": 3,
+        "closeReceiptSha256": "28c7fd9efbc9ee93953972501b51b42bbc755dd5cce9248038cf9974edf07ccc",
+        "traceSha256": "31d5a1be81b4d76e38f6a088e90ef3d1fc12a640f9af4b521dddec2665dda8e2"
+      },
+      {
+        "sequence": 7,
+        "elapsedMs": 368.1759,
+        "traceShutdownMs": 4,
+        "closeReceiptSha256": "38e4905c9e3e7b571ff377c785783adf42b73e87eeeaadc11bef559dfad0bc57",
+        "traceSha256": "93a70c95f4c56755a6eafedaa38e425ba531838128cfcc446150e0a3c4388576"
+      },
+      {
+        "sequence": 8,
+        "elapsedMs": 384.4366,
+        "traceShutdownMs": 4,
+        "closeReceiptSha256": "7fca0504c36d1fe050fa83b0fa573c79367be38fec3388772223ec797bbaaefe",
+        "traceSha256": "75d614de0dd8c761cd0291bdf85ca141be0dfb3264de0da4523af782b6062098"
+      },
+      {
+        "sequence": 9,
+        "elapsedMs": 1401.0116,
+        "traceShutdownMs": 3,
+        "closeReceiptSha256": "46098acf5fef4bc851aebde637b82cc5afce36ab8fd33ce73cc5cd89505b1ca5",
+        "traceSha256": "31d5a1be81b4d76e38f6a088e90ef3d1fc12a640f9af4b521dddec2665dda8e2"
+      },
+      {
+        "sequence": 10,
+        "elapsedMs": 471.1109,
+        "traceShutdownMs": 3,
+        "closeReceiptSha256": "639e57c2398c60f87e00dcc537c1cddd85fcdd110bc85cf8eb243a653636ea40",
+        "traceSha256": "a409d247b520941b0d5e499d72bf5f401a9a141a42ca36ddaa85c830af61edf3"
+      },
+      {
+        "sequence": 11,
+        "elapsedMs": 721.0451,
+        "traceShutdownMs": 41,
+        "closeReceiptSha256": "52a10496931148b0f6159ebb741bfc46cdf715963768943fe03ffd414834f351",
+        "traceSha256": "149134e4536be5897e8815840e76974000c4219ef800e662edc4edc010645fed"
+      },
+      {
+        "sequence": 12,
+        "elapsedMs": 409.9057,
+        "traceShutdownMs": 4,
+        "closeReceiptSha256": "df3b52cf0f5a39d8612695dfcb8c9a08397338a687612d5bfe1c9701ac74edeb",
+        "traceSha256": "a331cec95e86e4708da47e81ea079f601087e6b625ae05e472e6a201fe5c473c"
+      },
+      {
+        "sequence": 13,
+        "elapsedMs": 419.0506,
+        "traceShutdownMs": 3,
+        "closeReceiptSha256": "4ac63787dc7a062ad99492ec6b573e87824cfb210955ac9f8e937379c2ec44a3",
+        "traceSha256": "31d5a1be81b4d76e38f6a088e90ef3d1fc12a640f9af4b521dddec2665dda8e2"
+      },
+      {
+        "sequence": 14,
+        "elapsedMs": 410.1655,
+        "traceShutdownMs": 28,
+        "closeReceiptSha256": "08bd0c828558f8ad6cfde5bdcff651a5988ab2641173d02d8fcfa707a5df94a9",
+        "traceSha256": "3fa3903973a31bf270a0926bb7ba123d322e348460b19945f66811589b881b58"
+      },
+      {
+        "sequence": 15,
+        "elapsedMs": 403.2266,
+        "traceShutdownMs": 5,
+        "closeReceiptSha256": "daa6fe45f30663a95c2d5f5eb05a22422917de6374250ea6e777d7a6a110ea11",
+        "traceSha256": "a2d9ea7bc4aafcbfcd55689039586d83b0a4c46ca11d334eb29fd60c2fabc421"
+      },
+      {
+        "sequence": 16,
+        "elapsedMs": 408.1862,
+        "traceShutdownMs": 4,
+        "closeReceiptSha256": "26994b8a248ce847436ce418fbc1bad741d0442127ebaa42d181f22ac1929e46",
+        "traceSha256": "adee1a4c521e30a41b404de8d5f7b1e74aabf64699ff7cb68183886c71f9e474"
+      },
+      {
+        "sequence": 17,
+        "elapsedMs": 406.0153,
+        "traceShutdownMs": 4,
+        "closeReceiptSha256": "7c71d50c23faaef7ccf867673347d50bb50f0a20fb0a2e7f385cc282a4de1fd2",
+        "traceSha256": "75d614de0dd8c761cd0291bdf85ca141be0dfb3264de0da4523af782b6062098"
+      },
+      {
+        "sequence": 18,
+        "elapsedMs": 397.1625,
+        "traceShutdownMs": 3,
+        "closeReceiptSha256": "0b4698c755d385b9b20d2480f90189256cabde3ea761dec2413215ae8c9c7255",
+        "traceSha256": "0344f1540f635294aa87053b9895a11daaead3f88c3b1074d9aea4772944fb02"
+      },
+      {
+        "sequence": 19,
+        "elapsedMs": 385.1186,
+        "traceShutdownMs": 6,
+        "closeReceiptSha256": "dcea18ae96102335f694ed1fbd2e7362a4ef0217e668fcc31c6d24d2aba9c47e",
+        "traceSha256": "0d39235db2137f3cec01ff623481dfb61e733cc3a93c00ca118089f0750e7ac6"
+      },
+      {
+        "sequence": 20,
+        "elapsedMs": 394.6482,
+        "traceShutdownMs": 3,
+        "closeReceiptSha256": "db250298c65b14eaab62773cbc3d9fad90fa787541df80f78e1aa8fbb404a98b",
+        "traceSha256": "a409d247b520941b0d5e499d72bf5f401a9a141a42ca36ddaa85c830af61edf3"
+      },
+      {
+        "sequence": 21,
+        "elapsedMs": 400.3839,
+        "traceShutdownMs": 4,
+        "closeReceiptSha256": "4ca2f75b2f092c9f80dbab48b0195efa2582a21099496c854eb12875436e5c8f",
+        "traceSha256": "75d614de0dd8c761cd0291bdf85ca141be0dfb3264de0da4523af782b6062098"
+      }
+    ],
+    "priorOctober14OneThousandEntryTimeout": "Unexplained and not reproduced here; no product fix is inferred."
+  },
+  "cleanup": {
+    "ownedInstallRegistrationRemoved": true,
+    "hostLockReleased": true,
+    "ownedAppParserWebViewProcessesRemain": false,
+    "approvedSourceAndStagedFixturesUnchanged": true,
+    "protectedProfileFilesVerified": 671,
+    "personalProfilesUnchanged": true,
+    "finalDatabase": {
+      "bytes": 19320832,
+      "sha256": "695e4e43062d0b8f7097cd381b9eba0513d4f363b845b0fcea40c8221fdcfb46",
+      "independentlyRetained": true,
+      "hardlinkCount": 1,
+      "unchangedByUninstall": true
+    }
+  },
+  "earlierAttempts": [
+    {
+      "attempt": "prelaunch parameter failure",
+      "result": "Unsupported PowerShell -NoClobber option stopped before runner/install/fixture action; no app effect."
+    },
+    {
+      "attempt": "installed attempt 01",
+      "result": "A private expectation incorrectly mapped every failed analysis to no_analysis. LIMIT observed stale; source requires stale for all three published typed failures. Attempt stopped before timing/scale; no successful exit or shutdown trace was observed and no recovery close was sent.",
+      "firstAttemptDatabaseSha256": "115f717b1139cd785eeee8769062c666b07b1ea65f3994aef36ab89103e2cae0",
+      "productBugClaimed": false
+    }
+  ],
+  "storage": {
+    "docsPreflight": {
+      "estimatedOutputGiB": 0.05,
+      "freeBeforeGiB": 34.7599,
+      "freeAfterGiB": 34.7099,
+      "thirtyGiBReserveMaintained": true
+    },
+    "localBuildOrCacheWriteForThisPacket": false,
+    "sharedValidationCacheOwner": "root",
+    "primaryBuildOutputPreserved": true,
+    "obsoleteIntermediateRetirementPreviouslyVerifiedGiB": 5.76,
+    "protectedOutputHashesVerified": 1875,
+    "rebuildingRetiredIntermediateCost": "Unmeasured"
+  },
+  "evidencePolicy": {
+    "rawLogsFixturesScreenshotsDatabasesProcessIdentitiesAndPersonalPathsRemainPrivate": true,
+    "hashReceiptsIncludedWithoutContents": true,
+    "privateEvidenceRetainedOutsideCompilerCaches": true
+  },
+  "decisions": {
+    "budgetsAccepted": false,
+    "resourceQualificationAccepted": false,
+    "phase3ExitAccepted": false,
+    "phase4Authorized": false,
+    "issuesRemainOpen": [306, 259],
+    "scannerHistoricalWarmP95Ms": 10173,
+    "scannerUnchangedTargetMs": 10000,
+    "scannerGapAccepted": false
+  }
+}
