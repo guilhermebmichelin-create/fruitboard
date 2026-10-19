@@ -6,6 +6,11 @@ G5 acceptance or Phase 3 acceptance.** This document does not change
 dot/parent components remain outside its accepted eligibility rules until the
 owner accepts a scoped amendment after a separate native-authority review.
 
+The [proposed ADR-008](../../adr/008-project-relative-sample-candidates.md) and
+[source-informed native review](../project-relative-candidates-332/README.md)
+now make that same-root, app-defined decision concrete. They remain conditional
+and unaccepted; this earlier scope proposal grants no additional authority.
+
 ## Recommendation
 
 Consider one first expansion: let the existing explicit sample check examine a
