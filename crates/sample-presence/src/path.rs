@@ -92,7 +92,11 @@ impl RelativeCandidate {
         if value.len() > MAX_REFERENCE_BYTES || value.encode_utf16().count() > MAX_REFERENCE_UTF16 {
             return Err(LimitReached);
         }
-        if value.is_empty() || value.chars().any(unsafe_control) {
+        if value.is_empty()
+            || value
+                .chars()
+                .any(|character| unsafe_control(character) || character == '\u{061c}')
+        {
             return Err(UnsupportedPathSyntax);
         }
         if value.contains('%') {

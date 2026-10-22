@@ -357,6 +357,8 @@ fn valid_cancelled_components_are_not_queried_but_invalid_raw_components_still_f
         Some(r"a\\..\Kick.wav"),
         Some(r"Kick.wav\"),
         Some("bad\u{202e}name\\..\\Kick.wav"),
+        Some("bad\u{061c}name\\Kick.wav"),
+        Some("bad\u{061c}name\\..\\Kick.wav"),
         Some(r"%FLStudioData%\..\Kick.wav"),
         Some(r"Missing\$CACHE\..\Kick.wav"),
         Some(r"$HOME\..\Kick.wav"),
@@ -379,12 +381,28 @@ fn valid_cancelled_components_are_not_queried_but_invalid_raw_components_still_f
             unchecked(UncheckedReason::UnsupportedPathSyntax),
             unchecked(UncheckedReason::UnsupportedPathSyntax),
             unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
             unchecked(UncheckedReason::UnresolvedPlaceholder),
             unchecked(UncheckedReason::UnresolvedPlaceholder),
             unchecked(UncheckedReason::UnresolvedPlaceholder),
         ]
     );
     assert_eq!(child_calls(&port), vec!["child:Kick.wav", "child:Kick.wav"]);
+}
+
+#[test]
+fn arabic_letter_mark_is_rejected_before_relative_candidate_queries() {
+    for value in ["bad\u{061c}name\\Kick.wav", "bad\u{061c}name\\..\\Kick.wav"] {
+        let mut port = Port::default();
+        let report = run(&input(&[Some(value)]), &mut port).unwrap();
+        assert_eq!(
+            outcomes(&report),
+            vec![unchecked(UncheckedReason::UnsupportedPathSyntax)],
+            "{value:?}"
+        );
+        assert_eq!(candidate_calls(&port), 0, "{value:?}");
+    }
 }
 
 #[test]
