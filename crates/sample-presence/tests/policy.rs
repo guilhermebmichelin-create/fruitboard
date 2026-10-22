@@ -184,10 +184,13 @@ fn fence() -> AuthorityFence {
     }
 }
 fn input(values: &[Option<&str>]) -> CapturedInput {
+    input_for(r"C:\Projects", r"C:\Projects\song.flp", values)
+}
+fn input_for(root: &str, source: &str, values: &[Option<&str>]) -> CapturedInput {
     CapturedInput::new(
         context(),
-        r"C:\Projects",
-        r"C:\Projects\song.flp",
+        root,
+        source,
         fence(),
         Some(values.iter().map(|v| v.map(str::to_owned)).collect()),
     )
@@ -209,6 +212,13 @@ fn candidate_calls(port: &Port) -> usize {
         .iter()
         .filter(|v| v.starts_with("child:"))
         .count()
+}
+fn child_calls(port: &Port) -> Vec<String> {
+    port.calls
+        .iter()
+        .filter(|value| value.starts_with("child:"))
+        .cloned()
+        .collect()
 }
 
 #[test]
@@ -283,30 +293,190 @@ fn forbidden_syntax_never_reaches_a_candidate_operation() {
 }
 
 #[test]
-fn relative_and_placeholders_have_explicit_reasons_without_guessed_resolution() {
+fn relative_child_sibling_and_parent_candidates_use_the_project_parent() {
+    let values = input_for(
+        r"C:\Projects",
+        r"C:\Projects\Albums\Song.flp",
+        &[
+            Some(r"Samples\Kick.wav"),
+            Some(r"..\Sibling\Kick.wav"),
+            Some(r"..\Kick.wav"),
+            Some(r"..\..\Albums\..\Kick.wav"),
+        ],
+    );
     let mut port = Port::default();
-    let report = run(
-        &input(&[
-            Some(r"Samples\kick.wav"),
-            Some(r"..\Samples\kick.wav"),
-            Some(r"%FLStudioData%\kick.wav"),
-            Some(r"C:\Projects\%USERPROFILE%\kick.wav"),
-            Some(r"$HOME\kick.wav"),
-        ]),
-        &mut port,
-    )
-    .unwrap();
+    for directory in ["Albums", r"Albums\Samples", "Samples", "Sibling"] {
+        port.nodes.insert(directory.into(), Node::Directory);
+    }
+    for file in [
+        r"Albums\Samples\Kick.wav",
+        r"Sibling\Kick.wav",
+        "Kick.wav",
+        // This root-level sentinel proves Samples\Kick.wav was based at Albums.
+        r"Samples\Kick.wav",
+    ] {
+        port.nodes.insert(file.into(), Node::File);
+    }
+
+    let report = run(&values, &mut port).unwrap();
     assert_eq!(
         outcomes(&report),
         vec![
-            unchecked(UncheckedReason::RelativeReference),
-            unchecked(UncheckedReason::RelativeReference),
+            Outcome::Present,
+            Outcome::Present,
+            Outcome::Present,
+            unchecked(UncheckedReason::OutsideRoot),
+        ]
+    );
+    assert_eq!(
+        child_calls(&port),
+        vec![
+            "child:Albums",
+            r"child:Albums\Samples",
+            r"child:Albums\Samples\Kick.wav",
+            "child:Sibling",
+            r"child:Sibling\Kick.wav",
+            "child:Kick.wav",
+        ]
+    );
+    assert_eq!(port.calls.last().unwrap(), "revalidate");
+}
+
+#[test]
+fn valid_cancelled_components_are_not_queried_but_invalid_raw_components_still_fail() {
+    let values = input(&[
+        Some(r"Missing\..\Kick.wav"),
+        Some(r".\Kick.wav"),
+        Some(r"bad*name\..\Kick.wav"),
+        Some(r"trailing.\..\Kick.wav"),
+        Some(r"trailing \..\Kick.wav"),
+        Some(r"CON\..\Kick.wav"),
+        Some(r"COM¹\..\Kick.wav"),
+        Some(r"PROJEC~1\..\Kick.wav"),
+        Some(r"a//..\Kick.wav"),
+        Some(r"a\\..\Kick.wav"),
+        Some(r"Kick.wav\"),
+        Some("bad\u{202e}name\\..\\Kick.wav"),
+        Some(r"%FLStudioData%\..\Kick.wav"),
+        Some(r"Missing\$CACHE\..\Kick.wav"),
+        Some(r"$HOME\..\Kick.wav"),
+    ]);
+    let mut port = Port::default();
+    port.nodes.insert("Kick.wav".into(), Node::File);
+    let report = run(&values, &mut port).unwrap();
+    assert_eq!(
+        outcomes(&report),
+        vec![
+            Outcome::Present,
+            Outcome::Present,
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
             unchecked(UncheckedReason::UnresolvedPlaceholder),
             unchecked(UncheckedReason::UnresolvedPlaceholder),
-            unchecked(UncheckedReason::UnresolvedPlaceholder)
+            unchecked(UncheckedReason::UnresolvedPlaceholder),
+        ]
+    );
+    assert_eq!(child_calls(&port), vec!["child:Kick.wav", "child:Kick.wav"]);
+}
+
+#[test]
+fn only_the_existing_absolute_parser_relative_classification_dispatches_to_candidates() {
+    let rejected = [
+        r"\\server\share\Kick.wav",
+        r"\\?\C:\Projects\Kick.wav",
+        r"\\.\C:\Projects\Kick.wav",
+        r"\rooted\Kick.wav",
+        "/rooted/Kick.wav",
+        "https://example.invalid/Kick.wav",
+        r"C:Samples\Kick.wav",
+        r"C:\Projects\Kick.wav:stream",
+        r"bad:name\..\Kick.wav",
+    ];
+    for value in rejected {
+        let mut port = Port::default();
+        let report = run(&input(&[Some(value)]), &mut port).unwrap();
+        assert_eq!(candidate_calls(&port), 0, "{value:?}");
+        assert_eq!(
+            outcomes(&report),
+            vec![unchecked(UncheckedReason::UnsupportedPathSyntax)],
+            "{value:?}"
+        );
+    }
+    let mut placeholder = Port::default();
+    assert_eq!(
+        outcomes(
+            &run(
+                &input(&[Some(r"C:\Projects\%USERPROFILE%\Kick.wav")]),
+                &mut placeholder,
+            )
+            .unwrap()
+        ),
+        vec![unchecked(UncheckedReason::UnresolvedPlaceholder)]
+    );
+    assert_eq!(candidate_calls(&placeholder), 0);
+    assert!(matches!(
+        AbsolutePath::parse(r"Samples\Kick.wav"),
+        Err(UncheckedReason::RelativeReference)
+    ));
+}
+
+#[test]
+fn an_escape_stays_rejected_after_reentry_and_root_equal_candidates_are_directories() {
+    let values = input_for(
+        r"C:\Projects",
+        r"C:\Projects\Albums\Song.flp",
+        &[Some(r"..\..\Albums\..\Kick.wav"), Some(r"..")],
+    );
+    let mut port = Port::default();
+    let report = run(&values, &mut port).unwrap();
+    assert_eq!(
+        outcomes(&report),
+        vec![
+            unchecked(UncheckedReason::OutsideRoot),
+            unchecked(UncheckedReason::NotRegularFile),
         ]
     );
     assert_eq!(candidate_calls(&port), 0);
+    assert_eq!(port.calls.last().unwrap(), "revalidate");
+}
+
+#[test]
+fn relative_component_spelling_is_preserved_for_the_qualified_port() {
+    let composed = format!("Samples\\{}.wav", '\u{e9}');
+    let decomposed = "Samples\\e\u{301}.wav";
+    let values = CapturedInput::new(
+        context(),
+        r"C:\Projects",
+        r"C:\Projects\Albums\Song.flp",
+        fence(),
+        Some(vec![Some(composed.clone()), Some(decomposed.to_owned())]),
+    )
+    .unwrap();
+    let mut port = Port::default();
+    port.nodes.insert("Albums".into(), Node::Directory);
+    port.nodes.insert(r"Albums\Samples".into(), Node::Directory);
+    port.nodes.insert(format!("Albums\\{composed}"), Node::File);
+    let report = run(&values, &mut port).unwrap();
+    assert_eq!(outcomes(&report), vec![Outcome::Present, Outcome::NotFound]);
+    assert_eq!(
+        child_calls(&port),
+        vec![
+            "child:Albums",
+            r"child:Albums\Samples",
+            format!("child:Albums\\{composed}"),
+            "child:Albums",
+            r"child:Albums\Samples",
+            format!("child:Albums\\{decomposed}"),
+        ]
+    );
 }
 
 #[test]
@@ -406,7 +576,7 @@ fn unqualified_root_or_source_prevents_all_sample_probes() {
             ..Port::default()
         };
         assert!(
-            matches!(run(&input(&[Some(r"C:\Projects\kick.wav")]), &mut port), Err(RequestFailure::Unavailable(actual)) if actual == reason)
+            matches!(run(&input(&[Some(r"kick.wav")]), &mut port), Err(RequestFailure::Unavailable(actual)) if actual == reason)
         );
         assert_eq!(candidate_calls(&port), 0);
     }
@@ -445,6 +615,42 @@ fn replacement_or_snapshot_session_revision_change_discards_every_provisional_re
 }
 
 #[test]
+fn relative_results_remain_provisional_until_the_same_revalidation_fence() {
+    let mut stale_at_final_fence = Port {
+        final_error: Some(PortError::Request(RequestFailure::Stale)),
+        ..Port::default()
+    };
+    stale_at_final_fence
+        .nodes
+        .insert("Kick.wav".into(), Node::File);
+    assert!(matches!(
+        run(&input(&[Some(r"Kick.wav")]), &mut stale_at_final_fence),
+        Err(RequestFailure::Stale)
+    ));
+    assert_eq!(child_calls(&stale_at_final_fence), vec!["child:Kick.wav"]);
+    assert_eq!(stale_at_final_fence.calls.last().unwrap(), "revalidate");
+
+    let gate = WorkerGate::default();
+    let mut lease = gate.try_start(Arc::new(Clock::default())).unwrap();
+    let mut cancelled = Port {
+        invalidate_on_child: true,
+        control: Some(lease.control()),
+        ..Port::default()
+    };
+    assert!(matches!(
+        check(
+            &input(&[Some(r"Kick.wav")]),
+            &mut lease,
+            &mut cancelled,
+            1_791_216_000_000,
+        ),
+        Err(RequestFailure::Stale)
+    ));
+    assert_eq!(child_calls(&cancelled), vec!["child:Kick.wav"]);
+    assert!(!cancelled.calls.contains(&"revalidate".into()));
+}
+
+#[test]
 fn exact_literal_duplicates_reuse_only_within_one_request_and_keep_all_positions() {
     let values = input(&[
         Some(r"C:\Projects\kick.wav"),
@@ -467,6 +673,20 @@ fn exact_literal_duplicates_reuse_only_within_one_request_and_keep_all_positions
     assert_eq!(candidate_calls(&port), 2);
     run(&values, &mut port).unwrap();
     assert_eq!(candidate_calls(&port), 4);
+}
+
+#[test]
+fn relative_memoization_uses_the_literal_reference_not_its_candidate() {
+    let values = input(&[
+        Some(r"Missing\..\Kick.wav"),
+        Some(r"Missing\..\Kick.wav"),
+        Some(r"Kick.wav"),
+    ]);
+    let mut port = Port::default();
+    port.nodes.insert("Kick.wav".into(), Node::File);
+    let report = run(&values, &mut port).unwrap();
+    assert_eq!(outcomes(&report), vec![Outcome::Present; 3]);
+    assert_eq!(child_calls(&port), vec!["child:Kick.wav", "child:Kick.wav"]);
 }
 
 #[test]
@@ -526,7 +746,7 @@ fn malformed_and_older_capture_is_rejected_before_execution() {
 }
 
 #[test]
-fn depth_64_is_allowed_but_65_is_unchecked_before_candidate_io() {
+fn relative_raw_and_full_stack_depths_are_bounded_before_candidate_io() {
     let valid = format!("C:\\Projects\\{}\\x.wav", vec!["a"; 62].join("\\"));
     assert_eq!(AbsolutePath::parse(&valid).unwrap().components().len(), 64);
     let invalid = format!("C:\\Projects\\{}\\x.wav", vec!["a"; 63].join("\\"));
@@ -540,6 +760,56 @@ fn depth_64_is_allowed_but_65_is_unchecked_before_candidate_io() {
         vec![unchecked(UncheckedReason::LimitReached)]
     );
     assert_eq!(candidate_calls(&port), 0);
+
+    // Root (2) + qualified source parent (1) + 61 raw children = 64.
+    let full_64 = format!("{}\\Kick.wav", vec!["a"; 60].join("\\"));
+    let full_65 = format!("{}\\Kick.wav", vec!["a"; 61].join("\\"));
+    let nested_root = |reference: &str| {
+        input_for(
+            r"C:\One\Two",
+            r"C:\One\Two\Albums\Song.flp",
+            &[Some(reference)],
+        )
+    };
+    let mut at_full_64 = Port::default();
+    assert_eq!(
+        outcomes(&run(&nested_root(&full_64), &mut at_full_64).unwrap()),
+        vec![Outcome::NotFound]
+    );
+    assert_eq!(candidate_calls(&at_full_64), 1);
+    let mut over_full_64 = Port::default();
+    assert_eq!(
+        outcomes(&run(&nested_root(&full_65), &mut over_full_64).unwrap()),
+        vec![unchecked(UncheckedReason::LimitReached)]
+    );
+    assert_eq!(candidate_calls(&over_full_64), 0);
+
+    // Sixty-four exact dot tokens are within the raw bound; 65 are not.
+    let dots_64 = vec!["."; 64].join("\\");
+    let dots_65 = vec!["."; 65].join("\\");
+    let mut at_raw_64 = Port::default();
+    assert_eq!(
+        outcomes(&run(&input(&[Some(&dots_64)]), &mut at_raw_64).unwrap()),
+        vec![unchecked(UncheckedReason::NotRegularFile)]
+    );
+    assert_eq!(candidate_calls(&at_raw_64), 0);
+    let mut over_raw_64 = Port::default();
+    assert_eq!(
+        outcomes(&run(&input(&[Some(&dots_65)]), &mut over_raw_64).unwrap()),
+        vec![unchecked(UncheckedReason::LimitReached)]
+    );
+    assert_eq!(candidate_calls(&over_raw_64), 0);
+
+    // A temporary 65-component stack is rejected even if a later `..` would
+    // have reduced the final candidate back within range.
+    let source = format!("C:\\Projects\\{}\\Song.flp", vec!["d"; 62].join("\\"));
+    let intermediate = input_for(r"C:\Projects", &source, &[Some(r"a\b\..\Kick.wav")]);
+    let mut over_intermediate = Port::default();
+    assert_eq!(
+        outcomes(&run(&intermediate, &mut over_intermediate).unwrap()),
+        vec![unchecked(UncheckedReason::LimitReached)]
+    );
+    assert_eq!(candidate_calls(&over_intermediate), 0);
 }
 
 #[test]
