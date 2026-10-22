@@ -73,7 +73,22 @@ impl Fixture {
         fs::write(&path, b"metadata-only target sentinel").unwrap();
         path
     }
+    fn nest_source(&mut self, name: &str) -> PathBuf {
+        let parent = self.root.join(name);
+        fs::create_dir_all(&parent).unwrap();
+        let source = parent.join("project.flp");
+        fs::rename(&self.source, &source).unwrap();
+        self.source = source;
+        parent
+    }
     fn input(&self, references: &[Option<&Path>]) -> CapturedInput {
+        let values = references
+            .iter()
+            .map(|value| value.map(|path| path.to_str().unwrap()))
+            .collect::<Vec<_>>();
+        self.input_values(&values)
+    }
+    fn input_values(&self, references: &[Option<&str>]) -> CapturedInput {
         let gate = WorkerGate::default();
         let lease = gate.try_start(Arc::new(Clock)).unwrap();
         let operations = Operations::new(lease.control());
@@ -119,7 +134,7 @@ impl Fixture {
             Some(
                 references
                     .iter()
-                    .map(|v| v.map(|p| p.to_str().unwrap().to_owned()))
+                    .map(|value| value.map(str::to_owned))
                     .collect(),
             ),
         )
@@ -694,4 +709,298 @@ fn deliberately_preserved_identity_size_and_timestamp_is_not_a_content_freshness
         outcomes(&run(&input, &mut port).unwrap()),
         vec![Outcome::Present]
     );
+}
+
+#[test]
+fn relative_candidates_start_at_the_qualified_source_parent_and_allow_an_in_root_sibling() {
+    let mut fixture = Fixture::new();
+    let project_parent = fixture.nest_source("Albums");
+    let local_samples = project_parent.join("Samples");
+    fs::create_dir(&local_samples).unwrap();
+    let local_sample = local_samples.join("Kick.wav");
+    fs::write(&local_sample, b"source-parent sentinel").unwrap();
+    let root_samples = fixture.root.join("Samples");
+    fs::create_dir(&root_samples).unwrap();
+    let root_sentinel = root_samples.join("Kick.wav");
+    fs::create_dir(&root_sentinel).unwrap();
+    let root_sentinel_bytes = root_sentinel.join("contents.bin");
+    fs::write(&root_sentinel_bytes, b"selected-root directory sentinel").unwrap();
+    let sibling = fixture.root.join("Kick.wav");
+    fs::write(&sibling, b"parent-relative sibling sentinel").unwrap();
+    let source_before = fs::read(&fixture.source).unwrap();
+    let local_before = fs::read(&local_sample).unwrap();
+    let root_before = fs::read(&root_sentinel_bytes).unwrap();
+    let sibling_before = fs::read(&sibling).unwrap();
+    let input = fixture.input_values(&[Some("Samples\\Kick.wav"), Some("..\\Kick.wav")]);
+    let queries = Arc::new(Mutex::new(Vec::new()));
+    let recorded = queries.clone();
+    let mut source_qualified = false;
+    let mut port = WindowsPort::new(Fence::default());
+    port.hook = Some(Box::new(move |stage, name| {
+        if stage == TestStage::AfterOpen && name == "project.flp" && !source_qualified {
+            source_qualified = true;
+        } else if stage == TestStage::BeforeQuery && source_qualified {
+            recorded.lock().unwrap().push(name.to_owned());
+        }
+    }));
+
+    assert_eq!(
+        outcomes(&run(&input, &mut port).unwrap()),
+        [Outcome::Present, Outcome::Present]
+    );
+    assert_eq!(
+        *queries.lock().unwrap(),
+        [
+            "Albums",
+            "Samples",
+            "Kick.wav",
+            "Kick.wav",
+            "projects",
+            "project.flp"
+        ]
+    );
+    assert_eq!(fs::read(&fixture.source).unwrap(), source_before);
+    assert_eq!(fs::read(&local_sample).unwrap(), local_before);
+    assert_eq!(fs::read(&root_sentinel_bytes).unwrap(), root_before);
+    assert_eq!(fs::read(&sibling).unwrap(), sibling_before);
+}
+
+#[test]
+fn cancelled_missing_relative_components_are_not_queried_but_survivors_are() {
+    let mut fixture = Fixture::new();
+    let project_parent = fixture.nest_source("Albums");
+    let survivor = project_parent.join("Kick.wav");
+    fs::write(&survivor, b"surviving candidate sentinel").unwrap();
+    let input = fixture.input_values(&[Some("Missing\\..\\Kick.wav")]);
+    let queries = Arc::new(Mutex::new(Vec::new()));
+    let recorded = queries.clone();
+    let mut source_qualified = false;
+    let mut port = WindowsPort::new(Fence::default());
+    port.hook = Some(Box::new(move |stage, name| {
+        if stage == TestStage::AfterOpen && name == "project.flp" && !source_qualified {
+            source_qualified = true;
+        } else if stage == TestStage::BeforeQuery && source_qualified {
+            recorded.lock().unwrap().push(name.to_owned());
+        }
+    }));
+
+    assert_eq!(
+        outcomes(&run(&input, &mut port).unwrap()),
+        [Outcome::Present]
+    );
+    assert_eq!(
+        *queries.lock().unwrap(),
+        ["Albums", "Kick.wav", "projects", "project.flp"]
+    );
+}
+
+#[test]
+fn relative_root_equality_escape_and_cancelled_invalid_components_do_no_candidate_queries() {
+    let mut fixture = Fixture::new();
+    fixture.nest_source("Albums");
+    let input = fixture.input_values(&[
+        Some(".."),
+        Some("..\\..\\escape-sentinel.wav"),
+        Some("bad*name\\..\\Kick.wav"),
+        Some("Missing\\$CACHE\\..\\Kick.wav"),
+    ]);
+    let queries = Arc::new(Mutex::new(Vec::new()));
+    let recorded = queries.clone();
+    let mut port = WindowsPort::new(Fence::default());
+    port.hook = Some(Box::new(move |stage, name| {
+        if stage == TestStage::BeforeQuery {
+            recorded.lock().unwrap().push(name.to_owned());
+        }
+    }));
+
+    assert_eq!(
+        outcomes(&run(&input, &mut port).unwrap()),
+        [
+            unchecked(UncheckedReason::NotRegularFile),
+            unchecked(UncheckedReason::OutsideRoot),
+            unchecked(UncheckedReason::UnsupportedPathSyntax),
+            unchecked(UncheckedReason::UnresolvedPlaceholder),
+        ]
+    );
+    // Qualification and the final source/root fence still run. Neither the
+    // root-equal nor escaped/invalid candidate opens any child component.
+    assert_eq!(
+        *queries.lock().unwrap(),
+        [
+            "projects",
+            "Albums",
+            "project.flp",
+            "projects",
+            "project.flp"
+        ]
+    );
+}
+
+#[test]
+fn relative_case_and_unicode_lookup_preserves_ntfs_directory_semantics() {
+    let mut fixture = Fixture::new();
+    let project_parent = fixture.nest_source("Albums");
+    let insensitive = project_parent.join("Insensitive");
+    fs::create_dir(&insensitive).unwrap();
+    fs::write(insensitive.join("Kick.wav"), b"insensitive case sentinel").unwrap();
+    let sensitive = project_parent.join("Sensitive");
+    fs::create_dir(&sensitive).unwrap();
+    let handle = OpenOptions::new()
+        .access_mode(0x100)
+        .custom_flags(0x2000000)
+        .open(&sensitive)
+        .unwrap();
+    assert!(
+        ffi::set_case_sensitive(&handle),
+        "owned NTFS case-mode fixture setup failed"
+    );
+    drop(handle);
+    fs::write(sensitive.join("Kick.wav"), b"sensitive case sentinel").unwrap();
+    let unicode = project_parent.join("Unicode");
+    fs::create_dir(&unicode).unwrap();
+    fs::write(unicode.join("éŸ音.wav"), b"unicode spelling sentinel").unwrap();
+    fs::write(unicode.join("café.wav"), b"composed Unicode sentinel").unwrap();
+    let input = fixture.input_values(&[
+        Some("Insensitive\\kick.wav"),
+        Some("Sensitive\\Kick.wav"),
+        Some("Sensitive\\kick.wav"),
+        Some("Unicode\\éŸ音.wav"),
+        Some("Unicode\\cafe\u{301}.wav"),
+    ]);
+
+    assert_eq!(
+        outcomes(&run(&input, &mut WindowsPort::new(Fence::default())).unwrap()),
+        [
+            Outcome::Present,
+            Outcome::Present,
+            Outcome::NotFound,
+            Outcome::Present,
+            Outcome::NotFound,
+        ]
+    );
+}
+
+#[test]
+fn relative_authoritative_absence_is_distinct_from_metadata_denial() {
+    let mut fixture = Fixture::new();
+    let project_parent = fixture.nest_source("Albums");
+    let samples = project_parent.join("Samples");
+    fs::create_dir(&samples).unwrap();
+    let denied = samples.join("denied.wav");
+    fs::write(&denied, b"denied candidate sentinel").unwrap();
+    let input = fixture.input_values(&[
+        Some("Samples\\authoritatively-absent.wav"),
+        Some("Samples\\denied.wav"),
+    ]);
+    let _restore = ffi::deny_read_attributes(&denied);
+
+    assert_eq!(
+        outcomes(&run(&input, &mut WindowsPort::new(Fence::default())).unwrap()),
+        [Outcome::NotFound, unchecked(UncheckedReason::AccessDenied)]
+    );
+}
+
+#[test]
+fn injected_relative_offline_and_recall_attributes_stop_before_candidate_open() {
+    for bit in [0x400, 0x1000, 0x40000, 0x400000] {
+        let mut fixture = Fixture::new();
+        let project_parent = fixture.nest_source("Albums");
+        let samples = project_parent.join("Samples");
+        fs::create_dir(&samples).unwrap();
+        fs::write(samples.join("excluded.wav"), b"excluded candidate sentinel").unwrap();
+        let input = fixture.input_values(&[Some("Samples\\excluded.wav")]);
+        let opens = Arc::new(Mutex::new(0));
+        let counter = opens.clone();
+        let mut port = WindowsPort::new(Fence::default());
+        port.attributes_filter = Some(Box::new(move |name, basic| {
+            if name == "excluded.wav" {
+                basic.attributes |= bit;
+            }
+        }));
+        port.hook = Some(Box::new(move |stage, name| {
+            if stage == TestStage::BeforeOpen && name == "excluded.wav" {
+                *counter.lock().unwrap() += 1;
+            }
+        }));
+
+        assert_eq!(
+            outcomes(&run(&input, &mut port).unwrap()),
+            [unchecked(UncheckedReason::ReparseOrOffline)]
+        );
+        assert_eq!(*opens.lock().unwrap(), 0);
+    }
+}
+
+#[test]
+fn relative_reparse_replacement_race_never_opens_the_outside_target() {
+    let mut fixture = Fixture::new();
+    let project_parent = fixture.nest_source("Albums");
+    let directory = project_parent.join("race");
+    fs::create_dir(&directory).unwrap();
+    let outside = fixture.base.join("outside");
+    fs::create_dir(&outside).unwrap();
+    let outside_target = outside.join("x.wav");
+    fs::write(&outside_target, b"outside sentinel").unwrap();
+    let source_before = fs::read(&fixture.source).unwrap();
+    let target_before = fs::read(&outside_target).unwrap();
+    let input = fixture.input_values(&[Some("race\\x.wav")]);
+    let old = project_parent.join("old-race");
+    let links = fixture.links.clone();
+    let mut port = WindowsPort::new(Fence::default());
+    port.hook = Some(Box::new(move |stage, name| {
+        if stage == TestStage::BeforeOpen && name == "race" {
+            fs::rename(&directory, &old).unwrap();
+            links.lock().unwrap().push(directory.clone());
+            ffi::junction(&directory, &outside);
+        }
+    }));
+
+    assert_eq!(
+        outcomes(&run(&input, &mut port).unwrap()),
+        [unchecked(UncheckedReason::ReparseOrOffline)]
+    );
+    assert_eq!(fs::read(&fixture.source).unwrap(), source_before);
+    assert_eq!(fs::read(&outside_target).unwrap(), target_before);
+}
+
+#[test]
+fn relative_candidate_probe_is_discarded_after_source_save_replacement_or_revocation() {
+    for change in 0..3 {
+        let mut fixture = Fixture::new();
+        let project_parent = fixture.nest_source("Albums");
+        let samples = project_parent.join("Samples");
+        fs::create_dir(&samples).unwrap();
+        let target = samples.join("trigger.wav");
+        fs::write(&target, b"relative target sentinel").unwrap();
+        let target_before = fs::read(&target).unwrap();
+        let source_before = fs::read(&fixture.source).unwrap();
+        let source = fixture.source.clone();
+        let old_source = project_parent.join("old-project.flp");
+        let input = fixture.input_values(&[Some("Samples\\trigger.wav")]);
+        let fence = Fence::default();
+        let revoked = fence.revoked.clone();
+        let probed = Arc::new(AtomicBool::new(false));
+        let observed = probed.clone();
+        let mut port = WindowsPort::new(fence);
+        port.hook = Some(Box::new(move |stage, name| {
+            if stage == TestStage::AfterOpen && name == "trigger.wav" {
+                observed.store(true, Ordering::SeqCst);
+                match change {
+                    0 => fs::write(&source, b"ordinary relative-project save").unwrap(),
+                    1 => {
+                        fs::rename(&source, &old_source).unwrap();
+                        fs::write(&source, b"replacement relative-project object").unwrap();
+                    }
+                    _ => revoked.store(true, Ordering::SeqCst),
+                }
+            }
+        }));
+
+        assert!(matches!(run(&input, &mut port), Err(RequestFailure::Stale)));
+        assert!(probed.load(Ordering::SeqCst));
+        assert_eq!(fs::read(&target).unwrap(), target_before);
+        if change == 2 {
+            assert_eq!(fs::read(&fixture.source).unwrap(), source_before);
+        }
+    }
 }
