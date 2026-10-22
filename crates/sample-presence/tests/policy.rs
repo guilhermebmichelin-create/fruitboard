@@ -469,11 +469,11 @@ fn relative_component_spelling_is_preserved_for_the_qualified_port() {
     assert_eq!(
         child_calls(&port),
         vec![
-            "child:Albums",
-            r"child:Albums\Samples",
+            "child:Albums".to_owned(),
+            r"child:Albums\Samples".to_owned(),
             format!("child:Albums\\{composed}"),
-            "child:Albums",
-            r"child:Albums\Samples",
+            "child:Albums".to_owned(),
+            r"child:Albums\Samples".to_owned(),
             format!("child:Albums\\{decomposed}"),
         ]
     );
