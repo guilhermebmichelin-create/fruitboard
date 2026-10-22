@@ -822,18 +822,27 @@ fn relative_root_equality_escape_and_cancelled_invalid_components_do_no_candidat
             unchecked(UncheckedReason::UnresolvedPlaceholder),
         ]
     );
-    // Qualification and the final source/root fence still run. Neither the
-    // root-equal nor escaped/invalid candidate opens any child component.
-    assert_eq!(
-        *queries.lock().unwrap(),
-        [
-            "projects",
-            "Albums",
-            "project.flp",
-            "projects",
-            "project.flp"
-        ]
-    );
+    // Qualification opens the full dynamically constructed root chain, then
+    // its source parent/name. Revalidation reopens the exact root and source
+    // bindings. None of the root-equal, escaped, or invalid candidate names
+    // may appear in this exact sequence.
+    let root_components = fixture
+        .root
+        .components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(name) => Some(name.to_str().unwrap().to_owned()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let root_name = root_components.last().unwrap().clone();
+    let mut expected_queries = root_components;
+    expected_queries.extend([
+        "Albums".to_owned(),
+        "project.flp".to_owned(),
+        root_name,
+        "project.flp".to_owned(),
+    ]);
+    assert_eq!(*queries.lock().unwrap(), expected_queries);
 }
 
 #[test]
