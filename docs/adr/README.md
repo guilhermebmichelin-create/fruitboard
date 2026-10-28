@@ -14,4 +14,4 @@ silently rewriting implementation history.
 | [ADR-005](005-google-drive-sync.md) | Drive app-data operation-log synchronization | Accepted |
 | [ADR-006](006-shared-client-architecture.md) | Shared desktop/PWA client architecture | Accepted |
 | [ADR-007](007-sample-presence-boundary.md) | Bounded checks for saved sample paths | Accepted; absolute-path slice |
-| [ADR-008](008-project-relative-sample-candidates.md) | Project-relative sample candidates | Proposed; issue #332 native-authority review and owner decision |
+| [ADR-008](008-project-relative-sample-candidates.md) | Project-relative sample candidates | Accepted 2026-10-21; scoped #332 native review; implementation #347 pending |
