@@ -23,14 +23,14 @@ export type UncheckedReason = (typeof UNCHECKED_REASONS)[number];
 export const UNCHECKED_COPY: Readonly<Record<UncheckedReason, string>> = {
   outside_root: "Outside the selected folder.",
   unsupported_path_syntax: "This saved path format is not supported.",
-  relative_reference: "Relative references cannot be checked yet.",
+  relative_reference: "This relative reference could not be checked.",
   unresolved_placeholder: "This reference contains an unresolved placeholder.",
   unqualified_filesystem:
     "The source folder could not be qualified as local NTFS.",
   unsupported_case_mode: "This path's letter case could not be matched safely.",
   reparse_or_offline: "A linked or offline location cannot be checked.",
   access_denied: "Metadata access was denied.",
-  not_regular_file: "This saved path does not name an ordinary file.",
+  not_regular_file: "The checked location is not an ordinary file.",
   limit_reached: "The check reached its work limit.",
   deadline: "The check reached its time limit.",
   cancelled: "The check was cancelled.",
