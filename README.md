@@ -3,11 +3,12 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Current status - 2026-10-27
+## Current status - 2026-10-28
 
-Merged baseline: `ce4331e9004f1a7f363f45106adaa192d1f635fb`
-([PR #334](https://github.com/guilhermebmichelin-create/fruitboard/pull/334),
-installed resource evidence). The application includes the current-metadata
+Merged baseline: `7a7aed6fc703b85ad91c79159715b3fefec1da91`
+([PR #350](https://github.com/guilhermebmichelin-create/fruitboard/pull/350),
+shared dependency security repairs), including PR335's stopped resource report.
+The application includes the current-metadata
 read-path change from [PR #321](https://github.com/guilhermebmichelin-create/fruitboard/pull/321),
 merged as `803ef43`. It consolidates current Plugin Explorer reads under
 existing freshness checks; its measurements did not establish a speedup or
@@ -36,9 +37,11 @@ next work.
   resolution remain open. See the
   [sample-check review](docs/review/sample-presence-ui-284/README.md) and
   [mixer slice](docs/review/library-mixer-inserts-304/README.md).
-  Draft [PR #348](https://github.com/guilhermebmichelin-create/fruitboard/pull/348)
+  [PR #348](https://github.com/guilhermebmichelin-create/fruitboard/pull/348)
   implements the owner-accepted same-root project-relative candidate rule;
-  it remains unmerged, with required checks and installed validation pending.
+  its [installed correctness and accessibility review](docs/review/project-relative-installed-20261028/README.md)
+  passes. It remains unmerged pending final updated-head checks. This does not
+  establish FL Studio resolution or complete G5.
 - **Compatibility and automation**: the approved parser corpus now has 21
   files. [PR #320](https://github.com/guilhermebmichelin-create/fruitboard/pull/320)
   adds the exact-build F22 cloned-Sampler case; [PR #323](https://github.com/guilhermebmichelin-create/fruitboard/pull/323)
@@ -57,7 +60,7 @@ next work.
   repeat that did not establish its cause or a product fix. Shutdown diagnostics
   and trace validation have since shipped in PR329/PR331. The
   [current installed review](docs/review/resource-current-20261018/README.md)
-  adds guarded IPC/UI observations. Open
+  adds guarded IPC/UI observations. Merged
   [PR #335](https://github.com/guilhermebmichelin-create/fruitboard/pull/335)
   records a stopped remainder run after a failed CPU guard. Resource decisions,
   remaining measurements and the Phase 3 checkpoint stay open.
