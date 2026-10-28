@@ -197,10 +197,12 @@ impl Fixture {
             json!({"status":"unavailable","reason":"FILESYSTEM_CREATION_TIME_UNAVAILABLE"});
         // Constructed host projection, not a claim that these paths came from FL.
         raw["sampleReferences"] = if nested_source_parent {
-            json!({"status":"extracted","items":[
-                {"status":"extracted","value":"Missing\\..\\Samples\\Kick.wav"},
-                {"status":"extracted","value":"Samples\\absent.wav"},
-                {"status":"extracted","value":"..\\..\\escape.wav"}]})
+            // Parser replies carry an extracted list in `value`; storage
+            // converts it to per-channel `items` only after validation.
+            json!({"status":"extracted","value":[
+                "Missing\\..\\Samples\\Kick.wav",
+                "Samples\\absent.wav",
+                "..\\..\\escape.wav"]})
         } else {
             json!({"status":"unavailable","reason":"SAMPLE_REFERENCE_NOT_STORED","items":[
                 {"status":"extracted","value":target.to_str().unwrap()},
@@ -422,8 +424,10 @@ fn current_authorized_command_checks_nested_relative_candidates_without_leaking_
 
 #[test]
 #[cfg(windows)]
-fn relative_provisional_reports_obey_root_snapshot_cancel_deadline_shutdown_and_admission_fences() {
-    for change in ["root", "snapshot", "cancel", "deadline", "shutdown"] {
+fn relative_reports_awaiting_delivery_obey_root_snapshot_cancel_shutdown_and_admission_fences() {
+    // `check` has already published its library result here. Deadlines apply
+    // before that publication; transport still fences root/snapshot/cancel.
+    for change in ["root", "snapshot", "cancel", "shutdown"] {
         let fixture = Fixture::new_relative();
         let request = fixture.request.clone();
         let (ticket, release, retired, provisional) =
@@ -457,7 +461,6 @@ fn relative_provisional_reports_obey_root_snapshot_cancel_deadline_shutdown_and_
                 fixture.host().cancel(&request);
                 "cancelled"
             }
-            "deadline" => "deadline",
             _ => {
                 fixture.host().shutdown();
                 "stale"
@@ -470,12 +473,63 @@ fn relative_provisional_reports_obey_root_snapshot_cancel_deadline_shutdown_and_
         next.request_id = format!("next-{change}");
         assert_eq!(
             response(fixture.host().begin(next, 1000).unwrap()).state,
-            "busy",
-            "{change} released single-worker admission before retirement"
+            if change == "shutdown" {
+                "stale"
+            } else {
+                "busy"
+            },
+            "{change} admitted work before retirement or after shutdown"
         );
         release.send(()).unwrap();
         await_retirement(&fixture, retired);
     }
+}
+
+#[test]
+#[cfg(windows)]
+fn relative_deadline_rejects_a_late_native_check_without_releasing_admission() {
+    let fixture = Fixture::new_relative();
+    let request = fixture.request.clone();
+    let (started, ready) = mpsc::channel();
+    let (release, wait) = mpsc::channel();
+    let (finished, result) = mpsc::channel();
+    let prepared = fixture
+        .host()
+        .begin_with(
+            request.clone(),
+            1000,
+            move |capture, lease, authorization, now| {
+                started.send(()).unwrap();
+                // Pause while the lease is active, before `check` can publish.
+                wait.recv_timeout(Duration::from_secs(5)).unwrap();
+                let report = fruitboard_sample_presence::check(
+                    &capture.input,
+                    lease,
+                    &mut fruitboard_sample_presence::native::WindowsPort::new(authorization),
+                    now,
+                );
+                finished.send(report.as_ref().err().copied()).unwrap();
+                report
+            },
+        )
+        .unwrap();
+    ready.recv_timeout(Duration::from_secs(2)).unwrap();
+    let Prepared::Worker(ticket) = prepared else {
+        panic!("expected a relative candidate worker")
+    };
+    let reply = ticket.wait();
+    assert_eq!(reply.state, "deadline");
+    assert!(reply.report.is_none());
+    let mut next = request;
+    next.request_id = "next-relative-deadline".into();
+    let next_state = response(fixture.host().begin(next, 1000).unwrap()).state;
+    // Always release the owned worker before asserting the admission result.
+    release.send(()).unwrap();
+    assert_eq!(next_state, "busy");
+    assert_eq!(
+        result.recv_timeout(Duration::from_secs(2)).unwrap(),
+        Some(RequestFailure::Deadline)
+    );
 }
 
 #[test]
@@ -567,7 +621,7 @@ fn relative_provisional_after_check(
                 now,
             )?;
             probed.send(report.to_json()?).unwrap();
-            wait.recv().unwrap();
+            wait.recv_timeout(Duration::from_secs(5)).unwrap();
             done.send(()).unwrap();
             Ok(report)
         })
