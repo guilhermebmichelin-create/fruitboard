@@ -37,9 +37,12 @@ project-management phases remain unfinished.
   startup CPU guard failed. The remaining startup/memory/refusal and native
   resource windows remain unqualified; merging a report accepts no budget.
 - Open [PR350](https://github.com/guilhermebmichelin-create/fruitboard/pull/350)
-  patches markdown-it security advisories and has 15 successful checks. That
-  prerequisite is already included in PR348's branch; it remains separately
-  available for owner merge. Dependency update PRs are separate work.
+  originally patched markdown-it with 15 successful checks on `430bc06`.
+  The October 27 rerun then found new high/moderate advisories in indirect
+  development dependencies zod and undici. PR350 now also pins their patched
+  releases, zod 4.6.6 and undici 8.12.2, at `1f4cacb`. Its updated-head checks
+  are required again. The prerequisite is included in PR348's branch and
+  remains separately available for owner merge.
 
 These are dated source and tracker observations, not new installed or
 performance evidence. Historical measurements keep their original sources,
@@ -75,9 +78,10 @@ publication, before transport delivery. Shutdown correctly returns `stale`
 for new work; other still-running cases return `busy`. The delivery helper's
 pause is bounded to avoid an indefinite wait on assertion failure.
 
-This work owns only those host-test corrections and this current-status/handoff
-documentation in the existing checkout and PR. It does not add a new feature,
-change parser/storage contracts or promote a static review to executed proof.
+The feature correction owns those host tests and this status/handoff
+documentation. The newly discovered security prerequisite is isolated in
+PR350 and merged into the feature branch. Neither changes product runtime
+code, parser/storage contracts or a phase gate.
 
 ## Validation of this correction
 
@@ -90,6 +94,13 @@ change parser/storage contracts or promote a static review to executed proof.
   `838622c`; subsequent status edits change documentation only.
 - Scoped Markdown lint, Prettier, repository privacy and `git diff --check`
   passed. All 21 approved fixture SHA-256 values match the retained baseline.
+- The patched JavaScript dependencies pass frozen installation and
+  `pnpm audit --audit-level moderate`; one low-severity finding remains below
+  the unchanged threshold. Client ESLint and TypeScript checks passed on the
+  security prerequisite. Local Vitest attempts stalled before reporting test
+  results, including a bounded worker/fork retry; their owned processes were
+  stopped and logs retained. No client test pass is claimed for the dependency
+  update; updated-head client CI remains required.
 - Local `pnpm check` and installed validation are not claimed. This correction
   changes test code and documentation only. The earlier Windows gate passed
   its default integrated check and scan-console tests before failing the
@@ -131,7 +142,9 @@ installed-run preparation remain in the sibling `project-relative-20261021`
 evidence directory.
 
 C: initially had approximately 30.93 GiB free; G: had approximately 12.39 GiB
-and is not used. A full build/installer needs a new capacity preflight and an
+and is not used. Later capacity rose to approximately 34.7 GiB without any
+task-owned cleanup; no reclaimed-space claim follows. A full build/installer
+needs a new capacity preflight and an
 honest output allowance, retaining 30 GiB afterward. Do not start it simply
 because a small incremental test fits. Reuse the existing cache sequentially,
 with one owner and no concurrent heavyweight work; installed testing also
