@@ -267,3 +267,16 @@ test("CodeQL initialization and analysis use the same reviewed release", () => {
     "CodeQL cannot mix initialization and analysis versions",
   );
 });
+
+test("Dependabot proposes CodeQL action steps together", () => {
+  const dependabot = readRootFile(".github/dependabot.yml");
+  const actions = dependabot.split(
+    "  - package-ecosystem: github-actions\n",
+  )[1];
+  assert.ok(actions, "GitHub Actions updates must remain enabled");
+  assert.match(
+    actions,
+    /groups:\n\s+codeql-action:\n\s+patterns:\n\s+- "github\/codeql-action\/\*"/,
+    "CodeQL init and analyze updates must be proposed as one group",
+  );
+});
