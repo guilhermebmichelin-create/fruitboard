@@ -5,7 +5,7 @@ analyzing, and finishing music.
 
 ## Current status - 2026-10-28
 
-Merged baseline: `7a7aed6fc703b85ad91c79159715b3fefec1da91`
+This review starts from merged baseline `7a7aed6fc703b85ad91c79159715b3fefec1da91`
 ([PR #350](https://github.com/guilhermebmichelin-create/fruitboard/pull/350),
 shared dependency security repairs), including PR335's stopped resource report.
 The application includes the current-metadata
@@ -32,16 +32,17 @@ next work.
 - **Library**: the development workflow displays saved facts, channels, inert
   sample/plugin references, Plugin Explorer groups, pattern names/counts,
   note-record counts, and qualified mixer record names. Explicit sample checks
-  observe metadata only for eligible literal absolute paths inside the
-  selected local NTFS root; relative, placeholder, external-folder, and cloud
-  resolution remain open. See the
+  observe metadata for eligible literal absolute paths and bounded project-relative
+  candidates inside the selected local NTFS root. Placeholder, external-folder
+  and cloud resolution remain open. See the
   [sample-check review](docs/review/sample-presence-ui-284/README.md) and
   [mixer slice](docs/review/library-mixer-inserts-304/README.md).
   [PR #348](https://github.com/guilhermebmichelin-create/fruitboard/pull/348)
   implements the owner-accepted same-root project-relative candidate rule;
   its [installed correctness and accessibility review](docs/review/project-relative-installed-20261028/README.md)
-  passes. It remains unmerged pending final updated-head checks. This does not
-  establish FL Studio resolution or complete G5.
+  passes. This completes the scoped implementation and installed inspection;
+  normal updated-head CI remains required before merge. It does not establish
+  FL Studio resolution or complete G5.
 - **Compatibility and automation**: the approved parser corpus now has 21
   files. [PR #320](https://github.com/guilhermebmichelin-create/fruitboard/pull/320)
   adds the exact-build F22 cloned-Sampler case; [PR #323](https://github.com/guilhermebmichelin-create/fruitboard/pull/323)
