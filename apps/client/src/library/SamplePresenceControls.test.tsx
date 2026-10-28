@@ -30,7 +30,7 @@ const complete: SampleCheckResult = {
     checkedAt: 1791234567890,
     channels: [
       { position: 1, status: "present" },
-      { position: 2, status: "not_checked", reason: "relative_reference" },
+      { position: 2, status: "not_found" },
       { position: 3, status: "no_saved_reference" },
     ],
   },
@@ -61,18 +61,50 @@ describe("explicit sample check controls", () => {
     );
     expect(adapter.checkSavedSamples).not.toHaveBeenCalled();
     expect(screen.getByText("Selected projects")).toBeTruthy();
+    const scope = screen.getByText(/Absolute paths are checked as saved/);
+    expect(scope.textContent).toContain(
+      "Relative references start in the folder containing this project file",
+    );
+    expect(scope.textContent).toContain(
+      "which may differ from the selected folder",
+    );
+    expect(scope.textContent).toContain(
+      "Checks stay inside the selected folder: Selected projects.",
+    );
+    const interpretation = screen.getByText(/Fruitboard reads/);
+    const compactInterpretation = interpretation.textContent?.replace(
+      /\s+/g,
+      " ",
+    );
+    expect(compactInterpretation).toContain(
+      "A folder step cancelled by .. is not checked on disk.",
+    );
+    expect(compactInterpretation).toContain(
+      "Missing\\..\\Kick.wav checks Kick.wav beside this project file",
+    );
+    expect(compactInterpretation).toContain(
+      "without checking whether Missing exists.",
+    );
     const button = screen.getByRole("button", { name: "Check saved samples" });
     button.focus();
     await user.keyboard("{Enter}");
     expect(await screen.findByText(/Present when checked/)).toBeTruthy();
-    expect(
-      screen.getByText(/Relative references cannot be checked yet/),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(/Results describe when this check ran/),
-    ).toBeTruthy();
+    expect(screen.getByText(/Not found at checked candidate/)).toBeTruthy();
+    const checkTime = screen.getByText(/Checked 3 channel references at/);
+    expect(checkTime.textContent).toContain(
+      new Date(complete.report.checkedAt).toLocaleString(),
+    );
+    expect(checkTime.textContent).toContain(
+      "Results describe when this check ran.",
+    );
+    expect(screen.getByText("C:\\Private\\one.wav")).toBeTruthy();
+    expect(screen.getByText("relative.wav")).toBeTruthy();
     expect(screen.queryByRole("link")).toBeNull();
-    expect(rendered.container.querySelector("audio")).toBeNull();
+    expect(screen.queryByRole("button", { name: /open|play/i })).toBeNull();
+    expect(rendered.container.querySelector("audio,video,iframe")).toBeNull();
+    expect(
+      screen.queryByText(/FL Studio's resolver|FL Studio will load/i),
+    ).toBeNull();
     expect(
       (
         await axe.run(rendered.container, {
@@ -90,6 +122,66 @@ describe("explicit sample check controls", () => {
     expect(adapter.checkSavedSamples.mock.calls[0]?.[0].requestId).not.toBe(
       adapter.checkSavedSamples.mock.calls[1]?.[0].requestId,
     );
+  });
+  it("uses candidate-safe absence wording for absolute and relative saved text", async () => {
+    const absoluteReference = "C:\\Private\\missing.wav";
+    const relativeReference = "Missing\\..\\Kick.wav";
+    const savedSamples: readonly ProjectSampleReference[] = [
+      { position: 1, status: "extracted", value: absoluteReference },
+      { position: 2, status: "extracted", value: relativeReference },
+    ];
+    const absent: SampleCheckResult = {
+      state: "complete",
+      report: {
+        checkedAt: 1791234567890,
+        channels: [
+          { position: 1, status: "not_found" },
+          { position: 2, status: "not_found" },
+        ],
+      },
+    };
+    const check = vi
+      .fn<
+        (
+          r: SampleCheckRequest,
+          s: readonly ProjectSampleReference[],
+        ) => Promise<SampleCheckResult>
+      >()
+      .mockResolvedValue(absent);
+    const { view } = setup(check);
+    const user = userEvent.setup();
+    const rendered = render(
+      <ProjectSamples samples={savedSamples} checkView={view} />,
+    );
+    expect(check).not.toHaveBeenCalled();
+    await user.click(
+      screen.getByRole("button", { name: "Check saved samples" }),
+    );
+    expect(
+      await screen.findAllByText(/Not found at checked candidate/),
+    ).toHaveLength(2);
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(
+      items.map(
+        (item) =>
+          item.querySelector(".project-samples__reference")?.textContent,
+      ),
+    ).toEqual([absoluteReference, relativeReference]);
+    const checkTime = screen.getByText(/Checked 2 channel references at/);
+    expect(checkTime.textContent).toContain(
+      new Date(absent.report.checkedAt).toLocaleString(),
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("button", { name: /open|play/i })).toBeNull();
+    expect(rendered.container.querySelector("audio,video,iframe")).toBeNull();
+    expect(
+      (
+        await axe.run(rendered.container, {
+          rules: { "color-contrast": { enabled: false } },
+        })
+      ).violations,
+    ).toEqual([]);
   });
   it("cancel fences late replies and clears prior results before check-again", async () => {
     let resolve!: (result: SampleCheckResult) => void;
@@ -222,9 +314,7 @@ describe("explicit sample check controls", () => {
         screen.getByRole("button", { name: "Check saved samples" }),
       );
       await waitFor(() => expect(check).toHaveBeenCalled());
-      expect(
-        screen.queryByText(/Not found at saved path when checked/),
-      ).toBeNull();
+      expect(screen.queryByText(/Not found at checked candidate/)).toBeNull();
       expect(
         (
           await axe.run(rendered.container, {
