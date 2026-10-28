@@ -83,7 +83,7 @@ export function ProjectSamples({
                         {result?.status === "present"
                           ? "Present when checked"
                           : result?.status === "not_found"
-                            ? "Not found at saved path when checked"
+                            ? "Not found at checked candidate"
                             : "Location not checked"}
                       </span>
                       {result?.status === "not_checked" && (

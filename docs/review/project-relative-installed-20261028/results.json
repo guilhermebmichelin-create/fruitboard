@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "reviewDate": "2026-10-28",
+  "result": "installed correctness and accessibility passed; no performance or FL Studio resolver qualification",
+  "source": {
+    "commit": "5ff89546251fe92171b0fa306c173074e5ceff75",
+    "tree": "b048eff8197a4ed680e80db947b8989f12474cf8",
+    "features": "analysis-jobs",
+    "toolchain": {
+      "node": "24.20.0",
+      "pnpm": "11.25.0",
+      "rust": "1.98.1"
+    }
+  },
+  "nativeChecks": {
+    "analysisJobsPassed": 169,
+    "failed": 0,
+    "existingIgnored": 4,
+    "clippyWarningsDeniedPassed": true,
+    "sidecarBuildPassed": true,
+    "nsisBuildPassed": true
+  },
+  "packageArtifacts": [
+    {
+      "role": "installer",
+      "bytes": 3337729,
+      "sha256": "4013a92812917fb4b627cbfe1d70cda41efe02ddf0f4bca4c3156f1ab18db6d5",
+      "links": 1
+    },
+    {
+      "role": "postTauriApp",
+      "bytes": 11084800,
+      "sha256": "f8580fa229d6198b343d9cc6985cb266a76559d09d35dc9254584e6e016ddf3b",
+      "links": 1
+    },
+    {
+      "role": "parserSidecar",
+      "bytes": 575488,
+      "sha256": "b60b67d05f1657ee3d2187df34903596f92245d311aa198164ddaaab1d6b3142",
+      "links": 1
+    },
+    {
+      "role": "smokeSidecar",
+      "bytes": 156160,
+      "sha256": "f20810a72f6be8e437e520a54da42e9b800f92f3ec32c31b56b81a812814c7c6",
+      "links": 1
+    }
+  ],
+  "retainedHostTest": {
+    "sha256": "bb76e97fc25fe1a04e69788d3b24d5a4b1becb8393ab12f7f63f65b09a0d135c",
+    "bytes": 14894080,
+    "links": 1,
+    "filter": "foundation::sample_check::host::tests::current_authorized_command_checks_nested_relative_candidates_without_leaking_paths_or_mutating_files"
+  },
+  "installedDesktop": {
+    "sha256": "36eab4c6569068072738c6b88f4c956fe570707217694d1f9c89aa1c6e6ddce6",
+    "postTauriSha256": "f8580fa229d6198b343d9cc6985cb266a76559d09d35dc9254584e6e016ddf3b",
+    "distinctFromPostTauri": true
+  },
+  "checks": {
+    "constructedCandidatePolicyOnly": true,
+    "flStudioCompatibilityClaim": false,
+    "performanceQualified": false,
+    "nativeChannels": [
+      {
+        "position": 1,
+        "status": "present"
+      },
+      {
+        "position": 2,
+        "status": "not_found"
+      },
+      {
+        "position": 3,
+        "status": "not_checked",
+        "reason": "outside_root"
+      }
+    ],
+    "originalReferencesShown": true,
+    "implicitCheckOnDetailsOpen": false,
+    "requestAndResponsePathFree": true,
+    "candidateSafeCopyAndTime": true,
+    "keyboardCheckCancelFocus": true,
+    "completedReplyTransportDelayInjected": true,
+    "kernelCancellationClaim": false,
+    "ephemeralReportClearedOnRestart": true,
+    "staleSnapshotAndRootRevocationChecked": true,
+    "axeViolations": 0,
+    "axeIncomplete": 0,
+    "narrowViewportCssPx": 390,
+    "enlargedDefaultTextPx": 32,
+    "horizontalOverflow": false
+  },
+  "screenshots": [
+    {
+      "name": "relative-idle-before-assertions.png",
+      "sha256": "2950524c258a5bde7ec709e6c1f995c8c65cff6948d555b2eaf2660cbb0b1a5c"
+    },
+    {
+      "name": "relative-idle-desktop.png",
+      "sha256": "2950524c258a5bde7ec709e6c1f995c8c65cff6948d555b2eaf2660cbb0b1a5c"
+    },
+    {
+      "name": "relative-results-desktop.png",
+      "sha256": "5ad86df5d55538db3218c04855d3476b2bf408cd01fc0cd637a1427db4fe2e3b"
+    },
+    {
+      "name": "relative-checking-desktop.png",
+      "sha256": "0723c7ddabfc55479b00bc8171ab782eefebb0660a2a7e358d390e82015f1b9f"
+    },
+    {
+      "name": "relative-cancelled-desktop.png",
+      "sha256": "fce1b670147ec1adbbdba1995bbb9de6d4e6e5f03737c95b08e196310878e951"
+    },
+    {
+      "name": "relative-idle-narrow-390.png",
+      "sha256": "f28c1fbda65b1a1d3b388361be6e95917231a42812cc71a18d00270def75eafd"
+    },
+    {
+      "name": "relative-results-narrow-390.png",
+      "sha256": "5c915adf8f1cc6ec72b8046a60ba5fa5b335d9b1dc7cf8849c0b451b03d888ab"
+    },
+    {
+      "name": "relative-idle-narrow-390-text-32px.png",
+      "sha256": "fe87e8b65cbea3ead150ac55386b11877765fbca2581394f1747e07205a9e222"
+    },
+    {
+      "name": "relative-results-narrow-390-text-32px.png",
+      "sha256": "499401918e848c6e0381748fff0e46855d7377d169256636804ff627352a888b"
+    }
+  ],
+  "preservation": {
+    "approvedFixtureCount": 21,
+    "protectedProfileFileCount": 671,
+    "approvedCorpusUnchanged": true,
+    "protectedProfilesUnchanged": true,
+    "sourceTargetSentinelUnchanged": true,
+    "databaseIndependentlyRetained": true
+  },
+  "cleanup": {
+    "productUninstalled": true,
+    "registrationRemoved": true,
+    "hostLeaseReleased": true,
+    "verified": true,
+    "singleCloseDeadlineMs": 10000,
+    "appLaunches": 2,
+    "closeRequestPerLaunch": 1,
+    "exitCodePerLaunch": 0
+  },
+  "receipts": {
+    "verificationSha256": "1b2193ca11f3ee88de8b436c17c289d4b63e7e65a43f08c1cf5aa616448b52e5",
+    "driverSha256": "0aaa34536be07ba48c4944c8c6e66bcb4701e8eccaf8b62d5b5ec6aa9577de95",
+    "cleanupSha256": "22d781a425aec6e8088974b7b45311f175aef1cbd01b230cb528ec2ace65c378",
+    "packageManifestSha256": "f909be831f36f85caabdde94a13cef85d07c23e1eac96eb3a588a93d59de9b51",
+    "hostTestManifestSha256": "d5c2532f676ce36688b91132761c02e305fa9d28bc003a24b16ef707d5e2db4a"
+  },
+  "previousAttempts": [
+    {
+      "attempt": 1,
+      "countedAsPass": false,
+      "preserved": true,
+      "cleanup-error_jsonSha256": "8e7577b73a0ff462635bb079db2126492ecc7bec60ba3ea52f96f93372d15c0f",
+      "operator-recovery_jsonSha256": "0d76e613667014f62d929101af265a9e15b52206c30ccca2f513ec4abd2c45a5"
+    },
+    {
+      "attempt": 2,
+      "countedAsPass": false,
+      "preserved": true,
+      "driver-complete_jsonSha256": "45f9fa06721ff367d7e611e33bbf539f04e6d4348f3cda532b0ce939c77f4566",
+      "cleanup-error_jsonSha256": "1d89e141ea247e82bb8a85ad1febeb8f9a7a4e1cf05ad79ccfdacb1164f862a2",
+      "operator-recovery_jsonSha256": "d49ff23d238231ee4c16f1955e0d2885105e3d805cd3d10470ae26769c364acc"
+    },
+    {
+      "attempt": 3,
+      "countedAsPass": false,
+      "preserved": true,
+      "driver-complete_jsonSha256": "4328c1003ef4e4ea1fe54a61d36f918961f91dcc34dcf82d260cfac8f1438eda",
+      "cleanup-error_jsonSha256": "6bc756e559169bc5cb4a91cb2c33cecdc9f4c34765d5b2f215d24fddf4273938",
+      "operator-recovery_jsonSha256": "cdb4b5397a16beddc2c389b58f9d4196054e16b8f7d0f7a4c9aae1865b289e02"
+    },
+    {
+      "attempt": 4,
+      "countedAsPass": false,
+      "preserved": true,
+      "driver-complete_jsonSha256": "6a0a71ee2e0168dde7460a48fceb0c03de800e88ff6df138feaedca8877b45ec",
+      "cleanup_jsonSha256": "5c9710d15d280121aa660712d890488736355f6f0bf3f72525f8954ca11e2ae9"
+    },
+    {
+      "attempt": 5,
+      "countedAsPass": false,
+      "preserved": true,
+      "driver-complete_jsonSha256": "0be1ef972ff30577e28c568092bba5f4165d61d2952604113458d2029a072c7b",
+      "cleanup_jsonSha256": "30c982d1faf0f4cfeebfa81d31a913be45f19b76ed57fb69f8a9f083187f601f"
+    },
+    {
+      "attempt": 6,
+      "countedAsPass": false,
+      "preserved": true,
+      "driver-complete_jsonSha256": "40233a22d7e2406e12e7c734f084cc45b49e977c324700d1dfe88030105c6c32",
+      "cleanup_jsonSha256": "7b7aae92e7fdc3c99be5605cc0990545c36ba33be18ddbb331984014114041ff"
+    },
+    {
+      "attempt": 7,
+      "countedAsPass": false,
+      "preserved": true,
+      "driver-complete_jsonSha256": "4e61c76b5478a68216b83f883718b858df0e2fe9df476b30d6fcd72e3458da2b",
+      "cleanup_jsonSha256": "94741d2e24bef36b2112f426b19ab782418afe175cec3d4ef72036d5d53f0fcf"
+    },
+    {
+      "attempt": 8,
+      "countedAsPass": false,
+      "preserved": true,
+      "driver-complete_jsonSha256": "145a4b39d2f496067996ff4b9731cba95a9ce98f86bc21fd2882839830bd59dd",
+      "cleanup_jsonSha256": "66ec7bcbb88ea893575f4aac3460eeac0e39b795c9da58c0aa4a398985dc3f28"
+    },
+    {
+      "attempt": 9,
+      "countedAsPass": false,
+      "preserved": true,
+      "driver-complete_jsonSha256": "0c2790f339d2b8e8ac7a49540413fe49eac7a4aed3673ce828cc98e562930878",
+      "cleanup_jsonSha256": "8f061050acca92c67a5051ccc4e91fb52a08df2c3e9f47ebb064ea5e94205ca6"
+    },
+    {
+      "attempt": 10,
+      "countedAsPass": false,
+      "preserved": true,
+      "driver-complete_jsonSha256": "f66006e7446963efa9dec9841a68a82082cb10f5c06133ed6ed305893cb2e6d4",
+      "cleanup_jsonSha256": "73c18e6a865373a16c7e4dbf39f9c74e7e11f310969ae3c69bfd08bd9b87222a"
+    }
+  ],
+  "acceptance": {
+    "g5Complete": false,
+    "resourceBudgetsAccepted": false,
+    "phase3ExitAccepted": false,
+    "productionActivation": false,
+    "distributionAuthorized": false
+  },
+  "updatedHeadCiRequired": true
+}
