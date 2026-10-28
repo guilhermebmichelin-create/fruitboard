@@ -19,7 +19,10 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
-        Self::with_profile(None, None)
+        Self::with_profile(None, None, false)
+    }
+    fn new_relative() -> Self {
+        Self::with_profile(None, None, true)
     }
     fn for_review() -> Self {
         match (
@@ -48,12 +51,48 @@ impl Fixture {
                         .starts_with("com.fruitboard.desktop.sample-review-"),
                     "refuse owner profile identity"
                 );
-                Self::with_profile(Some(profile), Some(root))
+                Self::with_profile(Some(profile), Some(root), false)
             }
             _ => panic!("both explicit review paths are required"),
         }
     }
-    fn with_profile(profile: Option<PathBuf>, root: Option<PathBuf>) -> Self {
+    fn for_relative_review() -> Self {
+        match (
+            std::env::var_os("FRUITBOARD_SAMPLE_CHECK_RELATIVE_REVIEW_PROFILE"),
+            std::env::var_os("FRUITBOARD_SAMPLE_CHECK_RELATIVE_REVIEW_ROOT"),
+        ) {
+            (None, None) => Self::new_relative(),
+            (Some(profile), Some(root)) => {
+                let profile = PathBuf::from(profile);
+                let root = PathBuf::from(root);
+                assert!(
+                    profile.is_absolute()
+                        && !profile.exists()
+                        && root.is_absolute()
+                        && !root.exists(),
+                    "require fresh absolute owned paths"
+                );
+                let local_app_data = PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap());
+                assert_eq!(profile.parent(), Some(local_app_data.as_path()));
+                assert!(
+                    profile
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .starts_with("com.fruitboard.desktop.sample-review-"),
+                    "refuse owner profile identity"
+                );
+                Self::with_profile(Some(profile), Some(root), true)
+            }
+            _ => panic!("both explicit review paths are required"),
+        }
+    }
+    fn with_profile(
+        profile: Option<PathBuf>,
+        root: Option<PathBuf>,
+        nested_source_parent: bool,
+    ) -> Self {
         let path = root.unwrap_or_else(|| {
             std::env::temp_dir().join(format!("fruitboard-sample-host-{}", uuid::Uuid::now_v7()))
         });
@@ -68,9 +107,31 @@ impl Fixture {
                 .join("../../../fixtures/parser-corpus/FIX-FL2026-MULTISAMPLER.flp"),
         )
         .unwrap();
-        let source = root_path.join("project.flp");
+        let source_parent = if nested_source_parent {
+            let parent = root_path.join("Albums");
+            std::fs::create_dir(&parent).unwrap();
+            parent
+        } else {
+            root_path.clone()
+        };
+        let source = source_parent.join("project.flp");
         std::fs::write(&source, &bytes).unwrap();
-        let target = root_path.join("metadata-target.wav");
+        let target = if nested_source_parent {
+            let samples = source_parent.join("Samples");
+            std::fs::create_dir(&samples).unwrap();
+            let root_samples = root_path.join("Samples");
+            std::fs::create_dir(&root_samples).unwrap();
+            let root_sentinel = root_samples.join("Kick.wav");
+            std::fs::create_dir(&root_sentinel).unwrap();
+            std::fs::write(
+                root_sentinel.join("contents.bin"),
+                b"selected-root directory sentinel",
+            )
+            .unwrap();
+            samples.join("Kick.wav")
+        } else {
+            root_path.join("metadata-target.wav")
+        };
         std::fs::write(&target, b"private non-audio metadata sentinel").unwrap();
         let metadata = std::fs::metadata(&source).unwrap();
         let ns = i64::try_from(
@@ -102,8 +163,16 @@ impl Fixture {
             &scan.run.lease_token,
             4,
             &[ScanObservation {
-                locator_key: "v1:i:project.flp".into(),
-                relative_path: "project.flp".into(),
+                locator_key: if nested_source_parent {
+                    "v1:i:albums/i:project.flp".into()
+                } else {
+                    "v1:i:project.flp".into()
+                },
+                relative_path: if nested_source_parent {
+                    r"Albums\project.flp".into()
+                } else {
+                    "project.flp".into()
+                },
                 byte_size: bytes.len() as u64,
                 modified_at_ns: i128::from(ns),
                 identity: Some(EncodedIdentity {
@@ -131,10 +200,19 @@ impl Fixture {
         raw["filesystemCreatedAtMs"] =
             json!({"status":"unavailable","reason":"FILESYSTEM_CREATION_TIME_UNAVAILABLE"});
         // Constructed host projection, not a claim that these paths came from FL.
-        raw["sampleReferences"] = json!({"status":"unavailable","reason":"SAMPLE_REFERENCE_NOT_STORED","items":[
-            {"status":"extracted","value":target.to_str().unwrap()},
-            {"status":"extracted","value":root_path.join("absent.wav").to_str().unwrap()},
-            {"status":"unavailable","reason":"SAMPLE_REFERENCE_NOT_STORED"}]});
+        raw["sampleReferences"] = if nested_source_parent {
+            // Parser replies carry an extracted list in `value`; storage
+            // converts it to per-channel `items` only after validation.
+            json!({"status":"extracted","value":[
+                "Missing\\..\\Samples\\Kick.wav",
+                "Samples\\absent.wav",
+                "..\\..\\escape.wav"]})
+        } else {
+            json!({"status":"unavailable","reason":"SAMPLE_REFERENCE_NOT_STORED","items":[
+                {"status":"extracted","value":target.to_str().unwrap()},
+                {"status":"extracted","value":root_path.join("absent.wav").to_str().unwrap()},
+                {"status":"unavailable","reason":"SAMPLE_REFERENCE_NOT_STORED"}]})
+        };
         let input = db.capture_metadata_input(&root.id, &location.id).unwrap();
         let snapshot = db
             .publish_metadata_snapshot(
@@ -298,6 +376,167 @@ fn current_authorized_command_checks_metadata_without_mutating_source_target_or_
 }
 
 #[test]
+#[cfg(windows)]
+fn current_authorized_command_checks_nested_relative_candidates_without_leaking_paths_or_mutating_files()
+ {
+    let fixture = Fixture::for_relative_review();
+    let database = &fixture.database_file;
+    let before_db = std::fs::read(database).unwrap();
+    let before_source = std::fs::read(&fixture.source).unwrap();
+    let before_target = std::fs::read(&fixture.target).unwrap();
+    let root_sentinel = fixture.base.join("projects/Samples/Kick.wav/contents.bin");
+    let before_root_sentinel = std::fs::read(&root_sentinel).unwrap();
+    let result = serde_json::to_value(fixture.result(fixture.request.clone())).unwrap();
+
+    assert_eq!(result["state"], "complete");
+    assert_eq!(
+        result["report"]["channels"],
+        json!([
+            {"position":1,"status":"present"},
+            {"position":2,"status":"not_found"},
+            {"position":3,"status":"not_checked","reason":"outside_root"}
+        ])
+    );
+    let encoded = result.to_string();
+    for private_text in ["Missing", "Samples", "Kick.wav", "escape.wav"] {
+        assert!(!encoded.contains(private_text));
+    }
+    assert_eq!(std::fs::read(&fixture.source).unwrap(), before_source);
+    assert_eq!(std::fs::read(&fixture.target).unwrap(), before_target);
+    assert_eq!(std::fs::read(&root_sentinel).unwrap(), before_root_sentinel);
+    assert_eq!(std::fs::read(database).unwrap(), before_db);
+    assert!(encoded.len() < 64 * 1024);
+    if fixture.retained {
+        std::fs::write(
+            fixture.base.join("relative-sample-review.json"),
+            serde_json::to_vec(&json!({
+                "source":fixture.source.to_str(),
+                "sourceSha256":sha256_hex(&fixture.bytes),
+                "sourceBytesUnchanged":true,
+                "candidate":"Missing\\..\\Samples\\Kick.wav",
+                "candidateSha256":sha256_hex(&before_target),
+                "selectedRootSentinelSha256":sha256_hex(&before_root_sentinel),
+                "syntheticCandidatePolicyEvidence":true,
+                "flStudioCompatibilityClaim":false,
+                "report":result
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+#[cfg(windows)]
+fn relative_reports_awaiting_delivery_obey_root_snapshot_cancel_shutdown_and_admission_fences() {
+    // `check` has already published its library result here. Deadlines apply
+    // before that publication; transport still fences root/snapshot/cancel.
+    for change in ["root", "snapshot", "cancel", "shutdown"] {
+        let fixture = Fixture::new_relative();
+        let request = fixture.request.clone();
+        let (ticket, release, retired, provisional) =
+            relative_provisional_after_check(&fixture, request.clone());
+        let provisional: Value = serde_json::from_slice(&provisional).unwrap();
+        assert_eq!(
+            provisional["channels"],
+            json!([
+                {"position":1,"status":"present"},
+                {"position":2,"status":"not_found"},
+                {"position":3,"status":"not_checked","reason":"outside_root"}
+            ]),
+            "{change} did not finish a relative candidate check"
+        );
+        let expected = match change {
+            "root" => {
+                fixture
+                    .host()
+                    .database
+                    .lock()
+                    .unwrap()
+                    .set_scan_root_enabled(&request.root_id, false)
+                    .unwrap();
+                "stale"
+            }
+            "snapshot" => {
+                fixture.publish(fixture.raw.clone());
+                "stale"
+            }
+            "cancel" => {
+                fixture.host().cancel(&request);
+                "cancelled"
+            }
+            _ => {
+                fixture.host().shutdown();
+                "stale"
+            }
+        };
+        let result = ticket.wait();
+        assert_eq!(result.state, expected, "{change}");
+        assert!(result.report.is_none(), "{change} published a late report");
+        let mut next = request.clone();
+        next.request_id = format!("next-{change}");
+        assert_eq!(
+            response(fixture.host().begin(next, 1000).unwrap()).state,
+            if change == "shutdown" {
+                "stale"
+            } else {
+                "busy"
+            },
+            "{change} admitted work before retirement or after shutdown"
+        );
+        release.send(()).unwrap();
+        await_retirement(&fixture, retired);
+    }
+}
+
+#[test]
+#[cfg(windows)]
+fn relative_deadline_rejects_a_late_native_check_without_releasing_admission() {
+    let fixture = Fixture::new_relative();
+    let request = fixture.request.clone();
+    let (started, ready) = mpsc::channel();
+    let (release, wait) = mpsc::channel();
+    let (finished, result) = mpsc::channel();
+    let prepared = fixture
+        .host()
+        .begin_with(
+            request.clone(),
+            1000,
+            move |capture, lease, authorization, now| {
+                started.send(()).unwrap();
+                // Pause while the lease is active, before `check` can publish.
+                wait.recv_timeout(Duration::from_secs(5)).unwrap();
+                let report = fruitboard_sample_presence::check(
+                    &capture.input,
+                    lease,
+                    &mut fruitboard_sample_presence::native::WindowsPort::new(authorization),
+                    now,
+                );
+                finished.send(report.as_ref().err().copied()).unwrap();
+                report
+            },
+        )
+        .unwrap();
+    ready.recv_timeout(Duration::from_secs(2)).unwrap();
+    let Prepared::Worker(ticket) = prepared else {
+        panic!("expected a relative candidate worker")
+    };
+    let reply = ticket.wait();
+    assert_eq!(reply.state, "deadline");
+    assert!(reply.report.is_none());
+    let mut next = request;
+    next.request_id = "next-relative-deadline".into();
+    let next_state = response(fixture.host().begin(next, 1000).unwrap()).state;
+    // Always release the owned worker before asserting the admission result.
+    release.send(()).unwrap();
+    assert_eq!(next_state, "busy");
+    assert_eq!(
+        result.recv_timeout(Duration::from_secs(2)).unwrap(),
+        Some(RequestFailure::Deadline)
+    );
+}
+
+#[test]
 fn invalid_root_snapshot_and_displayed_fingerprints_start_no_worker() {
     let fixture = Fixture::new();
     for field in ["root", "snapshot", "size", "mtime", "location"] {
@@ -343,12 +582,18 @@ fn empty_references_admit_no_filesystem_operations_and_later_snapshot_invalidate
 }
 
 fn blocked(fixture: &Fixture) -> (Ticket, mpsc::Sender<()>, mpsc::Receiver<()>) {
+    blocked_for(fixture, fixture.request.clone())
+}
+fn blocked_for(
+    fixture: &Fixture,
+    request: Request,
+) -> (Ticket, mpsc::Sender<()>, mpsc::Receiver<()>) {
     let (release, wait) = mpsc::channel();
     let (started, ready) = mpsc::channel();
     let (done, retired) = mpsc::channel();
     let prepared = fixture
         .host()
-        .begin_with(fixture.request.clone(), 1000, move |_, lease, _, _| {
+        .begin_with(request, 1000, move |_, lease, _, _| {
             started.send(()).unwrap();
             wait.recv().unwrap();
             let result = lease.control().poll_deadline();
@@ -361,6 +606,37 @@ fn blocked(fixture: &Fixture) -> (Ticket, mpsc::Sender<()>, mpsc::Receiver<()>) 
         panic!("worker was not admitted")
     };
     (ticket, release, retired)
+}
+#[cfg(windows)]
+fn relative_provisional_after_check(
+    fixture: &Fixture,
+    request: Request,
+) -> (Ticket, mpsc::Sender<()>, mpsc::Receiver<()>, Vec<u8>) {
+    let (probed, completed_probe) = mpsc::channel();
+    let (release, wait) = mpsc::channel();
+    let (done, retired) = mpsc::channel();
+    let prepared = fixture
+        .host()
+        .begin_with(request, 1000, move |capture, lease, authorization, now| {
+            let report = fruitboard_sample_presence::check(
+                &capture.input,
+                lease,
+                &mut fruitboard_sample_presence::native::WindowsPort::new(authorization),
+                now,
+            )?;
+            probed.send(report.to_json()?).unwrap();
+            wait.recv_timeout(Duration::from_secs(5)).unwrap();
+            done.send(()).unwrap();
+            Ok(report)
+        })
+        .unwrap();
+    let Prepared::Worker(ticket) = prepared else {
+        panic!("expected a relative candidate worker")
+    };
+    let provisional = completed_probe
+        .recv_timeout(Duration::from_secs(2))
+        .unwrap();
+    (ticket, release, retired, provisional)
 }
 fn await_retirement(fixture: &Fixture, retired: mpsc::Receiver<()>) {
     retired.recv_timeout(Duration::from_secs(2)).unwrap();

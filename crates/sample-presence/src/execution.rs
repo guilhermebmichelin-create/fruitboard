@@ -1,3 +1,4 @@
+use crate::path::RelativeCandidate;
 use crate::{
     AbsolutePath, Context, MAX_CHANNELS, MAX_HANDLES, MAX_OPERATIONS, MAX_REFERENCE_BYTES,
     MAX_REFERENCE_TOTAL_BYTES, MAX_REFERENCE_UTF16, Outcome, Report, RequestControl,
@@ -249,18 +250,48 @@ fn probe<P: MetadataPort>(
     port: &mut P,
     operations: &mut Operations,
 ) -> Result<Outcome, PortError> {
+    probe_components(
+        input,
+        qualified,
+        path.drive(),
+        path.components(),
+        port,
+        operations,
+    )
+}
+
+fn probe_relative<P: MetadataPort>(
+    input: &CapturedInput,
+    qualified: &Qualified<P::Authority, P::Directory>,
+    path: &RelativeCandidate,
+    port: &mut P,
+    operations: &mut Operations,
+) -> Result<Outcome, PortError> {
+    probe_components(
+        input,
+        qualified,
+        path.drive(),
+        path.components(),
+        port,
+        operations,
+    )
+}
+
+fn probe_components<P: MetadataPort>(
+    input: &CapturedInput,
+    qualified: &Qualified<P::Authority, P::Directory>,
+    drive: u8,
+    components: &[String],
+    port: &mut P,
+    operations: &mut Operations,
+) -> Result<Outcome, PortError> {
     let root = input.root();
-    if path.drive() != root.drive() || path.components().len() < root.components().len() {
+    if drive != root.drive() || components.len() < root.components().len() {
         return Ok(Outcome::NotChecked {
             reason: UncheckedReason::OutsideRoot,
         });
     }
-    for (index, component) in path
-        .components()
-        .iter()
-        .take(root.components().len())
-        .enumerate()
-    {
+    for (index, component) in components.iter().take(root.components().len()).enumerate() {
         operations.control.checkpoint()?;
         if !port.root_component_matches(&qualified.authority, index, component, operations)? {
             return Ok(Outcome::NotChecked {
@@ -269,7 +300,7 @@ fn probe<P: MetadataPort>(
         }
         operations.control.checkpoint()?;
     }
-    let suffix = &path.components()[root.components().len()..];
+    let suffix = &components[root.components().len()..];
     if suffix.is_empty() {
         return Ok(Outcome::NotChecked {
             reason: UncheckedReason::NotRegularFile,
@@ -335,9 +366,20 @@ pub fn check<P: MetadataPort>(
                 if let Some(outcome) = memo.get(value) {
                     *outcome
                 } else {
-                    let result = AbsolutePath::parse(value)
-                        .map_err(PortError::Unchecked)
-                        .and_then(|path| probe(input, &qualified, &path, port, &mut operations));
+                    let result = match AbsolutePath::parse(value) {
+                        Ok(path) => probe(input, &qualified, &path, port, &mut operations),
+                        Err(UncheckedReason::RelativeReference) => {
+                            // Qualification above proves that the captured source
+                            // and its parent/name binding are authorized. Only now
+                            // may the source's parent supply the relative base.
+                            RelativeCandidate::parse(value, input.root(), input.source())
+                                .map_err(PortError::Unchecked)
+                                .and_then(|path| {
+                                    probe_relative(input, &qualified, &path, port, &mut operations)
+                                })
+                        }
+                        Err(reason) => Err(PortError::Unchecked(reason)),
+                    };
                     let outcome = match result {
                         Ok(outcome) => outcome,
                         Err(PortError::Unchecked(reason)) => {
