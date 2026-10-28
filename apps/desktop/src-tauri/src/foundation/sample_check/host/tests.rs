@@ -169,7 +169,7 @@ impl Fixture {
                     "v1:i:project.flp".into()
                 },
                 relative_path: if nested_source_parent {
-                    "Albums/project.flp".into()
+                    r"Albums\project.flp".into()
                 } else {
                     "project.flp".into()
                 },
