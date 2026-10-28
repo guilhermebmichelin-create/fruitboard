@@ -1,14 +1,17 @@
 # ADR-008: Project-relative sample candidates
 
-- Status: **Proposed; owner acceptance and implementation are pending.**
+- Status: **Accepted 2026-10-21; implementation and validation are pending.**
 - Date: 2026-10-18
 - Decision owner: product owner
+- Acceptance: product owner accepted the explained rule and scoped native review
+  in the development conversation on 2026-10-21.
+- Implementation issue: [#347](https://github.com/guilhermebmichelin-create/fruitboard/issues/347)
 - Related issue: [#332](https://github.com/guilhermebmichelin-create/fruitboard/issues/332)
 - Reviewed source: `d90b660ff7cb3a65d74447ce84c1cc338134447b`
 - Conditional successor to: [ADR-007](007-sample-presence-boundary.md), only for
   relative eligibility, its GUI-evidence prerequisite and corresponding UI copy
 
-## Decision requested
+## Accepted decision
 
 Let the existing explicit sample check interpret an eligible relative saved
 reference from the directory containing the current authorized FLP. Describe
@@ -16,14 +19,14 @@ this as **Fruitboard's candidate rule**, constrained to that project's existing
 selected, enabled, qualified local NTFS root. A result describes the checked
 candidate, not proof that FL Studio would load that file.
 
-This is a proposed change to ADR-007, whose accepted first slice permits only
+This is a scoped change to ADR-007, whose accepted first slice permits only
 literal absolute paths and leaves relative references unchecked. Its alternative
 requiring independent GUI evidence before relative mapping would be superseded
 only for this explicitly app-defined interpretation. Any FL Studio compatibility
 claim still requires an owner-approved genuine save and independent GUI evidence
 for the exact build tested. Synthetic strings and policy tests cannot supply it.
 
-For this same-root, app-defined slice only, acceptance would also supersede the
+For this same-root, app-defined slice only, acceptance also supersedes the
 blanket future-relative grant/GUI gate in the
 [original authority review](../review/sample-presence-278/authority-review.md#evidence-boundaries).
 The existing explicit action would authorize the amended eligibility inside the
@@ -125,10 +128,11 @@ Default desktop/PWA capability and production activation do not change.
 
 ## Acceptance and implementation gate
 
-The owner must explicitly accept this precise app-defined rule and its scoped
-native review before runtime implementation. Record the decision and date here;
-until then this ADR is Proposed and relative references remain unchecked.
-Merging a proposal document alone does not record that acceptance.
+The owner accepted this precise app-defined rule and its scoped native review
+on 2026-10-21, after an explanation of the project-file-folder base, selected-root
+boundary and candidate-only meaning. This dated decision authorizes the scoped
+implementation in #347. The earlier proposal merge did not record acceptance.
+Relative references remain unchecked until the reviewed implementation lands.
 
 After acceptance, use separate reviewed policy, Windows-authority and app/UI
 slices with the tests and installed evidence in the native review. If a slice
