@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import {
+  UNCHECKED_COPY,
   parseSampleCheckResult,
   sampleCheckArguments,
   type SampleCheckRequest,
@@ -43,6 +44,14 @@ const raw = () => ({
   },
 });
 describe("strict ephemeral sample results", () => {
+  it("keeps the retained relative-reference reason specific to one reference", () => {
+    expect(UNCHECKED_COPY.relative_reference).toBe(
+      "This relative reference could not be checked.",
+    );
+    expect(UNCHECKED_COPY.relative_reference).not.toMatch(
+      /relative references cannot be checked|remain unchecked/i,
+    );
+  });
   it("keeps duplicates in ordered channel slots and strips no private fields", () => {
     const result = parseSampleCheckResult(raw(), request, samples);
     expect(result.state).toBe("complete");
@@ -211,14 +220,14 @@ describe("strict ephemeral sample results", () => {
     const many = Array.from({ length: 256 }, (_, i) => ({
       position: i + 1,
       status: "extracted" as const,
-      value: "relative.wav",
+      value: "bad:name\\..\\Kick.wav",
     }));
     const report = {
       ...raw().report,
       channels: many.map((s) => ({
         position: s.position,
         status: "not_checked",
-        reason: "relative_reference",
+        reason: "unsupported_path_syntax",
       })),
     };
     const result = parseSampleCheckResult({ ...raw(), report }, request, many);
