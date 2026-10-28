@@ -1,21 +1,21 @@
 # Project-relative sample candidates: native review
 
-Status: **Conditional support for proposed ADR-008; owner acceptance and
-implementation remain pending.** Date: 2026-10-18. Issue:
+Status: **Design accepted by the owner on 2026-10-21; implementation and
+validation remain pending in #347.** Review date: 2026-10-18. Issue:
 [#332](https://github.com/guilhermebmichelin-create/fruitboard/issues/332).
 Source reviewed: `d90b660ff7cb3a65d74447ce84c1cc338134447b`.
 
 ## Owner decision
 
 The current Windows checker can support
-[ADR-008's proposed rule](../../adr/008-project-relative-sample-candidates.md)
+[ADR-008's accepted rule](../../adr/008-project-relative-sample-candidates.md)
 without another folder grant, OS right, IPC command or renderer-supplied path.
 The review found no native-authority blocker to that precise rule. The owner
-still needs to accept its meaning: Fruitboard checks a candidate from the folder
+accepted its meaning on 2026-10-21: Fruitboard checks a candidate from the folder
 containing the current project file, inside the already selected root. This
 does not establish where FL Studio would find the sample.
 
-This review is conditional design support, not an implementation/test receipt.
+This review is accepted design support, not an implementation/test receipt.
 Relative references remain unchecked. The
 [accepted absolute-only design](../../adr/007-sample-presence-boundary.md), G5,
 resource decisions and Phase 3 exit retain their current status. A useful
@@ -122,8 +122,8 @@ within one authorized request.
    scope only after those reviewed implementation slices.
 
 If implementation requires broader authority or different semantics, return to
-design review. This sequence does not authorize runtime work while ADR-008 is
-Proposed.
+design review. The dated ADR-008 acceptance authorizes only this scoped sequence;
+it does not authorize broader path authority or different semantics.
 
 ## Review and validation boundary
 
