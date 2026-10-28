@@ -163,7 +163,11 @@ impl Fixture {
             &scan.run.lease_token,
             4,
             &[ScanObservation {
-                locator_key: "v1:i:project.flp".into(),
+                locator_key: if nested_source_parent {
+                    "v1:i:albums/i:project.flp".into()
+                } else {
+                    "v1:i:project.flp".into()
+                },
                 relative_path: if nested_source_parent {
                     "Albums/project.flp".into()
                 } else {
