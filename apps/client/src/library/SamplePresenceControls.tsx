@@ -56,10 +56,27 @@ export function SamplePresenceControls({
   return (
     <div className="sample-presence">
       <p>
-        Check exact saved absolute paths inside <bdi>{folder}</bdi>. Relative
-        paths, placeholders, other folders, and linked or offline locations
-        remain unchecked. This reads file metadata only; it does not read or
-        play audio.
+        Absolute paths are checked as saved when they are inside the selected
+        folder. Relative references start in the folder containing this project
+        file, which may differ from the selected folder. Checks stay inside the
+        selected folder: <bdi>{folder}</bdi>.
+      </p>
+      <p>
+        Fruitboard reads <code>.</code> as “stay here” and <code>..</code> as
+        “go up one folder” in the saved text. A folder step cancelled by{" "}
+        <code>..</code> is not checked on disk. For example,{" "}
+        <code>
+          Missing\
+          <wbr />
+          ..\
+          <wbr />
+          Kick.wav
+        </code>{" "}
+        checks <code>Kick.wav</code> beside this project file without checking
+        whether <code>Missing</code> exists. Placeholder references, linked or
+        offline locations, and candidates outside the selected folder stay
+        unchecked. The check reads file details only; it does not read or play
+        audio.
       </p>
       <div className="sample-presence__actions">
         <button
