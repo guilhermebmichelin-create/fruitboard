@@ -3,15 +3,15 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Current status - 2026-10-17
+## Current status - 2026-10-27
 
-Merged baseline: `65969d093806d63f1aba101e8fa0d1e16cfd0735`
-([PR #325](https://github.com/guilhermebmichelin-create/fruitboard/pull/325),
-documentation and research only). The application includes the current-metadata
+Merged baseline: `ce4331e9004f1a7f363f45106adaa192d1f635fb`
+([PR #334](https://github.com/guilhermebmichelin-create/fruitboard/pull/334),
+installed resource evidence). The application includes the current-metadata
 read-path change from [PR #321](https://github.com/guilhermebmichelin-create/fruitboard/pull/321),
 merged as `803ef43`. It consolidates current Plugin Explorer reads under
 existing freshness checks; its measurements did not establish a speedup or
-qualify resource limits. The [current status assessment](docs/review/development-status-20261017/README.md)
+qualify resource limits. The [current status assessment](docs/review/development-status-20261027/README.md)
 records the phase gates, evidence boundaries, live tracker discrepancies, and
 next work.
 
@@ -36,6 +36,9 @@ next work.
   resolution remain open. See the
   [sample-check review](docs/review/sample-presence-ui-284/README.md) and
   [mixer slice](docs/review/library-mixer-inserts-304/README.md).
+  Draft [PR #348](https://github.com/guilhermebmichelin-create/fruitboard/pull/348)
+  implements the owner-accepted same-root project-relative candidate rule;
+  it remains unmerged, with required checks and installed validation pending.
 - **Compatibility and automation**: the approved parser corpus now has 21
   files. [PR #320](https://github.com/guilhermebmichelin-create/fruitboard/pull/320)
   adds the exact-build F22 cloned-Sampler case; [PR #323](https://github.com/guilhermebmichelin-create/fruitboard/pull/323)
@@ -51,9 +54,13 @@ next work.
   characterization, not qualification. The
   [October 14 follow-up](docs/review/resource-repeat-20261014/README.md)
   records an unexplained installed shutdown timeout and a successful debugging
-  repeat that did not establish its cause or a product fix. The proposed next
-  diagnostic slice is [issue #327](https://github.com/guilhermebmichelin-create/fruitboard/issues/327);
-  resource decisions and the Phase 3 checkpoint remain open.
+  repeat that did not establish its cause or a product fix. Shutdown diagnostics
+  and trace validation have since shipped in PR329/PR331. The
+  [current installed review](docs/review/resource-current-20261018/README.md)
+  adds guarded IPC/UI observations. Open
+  [PR #335](https://github.com/guilhermebmichelin-create/fruitboard/pull/335)
+  records a stopped remainder run after a failed CPU guard. Resource decisions,
+  remaining measurements and the Phase 3 checkpoint stay open.
 - **Reliability tracker**: GitHub still lists
   [#220](https://github.com/guilhermebmichelin-create/fruitboard/issues/220),
   [#221](https://github.com/guilhermebmichelin-create/fruitboard/issues/221),
@@ -73,6 +80,8 @@ next work.
 
 The [archived README status](docs/archive/readme-status-20260929.md) preserves
 the superseded status blocks, source pins, installed evidence and links.
+The [October 17 assessment](docs/review/development-status-20261017/README.md)
+preserves that date's next-step recommendation, now superseded by this update.
 Dated evidence remains tied to its tested source; a current documentation
 update does not rerun an installed journey or accept a phase.
 
