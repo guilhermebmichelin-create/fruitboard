@@ -257,17 +257,17 @@ The first application packages use these exact Phase 1 foundation versions:
 
 | Dependency                | Pin             | Purpose                                        |
 | ------------------------- | --------------- | ---------------------------------------------- |
-| Tauri Rust / build        | 2.11.6 / 2.7.1  | Native desktop host and build integration      |
-| Tauri JavaScript / CLI    | 2.11.1 / 2.12.1 | Typed invoke adapter and desktop commands      |
+| Tauri Rust / build        | 2.12.2 / 2.7.4  | Native desktop host and build integration      |
+| Tauri JavaScript / CLI    | 2.12.4 / 2.12.1 | Typed invoke adapter and desktop commands      |
 | Tauri shell plugin        | 2.3.6           | Rust-only inert sidecar packaging smoke        |
 | Tauri dialog plugin       | 2.7.3           | Native folder picker for scan roots            |
 | UUID / regex              | 1.29.0 / 1.13.1 | Opaque native IDs and diagnostic redaction     |
 | rusqlite / libsqlite3-sys | 0.40.2 / 0.38.2 | Bundled native SQLite and backup API           |
-| React / React DOM         | 19.3.0          | Shared client rendering                        |
-| Vite / React plugin       | 8.3.4 / 6.1.1   | Local development and production client bundle |
+| React / React DOM         | 19.3.1          | Shared client rendering                        |
+| Vite / React plugin       | 8.3.4 / 6.1.2   | Local development and production client bundle |
 | TypeScript                | 6.0.3           | Strict shared-client compilation               |
 | ESLint                    | 10.12.0         | Client lint rules                              |
-| Vitest                    | 5.0.3           | Client and adapter contract tests              |
+| Vitest                    | 5.0.5           | Client and adapter contract tests              |
 | typescript-eslint         | 8.71.1          | Typed client lint integration                  |
 
 Dependency versions remain exact in their generated lockfiles. Updating a pin
