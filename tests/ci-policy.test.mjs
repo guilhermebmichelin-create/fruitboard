@@ -87,8 +87,8 @@ test("security workflows stay pinned, read-only, and informational", () => {
   const approvedSecurityActionReferences = new Set([
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
-    "github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d",
-    "github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d",
+    "github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370",
+    "github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370",
   ]);
 
   for (const securityWorkflow of securityWorkflows) {
