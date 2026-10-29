@@ -85,6 +85,10 @@ Starting this research is not approval of future public fixture bytes.
 
 ## First product slice after qualification
 
+The [proposed sequence contract](note-sequence-contract-366.md) defines the
+per-pattern completeness, field states, channel binding and output budgets that
+can be reviewed while the GUI experiments remain pending. It is design only.
+
 Deliver per-pattern saved note data before a song-level sequence:
 
 1. Independently qualify pitch/key, raw start tick, stored duration and velocity
