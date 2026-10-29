@@ -28,7 +28,7 @@ tauri = { version = "=2.12.2", features = [] }
 tauri-build = { version = "=2.7.4", features = [] }
 tauri-plugin-shell = { version = "=2.3.6" }
 tauri-plugin-dialog = { version = "=2.7.3", default-features = false }
-uuid = { version = "=1.28.0", features = ["v7"] }
+uuid = { version = "=1.29.0", features = ["v7"] }
 windows-sys = { version = "=0.61.2", features = [
   "Win32_Foundation",
   "Win32_Security",
