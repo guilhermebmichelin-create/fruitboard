@@ -12,3 +12,7 @@ Never add personal projects, credentials, personal paths, raw diagnostic dumps,
 or copyrighted fixtures here. FLPs, presets, and audio remain ignored by
 default; an approved public or purpose-built fixture requires a dedicated PR,
 provenance/license entry, checksum, and privacy review.
+
+Current note-sequence work: [saved note qualification #366](parser-note-sequence-366.md)
+provides a reproducible approved-fixture observer and the independent genuine-save
+experiment needed before pitch/timing/velocity become product fields.
