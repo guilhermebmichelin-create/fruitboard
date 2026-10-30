@@ -257,7 +257,7 @@ The first application packages use these exact Phase 1 foundation versions:
 
 | Dependency                | Pin             | Purpose                                        |
 | ------------------------- | --------------- | ---------------------------------------------- |
-| Tauri Rust / build        | 2.12.2 / 2.7.4  | Native desktop host and build integration      |
+| Tauri Rust / build        | 2.12.5 / 2.7.4  | Native desktop host and build integration      |
 | Tauri JavaScript / CLI    | 2.12.4 / 2.12.1 | Typed invoke adapter and desktop commands      |
 | Tauri shell plugin        | 2.3.6           | Rust-only inert sidecar packaging smoke        |
 | Tauri dialog plugin       | 2.8.3           | Native folder picker for scan roots            |
