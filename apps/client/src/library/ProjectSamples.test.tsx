@@ -135,7 +135,7 @@ describe("saved sample reference view", () => {
     await screen.findByRole("region", { name: "Saved sample references" });
     await user.click(
       screen.getByRole("button", {
-        name: "Refresh project details Example.flp",
+        name: "Refresh details Example.flp",
       }),
     );
     await screen.findByRole("alert");
@@ -204,7 +204,7 @@ describe("saved sample reference view", () => {
       await screen.findByRole("region", { name: "Saved sample references" });
       await user.click(
         screen.getByRole("button", {
-          name: "Refresh project details Example.flp",
+          name: "Refresh details Example.flp",
         }),
       );
       await screen.findByText(/Loading saved project details/);

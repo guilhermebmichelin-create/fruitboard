@@ -110,7 +110,7 @@ describe("saved mixer inserts", () => {
     await user.click(toggle);
     await screen.findByText("Saved insert ID: 16");
     await user.click(
-      screen.getByRole("button", { name: "Refresh project details Mixer.flp" }),
+      screen.getByRole("button", { name: "Refresh details Mixer.flp" }),
     );
     expect(screen.queryByText("Saved insert ID: 16")).toBeNull();
     await user.click(toggle);

@@ -423,7 +423,7 @@ export function ScanRootsManager({
                           onClick={() => void removeRoot(root.id)}
                           type="button"
                         >
-                          Confirm remove
+                          Confirm removal
                         </button>
                         <button
                           aria-label={`Keep ${controlName(root)}`}
