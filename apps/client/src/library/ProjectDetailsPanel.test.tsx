@@ -72,7 +72,7 @@ describe("Project details panel", () => {
     expect(screen.getByText("314")).toBeTruthy();
     await user.click(
       screen.getByRole("button", {
-        name: "Refresh project details Example.flp",
+        name: "Refresh details Example.flp",
       }),
     );
     expect(screen.queryByText("Fixture Pattern")).toBeNull();
@@ -159,7 +159,7 @@ describe("Project details panel", () => {
     );
     await screen.findByText("Waiting for analysis");
     const refresh = screen.getByRole("button", {
-      name: "Refresh project details Example.flp",
+      name: "Refresh details Example.flp",
     });
     await user.click(refresh);
     await screen.findByText("Analysis finished");
@@ -222,7 +222,7 @@ describe("Project details panel", () => {
     await screen.findByText("120 BPM");
     await user.click(
       screen.getByRole("button", {
-        name: "Refresh project details Example.flp",
+        name: "Refresh details Example.flp",
       }),
     );
     await screen.findByText("Loading saved project details…");
@@ -314,6 +314,9 @@ describe("Project details panel", () => {
     await screen.findByText("120 BPM");
     expect(document.activeElement).toBe(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.getAttribute("aria-label")).toBe(
+      "Hide project details Example.flp",
+    );
     expect(screen.getAllByText("Inferred")).toHaveLength(5);
     expect(screen.getByText("Fixture Synth A")).toBeTruthy();
     expect(screen.getByText("3x Osc")).toBeTruthy();
@@ -328,6 +331,9 @@ describe("Project details panel", () => {
     await user.keyboard("{Enter}");
     expect(screen.queryByText("120 BPM")).toBeNull();
     expect(document.activeElement).toBe(toggle);
+    expect(toggle.getAttribute("aria-label")).toBe(
+      "Project details Example.flp",
+    );
   });
 
   it.each(["disabled", "no_current"] as const)(
@@ -379,7 +385,7 @@ describe("Project details panel", () => {
     expect(screen.queryByText("private path")).toBeNull();
     await user.click(
       screen.getByRole("button", {
-        name: "Refresh project details Example.flp",
+        name: "Refresh details Example.flp",
       }),
     );
     await screen.findByRole("status");
@@ -461,7 +467,7 @@ describe("Project details panel", () => {
     await screen.findByText("120 BPM");
     await user.click(
       screen.getByRole("button", {
-        name: "Refresh project details Example.flp",
+        name: "Refresh details Example.flp",
       }),
     );
     await screen.findByText("Loading saved project details…");

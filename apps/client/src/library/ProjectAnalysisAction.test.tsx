@@ -107,7 +107,7 @@ describe("explicit Library analysis action", () => {
     expect(accessibility.violations).toEqual([]);
     await user.click(
       screen.getByRole("button", {
-        name: "Refresh project details Example.flp",
+        name: "Refresh details Example.flp",
       }),
     );
     await screen.findByRole("button", { name: "Analyze again Example.flp" });
@@ -225,7 +225,7 @@ describe("explicit Library analysis action", () => {
       ).toBe(true);
       await user.click(
         screen.getByRole("button", {
-          name: "Refresh project details Example.flp",
+          name: "Refresh details Example.flp",
         }),
       );
       const next = await screen.findByRole("button", {
@@ -328,7 +328,12 @@ describe("explicit Library analysis action", () => {
           name: "Analyze again Example.flp",
         }),
       );
-      if (transition === "close") await expand();
+      if (transition === "close")
+        await userEvent.setup().click(
+          screen.getByRole("button", {
+            name: "Hide project details Example.flp",
+          }),
+        );
       else {
         if (transition === "new_scan") generation = 2;
         else enabled = false;
