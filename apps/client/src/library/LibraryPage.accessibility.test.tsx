@@ -2,7 +2,7 @@ import { MemoryRouter } from "react-router";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ScanRoot } from "../platform/contracts";
 import { createFakeLibraryScanAdapter } from "./fake";
 import { LibraryPage } from "./LibraryPage";
@@ -50,15 +50,37 @@ function renderLibrary(
   );
 }
 
-async function expectNoViolations(container: HTMLElement) {
-  // Keep React updates queued while axe takes its asynchronous DOM snapshot.
-  // A scan refresh must not replace headings halfway through the audit.
-  let results!: axe.AxeResults;
-  await act(async () => {
-    results = await axe.run(container, {
-      rules: { "color-contrast": { enabled: false } },
+async function auditStableDom(container: HTMLElement): Promise<axe.AxeResults> {
+  // act can flush a queued refresh before it returns. Discard an audit only
+  // when its DOM changed; never retry a violation from an unchanged view.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    let changed = false;
+    const observer = new MutationObserver(() => {
+      changed = true;
     });
-  });
+    observer.observe(container, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+    });
+    try {
+      let results!: axe.AxeResults;
+      await act(async () => {
+        results = await axe.run(container, {
+          rules: { "color-contrast": { enabled: false } },
+        });
+      });
+      if (!changed && observer.takeRecords().length === 0) return results;
+    } finally {
+      observer.disconnect();
+    }
+  }
+  throw new Error("The accessibility audit never reached an unchanged DOM.");
+}
+
+async function expectNoViolations(container: HTMLElement) {
+  const results = await auditStableDom(container);
   expect(
     results.violations.map(({ id, nodes }) => ({
       id,
@@ -77,6 +99,46 @@ async function expectNoViolations(container: HTMLElement) {
 }
 
 describe("LibraryPage accessibility", () => {
+  it("rechecks an audit crossed by a DOM transition", async () => {
+    const view = render(
+      <section>
+        <h1>Library audit control</h1>
+        <h3>Transitioning heading</h3>
+      </section>,
+    );
+    const run = vi.spyOn(axe, "run");
+    try {
+      const audit = expectNoViolations(view.container);
+      queueMicrotask(() => {
+        const heading = document.createElement("h2");
+        heading.textContent = "Settled heading";
+        view.container.querySelector("h3")!.replaceWith(heading);
+      });
+      await audit;
+      expect(run).toHaveBeenCalledTimes(2);
+    } finally {
+      run.mockRestore();
+    }
+  });
+
+  it("rejects a stable heading-order violation without retrying it", async () => {
+    const view = render(
+      <section>
+        <h1>Library audit control</h1>
+        <h3>Skipped heading level</h3>
+      </section>,
+    );
+    const run = vi.spyOn(axe, "run");
+    try {
+      await expect(expectNoViolations(view.container)).rejects.toThrow(
+        /heading-order/,
+      );
+      expect(run).toHaveBeenCalledTimes(1);
+    } finally {
+      run.mockRestore();
+    }
+  });
+
   it("exposes recovery history without taking focus from current scan controls", async () => {
     const adapter = createFakeLibraryScanAdapter({
       roots: [root],
