@@ -251,7 +251,7 @@ Pins selected and verified on 2026-09-04:
 | Rust     | 1.98.1 MSVC                          | Native workspace, with `clippy` and `rustfmt`  |
 | Python   | 3.11.16                              | Isolated parser research baseline only         |
 | uv       | 0.12.9                               | Python runtime/environment and lock management |
-| SQLite   | 3.53.2 embedded; 3.51.3 policy floor | Runtime checked; WAL remains disabled          |
+| SQLite   | 3.54.1 embedded; 3.51.3 policy floor | Runtime checked; WAL remains disabled          |
 
 The first application packages use these exact Phase 1 foundation versions:
 
@@ -262,7 +262,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | Tauri shell plugin        | 2.5.0           | Rust-only inert sidecar packaging smoke        |
 | Tauri dialog plugin       | 2.7.3           | Native folder picker for scan roots            |
 | UUID / regex              | 1.29.0 / 1.13.1 | Opaque native IDs and diagnostic redaction     |
-| rusqlite / libsqlite3-sys | 0.40.2 / 0.38.2 | Bundled native SQLite and backup API           |
+| rusqlite / libsqlite3-sys | 0.41.0 / 0.39.1 | Bundled native SQLite and backup API           |
 | React / React DOM         | 19.3.1          | Shared client rendering                        |
 | Vite / React plugin       | 8.3.5 / 6.1.2   | Local development and production client bundle |
 | TypeScript                | 6.0.3           | Strict shared-client compilation               |
