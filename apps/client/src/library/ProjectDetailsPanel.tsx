@@ -86,7 +86,7 @@ export function ProjectDetailsPanel({
       <button
         aria-controls={id}
         aria-expanded={open}
-        aria-label={`Project details ${record.fileName}`}
+        aria-label={`${open ? "Hide project details" : "Project details"} ${record.fileName}`}
         className="library-button library-button--secondary"
         type="button"
         onClick={() => {
@@ -107,7 +107,7 @@ export function ProjectDetailsPanel({
             <button
               className="library-button library-button--secondary"
               type="button"
-              aria-label={`Refresh project details ${record.fileName}`}
+              aria-label={`Refresh details ${record.fileName}`}
               disabled={state.kind === "loading"}
               onClick={() => {
                 setState({ kind: "loading" });

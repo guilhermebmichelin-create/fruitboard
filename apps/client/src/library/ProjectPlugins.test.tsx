@@ -192,13 +192,13 @@ describe("saved plugin reference view", () => {
     ).toBeTruthy();
     await user.click(
       screen.getByRole("button", {
-        name: "Refresh project details Example.flp",
+        name: "Refresh details Example.flp",
       }),
     );
     await screen.findByText("Showing 20 of 43 plugin references.");
     await user.click(
       screen.getByRole("button", {
-        name: "Refresh project details Example.flp",
+        name: "Refresh details Example.flp",
       }),
     );
     await screen.findByRole("alert");
@@ -298,7 +298,7 @@ describe("saved plugin reference view", () => {
       await screen.findByRole("region", { name: "Saved plugin references" });
       await user.click(
         screen.getByRole("button", {
-          name: "Refresh project details Example.flp",
+          name: "Refresh details Example.flp",
         }),
       );
       if (transition === "new_scan") generation += 1;
