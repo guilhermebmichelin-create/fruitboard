@@ -84,6 +84,22 @@ test("F17 missing payload is an observation, not an extracted zero MIDI sequence
 });
 test("truncated input fails", () =>
   assert.throws(() => inspect(project().subarray(0, 25)), /HEADER_OR_SIZE/));
+test("chunk signatures require exact bytes, including their high bits", () => {
+  const valid = project(pattern(), payload());
+  assert.equal(inspect(valid).recordCount, 1);
+  for (const offset of [0, 1, 2, 3, 14, 15, 16, 17]) {
+    for (const changedBits of [1, 128]) {
+      const corrupted = Buffer.from(valid);
+      corrupted[offset] ^= changedBits;
+      assert.throws(
+        () => inspect(corrupted),
+        /RESEARCH_HEADER_OR_SIZE/,
+        `corrupted signature byte ${offset} must be refused`,
+      );
+    }
+  }
+});
+
 test("absent version fails", () => {
   const bytes = project().subarray(0, 22);
   bytes.writeUInt32LE(0, 18);
