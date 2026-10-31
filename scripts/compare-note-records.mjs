@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Explicit hash-pinned synthetic inputs only. Never enumerate project roots.
 import { createHash } from "node:crypto";
-import { closeSync, fstatSync, openSync, readSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { compareNoteRecordCandidates } from "./lib/note-record-differential.mjs";
 
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
 function readPinned(path, expectedHash) {
-  const fd = openSync(path, "r");
+  // A FIFO must reach the regular-file check instead of waiting for a writer.
+  const fd = openSync(path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.size > MAX_FILE_BYTES || stat.size < 22)

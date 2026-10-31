@@ -28,7 +28,9 @@ which still accepts no arguments and never reads arbitrary project roots.
 
 No command writes either input or enumerates a directory. Each input must be a
 regular file between 22 bytes and 64 MiB, match its supplied lowercase SHA-256,
-and pass the existing exact-build/layout observer. Both inputs are reopened and
+and pass the existing exact-build/layout observer. Where supported, files are
+opened nonblocking so a named pipe is rejected without waiting for a writer.
+Both inputs are reopened and
 hash-checked again before any report is printed. Failure emits one fixed message,
 no report, no path and no arbitrary exception text. Input ownership, quiescence
 and privacy remain the experiment runner's responsibility; this offline tool
@@ -68,7 +70,9 @@ remain outside this change.
 Tests compare approved F16 with itself and make explicitly constructed changes
 to in-memory copies only. They cover candidate-word deltas, uninterpreted bytes,
 duplicate retention, the 32/33-record boundary, structural mismatch, missing or
-malformed payloads, digest failures and path-free CLI errors. Constructed changes
+malformed payloads, digest failures and path-free CLI errors. A Linux-only test
+verifies that a FIFO in either input position fails privately without a writer.
+Constructed changes
 prove the observer's defenses, not independent musical ground truth. No new FLP
 files are generated or registered, and approved input bytes remain unchanged.
 

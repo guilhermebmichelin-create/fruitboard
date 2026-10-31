@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmdirSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -217,3 +218,39 @@ test("CLI rejects wrong pins, missing files and invalid arguments privately", ()
     );
   }
 });
+
+test(
+  "CLI refuses Linux FIFO inputs without waiting for a writer",
+  { skip: process.platform !== "linux" },
+  () => {
+    const directory = mkdtempSync(join(tmpdir(), "fruitboard-note-fifo-"));
+    const fifo = join(directory, "input");
+    let created = false;
+    try {
+      const setup = spawnSync("mkfifo", [fifo], {
+        encoding: "utf8",
+        timeout: 10000,
+      });
+      assert.equal(setup.status, 0, setup.stderr);
+      created = true;
+      for (const args of [
+        [fifo, digest, fixture, digest],
+        [fixture, digest, fifo, digest],
+      ]) {
+        const run = spawnSync(process.execPath, [script, ...args], {
+          encoding: "utf8",
+          timeout: 10000,
+        });
+        assert.equal(run.status, 1, String(run.error ?? run.stderr));
+        assert.equal(run.stdout, "");
+        assert.equal(
+          run.stderr.trim(),
+          "Note-record comparison failed; no report produced.",
+        );
+      }
+    } finally {
+      if (created) unlinkSync(fifo);
+      rmdirSync(directory);
+    }
+  },
+);

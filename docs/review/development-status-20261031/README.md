@@ -79,15 +79,16 @@ lint, privacy/hash verification and whitespace checks. Normal updated-head CI
 is required; prior CI covers unchanged code only. No native build, full local
 `pnpm check`, installer, benchmark or installed-app pass is claimed.
 
-Pinned Node 24.20.0 passes all 17 new differential tests and the existing 15
-observer tests. The full local script/policy run reports 181 passes and four
-failures in unchanged tooling-glob checks: this checkout still resolves
-minimatch 10.2.6 for all four tooling consumers, while the merged lockfile and
-workspace override require patched 11.0.3. The tests and dependency files are
-unchanged from main. No local install is performed under the storage constraint;
-these failures remain visible and normal frozen-install CI must validate the
-complete updated head. Syntax, scoped formatting/Markdown lint, privacy and
-whitespace checks pass. No new fixture bytes or musical-field pass is claimed.
+Pinned Node 24.20.0 passes 185 local script/policy tests, including all 17
+portable differential cases and the existing 15 observer tests. The added Linux
+FIFO regression is skipped on Windows and must run in Linux CI. It verifies
+that either input rejects a named pipe without waiting for a writer. The review
+checkout reuses its existing patched minimatch 11.0.3 installation; all four
+tooling-glob checks pass without a package installation or dependency-file
+change. Syntax checks for all 42 script/test files, scoped formatting/Markdown
+lint, privacy and whitespace checks pass. Normal frozen-install CI must validate
+the complete updated head, including the Linux-only case. No new FLP fixture
+bytes or musical-field pass is claimed.
 
 `/root` owns this change in the primary checkout. Evidence is retained privately
 outside source/compiler caches in `note-record-differentials-20261031`. No local
