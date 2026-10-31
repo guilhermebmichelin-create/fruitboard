@@ -1,7 +1,15 @@
 ﻿# FLP intelligence gaps and next implementation
 
 Status: **Open gaps and proposals; no acceptance or later-phase authorization.**
-Current source baseline: merged PR333/334, `ce4331e9004f1a7f363f45106adaa192d1f635fb` (tree `4ee79f53fc73cf76283b899e959570f22810396e`). Updated: 2026-10-19.
+Latest status: [October 31 assessment](../development-status-20261031/README.md),
+merged main `83a04aa8dc65decaf32452e4c18cd4e32a734140`. PR348 delivered the
+bounded same-root project-relative sample checks; PR367 delivered numeric
+note-record research and a proposed sequence contract. Issue #366's
+[differential tooling](../../research/note-record-differentials-366.md) prepares
+the next genuine-save experiments; musical fields remain unqualified. G5/G6,
+resources and the phase gate remain open. No historical result is promoted.
+
+Resource-report source baseline: merged PR333/334, `ce4331e9004f1a7f363f45106adaa192d1f635fb` (tree `4ee79f53fc73cf76283b899e959570f22810396e`). Updated: 2026-10-19.
 Installed and measured evidence retains its recorded source boundaries.
 [Resource/checkpoint review #306](../phase3-qualification-306/README.md)
 and the [October 19 remaining-resource review](../resource-remainder-20261019/README.md), alongside the [October 18 current-source installed review](../resource-current-20261018/README.md) and [October 14 repeat](../resource-repeat-20261014/README.md), update G1/G4 without accepting budgets or the phase. The reused package was built at 839e5fb; its compiled application graph matches this baseline, with exactly three documentation-only differences. The 15 hosted checks on 839e5fb cover unchanged application source, not performance; this documentation PR still needs its own updated-head CI. The [next-slice scopes](../phase3-next-slices-20261014/README.md) propose G3/G5/G6 work; they do not approve new fields or authority.

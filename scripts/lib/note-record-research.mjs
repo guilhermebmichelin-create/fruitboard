@@ -79,6 +79,7 @@ export function inspectNoteRecordCandidates(bytes) {
           lengthWord: record.readUInt32LE(8),
           keyWord: record.readUInt16LE(12),
           byte21: record[21],
+          recordBytes: [...record],
         });
       }
       patterns.push({ patternId: pendingId, eventOffset, records });
