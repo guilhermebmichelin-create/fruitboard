@@ -102,6 +102,16 @@ test("comparison does not infer identity across PPQ or pattern changes", () => {
   assert.throws(() => compare(bytes, id), /COMPARISON_LAYOUT/);
 });
 
+test("corrupted chunk signatures refuse either side of a comparison", () => {
+  for (const offset of [0, 1, 2, 3, 14, 15, 16, 17]) {
+    const corrupted = Buffer.from(bytes);
+    corrupted[offset] ^= 128;
+    assert.throws(() => compare(corrupted, bytes), /RESEARCH_HEADER_OR_SIZE/);
+    assert.throws(() => compare(bytes, corrupted), /RESEARCH_HEADER_OR_SIZE/);
+  }
+  assert.equal(createHash("sha256").update(bytes).digest("hex"), digest);
+});
+
 test("missing payload is not an empty comparable sequence", () => {
   const empty = readFileSync(
     new URL(
