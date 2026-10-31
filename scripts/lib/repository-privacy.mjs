@@ -31,6 +31,35 @@ const sqliteCompanionSuffix = /\.(?:db|sqlite3?)-(?:wal|shm|journal)$/iu;
 // Only these separately approved public parser fixtures bypass the FLP block.
 // Both the exact repository path and SHA-256 must match.
 const approvedFlpFixtureHashes = new Map([
+  // F24-F30: exact saved-note candidates approved on 2026-10-31 (#366).
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-BASELINE.flp",
+    "92e718add58c185804f16131cc904717d0ec799f59152d82de341093275e81f7",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-PITCH.flp",
+    "5ad6cbc8c28f397f02d4416f45ee516bbca5cc8dee032e33fe4cd876e186e198",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-POSITION.flp",
+    "eebb2999708934f95c24f56f22a576b2c93455bfc174365c9b63e6197b92e37c",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-DURATION.flp",
+    "3657fa249c6403abe2260119b91cfea41ad4546ef7de6110187802db351c5711",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-VELOCITY.flp",
+    "d6bea7000b7956c293ce92204e53434cb27565cf97e042a91c8f972339f9919b",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-CHANNEL-SECOND.flp",
+    "e270a072e28dca060b96239ee9180d93154bfe59b3fc38f1cec03558161fa727",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-CHANNEL-REORDERED.flp",
+    "81a4f8e3c2942b3c3f5fdadf2b58cf0f38cd677f792d80598beb108843e8d071",
+  ],
   [
     "fixtures/parser-corpus/FIX-BASE-MIN.flp",
     "d3caba4e6e1a2cd47074b7b6e0f115d9d896e6da2e95705baff0777ef06b30ae",
@@ -263,12 +292,16 @@ export function inspectApprovedFixtureBinary(path, bytes) {
   const report = (rule, message) =>
     violations.push({ line: null, message, path, rule });
 
+  // Decode complete code units only. Node 24.20.0 on the validation host
+  // crashes on an odd-length UTF-16 slice of the approved F29 save. Explicit
+  // even ranges preserve both alignments and omit only an incomplete unit.
+  const utf16 = (offset) => {
+    const length = Math.max(0, bytes.length - offset);
+    const end = offset + length - (length % 2);
+    return length < 2 ? "" : bytes.toString("utf16le", offset, end);
+  };
   // Search single-byte text and both UTF-16LE alignments in the binary stream.
-  for (const text of [
-    bytes.toString("latin1"),
-    bytes.toString("utf16le"),
-    bytes.subarray(1).toString("utf16le"),
-  ]) {
+  for (const text of [bytes.toString("latin1"), utf16(0), utf16(1)]) {
     const homePath = /[A-Za-z]:[\\/]+Users[\\/]+([^\\/\x00:]+)[\\/]+/giu;
     for (const match of text.matchAll(homePath)) {
       if (match[1].toLowerCase() !== "public") {

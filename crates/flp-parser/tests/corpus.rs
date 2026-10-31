@@ -473,6 +473,55 @@ fn oversized_buffer_fails_before_event_walk() {
 }
 
 #[test]
+fn qualified_note_sequence_fixtures_preserve_existing_metadata_read_only() {
+    // This adds genuine-save coverage for existing fields. Actual note sequence
+    // extraction and full validation remain a separate product change (#366).
+    let registered =
+        include_bytes!("../../../fixtures/parser-corpus/note-sequence-expectations.json");
+    assert_eq!(
+        fruitboard_flp_parser::sha256_hex(registered),
+        "372c9f99a23844850b512d47f871ab8a3754eca84187c6d8a5fdd844f82caed8"
+    );
+    let expected: Value = serde_json::from_slice(registered).unwrap();
+    let cases = expected["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 7);
+    for case in cases {
+        let path = fixture(case["file"].as_str().unwrap());
+        let before = fs::read(&path).unwrap();
+        assert_eq!(before.len() as u64, case["bytes"].as_u64().unwrap());
+        assert_eq!(fruitboard_flp_parser::sha256_hex(&before), case["sha256"]);
+        let attributes = fs::metadata(&path).unwrap();
+        let parsed = parse_file(
+            &path,
+            ExpectedFingerprint {
+                size: attributes.len(),
+                modified_at_ms: modified_at_ms(&attributes).unwrap(),
+            },
+        );
+        assert_eq!(parsed["outcome"], "complete", "{}", case["file"]);
+        assert_eq!(parsed["savedVersion"]["value"], expected["savedBuild"]);
+        assert_eq!(parsed["baseTempoBpm"]["value"].as_f64(), Some(130.0));
+        let gui = &case["independentGui"];
+        assert_eq!(
+            parsed["channelCount"]["value"],
+            gui["channelOrder"].as_array().unwrap().len()
+        );
+        assert_eq!(parsed["channelNames"]["value"], gui["channelOrder"]);
+        assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
+        assert_eq!(parsed["patternCount"]["value"], 1);
+        assert_eq!(
+            parsed["patternNoteCounts"],
+            serde_json::json!({
+                "status":"extracted", "coverage":"stored-pattern-note-records",
+                "value":[{"patternId":1,"noteCount":{"status":"extracted","value":1}}]
+            })
+        );
+        assert_eq!(parsed["inputFingerprint"]["hash"]["value"], case["sha256"]);
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+}
+
+#[test]
 fn header_count_must_match_channel_events_before_reporting_a_count() {
     let path = fixture("FIX-BASE-MIN.flp");
     let original = fs::read(&path).unwrap();
