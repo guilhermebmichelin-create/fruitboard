@@ -268,7 +268,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | TypeScript                | 6.0.3           | Strict shared-client compilation               |
 | ESLint                    | 10.13.0         | Client lint rules                              |
 | Vitest                    | 5.0.5           | Client and adapter contract tests              |
-| typescript-eslint         | 8.71.1          | Typed client lint integration                  |
+| typescript-eslint         | 8.72.1          | Typed client lint integration                  |
 | @napi-rs/canvas           | 1.0.13          | Test-only glyph rendering for axe in jsdom     |
 
 Dependency versions remain exact in their generated lockfiles. Updating a pin
