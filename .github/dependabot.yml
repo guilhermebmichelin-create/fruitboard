@@ -21,6 +21,11 @@ updates:
         versions: [">=7"]
   - package-ecosystem: cargo
     directory: /
+    # LocatorKeyV1 pairs Unicode 17 NFC with its vendored simple-fold table.
+    # 0.1.26 uses Unicode 18; upgrade only with a reviewed key-format policy.
+    ignore:
+      - dependency-name: "unicode-normalization"
+        versions: [">=0.1.26"]
     schedule:
       interval: weekly
       day: monday

@@ -4,6 +4,13 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+#[test]
+fn locator_key_v1_normalization_keeps_the_unicode_17_contract() {
+    // NFC and the vendored simple-fold table define durable locator keys.
+    // Updating only one table is a format change, even for a dependency patch.
+    assert_eq!(unicode_normalization::UNICODE_VERSION, (17, 0, 0));
+}
+
 #[derive(Default)]
 struct RecordingSink {
     batches: Vec<ObservationBatch>,
