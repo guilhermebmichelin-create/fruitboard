@@ -260,7 +260,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | Tauri Rust / build        | 2.12.5 / 2.7.4  | Native desktop host and build integration      |
 | Tauri JavaScript / CLI    | 2.12.4 / 2.12.4 | Typed invoke adapter and desktop commands      |
 | Tauri shell plugin        | 2.5.0           | Rust-only inert sidecar packaging smoke        |
-| Tauri dialog plugin       | 2.7.3           | Native folder picker for scan roots            |
+| Tauri dialog plugin       | 2.8.3           | Native folder picker for scan roots            |
 | UUID / regex              | 1.29.0 / 1.13.1 | Opaque native IDs and diagnostic redaction     |
 | rusqlite / libsqlite3-sys | 0.40.2 / 0.38.2 | Bundled native SQLite and backup API           |
 | React / React DOM         | 19.3.1          | Shared client rendering                        |
@@ -268,7 +268,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | TypeScript                | 6.0.3           | Strict shared-client compilation               |
 | ESLint                    | 10.12.0         | Client lint rules                              |
 | Vitest                    | 5.0.5           | Client and adapter contract tests              |
-| typescript-eslint         | 8.71.1          | Typed client lint integration                  |
+| typescript-eslint         | 8.72.1          | Typed client lint integration                  |
 | @napi-rs/canvas           | 1.0.13          | Test-only glyph rendering for axe in jsdom     |
 
 Dependency versions remain exact in their generated lockfiles. Updating a pin

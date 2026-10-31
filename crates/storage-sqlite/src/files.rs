@@ -182,6 +182,16 @@ pub(crate) struct Location {
     pub(crate) _lock: File,
 }
 
+impl Drop for Location {
+    fn drop(&mut self) {
+        // On Unix a concurrent fork can temporarily retain this open file
+        // description until exec. Closing our descriptor alone then leaves
+        // the ownership lock held and an immediate reopen can report Busy.
+        // Release our lock explicitly; closing the file remains the fallback.
+        let _ = self._lock.unlock();
+    }
+}
+
 /// Only lock contention is retryable. Any other OS failure keeps its error
 /// kind so a real filesystem problem is not mislabeled as a busy database.
 pub(crate) fn lock_failure(error: std::fs::TryLockError) -> StorageError {
