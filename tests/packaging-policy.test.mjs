@@ -166,12 +166,12 @@ test("the dialog dependency is exact, default-free, and locked", () => {
 
   assert.match(
     workspace,
-    /tauri-plugin-dialog = \{ version = "=2\.7\.3", default-features = false \}/,
+    /tauri-plugin-dialog = \{ version = "=2\.8\.3", default-features = false \}/,
   );
   for (const [name, version] of [
-    ["tauri-plugin-dialog", "2.7.3"],
+    ["tauri-plugin-dialog", "2.8.3"],
     ["rfd", "0.16.0"],
-    ["tauri-plugin-fs", "2.5.2"],
+    ["tauri-plugin-fs", "2.7.1"],
   ]) {
     assert.match(lock, new RegExp(`name = "${name}"\\nversion = "${version}"`));
   }
