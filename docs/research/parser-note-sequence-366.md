@@ -50,6 +50,11 @@ is not an alternative production parser or a filesystem security boundary.
 
 ## Genuine-save experiment
 
+The [differential research command](note-record-differentials-366.md) prepares
+the next comparisons without assigning musical meaning to candidate words.
+The October 31 continuation is tooling only: no additional genuine-save
+observations, fixture approval or production extraction is claimed.
+
 Use independent private copies of approved F11 in exact FL Studio **26.1.0.5530**,
 130 BPM, header PPQ 96 and an empty built-in Sampler with File `(none)`.
 Register recipes and actual GUI properties before inspecting each new save.
