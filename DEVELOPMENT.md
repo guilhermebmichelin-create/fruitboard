@@ -266,7 +266,7 @@ The first application packages use these exact Phase 1 foundation versions:
 | React / React DOM         | 19.3.1          | Shared client rendering                        |
 | Vite / React plugin       | 8.3.5 / 6.1.2   | Local development and production client bundle |
 | TypeScript                | 6.0.3           | Strict shared-client compilation               |
-| ESLint                    | 10.12.0         | Client lint rules                              |
+| ESLint                    | 10.13.0         | Client lint rules                              |
 | Vitest                    | 5.0.5           | Client and adapter contract tests              |
 | typescript-eslint         | 8.71.1          | Typed client lint integration                  |
 | @napi-rs/canvas           | 1.0.13          | Test-only glyph rendering for axe in jsdom     |
