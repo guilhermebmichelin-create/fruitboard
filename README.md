@@ -3,16 +3,17 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Current status - 2026-10-28
+## Current status - 2026-10-31
 
-This review starts from merged baseline `7a7aed6fc703b85ad91c79159715b3fefec1da91`
-([PR #350](https://github.com/guilhermebmichelin-create/fruitboard/pull/350),
-shared dependency security repairs), including PR335's stopped resource report.
+This review starts from merged baseline `83a04aa8dc65decaf32452e4c18cd4e32a734140`
+([PR #357](https://github.com/guilhermebmichelin-create/fruitboard/pull/357)),
+including PR348's project-relative sample checks, PR367's saved-note research
+and subsequent dependency/security integration.
 The application includes the current-metadata
 read-path change from [PR #321](https://github.com/guilhermebmichelin-create/fruitboard/pull/321),
 merged as `803ef43`. It consolidates current Plugin Explorer reads under
 existing freshness checks; its measurements did not establish a speedup or
-qualify resource limits. The [current status assessment](docs/review/development-status-20261027/README.md)
+qualify resource limits. The [current status assessment](docs/review/development-status-20261031/README.md)
 records the phase gates, evidence boundaries, live tracker discrepancies, and
 next work.
 
@@ -38,10 +39,10 @@ next work.
   [sample-check review](docs/review/sample-presence-ui-284/README.md) and
   [mixer slice](docs/review/library-mixer-inserts-304/README.md).
   [PR #348](https://github.com/guilhermebmichelin-create/fruitboard/pull/348)
-  implements the owner-accepted same-root project-relative candidate rule;
+  merged the owner-accepted same-root project-relative candidate rule;
   its [installed correctness and accessibility review](docs/review/project-relative-installed-20261028/README.md)
-  passes. This completes the scoped implementation and installed inspection;
-  normal updated-head CI remains required before merge. It does not establish
+  passes at its recorded source. This completes the scoped implementation and
+  installed inspection. It does not establish
   FL Studio resolution or complete G5.
 - **Compatibility and automation**: the approved parser corpus now has 21
   files. [PR #320](https://github.com/guilhermebmichelin-create/fruitboard/pull/320)
@@ -51,6 +52,16 @@ next work.
   point-count grammar. Automation extraction and display remain unqualified;
   [issue #324 research](docs/research/parser-automation-counts-324-result.md)
   defines the evidence still needed.
+- **Next parsing step**: merged
+  [PR #367](https://github.com/guilhermebmichelin-create/fruitboard/pull/367)
+  adds reproducible numeric note-record observations and a proposed sequence
+  contract. Issue #366 continues with independent saved-note pitch, timing,
+  duration, velocity and channel-binding qualification. New
+  [differential research tooling](docs/research/note-record-differentials-366.md)
+  compares controlled saves without claiming musical semantics. Actual note
+  sequences are not yet extracted or displayed. Genuine-save work needs an
+  unlocked matching-build session and a passing storage preflight; current
+  disk capacity is below the required reserve, so lightweight research continues.
 - **Resource and scanner status**: scanner qualification remains unaccepted;
   the historical warm nearest-rank p95 was 10,173 ms against the unchanged
   10,000 ms target on source `69f27f6`. The
