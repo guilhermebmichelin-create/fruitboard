@@ -16,9 +16,9 @@ export function inspectNoteRecordCandidates(bytes) {
   if (bytes.length > MAX_FILE_BYTES) reject("RESEARCH_FILE_LIMIT");
   if (
     bytes.length < 22 ||
-    bytes.toString("ascii", 0, 4) !== "FLhd" ||
+    !bytes.subarray(0, 4).equals(Buffer.from("FLhd", "ascii")) ||
     bytes.readUInt32LE(4) !== 6 ||
-    bytes.toString("ascii", 14, 18) !== "FLdt" ||
+    !bytes.subarray(14, 18).equals(Buffer.from("FLdt", "ascii")) ||
     bytes.readUInt32LE(18) !== bytes.length - 22
   )
     reject("RESEARCH_HEADER_OR_SIZE");
