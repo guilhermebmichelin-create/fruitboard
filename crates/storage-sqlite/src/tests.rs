@@ -138,6 +138,29 @@ fn embedded_runtime_passes_the_shared_policy() {
 }
 
 #[test]
+fn dropping_database_releases_ownership_with_a_duplicated_lock_handle() {
+    let directory = TestDirectory::new();
+    let database = Database::open(directory.path()).unwrap();
+    // Models the shared open file description inherited by another test's
+    // fork before its child reaches exec on Unix. The duplicate stays alive.
+    let inherited = database.location._lock.try_clone().unwrap();
+    assert!(matches!(
+        Database::open(directory.path()),
+        Err(StorageError::Busy)
+    ));
+    drop(database);
+    let reopened = Database::open(directory.path()).unwrap();
+    // Closing a stale inherited handle must not release the new owner's lock.
+    drop(inherited);
+    assert!(matches!(
+        Database::open(directory.path()),
+        Err(StorageError::Busy)
+    ));
+    drop(reopened);
+    Database::open(directory.path()).unwrap();
+}
+
+#[test]
 fn creates_latest_and_reopens_without_reseeding_settings() {
     let directory = TestDirectory::new();
     {
