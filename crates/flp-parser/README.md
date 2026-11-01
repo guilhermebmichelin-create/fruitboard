@@ -173,6 +173,40 @@ validation remains usable. Typed accessors retain counts/states only, without
 automatic serialization. Storage and Library projection are a separate slice;
 no native authority, command, sample read, filesystem grant or migration is added.
 
+## Ordinary pattern note sequences
+
+Adapter 0.1.4 adds optional `patternNoteSequences` and full typed validation.
+Approved F24-F30 qualify a deliberately narrow ordinary-note subset in exact
+build 26.1.0.5530 at 96 PPQ. Records retain source ordinal, explicitly resolved
+channel index, numeric saved key, pattern-local start/duration ticks and raw
+stored velocity byte. No MIDI mapping, pitch name, percentage conversion or
+seconds is inferred. The implementation accepts only observed keys 60/64,
+starts 0/48, lengths 48/96, velocity bytes 74/89, ordinary flags and the
+unchanged remaining record bytes. Other values/kinds refuse the entire pattern;
+qualified siblings and existing counts remain independently available.
+
+Channel resolution uses unique saved declarations within the same file, never
+the raw saved word as a list index. Only the qualified one/two-channel ID set
+and built-in Sampler target are accepted. Sparse/deleted IDs, unknown targets,
+other PPQs, slide/step records and unfamiliar layouts remain unsupported.
+Missing payloads remain unavailable rather than an extracted empty sequence.
+
+The descriptor must advertise sequences together with counts, patterns, project
+facts and three positive bounded caps: 512 detailed records per pattern,
+1,024 candidate records total and 128 KiB serialized detail data. Every payload
+charges the candidate budget, including refused/duplicate/malformed records.
+Detail refusal does not reduce the existing count limits. Oversized detail data
+is replaced as a whole by a fixed limit state; the final 256 KiB wire limit
+still applies, including the outer envelope. No clipped sequences are emitted.
+
+Full validation checks exact shapes/states, advertised limits, qualified values,
+pattern order, count/cardinality agreement, ordinals and channel bounds. Invalid
+advertised details reject the reply; descriptors without this extension keep
+their earlier projection. Typed accessors have no automatic Debug/Serialize.
+Immutable storage and Library display remain separate next slices; the desktop
+does not yet show these sequences. See the
+[implementation and validation boundary](../../docs/review/pattern-note-sequences-366/README.md).
+
 ## Project facts
 
 Issue #232 adds `projectCreatedLocal` (the embedded creation date with an

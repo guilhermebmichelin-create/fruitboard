@@ -17,6 +17,8 @@ mod patterns;
 pub use patterns::*;
 mod pattern_notes;
 pub use pattern_notes::*;
+mod note_sequences;
+pub use note_sequences::*;
 mod mixer_inserts;
 pub use mixer_inserts::*;
 
@@ -52,6 +54,7 @@ pub struct ParserCapabilities {
     channel_generators: bool,
     patterns: bool,
     note_limits: Option<(u64, u64)>,
+    sequence_limits: Option<note_sequences::NoteSequenceLimits>,
     mixer_limits: Option<(usize, usize)>,
 }
 
@@ -100,6 +103,39 @@ pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, Validati
     } else {
         None
     };
+    let sequence_keys = [
+        "maxDetailedNotesPerPattern",
+        "maxDetailedNotesTotal",
+        "maxNoteSequenceBytes",
+    ];
+    let sequence_limits = if names.contains("patternNoteSequences") {
+        if note_limits.is_none()
+            || !project_facts::FIELDS
+                .iter()
+                .all(|field| names.contains(field))
+        {
+            return Err(invalid);
+        }
+        let per_pattern = limit(
+            sequence_keys[0],
+            crate::MAX_DETAILED_NOTES_PER_PATTERN as u64,
+        )? as usize;
+        let total = limit(sequence_keys[1], crate::MAX_DETAILED_NOTES_TOTAL as u64)? as usize;
+        let bytes = limit(sequence_keys[2], crate::MAX_NOTE_SEQUENCE_BYTES as u64)? as usize;
+        if per_pattern > total {
+            return Err(invalid);
+        }
+        Some(note_sequences::NoteSequenceLimits {
+            per_pattern,
+            total,
+            bytes,
+        })
+    } else {
+        if sequence_keys.iter().any(|key| value.get(*key).is_some()) {
+            return Err(invalid);
+        }
+        None
+    };
     if names.contains("mixerInsertCount") != names.contains("mixerInsertNames") {
         return Err(invalid);
     }
@@ -123,6 +159,7 @@ pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, Validati
         max_playlist_clips,
         max_patterns,
         note_limits,
+        sequence_limits,
         mixer_limits,
         project_facts: project_facts::FIELDS
             .iter()

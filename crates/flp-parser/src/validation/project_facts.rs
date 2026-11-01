@@ -120,6 +120,7 @@ pub struct ValidatedProjectMetadata {
     channel_generators: ChannelGenerators,
     patterns: SavedPatterns,
     pattern_note_counts: PatternNoteCounts,
+    pattern_note_sequences: PatternNoteSequences,
     mixer_inserts: SavedMixerInserts,
     arrangement_end_tick: ProjectField<u32>,
     arrangement_span_bars: ProjectField<f64>,
@@ -158,6 +159,9 @@ impl ValidatedProjectMetadata {
     }
     pub fn pattern_note_counts(&self) -> &PatternNoteCounts {
         &self.pattern_note_counts
+    }
+    pub fn pattern_note_sequences(&self) -> &PatternNoteSequences {
+        &self.pattern_note_sequences
     }
     pub fn mixer_inserts(&self) -> &SavedMixerInserts {
         &self.mixer_inserts
@@ -565,9 +569,23 @@ pub fn validate_project_reply(
                     code.as_str(),
                 )?;
             }
+            if capabilities.sequence_limits.is_some() {
+                note_sequences::terminal(
+                    &raw.as_ref().ok_or(ValidationError::InvalidReply)?["patternNoteSequences"],
+                    "failed",
+                    code.as_str(),
+                )?;
+            }
             return Ok(ValidatedProjectReply::Failed(code));
         }
         ValidatedReply::UnsupportedSavedVersion(value) => {
+            if capabilities.sequence_limits.is_some() {
+                note_sequences::terminal(
+                    &raw.as_ref().ok_or(ValidationError::InvalidReply)?["patternNoteSequences"],
+                    "unsupported",
+                    "UNSUPPORTED_SAVED_VERSION",
+                )?;
+            }
             if capabilities.mixer_limits.is_some() {
                 let raw = raw.as_ref().ok_or(ValidationError::InvalidReply)?;
                 mixer_inserts::validate(
@@ -601,6 +619,22 @@ pub fn validate_project_reply(
         capabilities.note_limits,
         initial.saved_version(),
         &patterns,
+    )?;
+    if capabilities.sequence_limits.is_some()
+        && serde_json::to_vec(&raw)
+            .map_err(|_| ValidationError::InvalidReply)?
+            .len()
+            > 256 * 1024
+    {
+        return Err(ValidationError::LimitExceeded);
+    }
+    let pattern_note_sequences = note_sequences::validate(
+        &raw["patternNoteSequences"],
+        capabilities.sequence_limits,
+        initial.saved_version(),
+        &patterns,
+        &pattern_note_counts,
+        initial.channel_count() as usize,
     )?;
     let fl_studio_time_spent_ms = integer(
         &raw["flStudioTimeSpentMs"],
@@ -706,6 +740,7 @@ pub fn validate_project_reply(
             channel_generators,
             patterns,
             pattern_note_counts,
+            pattern_note_sequences,
             mixer_inserts,
             arrangement_end_tick,
             arrangement_span_bars,

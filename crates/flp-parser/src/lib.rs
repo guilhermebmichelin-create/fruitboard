@@ -23,6 +23,7 @@ pub fn authorize_source(
         .map_err(|_| SourceAuthorizationError::Unavailable)
 }
 mod mixer_inserts;
+mod pattern_note_sequences;
 mod pattern_notes;
 mod plugin_references;
 mod project_info;
@@ -54,6 +55,9 @@ pub const MAX_PATTERNS: usize = 1024;
 pub const MAX_PLAYLIST_CLIPS: usize = 1024;
 pub const MAX_NOTE_RECORDS_PER_PATTERN: usize = 65_536;
 pub const MAX_NOTE_RECORDS_TOTAL: usize = 262_144;
+pub const MAX_DETAILED_NOTES_PER_PATTERN: usize = 512;
+pub const MAX_DETAILED_NOTES_TOTAL: usize = 1024;
+pub const MAX_NOTE_SEQUENCE_BYTES: usize = 128 * 1024;
 pub const MAX_MIXER_INSERTS: usize = 512;
 pub const MAX_MIXER_INSERT_CANDIDATES: usize = 512;
 
@@ -77,6 +81,7 @@ pub fn failed(code: &str) -> Value {
         "patternCount":field("failed",Value::Null,Some(code)),
         "patternNames":field("failed",Value::Null,Some(code)),
         "patternNoteCounts":field("failed",Value::Null,Some(code)),
+        "patternNoteSequences":field("failed",Value::Null,Some(code)),
         "mixerInsertCount":field("failed",Value::Null,Some(code)),
         "mixerInsertNames":field("failed",Value::Null,Some(code)),
         "playlistPatternClips":field("failed",Value::Null,Some(code)),
@@ -341,6 +346,7 @@ fn unsupported_version(version: &str) -> Value {
         "channelCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "patternCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "patternNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "patternNoteSequences":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "playlistPatternClips":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "playlistPatternEndTick":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "playlistPatternNominalSeconds":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
@@ -763,6 +769,8 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         .iter_mut()
         .map(|channel| std::mem::take(&mut channel.generator_event))
         .collect::<Vec<_>>();
+    let pattern_note_sequences =
+        pattern_notes.sequences(version.as_deref(), header_ppq, &pattern_ids, &channels);
     let samples = channels
         .into_iter()
         .map(|channel| channel.sample)
@@ -896,6 +904,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         "channelCount":field("extracted",json!(channel_count),None),
         "patternCount":pattern_count,
         "patternNoteCounts":pattern_notes.summary(version.as_deref(), &pattern_ids),
+        "patternNoteSequences":pattern_note_sequences,
         "mixerInsertCount":mixer_insert_count,
         "mixerInsertNames":mixer_insert_names,
         "patternNames":pattern_names,
