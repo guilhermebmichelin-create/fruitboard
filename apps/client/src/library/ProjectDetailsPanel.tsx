@@ -16,8 +16,12 @@ import {
 
 type State =
   | { readonly kind: "loading" }
-  | { readonly kind: "error" }
-  | { readonly kind: "ready"; readonly details: ProjectDetails };
+  | { readonly kind: "error"; readonly sourceKey: string }
+  | {
+      readonly kind: "ready";
+      readonly details: ProjectDetails;
+      readonly sourceKey: string;
+    };
 
 /** Parent keys by scan snapshot and row fingerprint; new results clear facts. */
 export function ProjectDetailsPanel({
@@ -33,8 +37,22 @@ export function ProjectDetailsPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const [state, setState] = useState<State>({ kind: "loading" });
+  const [loadedState, setState] = useState<State>({ kind: "loading" });
   const { rootId, locationId, byteSize, modifiedAt, presence } = record;
+  const sourceKey = JSON.stringify([
+    rootId,
+    locationId,
+    byteSize,
+    modifiedAt,
+    presence,
+    sourceEligible,
+  ]);
+  // Hide old content synchronously when authority changes, before the effect's
+  // replacement read resolves. Its response still has the disposal fence.
+  const state: State =
+    loadedState.kind !== "loading" && loadedState.sourceKey !== sourceKey
+      ? { kind: "loading" }
+      : loadedState;
   useEffect(() => {
     if (!open) return;
     let disposed = false;
@@ -59,10 +77,10 @@ export function ProjectDetailsPanel({
           );
     void pending.then(
       (details) => {
-        if (!disposed) setState({ kind: "ready", details });
+        if (!disposed) setState({ kind: "ready", details, sourceKey });
       },
       () => {
-        if (!disposed) setState({ kind: "error" });
+        if (!disposed) setState({ kind: "error", sourceKey });
       },
     );
     return () => {
@@ -78,6 +96,7 @@ export function ProjectDetailsPanel({
     modifiedAt,
     presence,
     sourceEligible,
+    sourceKey,
   ]);
 
   const id = `${idPrefix}-${locationId}`;
@@ -199,6 +218,8 @@ export function ProjectDetailsPanel({
                   key={`patterns:${state.details.snapshotId}`}
                   patterns={state.details.patterns}
                   notes={state.details.patternNoteCounts}
+                  sequences={state.details.patternNoteSequences}
+                  channels={state.details.channels}
                 />
                 <SavedMixerInserts
                   key={`mixer:${state.details.snapshotId}`}

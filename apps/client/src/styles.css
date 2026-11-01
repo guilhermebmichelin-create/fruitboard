@@ -989,6 +989,21 @@
     background: var(--color-surface-subtle);
   }
 
+  .project-note-sequence {
+    margin-block-start: var(--space-3);
+    overflow-wrap: anywhere;
+  }
+  .project-note-sequence summary {
+    cursor: pointer;
+  }
+  .project-note-sequence__records {
+    display: grid;
+    gap: var(--space-3);
+    padding-inline-start: var(--space-5);
+  }
+  .project-note-sequence__records > li {
+    min-width: 0;
+  }
   .project-channels,
   .project-plugins,
   .project-samples {

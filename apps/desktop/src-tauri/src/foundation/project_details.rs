@@ -15,6 +15,8 @@ mod channels;
 mod mixer_inserts;
 #[cfg(all(test, feature = "analysis-jobs"))]
 mod mixer_tests;
+#[cfg(feature = "analysis-jobs")]
+mod note_sequences;
 #[cfg(all(test, feature = "analysis-jobs"))]
 mod note_tests;
 #[cfg(feature = "analysis-jobs")]
@@ -27,6 +29,8 @@ mod patterns;
 mod plugins;
 #[cfg(feature = "analysis-jobs")]
 mod samples;
+#[cfg(all(test, feature = "analysis-jobs"))]
+mod sequence_tests;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -68,6 +72,7 @@ enum Content {
         channels: Vec<channels::Channel>,
         patterns: Box<patterns::Summary>,
         pattern_note_counts: Box<pattern_notes::Summary>,
+        pattern_note_sequences: Box<note_sequences::Summary>,
         mixer_inserts: Box<mixer_inserts::Summary>,
         analysis: analysis::Summary,
         warnings: Vec<&'static str>,
@@ -195,6 +200,7 @@ fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<
         patterns,
         pattern_note_counts,
         mixer_inserts,
+        pattern_note_sequences,
     ) = project(snapshot.payload_json().ok_or(())?)?;
     Ok(Content::Available {
         snapshot_id: header.id.clone(),
@@ -203,6 +209,7 @@ fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<
         channels,
         patterns: Box::new(patterns),
         pattern_note_counts: Box::new(pattern_note_counts),
+        pattern_note_sequences: Box::new(pattern_note_sequences),
         mixer_inserts: Box::new(mixer_inserts),
         analysis,
         warnings,
@@ -222,6 +229,7 @@ type DisplayProjection = (
     patterns::Summary,
     pattern_notes::Summary,
     mixer_inserts::Summary,
+    note_sequences::Summary,
 );
 
 #[cfg(feature = "analysis-jobs")]
@@ -276,6 +284,7 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
     let patterns = patterns::project(value.get("patterns"), version)?;
     let pattern_note_counts = pattern_notes::project(&value, version)?;
     let mixer_inserts = mixer_inserts::project(value.get("mixerInserts"), version)?;
+    let pattern_note_sequences = note_sequences::project(&value, version, channels as usize)?;
     let channels = channels::project(&value, version, channels as usize)?;
     let warnings = match value.get("diagnostics") {
         None => Vec::new(),
@@ -300,6 +309,7 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
         patterns,
         pattern_note_counts,
         mixer_inserts,
+        pattern_note_sequences,
     ))
 }
 
@@ -307,7 +317,7 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
 /// passed to Explorer. Only the validated plugin projection leaves this seam.
 #[cfg(feature = "analysis-jobs")]
 pub(super) fn explorer_plugins(payload: &str) -> Result<Option<Value>, ()> {
-    let (_, _, _, _, plugins, _, _, _) = project(payload)?;
+    let (_, _, _, _, plugins, ..) = project(payload)?;
     plugins
         .map(serde_json::to_value)
         .transpose()
@@ -317,7 +327,7 @@ pub(super) fn explorer_plugins(payload: &str) -> Result<Option<Value>, ()> {
 /// Only the complete validated saved projection can supply a check's strings.
 #[cfg(feature = "analysis-jobs")]
 pub(super) fn saved_sample_values(payload: &str) -> Result<Option<Vec<Option<String>>>, ()> {
-    let (_, _, _, samples, _, _, _, _) = project(payload)?;
+    let (_, _, _, samples, ..) = project(payload)?;
     Ok(samples.map(|items| items.into_iter().map(|item| item.value).collect()))
 }
 
@@ -597,7 +607,7 @@ mod tests {
     #[test]
     #[cfg(feature = "analysis-jobs")]
     fn projection_preserves_status_assumptions_and_exact_integers_without_raw_extensions() {
-        let (facts, _, _, _, _, _, _, _) = project(&payload().to_string()).unwrap();
+        let (facts, ..) = project(&payload().to_string()).unwrap();
         let serialized = serde_json::to_value(facts).unwrap();
         assert_eq!(serialized.as_array().unwrap().len(), 9);
         assert_eq!(serialized[4]["value"], u64::MAX.to_string());
@@ -701,7 +711,7 @@ mod tests {
     #[cfg(feature = "analysis-jobs")]
     fn channel_projection_reads_old_snapshots_and_rejects_invalid_names_or_instrument_claims() {
         let raw = payload();
-        let (_, channels, _, _, _, _, _, _) = project(&raw.to_string()).unwrap();
+        let (_, channels, ..) = project(&raw.to_string()).unwrap();
         let channels = serde_json::to_value(channels).unwrap();
         assert_eq!(channels[0]["name"]["value"], "Kick");
         assert_eq!(channels[0]["instrument"]["status"], "unsupported");

@@ -10,6 +10,10 @@ import {
   type ProjectPatternNotes,
 } from "./projectPatternNotes";
 import {
+  parseProjectNoteSequences,
+  type ProjectNoteSequences,
+} from "./projectNoteSequences";
+import {
   parseProjectPlugins,
   type ProjectPluginReferences,
 } from "./pluginReferences";
@@ -70,6 +74,7 @@ export type ProjectDetails = {
       readonly channels: readonly ProjectChannel[];
       readonly patterns?: ProjectPatterns;
       readonly patternNoteCounts?: ProjectPatternNotes;
+      readonly patternNoteSequences?: ProjectNoteSequences;
       readonly mixerInserts?: ProjectMixerInserts;
       readonly sampleReferences?: readonly ProjectSampleReference[];
       readonly pluginReferences?: ProjectPluginReferences;
@@ -105,6 +110,7 @@ export function parseProjectDetails(
       value["channels"] !== undefined ||
       value["patterns"] !== undefined ||
       value["patternNoteCounts"] !== undefined ||
+      value["patternNoteSequences"] !== undefined ||
       value["mixerInserts"] !== undefined ||
       value["sampleReferences"] !== undefined ||
       value["pluginReferences"] !== undefined ||
@@ -287,6 +293,16 @@ export function parseProjectDetails(
           facts[0]?.value ?? "",
           patterns,
         );
+  const patternNoteSequences =
+    value["patternNoteSequences"] === undefined
+      ? undefined
+      : parseProjectNoteSequences(
+          value["patternNoteSequences"],
+          facts[0]?.value ?? "",
+          patterns,
+          patternNoteCounts,
+          selectedChannels.length,
+        );
   return {
     ...identity,
     state,
@@ -312,6 +328,7 @@ export function parseProjectDetails(
           ),
         }),
     ...(patternNoteCounts === undefined ? {} : { patternNoteCounts }),
+    ...(patternNoteSequences === undefined ? {} : { patternNoteSequences }),
     ...(value["sampleReferences"] === undefined
       ? {}
       : {

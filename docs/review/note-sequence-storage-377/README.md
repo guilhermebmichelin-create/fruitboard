@@ -88,6 +88,7 @@ allow one writer/build at a time, hold the installed-test host lock where
 applicable and run qualification alone. Retain evidence and source; there are no
 new obsolete compiler intermediates or local rebuild costs from this task.
 
-The next slice is accessible Library display with strict native/client decoding,
-old-result copy and source/snapshot-loss states. Broader grammar/build coverage,
+The [Library slice #379](../note-sequence-library-379/README.md) adds accessible
+display with strict native/client decoding, old-result copy and source/snapshot-loss
+states; locked CI and installed validation remain pending. Broader grammar/build coverage,
 resource budgets, Phase 3 acceptance and production activation stay separate.

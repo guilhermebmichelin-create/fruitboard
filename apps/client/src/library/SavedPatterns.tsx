@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { channelLabel } from "./projectDetails";
+import type { ProjectChannel } from "./projectDetails";
+import { SavedNoteSequence } from "./SavedNoteSequence";
+import type { ProjectNoteSequences } from "./projectNoteSequences";
 import {
   PATTERN_REASONS,
   type ProjectPatterns as Patterns,
@@ -13,9 +16,13 @@ const BATCH_SIZE = 20;
 export function ProjectPatterns({
   patterns,
   notes,
+  sequences,
+  channels = [],
 }: {
   readonly patterns?: Patterns | undefined;
   readonly notes?: ProjectPatternNotes | undefined;
+  readonly sequences?: ProjectNoteSequences | undefined;
+  readonly channels?: readonly ProjectChannel[] | undefined;
 }) {
   const [visible, setVisible] = useState(BATCH_SIZE);
   if (!patterns || patterns.state !== "available") {
@@ -98,6 +105,20 @@ export function ProjectPatterns({
                   </dd>
                 </div>
               </dl>
+              <SavedNoteSequence
+                patternId={pattern.patternId}
+                channels={channels}
+                sequence={
+                  sequences?.state === "available"
+                    ? sequences.items[index]?.sequence
+                    : undefined
+                }
+                reason={
+                  sequences?.state !== "available"
+                    ? sequences?.reason
+                    : undefined
+                }
+              />
             </li>
           );
         })}
