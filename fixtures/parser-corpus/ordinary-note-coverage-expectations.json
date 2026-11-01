@@ -1,0 +1,557 @@
+{
+  "schemaVersion": 1,
+  "issue": 381,
+  "approval": {
+    "status": "owner-approved exact eight sanitized hashes and positive/negative expectations",
+    "date": "2026-11-01",
+    "decision": "PR reviewed and merged. Proceed with the next step of the file parse development",
+    "context": "Continuation in response to the eight-file exact-byte publication packet after PR382"
+  },
+  "savedBuild": "26.1.0.5530",
+  "baseTempoBpm": 130,
+  "ppqHeader": 96,
+  "provenance": {
+    "sourceFixture": "FIX-FL2026-NOTE-BASELINE.flp",
+    "sourceSha256": "92e718add58c185804f16131cc904717d0ec799f59152d82de341093275e81f7",
+    "guiExecutableSha256": "a3ef478a54d660d763113b04dae0a8b985e8610eca213eb3bf0222eed5df4b67",
+    "protocolCommit": "6dfb206add7e769c6cd1f7dcb4ac3c16ebd3b8b8",
+    "researchResult": "PR382",
+    "method": "Actual GUI observations registered before new note-byte inspection, sanitized candidates reopened without saving inspection edits, then independently decoded in Node and Python.",
+    "sanitation": "Removed one registration event200 (16 payload bytes plus two framing bytes) and corrected FLdt length; every retained event byte-identical.",
+    "content": "Owner-approved purpose-built synthetic empty-Sampler content; no third-party project/audio or external attribution requirement.",
+    "privateEvidence": "Originals, screenshots, helpers, raw receipts and failures retained outside Git."
+  },
+  "qualificationBoundary": [
+    "Six clean cases N10/N11/N12/N13/N14/N16 and two failed controls N09/N15.",
+    "GUI percent70 corresponds to both raw89 and raw90 here; no generic conversion or clean pitch-only claim for N09.",
+    "N15 retains two GUI notes but raw byte19 differs64 vs0; exact identical duplicates and byte19 meaning remain unqualified.",
+    "Chord source ordinal is67/64/60; no sort or deduplication.",
+    "N16 saved IDs renumber to0/1; no sparse-ID evidence.",
+    "This publication preserves current parser refusal; accepting new values is a separate reviewed change."
+  ],
+  "cases": [
+    {
+      "slot": "F31",
+      "case": "N09",
+      "file": "FIX-FL2026-NOTE-PITCH-CONFOUNDED.flp",
+      "bytes": 46600,
+      "sha256": "f72207679b7518a739d65163141bd470caa83ee25200bfe32d6290b898210cb6",
+      "qualification": "negative control",
+      "limitation": "Confounded pitch-only control: 70% displayed for raw90 vs baseline89; gesture quantization not isolated",
+      "independentGui": {
+        "channelOrder": ["Sampler"],
+        "noteOwner": "Sampler",
+        "notes": [
+          {
+            "duration": "0:02:00",
+            "pitch": "D5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 62,
+            "start": "1:01:00"
+          }
+        ],
+        "retainedNoteCount": 1
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "records": [
+        {
+          "ordinal": 0,
+          "position": 0,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 62,
+          "storedVelocityByte": 90,
+          "flags": 16384,
+          "recordBytes": [
+            0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 62, 0, 0, 0, 120, 0, 64, 0,
+            64, 90, 128, 128
+          ]
+        }
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": null
+        }
+      ],
+      "baselineChangedOffsets": [[12, 21]],
+      "currentParser": {
+        "patternStatus": "unsupported",
+        "reason": "PATTERN_NOTE_RECORD_UNQUALIFIED"
+      }
+    },
+    {
+      "slot": "F32",
+      "case": "N10",
+      "file": "FIX-FL2026-NOTE-START-ONE-STEP.flp",
+      "bytes": 46600,
+      "sha256": "0d74ae39b6cc9e2ca23f87b1ce46806c523fff21667f28f98941dabf0057df4b",
+      "qualification": "clean registered case",
+      "limitation": null,
+      "independentGui": {
+        "channelOrder": ["Sampler"],
+        "noteOwner": "Sampler",
+        "notes": [
+          {
+            "duration": "0:02:00",
+            "pitch": "C5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 60,
+            "start": "1:02:00"
+          }
+        ],
+        "retainedNoteCount": 1
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "records": [
+        {
+          "ordinal": 0,
+          "position": 24,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 60,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            24, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0,
+            64, 89, 128, 128
+          ]
+        }
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": null
+        }
+      ],
+      "baselineChangedOffsets": [[0]],
+      "currentParser": {
+        "patternStatus": "unsupported",
+        "reason": "PATTERN_NOTE_RECORD_UNQUALIFIED"
+      }
+    },
+    {
+      "slot": "F33",
+      "case": "N11",
+      "file": "FIX-FL2026-NOTE-LENGTH-ONE-STEP.flp",
+      "bytes": 46600,
+      "sha256": "57a48ce6ea21cb70e3ca99f57b292fe826df17c69c0d027ff62306b037ddcfbd",
+      "qualification": "clean registered case",
+      "limitation": null,
+      "independentGui": {
+        "channelOrder": ["Sampler"],
+        "noteOwner": "Sampler",
+        "notes": [
+          {
+            "duration": "0:01:00",
+            "pitch": "C5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 60,
+            "start": "1:01:00"
+          }
+        ],
+        "retainedNoteCount": 1
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "records": [
+        {
+          "ordinal": 0,
+          "position": 0,
+          "savedChannelId": 0,
+          "storedLength": 24,
+          "savedKey": 60,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            0, 0, 0, 0, 0, 64, 0, 0, 24, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0,
+            64, 89, 128, 128
+          ]
+        }
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": null
+        }
+      ],
+      "baselineChangedOffsets": [[8]],
+      "currentParser": {
+        "patternStatus": "unsupported",
+        "reason": "PATTERN_NOTE_RECORD_UNQUALIFIED"
+      }
+    },
+    {
+      "slot": "F34",
+      "case": "N12",
+      "file": "FIX-FL2026-NOTE-VELOCITY-FULL.flp",
+      "bytes": 46600,
+      "sha256": "cd7c1c4f929ec32107dd2e97e165557f064692a0fcafe025075f57cbcdff34b8",
+      "qualification": "clean registered case",
+      "limitation": null,
+      "independentGui": {
+        "channelOrder": ["Sampler"],
+        "noteOwner": "Sampler",
+        "notes": [
+          {
+            "duration": "0:02:00",
+            "pitch": "C5",
+            "velocityPercent": 100,
+            "displayedKeyNumber": 60,
+            "start": "1:01:00"
+          }
+        ],
+        "retainedNoteCount": 1
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "records": [
+        {
+          "ordinal": 0,
+          "position": 0,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 60,
+          "storedVelocityByte": 128,
+          "flags": 16384,
+          "recordBytes": [
+            0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0,
+            64, 128, 128, 128
+          ]
+        }
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": null
+        }
+      ],
+      "baselineChangedOffsets": [[21]],
+      "currentParser": {
+        "patternStatus": "unsupported",
+        "reason": "PATTERN_NOTE_RECORD_UNQUALIFIED"
+      }
+    },
+    {
+      "slot": "F35",
+      "case": "N13",
+      "file": "FIX-FL2026-NOTE-MELODY.flp",
+      "bytes": 46648,
+      "sha256": "d01540b83525332a8b89aaa7bd416e20200858bbf5f0547f16bcc5235e5c4fe3",
+      "qualification": "clean registered case",
+      "limitation": null,
+      "independentGui": {
+        "channelOrder": ["Sampler"],
+        "noteOwner": "Sampler",
+        "notes": [
+          {
+            "duration": "0:02:00",
+            "pitch": "C5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 60,
+            "start": "1:01:00"
+          },
+          {
+            "duration": "0:02:00",
+            "pitch": "D5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 62,
+            "start": "1:03:00"
+          },
+          {
+            "duration": "0:04:00",
+            "pitch": "E5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 64,
+            "start": "1:05:00"
+          }
+        ],
+        "retainedNoteCount": 3
+      },
+      "patternId": 1,
+      "savedRecordCount": 3,
+      "records": [
+        {
+          "ordinal": 0,
+          "position": 0,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 60,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0,
+            64, 89, 128, 128
+          ]
+        },
+        {
+          "ordinal": 1,
+          "position": 48,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 62,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            48, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 62, 0, 0, 0, 120, 0, 64, 0,
+            64, 89, 128, 128
+          ]
+        },
+        {
+          "ordinal": 2,
+          "position": 96,
+          "savedChannelId": 0,
+          "storedLength": 96,
+          "savedKey": 64,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            96, 0, 0, 0, 0, 64, 0, 0, 96, 0, 0, 0, 64, 0, 0, 0, 120, 0, 64, 0,
+            64, 89, 128, 128
+          ]
+        }
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 501,
+          "storedName": null
+        }
+      ],
+      "baselineChangedOffsets": [[], [0, 12], [0, 8, 12]],
+      "currentParser": {
+        "patternStatus": "unsupported",
+        "reason": "PATTERN_NOTE_RECORD_UNQUALIFIED"
+      }
+    },
+    {
+      "slot": "F36",
+      "case": "N14",
+      "file": "FIX-FL2026-NOTE-CHORD.flp",
+      "bytes": 46648,
+      "sha256": "cf5ab8853645b916ab806ff8c8a3592003733fee9e54482bb7625ae8cdc668bc",
+      "qualification": "clean registered case",
+      "limitation": null,
+      "independentGui": {
+        "channelOrder": ["Sampler"],
+        "noteOwner": "Sampler",
+        "notes": [
+          {
+            "duration": "0:02:00",
+            "pitch": "C5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 60,
+            "start": "1:01:00"
+          },
+          {
+            "duration": "0:02:00",
+            "pitch": "E5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 64,
+            "start": "1:01:00"
+          },
+          {
+            "duration": "0:02:00",
+            "pitch": "G5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 67,
+            "start": "1:01:00"
+          }
+        ],
+        "retainedNoteCount": 3
+      },
+      "patternId": 1,
+      "savedRecordCount": 3,
+      "records": [
+        {
+          "ordinal": 0,
+          "position": 0,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 67,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 67, 0, 0, 0, 120, 0, 64, 0,
+            64, 89, 128, 128
+          ]
+        },
+        {
+          "ordinal": 1,
+          "position": 0,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 64,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 64, 0, 0, 0, 120, 0, 64, 0,
+            64, 89, 128, 128
+          ]
+        },
+        {
+          "ordinal": 2,
+          "position": 0,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 60,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0,
+            64, 89, 128, 128
+          ]
+        }
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 501,
+          "storedName": null
+        }
+      ],
+      "baselineChangedOffsets": [[12], [12], []],
+      "currentParser": {
+        "patternStatus": "unsupported",
+        "reason": "PATTERN_NOTE_RECORD_UNQUALIFIED"
+      }
+    },
+    {
+      "slot": "F37",
+      "case": "N15",
+      "file": "FIX-FL2026-NOTE-DUPLICATE-ATTEMPT.flp",
+      "bytes": 46624,
+      "sha256": "464ea6830018f8e8f5c5f48df6823b66907c8bcbeaa993c3e038038770599c70",
+      "qualification": "negative control",
+      "limitation": "Two GUI-retained notes with matching observed musical properties, but raw record byte19 differs64 vs0; exact duplicate not qualified; unknown-byte refusal must remain",
+      "independentGui": {
+        "channelOrder": ["Sampler"],
+        "noteOwner": "Sampler",
+        "notes": [
+          {
+            "duration": "0:02:00",
+            "pitch": "C5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 60,
+            "start": "1:01:00"
+          },
+          {
+            "duration": "0:02:00",
+            "pitch": "C5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 60,
+            "start": "1:01:00"
+          }
+        ],
+        "retainedNoteCount": 2
+      },
+      "patternId": 1,
+      "savedRecordCount": 2,
+      "records": [
+        {
+          "ordinal": 0,
+          "position": 0,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 60,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 64,
+            64, 89, 128, 128
+          ]
+        },
+        {
+          "ordinal": 1,
+          "position": 0,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 60,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0,
+            64, 89, 128, 128
+          ]
+        }
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 477,
+          "storedName": null
+        }
+      ],
+      "baselineChangedOffsets": [[19], []],
+      "currentParser": {
+        "patternStatus": "unsupported",
+        "reason": "PATTERN_NOTE_RECORD_UNQUALIFIED"
+      }
+    },
+    {
+      "slot": "F38",
+      "case": "N16",
+      "file": "FIX-FL2026-NOTE-CHANNEL-DELETED.flp",
+      "bytes": 47482,
+      "sha256": "e9984dc071cf5c9ee03a02c15632972a088863bf2bffdf3a1759aa8797805625",
+      "qualification": "clean registered case",
+      "limitation": null,
+      "independentGui": {
+        "channelOrder": ["NoteTwo", "Reserve"],
+        "noteOwner": "NoteTwo",
+        "notes": [
+          {
+            "duration": "0:02:00",
+            "pitch": "C5",
+            "velocityPercent": 70,
+            "displayedKeyNumber": 60,
+            "start": "1:01:00"
+          }
+        ],
+        "retainedNoteCount": 1,
+        "beforeDeletionOrder": ["DeleteMe", "NoteTwo", "Reserve"],
+        "otherChannelEmpty": true
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "records": [
+        {
+          "ordinal": 0,
+          "position": 0,
+          "savedChannelId": 0,
+          "storedLength": 48,
+          "savedKey": 60,
+          "storedVelocityByte": 89,
+          "flags": 16384,
+          "recordBytes": [
+            0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0,
+            64, 89, 128, 128
+          ]
+        }
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": "NoteTwo"
+        },
+        {
+          "savedId": 1,
+          "eventOffset": 1317,
+          "storedName": "Reserve"
+        }
+      ],
+      "baselineChangedOffsets": [[]],
+      "currentParser": {
+        "patternStatus": "extracted",
+        "reason": null
+      }
+    }
+  ]
+}

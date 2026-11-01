@@ -1,8 +1,8 @@
 # Ordinary-note coverage pilot result
 
 Issue: [#381](https://github.com/guilhermebmichelin-create/fruitboard/issues/381).
-Date: 2026-11-01. Status: **Private research completed; exact-byte fixture
-publication requires owner approval. Runtime support is unchanged.**
+Date: 2026-11-01. Status: **Fixture publication approved after merged PR382;
+runtime support is unchanged.**
 
 The [protocol](ordinary-note-coverage-381.md) was registered at `6dfb206`, before
 authoring or inspecting new note bytes. The application baseline is merged
@@ -10,7 +10,8 @@ PR380, `e2ba0ee`; its code matches the tested `e960cec` tree. The installed
 executable matched the registered FL Studio **26.1.0.5530** hash. Every case
 started from an independent private copy of approved F24, at 130 BPM/96 PPQ,
 using empty built-in Samplers. No playback, imported audio or external plugin
-was used. No new FLP bytes, screenshots or private receipts enter this change.
+was used. The original report PR382 contained no FLP bytes, screenshots or
+private receipts. The approved publication follow-up is recorded below.
 
 ## Outcomes
 
@@ -79,13 +80,28 @@ checks; this is not a complete decoder of opaque plugin state.
 The private exact-byte approval packet lists eight proposed names, lengths,
 SHA-256 hashes, thirteen raw records and corresponding GUI observations. It
 distinguishes six clean cases from N09/N15 as negative controls. Publication
-approval is pending. Originals, screenshots, scripts, failures and private
-receipts remain outside Git. Existing approved fixtures and the primary dirty
-documents were preserved.
+approval was pending when PR382 was prepared. Originals, screenshots, scripts,
+failures and private receipts remain outside Git. Existing approved fixtures
+and the primary dirty documents were preserved.
 
-After approval, publish a focused fixture PR with provenance, expectations,
-manifest/hash allowlist updates and regressions. A separate reviewed runtime
-slice can then consider the sampled new values and multi-note layouts while
+On 2026-11-01 the owner reviewed and merged PR382, then requested the next step
+in response to that exact-file approval packet. The eight sanitized candidates
+are published as F31-F38 in the [manifest](../../fixtures/parser-corpus/manifest.md#ordinary-note-pilot-follow-ups-f31-f38).
+The [public expectation record](../../fixtures/parser-corpus/ordinary-note-coverage-expectations.json)
+pins their names, hashes, GUI facts, thirteen complete records and six
+clean/two-negative classification. Public fixture content totals 373,802 bytes.
+
+Publication adds read-only research/privacy regressions and expands the actual
+supervisor corpus from 28 to 36 files. Native regression expectations preserve
+seven unsupported pattern sequences (N09-N15) and the already-supported N16
+NoteTwo note. Counts and metadata survive refusal; N15 never exposes only its
+supported sibling. Parser/runtime logic, raw-value limits, native validation,
+storage and Library behavior are unchanged. New native tests and fixture inputs
+require normal updated-head CI; no local app/Rust build or cache write is
+needed for this publication. Prior CI covers unchanged implementation only.
+
+After this fixture PR is reviewed and merged, a separate runtime
+slice can consider the sampled new values and multi-note layouts while
 retaining strict unknown-record refusal. No general MIDI conversion, runtime
 range widening, sparse IDs, alternate build/PPQ, steps or slides are approved
 by this report. Installed Library verification and phase/resource qualification
@@ -124,7 +140,8 @@ windows remain closed; the latter's earlier hardlink-isolation limitation is
 not cleared by this GUI preflight. A future build needs its own output budget,
 cache-isolation check and exclusive ownership window.
 
-Source changes are limited to this report and its protocol link/status.
-Scoped Markdown/format/privacy/whitespace checks apply. No local build is
-needed for these documents. Prior fifteen green checks cover unchanged
-application code only; normal required checks still apply to this PR head.
+PR382 changed only this report and its protocol link/status; scoped
+Markdown/format/privacy/whitespace checks covered those documents. The fixture
+publication changes and native regression coverage are listed above. Prior
+fifteen green checks cover unchanged implementation only; normal required
+checks must verify the publication PR head and its new fixture/test inputs.

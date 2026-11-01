@@ -135,6 +135,10 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
         "../../../fixtures/parser-corpus/note-sequence-expectations.json"
     ))
     .unwrap();
+    let pilot_expectations: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/parser-corpus/ordinary-note-coverage-expectations.json"
+    ))
+    .unwrap();
     let corpus = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/parser-corpus")
         .canonicalize()
@@ -145,7 +149,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
         .filter(|path| path.extension().is_some_and(|extension| extension == "flp"))
         .collect::<Vec<_>>();
     fixtures.sort();
-    assert_eq!(fixtures.len(), 28, "only the maintained approved corpus");
+    assert_eq!(fixtures.len(), 36, "only the maintained approved corpus");
     for (index, path) in fixtures.into_iter().enumerate() {
         let before = fs::read(&path).unwrap();
         let attributes = fs::metadata(&path).unwrap();
@@ -199,6 +203,35 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                 "{name}"
             );
             assert_eq!(metadata.file_size_bytes(), expected.size);
+            if let Some(case) = pilot_expectations["cases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|case| case["file"] == name)
+            {
+                assert_eq!(sha256_hex(&before), case["sha256"]);
+                let PatternNoteSequences::Entries(patterns) = metadata.pattern_note_sequences()
+                else {
+                    panic!("typed pattern result expected: {name}");
+                };
+                assert_eq!(patterns.len(), 1);
+                if case["currentParser"]["patternStatus"] == "unsupported" {
+                    let NoteSequence::Unsupported(reason) = patterns[0].sequence() else {
+                        panic!("whole-pattern refusal required: {name}");
+                    };
+                    assert_eq!(reason.as_str(), "PATTERN_NOTE_RECORD_UNQUALIFIED");
+                } else {
+                    let NoteSequence::Extracted(notes) = patterns[0].sequence() else {
+                        panic!("existing supported NoteTwo record expected: {name}");
+                    };
+                    assert_eq!(notes.len(), 1);
+                    assert_eq!(notes[0].channel_index(), 0);
+                    assert_eq!(notes[0].saved_key(), 60);
+                    assert_eq!(notes[0].start_tick(), 0);
+                    assert_eq!(notes[0].duration_tick(), 48);
+                    assert_eq!(notes[0].stored_velocity_byte(), 89);
+                }
+            }
             if let Some(case) = note_expectations["cases"]
                 .as_array()
                 .unwrap()
