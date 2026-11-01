@@ -2,7 +2,12 @@
 
 Issue: [#381](https://github.com/guilhermebmichelin-create/fruitboard/issues/381).
 Source baseline: merged PR380, `e2ba0eea4fc29e42efd829b7c35b287004c1e4bf`.
-Date: 2026-11-01. Status: **Preregistered; no new saves or field qualification.**
+Date: 2026-11-01. Status: **Pilot completed; fixture publication pending.**
+
+The original registration is pinned at `6dfb206`. The protocol below retains
+its registration-time recipes and resource state. See the
+[pilot result](ordinary-note-coverage-381-result.md) for six clean cases, two
+failed controls, the restored reserve and the remaining publication decision.
 
 The parser, immutable storage and Library list are merged in PR376/378/380.
 Their exact-build/raw-value limits remain. This pilot supplies the next genuine
