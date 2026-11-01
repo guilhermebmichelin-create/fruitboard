@@ -92,6 +92,58 @@ fn stream(patterns: &[(u16, Vec<u8>)], channel_ids: &[u16]) -> Vec<u8> {
 }
 
 #[test]
+fn ordinary_note_pilot_preserves_counts_and_current_qualification_boundary() {
+    let registered: Value = serde_json::from_str(include_str!(
+        "../../../fixtures/parser-corpus/ordinary-note-coverage-expectations.json"
+    ))
+    .unwrap();
+    let cases = registered["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 8);
+    for case in cases {
+        let filename = case["file"].as_str().unwrap();
+        let before = fixture(filename);
+        assert_eq!(before.len() as u64, case["bytes"].as_u64().unwrap());
+        assert_eq!(sha256_hex(&before), case["sha256"]);
+        let raw = reply(&before);
+        assert_eq!(raw["outcome"], "complete", "{filename}");
+        assert_eq!(raw["savedVersion"]["value"], registered["savedBuild"]);
+        assert_eq!(raw["baseTempoBpm"]["value"], 130.0);
+        assert_eq!(
+            raw["channelNames"]["value"],
+            case["independentGui"]["channelOrder"]
+        );
+        assert_eq!(raw["sampleReferences"]["status"], "unavailable");
+        assert_eq!(
+            raw["patternNoteCounts"]["value"][0]["noteCount"]["value"],
+            case["savedRecordCount"]
+        );
+        let pattern = &raw["patternNoteSequences"]["patterns"][0];
+        assert_eq!(pattern["patternId"], 1);
+        if case["currentParser"]["patternStatus"] == "unsupported" {
+            // Includes N15's otherwise supported sibling: never expose a
+            // partial sequence when another record has unexplained bytes.
+            assert_eq!(
+                pattern,
+                &json!({"patternId":1,"status":"unsupported",
+                    "reason":"PATTERN_NOTE_RECORD_UNQUALIFIED"}),
+                "{filename}"
+            );
+        } else {
+            assert_eq!(
+                pattern,
+                &json!({"patternId":1,"status":"extracted","records":[{
+                    "ordinal":0,"channelIndex":0,"savedKey":60,"startTick":0,
+                    "durationTick":48,"storedVelocityByte":89
+                }]}),
+                "{filename}"
+            );
+        }
+        assert!(validate(raw, descriptor(), &before).is_ok(), "{filename}");
+        assert_eq!(fixture(filename), before);
+    }
+}
+
+#[test]
 fn all_seven_approved_cases_extract_and_validate_against_independent_expectations() {
     let registered: Value = serde_json::from_str(include_str!(
         "../../../fixtures/parser-corpus/note-sequence-expectations.json"

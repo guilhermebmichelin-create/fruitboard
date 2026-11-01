@@ -31,6 +31,39 @@ const sqliteCompanionSuffix = /\.(?:db|sqlite3?)-(?:wal|shm|journal)$/iu;
 // Only these separately approved public parser fixtures bypass the FLP block.
 // Both the exact repository path and SHA-256 must match.
 const approvedFlpFixtureHashes = new Map([
+  // F31-F38: exact eight-case pilot bytes approved on 2026-11-01 (#381).
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-PITCH-CONFOUNDED.flp",
+    "f72207679b7518a739d65163141bd470caa83ee25200bfe32d6290b898210cb6",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-START-ONE-STEP.flp",
+    "0d74ae39b6cc9e2ca23f87b1ce46806c523fff21667f28f98941dabf0057df4b",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-LENGTH-ONE-STEP.flp",
+    "57a48ce6ea21cb70e3ca99f57b292fe826df17c69c0d027ff62306b037ddcfbd",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-VELOCITY-FULL.flp",
+    "cd7c1c4f929ec32107dd2e97e165557f064692a0fcafe025075f57cbcdff34b8",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-MELODY.flp",
+    "d01540b83525332a8b89aaa7bd416e20200858bbf5f0547f16bcc5235e5c4fe3",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-CHORD.flp",
+    "cf5ab8853645b916ab806ff8c8a3592003733fee9e54482bb7625ae8cdc668bc",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-DUPLICATE-ATTEMPT.flp",
+    "464ea6830018f8e8f5c5f48df6823b66907c8bcbeaa993c3e038038770599c70",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-NOTE-CHANNEL-DELETED.flp",
+    "e9984dc071cf5c9ee03a02c15632972a088863bf2bffdf3a1759aa8797805625",
+  ],
   // F24-F30: exact saved-note candidates approved on 2026-10-31 (#366).
   [
     "fixtures/parser-corpus/FIX-FL2026-NOTE-BASELINE.flp",
