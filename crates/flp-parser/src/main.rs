@@ -113,11 +113,14 @@ fn respond(line: &[u8]) -> Value {
     let result = match request.method.as_str() {
         "describe" if request.params.is_none() => json!({
             "adapter":ADAPTER_ID, "adapterVersion":ADAPTER_VERSION,
-            "fields":["savedVersion","baseTempoBpm","channelCount","patternCount","patternNames","patternNoteCounts","mixerInsertCount","mixerInsertNames","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","pluginReferences","filesystemCreatedAtMs"],
+            "fields":["savedVersion","baseTempoBpm","channelCount","patternCount","patternNames","patternNoteCounts","patternNoteSequences","mixerInsertCount","mixerInsertNames","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","pluginReferences","filesystemCreatedAtMs"],
             "maxFileBytes":MAX_FILE_BYTES, "maxEvents":100_000,
             "maxChannels":256, "maxPatterns":MAX_PATTERNS, "maxPlaylistClips":MAX_PLAYLIST_CLIPS,
             "maxNoteRecordsPerPattern":fruitboard_flp_parser::MAX_NOTE_RECORDS_PER_PATTERN,
             "maxNoteRecordsTotal":fruitboard_flp_parser::MAX_NOTE_RECORDS_TOTAL,
+            "maxDetailedNotesPerPattern":fruitboard_flp_parser::MAX_DETAILED_NOTES_PER_PATTERN,
+            "maxDetailedNotesTotal":fruitboard_flp_parser::MAX_DETAILED_NOTES_TOTAL,
+            "maxNoteSequenceBytes":fruitboard_flp_parser::MAX_NOTE_SEQUENCE_BYTES,
             "maxMixerInserts":fruitboard_flp_parser::MAX_MIXER_INSERTS,
             "maxMixerInsertCandidates":fruitboard_flp_parser::MAX_MIXER_INSERT_CANDIDATES,
             "maxEventBytes":fruitboard_flp_parser::MAX_EVENT_BYTES
@@ -150,8 +153,14 @@ fn respond(line: &[u8]) -> Value {
     })
 }
 
-fn write_response(writer: &mut impl Write, response: Value) -> io::Result<()> {
+fn write_response(writer: &mut impl Write, mut response: Value) -> io::Result<()> {
     let mut bytes = serde_json::to_vec(&response)?;
+    if bytes.len() > MAX_RESPONSE_BYTES && response["result"].get("patternNoteSequences").is_some()
+    {
+        response["result"]["patternNoteSequences"] = json!({"status":"unsupported",
+            "reason":"PATTERN_NOTE_SEQUENCE_LIMIT_EXCEEDED","coverage":"stored-pattern-note-records"});
+        bytes = serde_json::to_vec(&response)?;
+    }
     if bytes.len() > MAX_RESPONSE_BYTES {
         bytes = serde_json::to_vec(&error(response["id"].clone(), "RESPONSE_LIMIT"))?;
     }
@@ -176,4 +185,35 @@ fn main() -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oversized_reply_drops_the_whole_optional_section_before_refusing_metadata() {
+        let response = json!({"id":"bounded", "result":{"baseTempoBpm":{"status":"extracted","value":130},
+            "patternNoteSequences":{"patterns":["x".repeat(MAX_RESPONSE_BYTES)]}}});
+        let mut bytes = Vec::new();
+        write_response(&mut bytes, response).unwrap();
+        let result: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(result["result"]["baseTempoBpm"]["value"], 130);
+        assert_eq!(
+            result["result"]["patternNoteSequences"]["reason"],
+            "PATTERN_NOTE_SEQUENCE_LIMIT_EXCEEDED"
+        );
+        assert!(bytes.len() <= MAX_RESPONSE_BYTES + 1);
+    }
+
+    #[test]
+    fn oversized_required_metadata_keeps_the_existing_response_limit_error() {
+        let response = json!({"id":"bounded", "result":{"private":"x".repeat(MAX_RESPONSE_BYTES),
+            "patternNoteSequences":{"patterns":[]}}});
+        let mut bytes = Vec::new();
+        write_response(&mut bytes, response).unwrap();
+        let result: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(result["error"]["code"], "RESPONSE_LIMIT");
+        assert!(result.get("result").is_none());
+    }
 }

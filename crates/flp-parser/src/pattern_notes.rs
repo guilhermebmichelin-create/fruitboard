@@ -1,5 +1,5 @@
 //! F16/F17 qualify only the contiguous initial content series in 26.1.0.5530.
-//! Payloads are borrowed; no per-note objects or raw values are retained.
+//! Count authority is independent of the separately bounded sequence extension.
 use crate::{MAX_NOTE_RECORDS_PER_PATTERN, MAX_NOTE_RECORDS_TOTAL};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -8,7 +8,7 @@ const RECORD_BYTES: usize = 24;
 pub(crate) const COVERAGE: &str = "stored-pattern-note-records";
 
 #[derive(Default)]
-pub(crate) struct PatternNotes {
+pub(crate) struct PatternNotes<'a> {
     started: bool,
     closed: bool,
     pending: Option<u16>,
@@ -17,9 +17,10 @@ pub(crate) struct PatternNotes {
     candidates: usize,
     limit_exceeded: bool,
     binding_unverified: bool,
+    payloads: BTreeMap<u16, &'a [u8]>,
 }
-impl PatternNotes {
-    pub(crate) fn observe(&mut self, event: u8, data: &[u8]) {
+impl<'a> PatternNotes<'a> {
+    pub(crate) fn observe(&mut self, event: u8, data: &'a [u8]) {
         if event == 224 {
             // Charge duplicates, malformed and unbound candidates before classifying.
             let count = data.len().div_ceil(RECORD_BYTES);
@@ -38,11 +39,18 @@ impl PatternNotes {
                 return;
             };
             let entry = if self.counts.contains_key(&id) {
+                self.payloads.remove(&id);
                 json!({"status":"unsupported","reason":"MULTIPLE_PATTERN_NOTE_PAYLOADS"})
             } else if data.is_empty() || !data.len().is_multiple_of(RECORD_BYTES) {
                 // Genuine explicit-empty payload support remains unqualified.
                 json!({"status":"unsupported","reason":"PATTERN_NOTE_LAYOUT_UNVERIFIED"})
             } else {
+                if count <= crate::MAX_DETAILED_NOTES_PER_PATTERN
+                    && self.candidates <= crate::MAX_DETAILED_NOTES_TOTAL
+                    && !self.limit_exceeded
+                {
+                    self.payloads.insert(id, data);
+                }
                 json!({"status":"extracted","value":count})
             };
             if self.counts.len() < crate::MAX_PATTERNS || self.counts.contains_key(&id) {
@@ -104,6 +112,22 @@ impl PatternNotes {
             self.pending = None;
             self.last_payload = None;
         }
+    }
+    pub(crate) fn sequences(
+        &self,
+        build: Option<&str>,
+        ppq: u16,
+        ids: &BTreeSet<u16>,
+        channels: &[crate::Channel],
+    ) -> Value {
+        crate::pattern_note_sequences::summary(
+            build,
+            ppq,
+            &self.summary(build, ids),
+            &self.payloads,
+            channels,
+            self.limit_exceeded || self.candidates > crate::MAX_DETAILED_NOTES_TOTAL,
+        )
     }
     pub(crate) fn summary(&self, build: Option<&str>, ids: &BTreeSet<u16>) -> Value {
         let absent = |status, reason| json!({"status":status,"reason":reason,"coverage":COVERAGE});

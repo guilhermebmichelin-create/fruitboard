@@ -1,6 +1,8 @@
 # Proposed saved-note sequence contract
 
-Status: **Design only; no parser advertisement or product implementation.**
+Status: **Parser/full native validation slice implemented; immutable storage and
+Library display remain pending.** See the
+[implementation boundary](../review/pattern-note-sequences-366/README.md).
 Seven narrow genuine-save cases now have [approved qualification evidence](parser-note-sequence-366-result.md).
 Related [research and genuine-save plan](parser-note-sequence-366.md),
 issue [#366](https://github.com/guilhermebmichelin-create/fruitboard/issues/366).
@@ -25,10 +27,10 @@ as that pattern's complete sequence. Existing note counts stay independent.
 
 ## Proposed structure
 
-An eventual optional `patternNoteSequences` field requires an advertising
+The optional `patternNoteSequences` field requires an advertising
 descriptor and explicit caps. This example is **constructed**, not an observed
-F16 expectation or an accepted protocol. The final names and descriptor version
-are reviewed with implementation after qualification:
+F16 expectation or the implemented wire format. Adapter 0.1.4's actual field
+and stricter qualified-value limits are documented in the implementation review:
 
 ```json
 {
@@ -74,27 +76,27 @@ result, not a persistent ID across edits.
 
 ## States and exclusions
 
-| Condition | Proposed behavior |
-| --- | --- |
-| No descriptor advertisement | Details unsupported; never an empty list |
-| Older immutable snapshot without this field | Explain that sequence details were not saved; no automatic reparse |
-| Missing pattern payload, including current F17 | Unavailable, not extracted zero |
-| Independently qualified explicit empty layout | Empty extracted sequence only after its own evidence; not supported by current corpus |
-| Entire pattern has qualified ordinary records | Complete records in source order, with optional unqualified properties explicitly unavailable |
-| Slide/portamento/unknown articulation | Pattern details unsupported until separately qualified; retain existing counts |
-| Stored zero-length step record | Pattern details unsupported until duration semantics are qualified; never invent note-off timing |
-| Unknown channel binding or PPQ interpretation | Pattern details unsupported |
-| Missing velocity qualification | Velocity unavailable; do not copy byte 21 into a MIDI velocity field |
-| Detail cap exceeded | Explicit detail-limit state; no clipped arrays or hidden omissions |
-| Malformed advertised data | Reject the complete parser reply; do not demote invalid data to an older shape |
-| Changed/disabled/missing source or stale result | Existing details authority refuses content; no last-project sequence retained in the UI |
+| Condition                                       | Proposed behavior                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| No descriptor advertisement                     | Details unsupported; never an empty list                                                         |
+| Older immutable snapshot without this field     | Explain that sequence details were not saved; no automatic reparse                               |
+| Missing pattern payload, including current F17  | Unavailable, not extracted zero                                                                  |
+| Independently qualified explicit empty layout   | Empty extracted sequence only after its own evidence; not supported by current corpus            |
+| Entire pattern has qualified ordinary records   | Complete records in source order, with optional unqualified properties explicitly unavailable    |
+| Slide/portamento/unknown articulation           | Pattern details unsupported until separately qualified; retain existing counts                   |
+| Stored zero-length step record                  | Pattern details unsupported until duration semantics are qualified; never invent note-off timing |
+| Unknown channel binding or PPQ interpretation   | Pattern details unsupported                                                                      |
+| Missing velocity qualification                  | Velocity unavailable; do not copy byte 21 into a MIDI velocity field                             |
+| Detail cap exceeded                             | Explicit detail-limit state; no clipped arrays or hidden omissions                               |
+| Malformed advertised data                       | Reject the complete parser reply; do not demote invalid data to an older shape                   |
+| Changed/disabled/missing source or stale result | Existing details authority refuses content; no last-project sequence retained in the UI          |
 
 Fixed reason codes are selected during implementation, aligned across Rust,
 private storage, desktop DTO and strict client decoding. The lowercase example
 reason above is explanatory design text, not a new accepted reason vocabulary.
 
 Unknown nonessential properties can remain unavailable without losing a
-qualified note's position/key/duration. Unsupported record *kinds*, ambiguous
+qualified note's position/key/duration. Unsupported record _kinds_, ambiguous
 binding or missing records invalidate that pattern's completeness. Distinguish
 these two cases explicitly in the final validator.
 
