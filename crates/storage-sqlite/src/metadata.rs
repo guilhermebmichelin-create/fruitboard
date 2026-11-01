@@ -16,6 +16,8 @@ pub use source::MetadataSource;
 #[cfg(test)]
 mod current_read_tests;
 #[cfg(test)]
+mod note_sequence_tests;
+#[cfg(test)]
 pub(crate) mod tests;
 
 pub const MAX_METADATA_JSON_BYTES: usize = 256 * 1024;
@@ -325,6 +327,7 @@ impl Database {
                 {
                     return Err(StorageError::InvalidSchema);
                 }
+                payload::validate_sequences(&value)?;
             }
         }
         Ok(selected)

@@ -481,6 +481,41 @@ fn native_analysis_publishes_approved_saved_mixer_inserts() {
 #[cfg(windows)]
 #[test]
 #[ignore = "requires freshly built FRUITBOARD_ANALYSIS_TEST_PARSER; run by Windows feature CI and local validation"]
+fn native_analysis_publishes_approved_saved_note_sequences() {
+    let expectations: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/parser-corpus/note-sequence-expectations.json"
+    ))
+    .unwrap();
+    for case in expectations["cases"].as_array().unwrap() {
+        let file = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/parser-corpus")
+            .join(case["file"].as_str().unwrap());
+        let bytes = std::fs::read(&file).unwrap();
+        assert_eq!(sha256_hex(&bytes), case["sha256"]);
+        let expected = &case["expectedNote"];
+        let channel = case["channelDeclarations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|decl| decl["savedId"] == expected["savedChannelId"])
+            .unwrap();
+        let saved = run_native_analysis(bytes.clone());
+        assert_eq!(
+            saved["patternNoteSequences"],
+            json!({
+            "coverage":"stored-pattern-note-records","coordinateSystem":"pattern-local-ticks","ppq":96,
+            "patterns":[{"patternId":1,"status":"extracted","records":[{
+                "ordinal":0,"channelIndex":channel,"savedKey":expected["savedKey"],
+                "startTick":expected["position"],"durationTick":expected["storedLength"],
+                "storedVelocityByte":expected["storedVelocityByte"]}]}]})
+        );
+        assert_eq!(std::fs::read(file).unwrap(), bytes);
+    }
+}
+
+#[cfg(windows)]
+#[test]
+#[ignore = "requires freshly built FRUITBOARD_ANALYSIS_TEST_PARSER; run by Windows feature CI and local validation"]
 fn native_analysis_accepts_ordinary_project_sizes_through_publication() {
     for size in [4_601_596, 25_000_000] {
         let mut payload = bytes();

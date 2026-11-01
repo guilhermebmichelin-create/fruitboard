@@ -79,7 +79,9 @@ private `pattern-note-sequences-366` handoff outside compiler caches.
 Restore capacity and resolve cache isolation before local builds. Installed
 tests require the existing exclusive host window; qualification runs alone.
 
-Next slices select fully validated sequences into immutable storage and then
-add an accessible Library note list with old-result and source-loss states.
+The [storage slice #377](../note-sequence-storage-377/README.md) selects fully
+validated sequences into immutable storage with backward-compatible bounded
+reads. The next slice adds an accessible Library note list with old-result and
+source-loss states.
 Neither this parser slice nor green CI completes those slices, performance
 qualification, Phase 3 acceptance or production activation.

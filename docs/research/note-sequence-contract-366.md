@@ -1,7 +1,8 @@
 # Proposed saved-note sequence contract
 
-Status: **Parser/full native validation slice implemented; immutable storage and
-Library display remain pending.** See the
+Status: **Parser/full native validation and immutable storage implemented;
+Library display remains pending.** See the [storage slice](../review/note-sequence-storage-377/README.md)
+and the
 [implementation boundary](../review/pattern-note-sequences-366/README.md).
 Seven narrow genuine-save cases now have [approved qualification evidence](parser-note-sequence-366-result.md).
 Related [research and genuine-save plan](parser-note-sequence-366.md),

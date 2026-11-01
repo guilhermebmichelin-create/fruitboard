@@ -151,7 +151,7 @@ pub(super) fn encode(metadata: &ValidatedProjectMetadata) -> Result<String> {
             Diagnostic::UnsupportedEvent255 => "UNSUPPORTED_EVENT_255",
         })
         .collect();
-    let value = json!({
+    let mut value = json!({
         "projectionVersion":1,
         "contentSha256":initial.content_sha256(),
         "savedVersion":initial.saved_version(),
@@ -172,9 +172,67 @@ pub(super) fn encode(metadata: &ValidatedProjectMetadata) -> Result<String> {
         "playlistPatternNominalSeconds":project(metadata.arrangement_estimated_seconds()),
         "diagnostics":diagnostics,
     });
+    // Descriptor absence is an older/not-selected result, never an empty
+    // sequence. Only full-validation accessors can supply retained records.
+    if let Some(sequences) = note_sequences(metadata.pattern_note_sequences()) {
+        value["patternNoteSequences"] = sequences;
+    }
     let mut writer = BoundedJson(Vec::new());
     serde_json::to_writer(&mut writer, &value).map_err(|_| StorageError::InvalidSchema)?;
     String::from_utf8(writer.0).map_err(|_| StorageError::InvalidSchema)
+}
+
+fn note_sequences(value: &PatternNoteSequences) -> Option<Value> {
+    let coverage = "stored-pattern-note-records";
+    Some(match value {
+        PatternNoteSequences::NotAdvertised => return None,
+        PatternNoteSequences::Unavailable(reason) => {
+            json!({"status":"unavailable","reason":reason.as_str(),"coverage":coverage})
+        }
+        PatternNoteSequences::Unsupported(reason) => {
+            json!({"status":"unsupported","reason":reason.as_str(),"coverage":coverage})
+        }
+        PatternNoteSequences::Entries(items) => {
+            let patterns: Vec<Value> = items.iter().map(|item| match item.sequence() {
+                NoteSequence::Extracted(records) => {
+                    let records: Vec<Value> = records.iter().map(|note| json!({
+                        "ordinal":note.ordinal(), "channelIndex":note.channel_index(),
+                        "savedKey":note.saved_key(), "startTick":note.start_tick(),
+                        "durationTick":note.duration_tick(),
+                        "storedVelocityByte":note.stored_velocity_byte(),
+                    })).collect();
+                    json!({"patternId":item.id(),"status":"extracted","records":records})
+                }
+                NoteSequence::Unavailable => {
+                    json!({"patternId":item.id(),"status":"unavailable","reason":"PATTERN_NOTES_NOT_STORED"})
+                }
+                NoteSequence::Unsupported(reason) => {
+                    json!({"patternId":item.id(),"status":"unsupported","reason":reason.as_str()})
+                }
+            }).collect();
+            json!({"coverage":coverage,"coordinateSystem":"pattern-local-ticks","ppq":96,"patterns":patterns})
+        }
+    })
+}
+
+/// Old projections can omit the extension. A present malformed extension must
+/// fail both historical and current reads, never masquerade as an older result.
+pub(super) fn validate_sequences(value: &Value) -> Result<()> {
+    let Some(sequences) = value.get("patternNoteSequences") else {
+        return Ok(());
+    };
+    let invalid = || StorageError::InvalidSchema;
+    let build = value["savedVersion"].as_str().ok_or_else(invalid)?;
+    let channels = value["channelCount"]
+        .as_u64()
+        .filter(|n| *n <= u64::from(fruitboard_flp_parser::MAX_CHANNELS))
+        .ok_or_else(invalid)? as usize;
+    let patterns = validate_stored_patterns(&value["patterns"], build).map_err(|_| invalid())?;
+    let counts = validate_stored_pattern_note_counts(&value["patternNoteCounts"], build, &patterns)
+        .map_err(|_| invalid())?;
+    validate_stored_pattern_note_sequences(sequences, build, &patterns, &counts, channels)
+        .map_err(|_| invalid())?;
+    Ok(())
 }
 
 fn mixer_inserts(value: &SavedMixerInserts) -> Value {

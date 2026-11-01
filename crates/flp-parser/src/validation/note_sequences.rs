@@ -89,6 +89,30 @@ pub enum PatternNoteSequences {
     Entries(Vec<SavedPatternNoteSequence>),
 }
 
+/// Revalidate an explicitly selected immutable projection at the current fixed
+/// ceilings. An absent field is handled by the caller as an older result. This
+/// grants no parser, source, filesystem or display authority.
+pub fn validate_stored_pattern_note_sequences(
+    value: &Value,
+    build: &str,
+    patterns: &SavedPatterns,
+    counts: &PatternNoteCounts,
+    channels: usize,
+) -> Result<PatternNoteSequences, ValidationError> {
+    validate(
+        value,
+        Some(NoteSequenceLimits {
+            per_pattern: crate::MAX_DETAILED_NOTES_PER_PATTERN,
+            total: crate::MAX_DETAILED_NOTES_TOTAL,
+            bytes: crate::MAX_NOTE_SEQUENCE_BYTES,
+        }),
+        build,
+        patterns,
+        counts,
+        channels,
+    )
+}
+
 fn shape(value: &Value, keys: &[&str]) -> Result<(), ValidationError> {
     let object = value.as_object().ok_or(ValidationError::InvalidReply)?;
     if object.len() != keys.len() || keys.iter().any(|key| !object.contains_key(*key)) {
