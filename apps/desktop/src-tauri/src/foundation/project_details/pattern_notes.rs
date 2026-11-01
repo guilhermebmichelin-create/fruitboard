@@ -26,7 +26,7 @@ enum Count {
     Unavailable { reason: &'static str },
     Unsupported { reason: &'static str },
 }
-fn reason(value: PatternNoteReason) -> &'static str {
+pub(super) fn reason(value: PatternNoteReason) -> &'static str {
     match value {
         PatternNoteReason::DataNotStored => "no_stored_patterns",
         PatternNoteReason::NotesNotStored => "no_stored_notes",
