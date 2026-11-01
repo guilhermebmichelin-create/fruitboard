@@ -99,6 +99,9 @@ pub fn validate_stored_pattern_note_sequences(
     counts: &PatternNoteCounts,
     channels: usize,
 ) -> Result<PatternNoteSequences, ValidationError> {
+    if channels > usize::from(crate::MAX_CHANNELS) {
+        return Err(ValidationError::InvalidReply);
+    }
     validate(
         value,
         Some(NoteSequenceLimits {

@@ -20,9 +20,10 @@ fn descriptor() -> Value {
 }
 
 fn expectations() -> Value {
-    serde_json::from_str(include_str!(
-        "../../../fixtures/parser-corpus/note-sequence-expectations.json"
-    ))
+    serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fixtures/parser-corpus/note-sequence-expectations.json"
+    )))
     .unwrap()
 }
 
@@ -401,6 +402,8 @@ fn note_sequences_corrupt_stored_data_fails_current_and_historical_reads() {
         ("/patternNoteCounts/value/0/noteCount/value", json!(2)),
         ("/patterns/items/0/patternId", json!(2)),
         ("/channelCount", json!(0)),
+        ("/channelCount", json!(257)),
+        ("/channelCount", json!(u64::MAX)),
         ("/savedVersion", json!("25.1.3.4922")),
     ] {
         let mut corrupt = original.clone();

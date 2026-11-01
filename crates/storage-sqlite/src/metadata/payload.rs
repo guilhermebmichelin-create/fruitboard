@@ -225,8 +225,8 @@ pub(super) fn validate_sequences(value: &Value) -> Result<()> {
     let build = value["savedVersion"].as_str().ok_or_else(invalid)?;
     let channels = value["channelCount"]
         .as_u64()
-        .filter(|n| *n <= u64::from(fruitboard_flp_parser::MAX_CHANNELS))
-        .ok_or_else(invalid)? as usize;
+        .and_then(|n| usize::try_from(n).ok())
+        .ok_or_else(invalid)?;
     let patterns = validate_stored_patterns(&value["patterns"], build).map_err(|_| invalid())?;
     let counts = validate_stored_pattern_note_counts(&value["patternNoteCounts"], build, &patterns)
         .map_err(|_| invalid())?;
