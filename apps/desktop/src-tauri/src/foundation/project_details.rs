@@ -80,7 +80,7 @@ enum Content {
         #[serde(skip_serializing_if = "Option::is_none")]
         sample_references: Option<Vec<samples::SampleReference>>,
         #[serde(skip_serializing_if = "Option::is_none")]
-        plugin_references: Option<plugins::PluginReferences>,
+        plugin_references: Option<Box<plugins::PluginReferences>>,
     },
 }
 
@@ -215,7 +215,7 @@ fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<
         warnings,
         analysis_request,
         sample_references,
-        plugin_references,
+        plugin_references: plugin_references.map(Box::new),
     })
 }
 
