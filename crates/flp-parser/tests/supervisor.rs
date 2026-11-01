@@ -98,9 +98,9 @@ fn actual_parser_health_describe_and_approved_file_share_one_supervisor() {
 fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutation() {
     use fruitboard_flp_parser::validation::{
         ChannelGenerators, Confidence, GeneratorReason, ListStatus, MetadataOutcome,
-        MixerInsertName, NameInference, NoteRecordCount, ParseContext, PatternNoteCounts,
-        ProjectField, ProjectReason, SavedMixerInserts, ValidatedProjectReply, validate_descriptor,
-        validate_project_reply,
+        MixerInsertName, NameInference, NoteRecordCount, NoteSequence, ParseContext,
+        PatternNoteCounts, PatternNoteSequences, ProjectField, ProjectReason, SavedMixerInserts,
+        ValidatedProjectReply, validate_descriptor, validate_project_reply,
     };
     let mut supervisor = ParserSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_fruitboard-flp-parser")),
@@ -129,6 +129,10 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
     );
     let mixer_expectations: serde_json::Value = serde_json::from_str(include_str!(
         "../../../fixtures/parser-corpus/mixer-insert-expectations.json"
+    ))
+    .unwrap();
+    let note_expectations: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/parser-corpus/note-sequence-expectations.json"
     ))
     .unwrap();
     let corpus = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -195,6 +199,38 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                 "{name}"
             );
             assert_eq!(metadata.file_size_bytes(), expected.size);
+            if let Some(case) = note_expectations["cases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|case| case["file"] == name)
+            {
+                let PatternNoteSequences::Entries(patterns) = metadata.pattern_note_sequences()
+                else {
+                    panic!("typed sequences expected: {name}");
+                };
+                let NoteSequence::Extracted(notes) = patterns[0].sequence() else {
+                    panic!("qualified ordinary note expected: {name}");
+                };
+                assert_eq!(notes.len(), 1);
+                let note = &notes[0];
+                let registered = &case["expectedNote"];
+                assert_eq!(u64::from(note.saved_key()), registered["savedKey"]);
+                assert_eq!(u64::from(note.start_tick()), registered["position"]);
+                assert_eq!(u64::from(note.duration_tick()), registered["storedLength"]);
+                assert_eq!(
+                    u64::from(note.stored_velocity_byte()),
+                    registered["storedVelocityByte"]
+                );
+                let channel = case["channelDeclarations"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .position(|decl| decl["savedId"] == registered["savedChannelId"])
+                    .unwrap();
+                assert_eq!(note.channel_index() as usize, channel);
+                assert_eq!(sha256_hex(&before), case["sha256"].as_str().unwrap());
+            }
             if name == "FIX-FL2025-MULTISAMPLER.flp" {
                 assert_eq!(metadata.initial().channel_count(), 3);
                 let names = metadata.initial().channel_names();

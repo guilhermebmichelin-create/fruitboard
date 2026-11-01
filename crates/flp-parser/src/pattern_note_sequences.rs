@@ -97,7 +97,9 @@ pub(super) fn summary(
             }
             let records = payloads.get(&id).and_then(|payload| {
                 payload
-                    .chunks_exact(24)
+                    .as_chunks::<24>()
+                    .0
+                    .iter()
                     .enumerate()
                     .map(|(ordinal, bytes)| record(bytes, ordinal, channels))
                     .collect::<Option<Vec<_>>>()
