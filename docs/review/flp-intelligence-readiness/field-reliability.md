@@ -4,8 +4,10 @@ Historical baseline: merged PR261, `19b95362a66a82c91cba56fc8f2226c6ef899cc2`.
 Current source baseline is merged PR323, `929cf4df`; installed evidence below
 retains its recorded source boundaries. The current matrix includes saved
 patterns, notes, ordinary mixer records, separate sample-presence observations
-and F23's GUI automation evidence without automation extraction.
-Updated: 2026-10-17. Historical ground truth and measured source boundaries
+and F23's GUI automation evidence without automation extraction. The 2026-10-31
+fixture publication adds ordinary-note research evidence F24-F30; product
+note-sequence extraction remains undelivered.
+Updated: 2026-10-31. Historical ground truth and measured source boundaries
 below are unchanged.
 This records the opt-in Windows development composition, not production enablement
 or full Phase 3 acceptance. Changes to extraction, validation, persistence,
@@ -13,18 +15,18 @@ display or corpus coverage must update this matrix in the same PR.
 
 ## Saved-build coverage
 
-| Exact saved build  | Approved genuine-save derivatives               | Independently checked coverage                                                                                                                                                                               |
-| ------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 24.1.0.4225        | F01/F04/F05                                     | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                                                                                                           |
-| 25.1.3.4922        | F06/F22                                         | Minimal Sampler and one three-cloned-empty-Sampler path at 130 BPM; displayed default labels by labeled inference and absent sample references.                                                              |
-| 26.1.0.5530        | F11/F12/F13/F14/F15/F16/F17/F18/F19/F20/F21/F23 | Minimal; explicit sample/name; patterns/placements; 3x Osc; cloned empty Samplers; note records/absence; one complete mixer section; F23 GUI shows one automation clip/three points, extraction unqualified. |
-| FL Studio 20/21    | F02/F03 are not covered                         | No runnable matching build or genuine-save fixture here; no supported-build claim.                                                                                                                           |
-| Other saved builds | No approved row                                 | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                                                                                         |
+| Exact saved build  | Approved genuine-save derivatives                       | Independently checked coverage                                                                                                                                                                                                                                                 |
+| ------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 24.1.0.4225        | F01/F04/F05                                             | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                                                                                                                                                                             |
+| 25.1.3.4922        | F06/F22                                                 | Minimal Sampler and one three-cloned-empty-Sampler path at 130 BPM; displayed default labels by labeled inference and absent sample references.                                                                                                                                |
+| 26.1.0.5530        | F11/F12/F13/F14/F15/F16/F17/F18/F19/F20/F21/F23/F24-F30 | Minimal; explicit sample/name; patterns/placements; 3x Osc; cloned empty Samplers; note records/absence; one complete mixer section; F23 GUI shows one automation clip/three points, extraction unqualified; seven ordinary-note GUI comparisons, including a channel reorder. |
+| FL Studio 20/21    | F02/F03 are not covered                                 | No runnable matching build or genuine-save fixture here; no supported-build claim.                                                                                                                                                                                             |
+| Other saved builds | No approved row                                         | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                                                                                                                                                           |
 
 The [manifest](../../../fixtures/parser-corpus/manifest.md) owns approval,
-provenance, license, expected values and SHA-256. Twenty-one files are committed:
-seventeen genuine-save derivatives and four approved robustness derivatives.
-F22 and F23 are both included; each retains its exact approved bytes.
+provenance, license, expected values and SHA-256. Twenty-eight files are committed:
+twenty-four genuine-save derivatives and four approved robustness derivatives.
+F22-F30 are included; all earlier fixture bytes remain unchanged.
 F07-F10 exercise failure/partial handling; they add no saved-build coverage.
 
 ## Field reliability and application reach
@@ -49,6 +51,7 @@ a complete parse does not make every field extracted or universally supported.
 | File size/modified/filesystem-created time   | Native held-handle authority and independent source checks; filesystem creation optional                                                                                                               | Size/modified shown in Library; optional creation in details                              | File creation differs from embedded creation. Details are saved facts matching a scanned observation, not continuous live inspection.                                |
 | Top-level plugin references                  | Verified built-in Sampler/3x Osc and bounded saved strings; recognized wrapper name/vendor handling has constructed tests                                                                              | Stored/displayed; Explorer groups exact name/class/vendor and provenance                  | No approved external VST wrapper fixture. No exhaustive mixer/nested coverage, installed-plugin inventory or plugin load. Empty coverage is not proof of no plugins. |
 | Saved pattern note records                   | Approved F16 counts 3/2/4, F17 omitted payload; PR291/293/295 and [installed delivery](../library-pattern-notes-294/README.md)                                                                         | Validated, immutably stored and displayed per pattern                                     | Exact 26.1.0.5530 initial content series; no explicit-zero qualification, raw notes, audible count or Playlist multiplication.                                       |
+| Saved ordinary-note sequences                | Approved F24-F30; [independent GUI result](../../research/parser-note-sequence-366-result.md), issue #366                                                                                              | Research evidence only; no product sequence field or display                              | Exact build/PPQ, one note, two keys/positions/lengths/velocity values and one channel reorder. No general conversion, sparse IDs, slide/step or MIDI qualification.  |
 | Saved mixer insert records                   | Approved F18-F21, PR299/301 and [application slice #304](../library-mixer-inserts-304/README.md)                                                                                                       | Validated, immutably stored and displayed                                                 | Exact complete 26.1.0.5530 layout only: sixteen ordinary positions; no usage/audibility, effects, routing, sparse layouts or persistent IDs.                         |
 | Automation/MIDI summaries                    | F23 GUI: one object/one placement/three points; F11 no-clip; [#322](../../research/parser-automation-322-result.md); [#324](../../research/parser-automation-counts-324-result.md).                    | Not delivered; no summary advertised or emitted                                           | Exact 26.1.0.5530 GUI cases only. Outer events framed; inner grammar and zero unqualified. F23 generator/Playlist unsupported; no MIDI.                              |
 | Ephemeral sample metadata observations       | ADR-007/PR285; actual NTFS rights/race and authorized-host tests, installed constructed host mapping plus unchanged F12 outside-root/F15 no-reference cases                                            | Explicit Library checks in `analysis-jobs`; no persisted availability                     | Exact eligible absolute paths inside selected local NTFS root only; time-of-check presence/absence, no audio/content reads or broader FL Studio resolution.          |

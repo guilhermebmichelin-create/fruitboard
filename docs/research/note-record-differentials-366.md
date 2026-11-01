@@ -62,8 +62,9 @@ it never asserts that a GUI experiment passed or a field has a musical meaning.
 No parser descriptor, application protocol, storage, Library view, output budget
 or supported build changes. The [proposed sequence contract](note-sequence-contract-366.md)
 and separate parser/validation, storage and Library implementation steps remain
-pending genuine-save qualification. MIDI export and full-song reconstruction
-remain outside this change.
+undelivered. Subsequent [genuine-save qualification](parser-note-sequence-366-result.md)
+provides F24-F30's narrow independent evidence. MIDI export and full-song
+reconstruction remain outside this change.
 
 ## Validation and host boundary
 

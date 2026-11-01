@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 1,
+  "issue": 366,
+  "approval": {
+    "status": "owner-approved exact seven fixture hashes and observed expectations",
+    "date": "2026-10-31",
+    "decision": "Continue in response to the exact-byte publication approval packet"
+  },
+  "savedBuild": "26.1.0.5530",
+  "baseTempoBpm": 130,
+  "ppqHeader": 96,
+  "provenance": {
+    "sourceFixture": "FIX-FL2026-MIN.flp",
+    "sourceSha256": "e0471d55032b7dfaa8bbcd496c487147149b9ce18e0b250882cc6f67f47480ee",
+    "guiExecutableSha256": "a3ef478a54d660d763113b04dae0a8b985e8610eca213eb3bf0222eed5df4b67",
+    "observationSourceHead": "309e534244deaa2c37d27f8f9b71ea79134ce1a6",
+    "method": "Recipes and actual GUI properties registered before byte inspection; sanitized candidates reopened in matching FL Studio without saving inspection edits.",
+    "sanitation": "Removed only one registration event 200 (16 payload bytes plus two framing bytes) and corrected FLdt size; every retained event is byte-identical.",
+    "content": "Owner-approved purpose-built synthetic empty-Sampler projects; no third-party project/audio material or external attribution requirement.",
+    "privateEvidence": "Originals, screenshots, raw logs and sanitation receipts retained outside Git."
+  },
+  "qualificationBoundary": [
+    "One ordinary note per Pattern 1; exact saved build and PPQ only.",
+    "Observed key words 60/64, positions 0/48 and stored lengths 48/96 only.",
+    "GUI velocities 70/58 percent correspond to stored bytes 89/74; no general conversion or MIDI range claim.",
+    "Saved channel IDs resolve within each save and renumber on rack reorder; no persistent identity claim.",
+    "No sparse/deleted-channel, other PPQ, full range, slide/step, arrangement, MIDI, app display or production qualification."
+  ],
+  "cases": [
+    {
+      "slot": "F24",
+      "case": "N01",
+      "file": "FIX-FL2026-NOTE-BASELINE.flp",
+      "bytes": 46600,
+      "sha256": "92e718add58c185804f16131cc904717d0ec799f59152d82de341093275e81f7",
+      "independentGui": {
+        "pitch": "C5",
+        "key": 60,
+        "start": "1:01:00",
+        "duration": "0:02:00",
+        "velocityPercent": 70,
+        "channel": "Sampler",
+        "channelOrder": ["Sampler"]
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "expectedNote": {
+        "position": 0,
+        "savedChannelId": 0,
+        "storedLength": 48,
+        "savedKey": 60,
+        "storedVelocityByte": 89,
+        "flags": 16384
+      },
+      "recordBytes": [
+        0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0, 64,
+        89, 128, 128
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": null
+        }
+      ],
+      "noteByteChangesFromBaseline": []
+    },
+    {
+      "slot": "F25",
+      "case": "N02",
+      "file": "FIX-FL2026-NOTE-PITCH.flp",
+      "bytes": 46600,
+      "sha256": "5ad6cbc8c28f397f02d4416f45ee516bbca5cc8dee032e33fe4cd876e186e198",
+      "independentGui": {
+        "pitch": "E5",
+        "key": 64,
+        "start": "1:01:00",
+        "duration": "0:02:00",
+        "velocityPercent": 70,
+        "channel": "Sampler",
+        "channelOrder": ["Sampler"]
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "expectedNote": {
+        "position": 0,
+        "savedChannelId": 0,
+        "storedLength": 48,
+        "savedKey": 64,
+        "storedVelocityByte": 89,
+        "flags": 16384
+      },
+      "recordBytes": [
+        0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 64, 0, 0, 0, 120, 0, 64, 0, 64,
+        89, 128, 128
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": null
+        }
+      ],
+      "noteByteChangesFromBaseline": [
+        {
+          "offset": 12,
+          "baseline": 60,
+          "candidate": 64
+        }
+      ]
+    },
+    {
+      "slot": "F26",
+      "case": "N03",
+      "file": "FIX-FL2026-NOTE-POSITION.flp",
+      "bytes": 46600,
+      "sha256": "eebb2999708934f95c24f56f22a576b2c93455bfc174365c9b63e6197b92e37c",
+      "independentGui": {
+        "pitch": "C5",
+        "key": 60,
+        "start": "1:03:00",
+        "duration": "0:02:00",
+        "velocityPercent": 70,
+        "channel": "Sampler",
+        "channelOrder": ["Sampler"]
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "expectedNote": {
+        "position": 48,
+        "savedChannelId": 0,
+        "storedLength": 48,
+        "savedKey": 60,
+        "storedVelocityByte": 89,
+        "flags": 16384
+      },
+      "recordBytes": [
+        48, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0, 64,
+        89, 128, 128
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": null
+        }
+      ],
+      "noteByteChangesFromBaseline": [
+        {
+          "offset": 0,
+          "baseline": 0,
+          "candidate": 48
+        }
+      ]
+    },
+    {
+      "slot": "F27",
+      "case": "N04",
+      "file": "FIX-FL2026-NOTE-DURATION.flp",
+      "bytes": 46600,
+      "sha256": "3657fa249c6403abe2260119b91cfea41ad4546ef7de6110187802db351c5711",
+      "independentGui": {
+        "pitch": "C5",
+        "key": 60,
+        "start": "1:01:00",
+        "duration": "0:04:00",
+        "velocityPercent": 70,
+        "channel": "Sampler",
+        "channelOrder": ["Sampler"]
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "expectedNote": {
+        "position": 0,
+        "savedChannelId": 0,
+        "storedLength": 96,
+        "savedKey": 60,
+        "storedVelocityByte": 89,
+        "flags": 16384
+      },
+      "recordBytes": [
+        0, 0, 0, 0, 0, 64, 0, 0, 96, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0, 64,
+        89, 128, 128
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": null
+        }
+      ],
+      "noteByteChangesFromBaseline": [
+        {
+          "offset": 8,
+          "baseline": 48,
+          "candidate": 96
+        }
+      ]
+    },
+    {
+      "slot": "F28",
+      "case": "N05",
+      "file": "FIX-FL2026-NOTE-VELOCITY.flp",
+      "bytes": 46600,
+      "sha256": "d6bea7000b7956c293ce92204e53434cb27565cf97e042a91c8f972339f9919b",
+      "independentGui": {
+        "pitch": "C5",
+        "key": 60,
+        "start": "1:01:00",
+        "duration": "0:02:00",
+        "velocityPercent": 58,
+        "channel": "Sampler",
+        "channelOrder": ["Sampler"]
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "expectedNote": {
+        "position": 0,
+        "savedChannelId": 0,
+        "storedLength": 48,
+        "savedKey": 60,
+        "storedVelocityByte": 74,
+        "flags": 16384
+      },
+      "recordBytes": [
+        0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0, 64,
+        74, 128, 128
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": null
+        }
+      ],
+      "noteByteChangesFromBaseline": [
+        {
+          "offset": 21,
+          "baseline": 89,
+          "candidate": 74
+        }
+      ]
+    },
+    {
+      "slot": "F29",
+      "case": "N06",
+      "file": "FIX-FL2026-NOTE-CHANNEL-SECOND.flp",
+      "bytes": 47482,
+      "sha256": "e270a072e28dca060b96239ee9180d93154bfe59b3fc38f1cec03558161fa727",
+      "independentGui": {
+        "pitch": "C5",
+        "key": 60,
+        "start": "1:01:00",
+        "duration": "0:02:00",
+        "velocityPercent": 70,
+        "channel": "NoteTwo",
+        "channelOrder": ["NoteOne", "NoteTwo"],
+        "otherChannelEmpty": true
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "expectedNote": {
+        "position": 0,
+        "savedChannelId": 1,
+        "storedLength": 48,
+        "savedKey": 60,
+        "storedVelocityByte": 89,
+        "flags": 16384
+      },
+      "recordBytes": [
+        0, 0, 0, 0, 0, 64, 1, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0, 64,
+        89, 128, 128
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": "NoteOne"
+        },
+        {
+          "savedId": 1,
+          "eventOffset": 1317,
+          "storedName": "NoteTwo"
+        }
+      ],
+      "noteByteChangesFromBaseline": [
+        {
+          "offset": 6,
+          "baseline": 0,
+          "candidate": 1
+        }
+      ]
+    },
+    {
+      "slot": "F30",
+      "case": "N07",
+      "file": "FIX-FL2026-NOTE-CHANNEL-REORDERED.flp",
+      "bytes": 47482,
+      "sha256": "81a4f8e3c2942b3c3f5fdadf2b58cf0f38cd677f792d80598beb108843e8d071",
+      "independentGui": {
+        "pitch": "C5",
+        "key": 60,
+        "start": "1:01:00",
+        "duration": "0:02:00",
+        "velocityPercent": 70,
+        "channel": "NoteTwo",
+        "channelOrder": ["NoteTwo", "NoteOne"],
+        "otherChannelEmpty": true
+      },
+      "patternId": 1,
+      "savedRecordCount": 1,
+      "expectedNote": {
+        "position": 0,
+        "savedChannelId": 0,
+        "storedLength": 48,
+        "savedKey": 60,
+        "storedVelocityByte": 89,
+        "flags": 16384
+      },
+      "recordBytes": [
+        0, 0, 0, 0, 0, 64, 0, 0, 48, 0, 0, 0, 60, 0, 0, 0, 120, 0, 64, 0, 64,
+        89, 128, 128
+      ],
+      "channelDeclarations": [
+        {
+          "savedId": 0,
+          "eventOffset": 453,
+          "storedName": "NoteTwo"
+        },
+        {
+          "savedId": 1,
+          "eventOffset": 1317,
+          "storedName": "NoteOne"
+        }
+      ],
+      "noteByteChangesFromBaseline": []
+    }
+  ]
+}

@@ -1,13 +1,14 @@
 # Proposed saved-note sequence contract
 
-Status: **Design only; no parser advertisement, product implementation or field
-qualification.** Related [research and genuine-save plan](parser-note-sequence-366.md),
+Status: **Design only; no parser advertisement or product implementation.**
+Seven narrow genuine-save cases now have [approved qualification evidence](parser-note-sequence-366-result.md).
+Related [research and genuine-save plan](parser-note-sequence-366.md),
 issue [#366](https://github.com/guilhermebmichelin-create/fruitboard/issues/366).
 Design source: research commit `ecd16e996991f5151b7319b693472a9963bb00b1`.
 
-Contract and review work can continue independently of the locked Windows host.
-Matching-build GUI experiments remain pending; do not bypass desktop ownership
-checks or replace independent ground truth with numeric candidate words.
+Contract review can now use F24-F30's independent GUI observations. The first
+implementation must preserve their exact build, raw-value and channel-binding
+limits; numeric candidate words alone never replace independent ground truth.
 
 ## First useful delivery
 

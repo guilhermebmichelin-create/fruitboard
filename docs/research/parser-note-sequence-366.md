@@ -5,8 +5,10 @@ Started 2026-10-29 at main `6971eb4008ed57fadbc12b75d6e4cbf4a69fd497`.
 The owner requested prioritizing FLP parsing and exploring actual MIDI/note
 sequences. This stays inside Phase 3 and preserves all existing phase gates.
 
-Status: **Reproducible numeric observations delivered; musical field
-qualification pending. No product note-sequence extraction or MIDI export.**
+Status: **Seven genuine-save ordinary-note cases qualified and approved for
+publication on 2026-10-31 (F24-F30). Product extraction and MIDI export remain
+undelivered.** See the [qualification result](parser-note-sequence-366-result.md)
+for exact observations, approval, privacy checks and limits.
 
 ## Initial result
 
@@ -52,8 +54,10 @@ is not an alternative production parser or a filesystem security boundary.
 
 The [differential research command](note-record-differentials-366.md) prepares
 the next comparisons without assigning musical meaning to candidate words.
-The October 31 continuation is tooling only: no additional genuine-save
-observations, fixture approval or production extraction is claimed.
+The initial October 31 continuation delivered only that comparison tool. The
+later controlled session completed N01-N07; the owner then approved the exact
+seven sanitized files and observed expectations. The recipe below records the
+initial experiment plan; the result above records what actually happened.
 
 Use independent private copies of approved F11 in exact FL Studio **26.1.0.5530**,
 130 BPM, header PPQ 96 and an empty built-in Sampler with File `(none)`.
@@ -79,9 +83,9 @@ The matching installed executable was verified as build 26.1.0.5530 with SHA-256
 `a3ef478a54d660d763113b04dae0a8b985e8610eca213eb3bf0222eed5df4b67`.
 The first GUI attempt encountered a locked Windows session. Ownership checks
 refused input because LockApp held the foreground; no note creation, save or
-candidate-byte interpretation was performed. Genuine-save qualification remains
-pending an unlocked session. The preregistration and helper stay in private
-retained evidence; this report does not claim those fixtures exist.
+candidate-byte interpretation was performed in that attempt. A later unlocked,
+owner-authorized session completed the seven cases. The preregistration,
+originals, screenshots and helpers stay in private retained evidence.
 
 Prepare a concrete exact-byte privacy/expectation approval packet after
 qualification. New FLP bytes enter the public corpus only after the owner's
@@ -92,7 +96,8 @@ Starting this research is not approval of future public fixture bytes.
 
 The [proposed sequence contract](note-sequence-contract-366.md) defines the
 per-pattern completeness, field states, channel binding and output budgets that
-can be reviewed while the GUI experiments remain pending. It is design only.
+can be reviewed against the now-approved genuine-save observations. It remains
+design only until separate extraction/validation and application changes land.
 
 Deliver per-pattern saved note data before a song-level sequence:
 
