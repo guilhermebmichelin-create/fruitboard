@@ -57,7 +57,7 @@ next work.
   FL Studio 26.1.0.5530 / 96-PPQ ordinary-Sampler subset. Values remain numeric
   saved keys, pattern-local start/duration ticks and raw velocity bytes; no MIDI
   conversion, playback or editing is claimed. Locked CI passed; installed
-  note-sequence verification remains outstanding. PR382/383 add
+  note-sequence evidence is in the source-bounded follow-up below. PR382/383 add
   [eight pilot cases](docs/research/ordinary-note-coverage-381-result.md), six
   clean and two negative controls. Their publication does not widen runtime
   support. The next separate implementation can promote demonstrated values
@@ -65,6 +65,10 @@ next work.
   [Implementation #395](docs/review/note-pilot-395/README.md) promotes the six
   clean pilot cases with adapter 0.1.5 and matching client validation; updated-head
   CI and installed note verification remain required for that change.
+  The [installed follow-up #397](docs/review/installed-notes-397/README.md)
+  verifies the bounded note workflow, restart and authority checks on its
+  recorded source, and corrects cramped note text on narrow enlarged displays.
+  Later dependency merges do not automatically inherit that installed result.
 - **Resource and scanner status**: scanner qualification remains unaccepted;
   the historical warm nearest-rank p95 was 10,173 ms against the unchanged
   10,000 ms target on source `69f27f6`. The

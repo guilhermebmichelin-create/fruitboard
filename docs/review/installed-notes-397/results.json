@@ -1,0 +1,267 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-04",
+  "sourceCommit": "41c4e2dae295da8566580e33cb6d3214c779b50a",
+  "sourceTree": "757df248f12d5bce32f63eda591836de5abd00ce",
+  "baselineCommit": "882cfbedfef79eccaeb0e8a58f095ed559658628",
+  "configurationSha256": "e21e358ba151ac2abc507c9402ae8f192813f0164a9c8a6c6d45a7711c9aa6aa",
+  "artifacts": {
+    "installer": {
+      "bytes": 3400523,
+      "sha256": "82584971528ff4bb675e31941063048f24cb85077f2bb0c71af8cb5a720f46ce"
+    },
+    "postTauriApp": {
+      "bytes": 11306496,
+      "sha256": "bd7758098938689fa51dc4d17df56cf02201d9ab05aaa41a7742856ec251718a"
+    },
+    "parser": {
+      "bytes": 629760,
+      "sha256": "329860b011bf48ad3390335bbabc20d09bac5a19dad9f513316a07fd8a899d66"
+    },
+    "smoke": {
+      "bytes": 156160,
+      "sha256": "f20810a72f6be8e437e520a54da42e9b800f92f3ec32c31b56b81a812814c7c6"
+    },
+    "installedApp": {
+      "sha256": "4b305d3399cdbfaee0cc896b841f9dafc43eb1fce1799a3542e90a16dc68f8e5"
+    }
+  },
+  "corpus": {
+    "totalApprovedSourceFiles": 36,
+    "sourceHashesUnchanged": true,
+    "stagedCaseHashesUnchanged": true,
+    "installedCases": 17,
+    "noteCases": 15,
+    "missingPayloadControls": 1,
+    "unsupportedNoteBuildControls": 1
+  },
+  "cases": [
+    {
+      "file": "FIX-FL2026-NOTE-BASELINE.flp",
+      "qualification": "initial qualified case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-PITCH.flp",
+      "qualification": "initial qualified case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-POSITION.flp",
+      "qualification": "initial qualified case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-DURATION.flp",
+      "qualification": "initial qualified case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-VELOCITY.flp",
+      "qualification": "initial qualified case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-CHANNEL-SECOND.flp",
+      "qualification": "initial qualified case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-CHANNEL-REORDERED.flp",
+      "qualification": "initial qualified case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-PITCH-CONFOUNDED.flp",
+      "qualification": "negative control",
+      "status": "unsupported",
+      "reason": "unqualified_record",
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-START-ONE-STEP.flp",
+      "qualification": "clean registered case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-LENGTH-ONE-STEP.flp",
+      "qualification": "clean registered case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-VELOCITY-FULL.flp",
+      "qualification": "clean registered case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NOTE-MELODY.flp",
+      "qualification": "clean registered case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 3
+    },
+    {
+      "file": "FIX-FL2026-NOTE-CHORD.flp",
+      "qualification": "clean registered case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 3
+    },
+    {
+      "file": "FIX-FL2026-NOTE-DUPLICATE-ATTEMPT.flp",
+      "qualification": "negative control",
+      "status": "unsupported",
+      "reason": "unqualified_record",
+      "registeredRecords": 2
+    },
+    {
+      "file": "FIX-FL2026-NOTE-CHANNEL-DELETED.flp",
+      "qualification": "clean registered case",
+      "status": "extracted",
+      "reason": null,
+      "registeredRecords": 1
+    },
+    {
+      "file": "FIX-FL2026-NAMED-EMPTY.flp",
+      "qualification": "missing-payload control",
+      "status": "unavailable",
+      "reason": "no_stored_notes",
+      "registeredRecords": null
+    },
+    {
+      "file": "FIX-FL2024-A.flp",
+      "qualification": "unsupported-note-build control",
+      "status": "unsupported",
+      "reason": "unverified_build",
+      "registeredRecords": null
+    }
+  ],
+  "verified": [
+    "all seventeen genuine note cases: native parse, full validation, publication and current details",
+    "all seventeen native results match keyboard-opened Library note lists",
+    "first single graceful close and eight-stage trace",
+    "all seventeen immutable snapshots and sequence states survive restart",
+    "installed note reflow regression passes all four viewport/font combinations",
+    "desktop note layout has no horizontal document overflow",
+    "narrow note layout has no horizontal document overflow",
+    "enlarged note layout has no horizontal document overflow",
+    "source fingerprint change rejects old note details",
+    "disabled root removes visible notes and rejects native details",
+    "restart single graceful close and eight-stage trace",
+    "all approved source and staged bytes unchanged"
+  ],
+  "layout": {
+    "before": {
+      "viewport": 390,
+      "font": "32px",
+      "summaryWidth": 98.015625,
+      "summaryLines": 7.998991935483871,
+      "noHorizontalDocumentOverflow": true
+    },
+    "after": [
+      {
+        "viewport": 1280,
+        "documentWidth": 1280,
+        "font": "16px",
+        "summaryWidth": 779,
+        "summaryLeft": 367,
+        "summaryRight": 1146,
+        "summaryLines": 0.9998739919354839
+      },
+      {
+        "viewport": 1280,
+        "documentWidth": 1280,
+        "font": "32px",
+        "summaryWidth": 359,
+        "summaryLeft": 701,
+        "summaryRight": 1060,
+        "summaryLines": 1.9997479838709677
+      },
+      {
+        "viewport": 390,
+        "documentWidth": 375,
+        "font": "16px",
+        "summaryWidth": 305,
+        "summaryLeft": 35,
+        "summaryRight": 340,
+        "summaryLines": 0.9998739919354839
+      },
+      {
+        "viewport": 390,
+        "documentWidth": 375,
+        "font": "32px",
+        "summaryWidth": 237,
+        "summaryLeft": 69,
+        "summaryRight": 306,
+        "summaryLines": 2.9996219758064515
+      }
+    ]
+  },
+  "closes": [
+    {
+      "label": "first",
+      "success": true,
+      "attempts": 1,
+      "exitCode": 0,
+      "traceSha256": "46575f75cbe74cfe4673330562ac0ce5f770651082493b0c2d9d0de1f88fae5d"
+    },
+    {
+      "label": "restart",
+      "success": true,
+      "attempts": 1,
+      "exitCode": 0,
+      "traceSha256": "5677e5ca99a6c46308d62c2c8733cffb9ff42d0943d25ebfaf04fdb85e47e51f"
+    }
+  ],
+  "cleanup": {
+    "uninstalled": true,
+    "databasePreserved": true,
+    "reviewDatabaseSha256": "b8e278603da8d65110d9b62a77c99b4838c0815faaaad08fb663730eddf2cea1",
+    "protectedProfileHashesUnchanged": 671,
+    "freeGiB": 31.919677734375
+  },
+  "localClient": {
+    "files": 37,
+    "testsPassed": 437,
+    "failed": 0,
+    "sourceCommit": "55d8758c8fd9afd2c70cf79eb8898910a10de5c5"
+  },
+  "qualification": {
+    "performance": false,
+    "broaderCompatibility": false,
+    "phase3Accepted": false,
+    "productionActivation": false
+  },
+  "retainedEarlierAttempts": {
+    "orchestrationFailures": 3,
+    "uncorrectedLayoutRegressions": 1,
+    "earlierSuccessfulRuns": 3,
+    "privateEvidenceRetained": true
+  },
+  "finalMainIntegration": {
+    "reactRouter": "8.5.1",
+    "compiledNativeSourcesUnchangedFromLayoutCommit": true,
+    "finalProductionTypecheckBuildPassed": true,
+    "updatedHeadCIRequired": true
+  }
+}
