@@ -1,18 +1,18 @@
 {
   "schemaVersion": 1,
   "date": "2026-11-04",
-  "sourceCommit": "41c4e2dae295da8566580e33cb6d3214c779b50a",
-  "sourceTree": "757df248f12d5bce32f63eda591836de5abd00ce",
+  "sourceCommit": "1de0a6c4329ce5da1fffa7cc3a977f7d51ae1f31",
+  "sourceTree": "9438c410c718149def4c2ed940b8fde13888293e",
   "baselineCommit": "882cfbedfef79eccaeb0e8a58f095ed559658628",
   "configurationSha256": "e21e358ba151ac2abc507c9402ae8f192813f0164a9c8a6c6d45a7711c9aa6aa",
   "artifacts": {
     "installer": {
-      "bytes": 3400523,
-      "sha256": "82584971528ff4bb675e31941063048f24cb85077f2bb0c71af8cb5a720f46ce"
+      "bytes": 3400026,
+      "sha256": "a8631e476115c996ade97495608c9d968950600c4f15cc49a0ad931b1d2a963d"
     },
     "postTauriApp": {
       "bytes": 11306496,
-      "sha256": "bd7758098938689fa51dc4d17df56cf02201d9ab05aaa41a7742856ec251718a"
+      "sha256": "fc143d86972dc9ad8f2bb4dc9e2c5060c0a59d246e4a2f6215303f059b69a769"
     },
     "parser": {
       "bytes": 629760,
@@ -23,7 +23,7 @@
       "sha256": "f20810a72f6be8e437e520a54da42e9b800f92f3ec32c31b56b81a812814c7c6"
     },
     "installedApp": {
-      "sha256": "4b305d3399cdbfaee0cc896b841f9dafc43eb1fce1799a3542e90a16dc68f8e5"
+      "sha256": "c7f68510fb6fb384bff32ccdaa35ae477a01356259e4a8a8d74215cd6b292b37"
     }
   },
   "corpus": {
@@ -223,28 +223,28 @@
       "success": true,
       "attempts": 1,
       "exitCode": 0,
-      "traceSha256": "46575f75cbe74cfe4673330562ac0ce5f770651082493b0c2d9d0de1f88fae5d"
+      "traceSha256": "cd3aa6f338b51777a5dd0dd2e57f32aeef4bf3a058e021e3c3baccf52c0b68ae"
     },
     {
       "label": "restart",
       "success": true,
       "attempts": 1,
       "exitCode": 0,
-      "traceSha256": "5677e5ca99a6c46308d62c2c8733cffb9ff42d0943d25ebfaf04fdb85e47e51f"
+      "traceSha256": "3293a510c8781799445936364dd5d1669b652eb025493db6978b04fd0c7700df"
     }
   ],
   "cleanup": {
     "uninstalled": true,
     "databasePreserved": true,
-    "reviewDatabaseSha256": "b8e278603da8d65110d9b62a77c99b4838c0815faaaad08fb663730eddf2cea1",
+    "reviewDatabaseSha256": "48d72688ce77ed597dc271c30c60937fe15d637406acfc460f57da138a80b8d6",
     "protectedProfileHashesUnchanged": 671,
-    "freeGiB": 31.919677734375
+    "freeGiB": 31.62841796875
   },
   "localClient": {
     "files": 37,
     "testsPassed": 437,
     "failed": 0,
-    "sourceCommit": "55d8758c8fd9afd2c70cf79eb8898910a10de5c5"
+    "sourceCommit": "1de0a6c4329ce5da1fffa7cc3a977f7d51ae1f31"
   },
   "qualification": {
     "performance": false,
@@ -255,13 +255,17 @@
   "retainedEarlierAttempts": {
     "orchestrationFailures": 3,
     "uncorrectedLayoutRegressions": 1,
-    "earlierSuccessfulRuns": 3,
+    "earlierSuccessfulRuns": 4,
     "privateEvidenceRetained": true
   },
   "finalMainIntegration": {
     "reactRouter": "8.5.1",
     "compiledNativeSourcesUnchangedFromLayoutCommit": true,
     "finalProductionTypecheckBuildPassed": true,
-    "updatedHeadCIRequired": true
+    "updatedHeadCIRequired": true,
+    "lucideReact": "1.66.0",
+    "mainCommit": "e952779d1241430fbc53a147bb1817d20ed9130f",
+    "runtimeCommit": "4f29035aa77181e9f98023e8db5f694c6397b966",
+    "ownerConfirmedDependencyMergeWaveFinished": true
   }
 }

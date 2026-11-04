@@ -2,7 +2,7 @@
 
 Issue: [#397](https://github.com/guilhermebmichelin-create/fruitboard/issues/397).
 Result: **The bounded installed note workflow passes on source
-`41c4e2dae295da8566580e33cb6d3214c779b50a`, including the narrow-layout fix.**
+`1de0a6c4329ce5da1fffa7cc3a977f7d51ae1f31`, including the narrow-layout fix.**
 This is Windows development evidence, not a Phase 3 exit, resource qualification
 or public activation. [Sanitized results](results.json) retain the exact source,
 configuration and artifact hashes. Later dependency merges do not automatically
@@ -80,20 +80,21 @@ The note-value implementation is PR396's tested `882cfbe`. Integration commit
 `7bb5674` incorporates the accepted docs/jsdom main history; its only file
 differences from that tested runtime head are the client package manifest and
 lockfile for jsdom 30.1.3. The layout/regression commit is `55d8758` above it.
-Final source `41c4e2d` incorporates main's subsequent React Router 8.5.1 update
-through runtime integration `b15eb50`; its only file differences from `55d8758`
-are the client package manifest/lock for that router patch. The final package
-is built from this exact integrated source. Uncommitted review documents and
-the owner's two planning drafts are outside the compiled graph; the drafts'
-original hashes remain preserved. Package configuration differs from production only
-for the explicit review identity/window/unsigned analysis bundle.
+Final source `1de0a6c` incorporates the completed dependency merge wave through
+runtime integration `4f29035`: React Router 8.5.1 and lucide-react 1.66.0,
+with main pinned at `e952779`. Compiled input changes since `55d8758` are
+the client manifest/lockfile; native/parser sources are unchanged. The final
+package is built from this exact integrated source. Uncommitted review documents
+and the owner's two planning drafts are outside the compiled graph; the drafts'
+original hashes remain preserved. Package configuration differs from production
+only for the explicit review identity/window/unsigned analysis bundle.
 
-Local frozen-install validation at `55d8758` passes all **437 client tests in
-37 files**. The final integrated source separately passes the production
+Local frozen-install validation at the final integrated source `1de0a6c`
+passes all **437 client tests in 37 files**. The same source passes production
 frontend typecheck/build, exact toolchain checks, sidecar and NSIS package build,
-then the complete installed workflow. The installed before/after regression and the full
-workflow above supplement PR396's prior parser/storage/native CI; they do not
-replace normal full CI on this PR's final head. Scope is CSS, a dependency-free
+then the complete installed workflow. The installed before/after regression and
+full workflow above supplement PR396's prior parser/storage/native CI; they do
+not replace normal full CI on this PR's final head. Scope is CSS, a dependency-free
 installed layout probe and documentation/evidence. No Rust parser, schema,
 protocol, note-value set or production capability changes in this fix.
 
@@ -106,8 +107,9 @@ Later failures cleaned up automatically. Two earlier old-source successful
 runs retain their limited overflow-only results; a separate old-source run
 then demonstrates the new readability regression failing. None is erased or
 substituted for the corrected-source successful run above. A corrected-layout
-success at `55d8758` is also retained separately; the final integrated run above
-repeats the complete workflow after the accepted router patch.
+success at `55d8758` and a router-integrated success at `41c4e2d` are also
+retained separately. The final run above repeats the complete workflow after
+the owner confirmed the dependency merge wave was finished.
 
 ## Storage and handoff
 
@@ -129,8 +131,9 @@ is hardlinked to a writable cache.
 
 The first package preflight passed at 34.01 GiB free with a 3 GiB allowance;
 the fixed-source incremental window passed at 32.67 GiB with 0.75 GiB allowed.
-Fresh installed preflights also passed. The final integration build passed at
-31.96 GiB with a 0.50 GiB allowance; its successful uninstall observed 31.92 GiB
+Fresh installed preflights also passed. The router integration build passed at
+31.96 GiB with a 0.50 GiB allowance. The settled dependency build passed at
+31.92 GiB with a 0.50 GiB allowance; its successful uninstall observed 31.63 GiB
 free. Capacity fluctuates and future work requires a new preflight
 that maintains the 30 GiB reserve after its own output estimate. G: was unused.
 
