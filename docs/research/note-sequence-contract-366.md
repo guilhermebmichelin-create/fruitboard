@@ -2,7 +2,7 @@
 
 Status: **Parser/full native validation and immutable storage implemented;
 Library implementation is in [slice #379](../review/note-sequence-library-379/README.md),
-with locked CI and installed validation pending.** See the [storage slice](../review/note-sequence-storage-377/README.md)
+with locked CI passed and installed validation pending.** See the [storage slice](../review/note-sequence-storage-377/README.md)
 and the
 [implementation boundary](../review/pattern-note-sequences-366/README.md).
 Seven narrow genuine-save cases now have [approved qualification evidence](parser-note-sequence-366-result.md).

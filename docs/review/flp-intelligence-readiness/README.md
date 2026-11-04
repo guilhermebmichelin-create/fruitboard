@@ -1,9 +1,9 @@
 ﻿# FLP intelligence readiness review
 
 Status: **Review packet; budgets and Phase 3 exit are not accepted.**
-Updated: 2026-10-17. Related issue:
+Updated status: 2026-11-04. Related issue:
 [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259).
-Current source baseline: merged PR323, `929cf4df`. Earlier installed evidence
+Current source baseline: merged PR383, `6cb560e`. Earlier installed evidence
 keeps its original source boundary; the metadata-read optimization does not
 promote historical performance results.
 The [current resource/checkpoint review](../phase3-qualification-306/README.md)
@@ -44,7 +44,13 @@ The [issue #324 count research](../../research/parser-automation-counts-324-resu
 confirms complete outer-event framing for F11/F23 but no qualified object,
 placement, point-count or reference grammar. Automation extraction and Library
 display remain separate future G6 steps.
-The corpus is twenty-one files, including both approved F22 and F23.
+The corpus is now thirty-six files. PR376/378/380 deliver F24-F30's bounded
+ordinary-note parser/storage/Library list with passing locked CI; installed
+note-sequence verification remains outstanding. PR383 adds eight pilot fixtures
+as research evidence without runtime widening. PR348 delivered bounded same-root
+project-relative sample checks. The [current assessment](../development-status-20261104/README.md)
+and maintained field matrix supersede older next-step recommendations below;
+dated delivery/resource rows preserve their original evidence boundaries.
 
 ## Delivered behavior and evidence
 
