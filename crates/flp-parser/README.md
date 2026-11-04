@@ -175,13 +175,14 @@ no native authority, command, sample read, filesystem grant or migration is adde
 
 ## Ordinary pattern note sequences
 
-Adapter 0.1.4 adds optional `patternNoteSequences` and full typed validation.
-Approved F24-F30 qualify a deliberately narrow ordinary-note subset in exact
+Adapter 0.1.4 added optional `patternNoteSequences` and full typed validation;
+0.1.5 promotes the clean F31-F38 pilot observations alongside F24-F30.
+These qualify a deliberately narrow ordinary-note subset in exact
 build 26.1.0.5530 at 96 PPQ. Records retain source ordinal, explicitly resolved
 channel index, numeric saved key, pattern-local start/duration ticks and raw
 stored velocity byte. No MIDI mapping, pitch name, percentage conversion or
-seconds is inferred. The implementation accepts only observed keys 60/64,
-starts 0/48, lengths 48/96, velocity bytes 74/89, ordinary flags and the
+seconds is inferred. The implementation accepts only observed keys 60/62/64/67,
+starts 0/24/48/96, lengths 24/48/96, velocity bytes 74/89/128, ordinary flags and the
 unchanged remaining record bytes. Other values/kinds refuse the entire pattern;
 qualified siblings and existing counts remain independently available.
 
@@ -203,9 +204,15 @@ Full validation checks exact shapes/states, advertised limits, qualified values,
 pattern order, count/cardinality agreement, ordinals and channel bounds. Invalid
 advertised details reject the reply; descriptors without this extension keep
 their earlier projection. Typed accessors have no automatic Debug/Serialize.
-Immutable storage and Library display remain separate next slices; the desktop
-does not yet show these sequences. See the
-[implementation and validation boundary](../../docs/review/pattern-note-sequences-366/README.md).
+Immutable storage and Library display are delivered through PR378/380. The
+client applies the same qualified numeric sets; old snapshots are not rewritten.
+The six clean pilot cases retain complete source-ordered records, including
+the descending saved chord order and renumbered same-save channel binding.
+N09's raw velocity 90 and N15's unexplained byte19 remain unqualified and refuse
+the complete pattern. Stored counts survive both refusals. See the
+[pilot promotion review](../../docs/review/note-pilot-395/README.md) for tests and
+the remaining installed validation. No new build, PPQ, articulation or conversion
+is qualified by this expansion.
 
 ## Project facts
 

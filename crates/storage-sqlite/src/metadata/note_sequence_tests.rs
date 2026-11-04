@@ -137,6 +137,61 @@ fn note_sequences_approved_cases_survive_close_and_reopen_with_independent_value
 }
 
 #[test]
+fn note_pilot_values_and_refusals_survive_immutable_publication_and_reopen() {
+    let registered: Value = serde_json::from_str(include_str!(
+        "../../../../fixtures/parser-corpus/ordinary-note-coverage-expectations.json"
+    ))
+    .unwrap();
+    for case in registered["cases"].as_array().unwrap() {
+        let name = case["file"].as_str().unwrap();
+        let bytes = fixture(name);
+        assert_eq!(sha256_hex(&bytes), case["sha256"]);
+        let directory = TestDirectory::new();
+        let (mut db, input, raw) = seeded(&directory, &bytes);
+        let header = publish(&mut db, &input, raw);
+        let original = db
+            .metadata_snapshot(&header.id)
+            .unwrap()
+            .unwrap()
+            .payload_json()
+            .unwrap()
+            .to_owned();
+        drop(db);
+        let db = Database::open(directory.path()).unwrap();
+        assert_eq!(
+            db.current_metadata_snapshot("project")
+                .unwrap()
+                .unwrap()
+                .payload_json(),
+            Some(original.as_str())
+        );
+        let stored = saved(&db, &header.id);
+        let expected = if case["qualification"] == "negative control" {
+            json!({"patternId":1,"status":"unsupported","reason":"PATTERN_NOTE_RECORD_UNQUALIFIED"})
+        } else {
+            let records = case["records"].as_array().unwrap().iter().map(|note| {
+                let channel = case["channelDeclarations"].as_array().unwrap().iter()
+                    .position(|decl| decl["savedId"] == note["savedChannelId"]).unwrap();
+                json!({"ordinal":note["ordinal"],"channelIndex":channel,"savedKey":note["savedKey"],
+                    "startTick":note["position"],"durationTick":note["storedLength"],
+                    "storedVelocityByte":note["storedVelocityByte"]})
+            }).collect::<Vec<_>>();
+            json!({"patternId":1,"status":"extracted","records":records})
+        };
+        assert_eq!(
+            stored["patternNoteSequences"]["patterns"][0], expected,
+            "{name}"
+        );
+        assert_eq!(
+            stored["patternNoteCounts"]["value"][0]["noteCount"]["value"],
+            case["savedRecordCount"]
+        );
+        assert_eq!(stored["projectionVersion"], 1);
+        assert_eq!(fixture(name), bytes);
+    }
+}
+
+#[test]
 fn note_sequences_unadvertised_and_older_snapshots_stay_absent_and_immutable() {
     let directory = TestDirectory::new();
     let (mut db, input, mut raw) = baseline(&directory);

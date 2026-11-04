@@ -215,21 +215,34 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                     panic!("typed pattern result expected: {name}");
                 };
                 assert_eq!(patterns.len(), 1);
-                if case["currentParser"]["patternStatus"] == "unsupported" {
+                if case["qualification"] == "negative control" {
                     let NoteSequence::Unsupported(reason) = patterns[0].sequence() else {
                         panic!("whole-pattern refusal required: {name}");
                     };
                     assert_eq!(reason.as_str(), "PATTERN_NOTE_RECORD_UNQUALIFIED");
                 } else {
                     let NoteSequence::Extracted(notes) = patterns[0].sequence() else {
-                        panic!("existing supported NoteTwo record expected: {name}");
+                        panic!("qualified pilot records expected: {name}");
                     };
-                    assert_eq!(notes.len(), 1);
-                    assert_eq!(notes[0].channel_index(), 0);
-                    assert_eq!(notes[0].saved_key(), 60);
-                    assert_eq!(notes[0].start_tick(), 0);
-                    assert_eq!(notes[0].duration_tick(), 48);
-                    assert_eq!(notes[0].stored_velocity_byte(), 89);
+                    let expected = case["records"].as_array().unwrap();
+                    assert_eq!(notes.len(), expected.len());
+                    for (note, registered) in notes.iter().zip(expected) {
+                        let channel = case["channelDeclarations"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .position(|decl| decl["savedId"] == registered["savedChannelId"])
+                            .unwrap();
+                        assert_eq!(u64::from(note.ordinal()), registered["ordinal"]);
+                        assert_eq!(usize::from(note.channel_index()), channel);
+                        assert_eq!(u64::from(note.saved_key()), registered["savedKey"]);
+                        assert_eq!(u64::from(note.start_tick()), registered["position"]);
+                        assert_eq!(u64::from(note.duration_tick()), registered["storedLength"]);
+                        assert_eq!(
+                            u64::from(note.stored_velocity_byte()),
+                            registered["storedVelocityByte"]
+                        );
+                    }
                 }
             }
             if let Some(case) = note_expectations["cases"]

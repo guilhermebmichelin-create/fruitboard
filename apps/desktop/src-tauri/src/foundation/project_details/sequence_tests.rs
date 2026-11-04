@@ -1,4 +1,4 @@
-//! Approved F24-F30 through immutable storage and the authorized details seam.
+//! Approved note cases through immutable storage and the authorized details seam.
 use super::*;
 use crate::foundation::test_support::{FakeClock, FakeIdGenerator, RecordingLogSink};
 use fruitboard_flp_parser::supervisor::ProtocolReply;
@@ -14,7 +14,19 @@ fn approved_note_sequences_reach_details_after_restart_and_disappear_on_root_los
         "/../../../fixtures/parser-corpus/note-sequence-expectations.json"
     )))
     .unwrap();
-    for case in expectations["cases"].as_array().unwrap() {
+    let mut cases = expectations["cases"].as_array().unwrap().clone();
+    for case in &mut cases {
+        let mut note = case["expectedNote"].clone();
+        note["ordinal"] = json!(0);
+        case["records"] = json!([note]);
+    }
+    let pilot: Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../fixtures/parser-corpus/ordinary-note-coverage-expectations.json"
+    )))
+    .unwrap();
+    cases.extend(pilot["cases"].as_array().unwrap().iter().cloned());
+    for case in &cases {
         let directory = std::env::temp_dir().join(format!(
             "fruitboard-note-sequence-details-{}",
             uuid::Uuid::now_v7()
@@ -100,13 +112,18 @@ fn approved_note_sequences_reach_details_after_restart_and_disappear_on_root_los
             ))
             .unwrap()
         };
-        let expected = &case["expectedNote"];
-        let channel = case["channelDeclarations"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .position(|decl| decl["savedId"] == expected["savedChannelId"])
-            .unwrap();
+        let expected_sequence = if case["qualification"] == "negative control" {
+            json!({"status":"unsupported","reason":"unqualified_record"})
+        } else {
+            let records = case["records"].as_array().unwrap().iter().map(|note| {
+                let channel = case["channelDeclarations"].as_array().unwrap().iter()
+                    .position(|decl| decl["savedId"] == note["savedChannelId"]).unwrap();
+                json!({"ordinal":note["ordinal"],"channelIndex":channel,"savedKey":note["savedKey"],
+                    "startTick":note["position"],"durationTick":note["storedLength"],
+                    "storedVelocityByte":note["storedVelocityByte"]})
+            }).collect::<Vec<_>>();
+            json!({"status":"extracted","records":records})
+        };
         for _ in 0..2 {
             let reply = read(request.clone());
             assert_eq!(reply["status"], "ok");
@@ -115,10 +132,7 @@ fn approved_note_sequences_reach_details_after_restart_and_disappear_on_root_los
                 reply["data"]["patternNoteSequences"],
                 json!({"state":"available",
                 "coverage":"stored-pattern-note-records","coordinateSystem":"pattern-local-ticks","ppq":96,
-                "items":[{"patternId":1,"sequence":{"status":"extracted","records":[{
-                    "ordinal":0,"channelIndex":channel,"savedKey":expected["savedKey"],
-                    "startTick":expected["position"],"durationTick":expected["storedLength"],
-                    "storedVelocityByte":expected["storedVelocityByte"]}]}}]})
+                "items":[{"patternId":1,"sequence":expected_sequence}]})
             );
             assert!(reply["data"].get("payloadJson").is_none());
         }
@@ -138,7 +152,10 @@ fn approved_note_sequences_reach_details_after_restart_and_disappear_on_root_los
             "/patternNoteSequences/patterns/0/records/0/channelIndex",
         ] {
             let mut bad: Value = serde_json::from_str(&original).unwrap();
-            *bad.pointer_mut(pointer).unwrap() = Value::Null;
+            let Some(value) = bad.pointer_mut(pointer) else {
+                continue;
+            };
+            *value = Value::Null;
             assert!(project(&bad.to_string()).is_err());
         }
         database
