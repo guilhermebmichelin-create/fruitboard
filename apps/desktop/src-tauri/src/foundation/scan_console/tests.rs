@@ -732,14 +732,29 @@ fn project_analysis_explains_negative_parser_snapshots_without_raw_codes() {
             details["analysisRequest"]["state"],
             if unsupported { "unsupported" } else { "ready" }
         );
-        assert_eq!(
-            details["analysis"],
-            json!({"state":if unsupported {"unsupported"} else {"failed"},"attempts":1,"reason":if unsupported {"unsupported_version"} else {"invalid_file"}})
-        );
+        let mut expected = json!({"state":if unsupported {"unsupported"} else {"failed"},"attempts":1,"reason":if unsupported {"unsupported_version"} else {"invalid_file"}});
+        if unsupported {
+            expected["savedVersion"] = json!("99.1.0.5530");
+        }
+        assert_eq!(details["analysis"], expected);
         assert!(details.get("facts").is_none());
         assert!(!details.to_string().contains("INVALID_HEADER"));
         assert!(!details.to_string().contains("UNSUPPORTED_SAVED_VERSION"));
-        assert!(!details.to_string().contains("99.1.0.5530"));
+        assert_eq!(
+            details["analysis"].get("savedVersion").is_some(),
+            unsupported
+        );
+        // A stale displayed fingerprint cannot carry the former diagnostic.
+        let stale = ok_data(handle_get_project_details(
+            &runtime,
+            &harness.database,
+            Some(
+                json!({"schemaVersion":1,"rootId":harness.root_id,"locationId":row["locationId"],"expectedByteSize":(bytes.len()+1).to_string(),"expectedModifiedAt":row["modifiedAt"]}),
+            ),
+            true,
+        ));
+        assert_eq!(stale["analysis"]["state"], "not_current");
+        assert!(!stale.to_string().contains("99.1.0.5530"));
     }
 }
 
