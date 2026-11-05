@@ -79,9 +79,7 @@ export function parseProjectAnalysis(value: unknown): ProjectAnalysis {
     state: state as ProjectAnalysis["state"],
     attempts,
     reason: reason as ProjectAnalysis["reason"],
-    ...(savedVersion === undefined
-      ? {}
-      : { savedVersion }),
+    ...(savedVersion === undefined ? {} : { savedVersion }),
   };
 }
 

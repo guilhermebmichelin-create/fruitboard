@@ -63,7 +63,7 @@ pub(super) fn read(db: &Database, input: &MetadataInput) -> Result<Summary, ()> 
             snapshot
                 .as_ref()
                 .filter(|snapshot| {
-                    snapshot.header().parser_code.as_deref() == Some("UNSUPPORTED_SAVED_VERSION")
+                    snapshot.header().outcome == fruitboard_storage::MetadataOutcome::Unsupported
                 })
                 .and_then(|snapshot| snapshot.header().unsupported_saved_version.as_deref())
                 .map(validated_saved_version)
