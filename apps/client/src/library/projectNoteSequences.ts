@@ -198,10 +198,10 @@ export function parseProjectNoteSequences(
           if (
             sourceOrdinal !== ordinal ||
             channelIndex >= channelCount ||
-            ![60, 64].includes(savedKey) ||
-            ![0, 48].includes(startTick) ||
-            ![48, 96].includes(durationTick) ||
-            ![74, 89].includes(storedVelocityByte) ||
+            ![60, 62, 64, 67].includes(savedKey) ||
+            ![0, 24, 48, 96].includes(startTick) ||
+            ![24, 48, 96].includes(durationTick) ||
+            ![74, 89, 128].includes(storedVelocityByte) ||
             startTick + durationTick > 0xffffffff
           )
             return fail();

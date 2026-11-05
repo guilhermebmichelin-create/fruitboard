@@ -62,6 +62,9 @@ next work.
   clean and two negative controls. Their publication does not widen runtime
   support. The next separate implementation can promote demonstrated values
   and multi-note cases while retaining complete-pattern refusal for unknown state.
+  [Implementation #395](docs/review/note-pilot-395/README.md) promotes the six
+  clean pilot cases with adapter 0.1.5 and matching client validation; updated-head
+  CI and installed note verification remain required for that change.
 - **Resource and scanner status**: scanner qualification remains unaccepted;
   the historical warm nearest-rank p95 was 10,173 ms against the unchanged
   10,000 ms target on source `69f27f6`. The

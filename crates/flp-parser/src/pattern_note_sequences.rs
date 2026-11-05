@@ -1,4 +1,4 @@
-//! F24–F30's ordinary-record subset only. Raw saved values are not MIDI values.
+//! F24–F38's qualified ordinary subset only. Raw saved values are not MIDI values.
 use crate::{Channel, ChannelType, MAX_DETAILED_NOTES_PER_PATTERN, MAX_NOTE_SEQUENCE_BYTES};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -18,10 +18,10 @@ pub(crate) fn absent(status: &str, reason: &str) -> Value {
 /// values. This deliberately does not infer a general key/velocity conversion
 /// or support arbitrary timing, articulation or channel layouts.
 pub(crate) fn qualified_values(key: u64, start: u64, duration: u64, velocity: u64) -> bool {
-    matches!(key, 60 | 64)
-        && matches!(start, 0 | 48)
-        && matches!(duration, 48 | 96)
-        && matches!(velocity, 74 | 89)
+    matches!(key, 60 | 62 | 64 | 67)
+        && matches!(start, 0 | 24 | 48 | 96)
+        && matches!(duration, 24 | 48 | 96)
+        && matches!(velocity, 74 | 89 | 128)
 }
 
 fn record(data: &[u8], ordinal: usize, channels: &[Channel]) -> Option<Value> {

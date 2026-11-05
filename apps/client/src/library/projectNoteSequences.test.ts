@@ -3,6 +3,7 @@ import { parseProjectDetails } from "./projectDetails";
 import { identity } from "./projectDetails.fixture";
 import { sequenceDetails } from "./noteSequences.fixture";
 import { parseProjectNoteSequences } from "./projectNoteSequences";
+import pilot from "../../../../fixtures/parser-corpus/ordinary-note-coverage-expectations.json";
 
 const decode = (value: unknown, details = sequenceDetails()) =>
   parseProjectNoteSequences(
@@ -13,6 +14,61 @@ const decode = (value: unknown, details = sequenceDetails()) =>
     details.channels.length,
   );
 describe("saved note sequence decoder", () => {
+  it.each(pilot.cases)(
+    "decodes the independently registered $case note case",
+    (testCase) => {
+      const details = sequenceDetails(testCase.savedRecordCount);
+      const sequence =
+        testCase.qualification === "negative control"
+          ? { status: "unsupported", reason: "unqualified_record" }
+          : {
+              status: "extracted",
+              records: testCase.records.map((note) => ({
+                ordinal: note.ordinal,
+                channelIndex: testCase.channelDeclarations.findIndex(
+                  (channel) => channel.savedId === note.savedChannelId,
+                ),
+                savedKey: note.savedKey,
+                startTick: note.position,
+                durationTick: note.storedLength,
+                storedVelocityByte: note.storedVelocityByte,
+              })),
+            };
+      const raw = {
+        ...details.patternNoteSequences,
+        items: [{ patternId: 1, sequence }],
+      };
+      expect(decode(raw, details)).toEqual(raw);
+      // The renderer can reject N09's unqualified numeric velocity. N15's raw
+      // byte19 is deliberately absent from the DTO; the parser owns its refusal.
+      if (testCase.case === "N09") {
+        expect(() =>
+          decode(
+            {
+              ...raw,
+              items: [
+                {
+                  patternId: 1,
+                  sequence: {
+                    status: "extracted",
+                    records: testCase.records.map((note) => ({
+                      ordinal: note.ordinal,
+                      channelIndex: 0,
+                      savedKey: note.savedKey,
+                      startTick: note.position,
+                      durationTick: note.storedLength,
+                      storedVelocityByte: note.storedVelocityByte,
+                    })),
+                  },
+                },
+              ],
+            },
+            details,
+          ),
+        ).toThrow();
+      }
+    },
+  );
   it("selects complete source-ordered raw records and duplicate notes", () => {
     const details = sequenceDetails(3);
     expect(parseProjectDetails(details, identity)).toEqual(details);
@@ -35,6 +91,11 @@ describe("saved note sequence decoder", () => {
       ["startTick", -1],
       ["durationTick", 0],
       ["storedVelocityByte", 89.5],
+      ["savedKey", 63],
+      ["startTick", 25],
+      ["durationTick", 25],
+      ["storedVelocityByte", 90],
+      ["storedVelocityByte", 127],
       ["savedKey", "60"],
       ["startTick", NaN],
       ["durationTick", Infinity],

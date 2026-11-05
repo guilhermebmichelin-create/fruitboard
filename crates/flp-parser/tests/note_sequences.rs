@@ -92,7 +92,7 @@ fn stream(patterns: &[(u16, Vec<u8>)], channel_ids: &[u16]) -> Vec<u8> {
 }
 
 #[test]
-fn ordinary_note_pilot_preserves_counts_and_current_qualification_boundary() {
+fn ordinary_note_pilot_promotes_clean_cases_and_preserves_negative_controls() {
     let registered: Value = serde_json::from_str(include_str!(
         "../../../fixtures/parser-corpus/ordinary-note-coverage-expectations.json"
     ))
@@ -119,7 +119,7 @@ fn ordinary_note_pilot_preserves_counts_and_current_qualification_boundary() {
         );
         let pattern = &raw["patternNoteSequences"]["patterns"][0];
         assert_eq!(pattern["patternId"], 1);
-        if case["currentParser"]["patternStatus"] == "unsupported" {
+        if case["qualification"] == "negative control" {
             // Includes N15's otherwise supported sibling: never expose a
             // partial sequence when another record has unexplained bytes.
             assert_eq!(
@@ -129,12 +129,16 @@ fn ordinary_note_pilot_preserves_counts_and_current_qualification_boundary() {
                 "{filename}"
             );
         } else {
+            let records = case["records"].as_array().unwrap().iter().map(|note| {
+                let channel = case["channelDeclarations"].as_array().unwrap().iter()
+                    .position(|decl| decl["savedId"] == note["savedChannelId"]).unwrap();
+                json!({"ordinal":note["ordinal"],"channelIndex":channel,
+                    "savedKey":note["savedKey"],"startTick":note["position"],
+                    "durationTick":note["storedLength"],"storedVelocityByte":note["storedVelocityByte"]})
+            }).collect::<Vec<_>>();
             assert_eq!(
                 pattern,
-                &json!({"patternId":1,"status":"extracted","records":[{
-                    "ordinal":0,"channelIndex":0,"savedKey":60,"startTick":0,
-                    "durationTick":48,"storedVelocityByte":89
-                }]}),
+                &json!({"patternId":1,"status":"extracted","records":records}),
                 "{filename}"
             );
         }
@@ -199,9 +203,15 @@ fn unknown_records_refuse_whole_pattern_without_losing_counts_or_valid_siblings(
     // Constructed defenses, not expanded genuine-save compatibility.
     for (offset, value) in [
         (4, 8),
+        (0, 25),
         (8, 0),
+        (8, 25),
         (12, 61),
+        (12, 63),
         (21, 90),
+        (21, 127),
+        (21, 129),
+        (19, 64),
         (16, 119),
         (22, 127),
         (6, 2),
@@ -430,6 +440,26 @@ fn malformed_advertised_notes_never_fall_back_to_older_metadata() {
         (
             "/patternNoteSequences/patterns/0/records/0/savedKey",
             json!(61),
+        ),
+        (
+            "/patternNoteSequences/patterns/0/records/0/savedKey",
+            json!(63),
+        ),
+        (
+            "/patternNoteSequences/patterns/0/records/0/startTick",
+            json!(25),
+        ),
+        (
+            "/patternNoteSequences/patterns/0/records/0/durationTick",
+            json!(25),
+        ),
+        (
+            "/patternNoteSequences/patterns/0/records/0/storedVelocityByte",
+            json!(90),
+        ),
+        (
+            "/patternNoteSequences/patterns/0/records/0/storedVelocityByte",
+            json!(127),
         ),
         (
             "/patternNoteSequences/patterns/0/records/0/startTick",
