@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "7d987c30af3f8ade29e3ee24dd6e475188fdd797",
+  "researchOnly": true,
+  "compatibilityExpanded": false,
+  "productionPolicyChanged": false,
+  "testsPassed": {
+    "default": 133,
+    "research": 140
+  },
+  "productionBaseline": {
+    "controls": 4,
+    "fields": 20,
+    "passed": true
+  },
+  "artifacts": {
+    "production-parser": {
+      "sha256": "615ec51871df58c0dbe29c915a83a1b59c502934b4e3da4b583d3d5bd66b3e4b",
+      "bytes": 629760
+    },
+    "probe": {
+      "sha256": "421812f3ac40633fe4cd4f5d7a6b197e3049c6dd5b858bc25a9e6d9d37323907",
+      "bytes": 592384
+    }
+  },
+  "approvedSourceFilesUnchanged": 36,
+  "ownerDraftsUnchanged": true,
+  "controls": [
+    {
+      "id": "F01",
+      "sha256": "d3caba4e6e1a2cd47074b7b6e0f115d9d896e6da2e95705baff0777ef06b30ae",
+      "oneAndThreeHaveEqualPilotFields": true,
+      "oneAndThreeHaveDifferentFraming": false,
+      "hypotheses": [
+        {
+          "width": 1,
+          "outcome": "complete",
+          "code": null,
+          "observedEvents": 3246,
+          "event172InCapturedPrefix": false,
+          "qualified": false
+        },
+        {
+          "width": 3,
+          "outcome": "complete",
+          "code": null,
+          "observedEvents": 3246,
+          "event172InCapturedPrefix": false,
+          "qualified": false
+        },
+        {
+          "width": 4,
+          "outcome": "complete",
+          "code": null,
+          "observedEvents": 3246,
+          "event172InCapturedPrefix": false,
+          "qualified": false
+        }
+      ]
+    },
+    {
+      "id": "F06",
+      "sha256": "745f3cbb7ec095b8e03ab010ad6463c90e2c3616d4d671b868ef6fdbc9fe5fc5",
+      "oneAndThreeHaveEqualPilotFields": true,
+      "oneAndThreeHaveDifferentFraming": false,
+      "hypotheses": [
+        {
+          "width": 1,
+          "outcome": "complete",
+          "code": null,
+          "observedEvents": 1415,
+          "event172InCapturedPrefix": false,
+          "qualified": false
+        },
+        {
+          "width": 3,
+          "outcome": "complete",
+          "code": null,
+          "observedEvents": 1415,
+          "event172InCapturedPrefix": false,
+          "qualified": false
+        },
+        {
+          "width": 4,
+          "outcome": "complete",
+          "code": null,
+          "observedEvents": 1415,
+          "event172InCapturedPrefix": false,
+          "qualified": false
+        }
+      ]
+    },
+    {
+      "id": "F11",
+      "sha256": "e0471d55032b7dfaa8bbcd496c487147149b9ce18e0b250882cc6f67f47480ee",
+      "oneAndThreeHaveEqualPilotFields": true,
+      "oneAndThreeHaveDifferentFraming": true,
+      "hypotheses": [
+        {
+          "width": 1,
+          "outcome": "complete",
+          "code": null,
+          "observedEvents": 1423,
+          "event172InCapturedPrefix": true,
+          "qualified": false
+        },
+        {
+          "width": 3,
+          "outcome": "complete",
+          "code": null,
+          "observedEvents": 1421,
+          "event172InCapturedPrefix": true,
+          "qualified": false
+        },
+        {
+          "width": 4,
+          "outcome": "failed",
+          "code": "EVENT_LENGTH_OUT_OF_BOUNDS",
+          "observedEvents": 68,
+          "event172InCapturedPrefix": true,
+          "qualified": false
+        }
+      ]
+    },
+    {
+      "id": "F12",
+      "sha256": "dc11a613e34f2ec4918addf1ec2562d6a2c75ebc8c322f56bcb42d280e607b39",
+      "oneAndThreeHaveEqualPilotFields": true,
+      "oneAndThreeHaveDifferentFraming": true,
+      "hypotheses": [
+        {
+          "width": 1,
+          "outcome": "complete",
+          "code": null,
+          "observedEvents": 1423,
+          "event172InCapturedPrefix": true,
+          "qualified": false
+        },
+        {
+          "width": 3,
+          "outcome": "complete",
+          "code": null,
+          "observedEvents": 1421,
+          "event172InCapturedPrefix": true,
+          "qualified": false
+        },
+        {
+          "width": 4,
+          "outcome": "failed",
+          "code": "EVENT_LENGTH_OUT_OF_BOUNDS",
+          "observedEvents": 74,
+          "event172InCapturedPrefix": true,
+          "qualified": false
+        }
+      ]
+    }
+  ],
+  "storage": {
+    "preflightAllowanceGiB": 0.65,
+    "minimumFreeGiB": 30.609275817871094,
+    "freeAfterValidationGiB": 30.613956451416016,
+    "newCompilerCache": false
+  },
+  "limits": {
+    "fileBytes": 67108864,
+    "events": 100000,
+    "framingPrefix": 32,
+    "exampleControlBytes": 131072,
+    "exampleReportBytes": 262144
+  },
+  "probeRejectsArguments": true,
+  "testSources": {
+    "default": "794231f2e1b4edd82ad98ee666d03d21a9810e3b",
+    "research": "7d987c30af3f8ade29e3ee24dd6e475188fdd797",
+    "defaultSourceEquivalence": "Only cfg-disabled research module and feature-only tests changed; normal parser compiled inputs identical."
+  },
+  "artifactSources": {
+    "production-parser": "794231f2e1b4edd82ad98ee666d03d21a9810e3b",
+    "probe": "7d987c30af3f8ade29e3ee24dd6e475188fdd797"
+  },
+  "probeExecution": {
+    "timeoutMs": 10000,
+    "outputLimitBytes": 262144,
+    "exitCode": 0,
+    "argumentsRejected": true
+  }
+}
