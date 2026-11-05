@@ -1,5 +1,10 @@
 # Development status and next implementation
 
+Follow-up: PR396 and PR398 have now merged the note promotion and installed
+verification recommended below. The [cross-build pilot](../../research/cross-build-pilot-399.md)
+records the current next parser step. This assessment retains its earlier
+baseline and evidence boundaries.
+
 Assessment date: 2026-11-04. Reviewed merged main:
 `6cb560ee5aca53be251153714ced3e3e3dcbb8b0` (PR383).
 This supersedes the October 31 next-step recommendation. Earlier installed and
