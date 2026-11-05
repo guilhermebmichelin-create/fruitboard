@@ -81,7 +81,7 @@ export function parseProjectAnalysis(value: unknown): ProjectAnalysis {
     reason: reason as ProjectAnalysis["reason"],
     ...(savedVersion === undefined
       ? {}
-      : { savedVersion: savedVersion as string }),
+      : { savedVersion }),
   };
 }
 
