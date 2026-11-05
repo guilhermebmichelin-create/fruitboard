@@ -27,6 +27,8 @@ mod pattern_note_sequences;
 mod pattern_notes;
 mod plugin_references;
 mod project_info;
+#[cfg(feature = "compatibility-research")]
+pub mod research;
 pub mod supervisor;
 pub mod validation;
 
@@ -479,6 +481,23 @@ fn playlist_pattern_clips(
 }
 
 pub fn parse_bytes(bytes: &[u8]) -> Value {
+    parse_bytes_with_policy(
+        bytes,
+        supported_saved_version,
+        |version| if three_byte_event_172(version) { 3 } else { 4 },
+        |_, _, _, _| {},
+    )
+}
+
+// Only the explicit research feature supplies a different policy. Normal file
+// and protocol entry points always call parse_bytes above. Monomorphization
+// removes the no-op observer from the production decoder.
+fn parse_bytes_with_policy(
+    bytes: &[u8],
+    accept_saved_version: impl Fn(&str) -> bool,
+    event_172_width: impl Fn(&str) -> usize,
+    mut observe_event: impl FnMut(u8, usize, usize, usize),
+) -> Value {
     if bytes.len() as u64 > MAX_FILE_BYTES {
         return failed("FILE_SIZE_LIMIT");
     }
@@ -523,6 +542,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
             return failed("EVENT_COUNT_LIMIT");
         }
         event_count += 1;
+        let event_offset = cursor;
         let id = bytes[cursor];
         cursor += 1;
         if event_count == 1 && id != 199 {
@@ -531,7 +551,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
         let width = match id {
             0..=63 => 1,
             64..=127 => 2,
-            172 if version.as_deref().is_some_and(three_byte_event_172) => 3,
+            172 => version.as_deref().map_or(4, &event_172_width),
             128..=191 => 4,
             _ => {
                 let mut value = 0usize;
@@ -566,6 +586,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
             return failed("EVENT_LENGTH_OUT_OF_BOUNDS");
         }
         let data = &bytes[cursor..end];
+        observe_event(id, event_offset, cursor, width);
         cursor = end;
         pattern_notes.observe(id, data);
         if version.as_deref() == Some(mixer_inserts::BUILD) {
@@ -684,7 +705,7 @@ pub fn parse_bytes(bytes: &[u8]) -> Value {
                 {
                     return failed("INVALID_SAVED_VERSION");
                 }
-                if !supported_saved_version(s) {
+                if !accept_saved_version(s) {
                     return unsupported_version(s);
                 }
                 version = Some(s.to_owned());

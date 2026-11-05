@@ -7,6 +7,17 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 const ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 
+#[test]
+fn research_cannot_be_selected_through_the_product_protocol() {
+    let request = json!({
+        "protocolVersion":1,"schemaVersion":2,"id":ID,"method":"researchInspect",
+        "params":null
+    });
+    let (responses, stderr) = exchange(&[serde_json::to_vec(&request).unwrap()]);
+    assert!(stderr.is_empty());
+    assert_eq!(responses[0]["error"]["code"], "UNKNOWN_METHOD");
+}
+
 fn exchange(lines: &[Vec<u8>]) -> (Vec<Value>, String) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_fruitboard-flp-parser"))
         .stdin(Stdio::piped())

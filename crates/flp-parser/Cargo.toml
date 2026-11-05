@@ -5,9 +5,17 @@ edition.workspace = true
 rust-version.workspace = true
 publish = false
 
+[features]
+default = []
+compatibility-research = []
+
 [[bin]]
 name = "fruitboard-flp-parser"
 path = "src/main.rs"
+
+[[example]]
+name = "compatibility_probe"
+required-features = ["compatibility-research"]
 
 [dependencies]
 serde.workspace = true
