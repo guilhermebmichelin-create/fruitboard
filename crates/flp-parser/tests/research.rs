@@ -76,6 +76,7 @@ fn exact_profile_does_not_admit_a_different_or_even_previously_supported_build()
 
 #[test]
 fn profile_requires_a_canonical_exact_build_not_a_family_or_range() {
+    assert!(Profile::new(&".".repeat(1024 * 1024), Event172Width::Three).is_err());
     for build in [
         "",
         "26",

@@ -28,9 +28,11 @@ pub struct Profile<'a> {
 
 impl<'a> Profile<'a> {
     pub fn new(saved_build: &'a str, event_172_width: Event172Width) -> Result<Self, &'static str> {
+        if saved_build.len() > 32 {
+            return Err("RESEARCH_EXACT_BUILD_REQUIRED");
+        }
         let parts: Vec<_> = saved_build.split('.').collect();
-        if saved_build.len() > 32
-            || parts.len() != 4
+        if parts.len() != 4
             || parts.iter().any(|part| {
                 part.is_empty()
                     || !part.bytes().all(|b| b.is_ascii_digit())
