@@ -26,6 +26,21 @@ export function ProjectAnalysisStatus({
         <strong>{ANALYSIS_LABELS[analysis.state]}</strong>
       </p>
       <p>{ANALYSIS_NOTES[analysis.state]}</p>
+      {analysis.state === "unsupported" &&
+        analysis.savedVersion !== undefined && (
+          <p>
+            Detected saved FL Studio version:{" "}
+            <strong>{analysis.savedVersion}</strong>.
+          </p>
+        )}
+      {analysis.state === "unsupported" && (
+        <p>
+          This build has not been verified by Fruitboard. This does not
+          establish that the project is damaged or its format is incompatible.
+          Checking again with this parser does not add support for another
+          build.
+        </p>
+      )}
       {analysis.attempts !== null && (
         <p>Attempts started: {analysis.attempts} of 3.</p>
       )}

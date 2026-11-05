@@ -24,6 +24,63 @@ const record: PublishedFileLocation = {
 };
 
 describe("Project details panel", () => {
+  it("shows the detected unverified build and removes it while refreshing or losing source authority", async () => {
+    const user = userEvent.setup();
+    let finish!: (details: ProjectDetails) => void;
+    const unsupported: ProjectDetails = {
+      ...identity,
+      state: "no_current",
+      analysis: {
+        state: "unsupported",
+        attempts: 1,
+        reason: "unsupported_version",
+        savedVersion: "25.2.4.4960",
+      },
+    };
+    const read = vi
+      .fn()
+      .mockResolvedValueOnce(unsupported)
+      .mockImplementationOnce(
+        () =>
+          new Promise<ProjectDetails>((resolve) => {
+            finish = resolve;
+          }),
+      );
+    const adapter = {
+      ...createFakeLibraryScanAdapter(),
+      getProjectDetails: read,
+      requestProjectAnalysis: vi.fn(),
+    };
+    const { rerender } = render(
+      <ProjectDetailsPanel record={record} adapter={adapter} />,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Project details Example.flp" }),
+    );
+    await screen.findByText("25.2.4.4960");
+    expect(screen.getByText(/does not establish/).textContent).toContain(
+      "damaged",
+    );
+    expect((await axe.run(document.body)).violations).toEqual([]);
+    await user.click(
+      screen.getByRole("button", { name: "Refresh details Example.flp" }),
+    );
+    expect(screen.queryByText("25.2.4.4960")).toBeNull();
+    await act(async () => {
+      finish(unsupported);
+      await Promise.resolve();
+    });
+    await screen.findByText("25.2.4.4960");
+    rerender(
+      <ProjectDetailsPanel
+        record={record}
+        adapter={adapter}
+        sourceEligible={false}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByText("25.2.4.4960")).toBeNull());
+    expect(adapter.requestProjectAnalysis).not.toHaveBeenCalled();
+  });
   it("clears saved patterns while refreshing and never queues analysis through Refresh details", async () => {
     const diagnostics = vi.spyOn(console, "error").mockImplementation(() => {});
     const user = userEvent.setup();

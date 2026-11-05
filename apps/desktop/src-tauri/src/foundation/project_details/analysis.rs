@@ -7,6 +7,8 @@ pub(super) struct Summary {
     state: &'static str,
     attempts: Option<u8>,
     reason: Option<&'static str>,
+    #[serde(rename = "savedVersion", skip_serializing_if = "Option::is_none")]
+    saved_version: Option<String>,
 }
 impl Summary {
     pub(super) fn not_current() -> Self {
@@ -14,6 +16,7 @@ impl Summary {
             state: "not_current",
             attempts: None,
             reason: None,
+            saved_version: None,
         }
     }
 }
@@ -23,6 +26,7 @@ pub(super) fn read(db: &Database, input: &MetadataInput) -> Result<Summary, ()> 
             state: "not_reported",
             attempts: None,
             reason: None,
+            saved_version: None,
         });
     };
     let snapshot = status
@@ -44,17 +48,46 @@ pub(super) fn read(db: &Database, input: &MetadataInput) -> Result<Summary, ()> 
         AnalysisState::Cancelled => "cancelled",
         AnalysisState::Stale => "stale",
     };
+    let reason = code
+        .map(reason)
+        .or(if status.state == AnalysisState::Unsupported {
+            Some("unsupported_version")
+        } else {
+            None
+        });
+    // current_analysis_status already fences this snapshot to the current
+    // location/root revisions, fingerprint, adapter and terminal state. Expose
+    // only the stored unsupported-version scalar, never raw parser payloads.
+    let saved_version =
+        if status.state == AnalysisState::Unsupported && reason == Some("unsupported_version") {
+            snapshot
+                .as_ref()
+                .filter(|snapshot| {
+                    snapshot.header().parser_code.as_deref() == Some("UNSUPPORTED_SAVED_VERSION")
+                })
+                .and_then(|snapshot| snapshot.header().unsupported_saved_version.as_deref())
+                .map(validated_saved_version)
+                .transpose()?
+        } else {
+            None
+        };
     Ok(Summary {
         state,
         attempts: Some(u8::try_from(status.attempt).map_err(|_| ())?),
-        reason: code
-            .map(reason)
-            .or(if status.state == AnalysisState::Unsupported {
-                Some("unsupported_version")
-            } else {
-                None
-            }),
+        reason,
+        saved_version,
     })
+}
+fn validated_saved_version(value: &str) -> Result<String, ()> {
+    if value.len() > 32
+        || value.split('.').count() != 4
+        || value
+            .split('.')
+            .any(|part| part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return Err(());
+    }
+    Ok(value.to_owned())
 }
 fn reason(code: &str) -> &'static str {
     match code {
@@ -114,6 +147,24 @@ fn reason(code: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn saved_versions_are_bounded_numeric_display_values_only() {
+        assert_eq!(
+            validated_saved_version("99.1.0.5530").unwrap(),
+            "99.1.0.5530"
+        );
+        for value in [
+            "",
+            "26.1.0",
+            "26..0.5530",
+            "26.1.0.5530\n",
+            "C:\\Private\\project.flp",
+            "26.1.0.5530<script>",
+            "123456789012345678901234567890.1.1.1",
+        ] {
+            assert!(validated_saved_version(value).is_err());
+        }
+    }
     #[test]
     fn unknown_private_codes_become_fixed_unclassified_reason() {
         assert_eq!(reason("C:\\Private\\project.flp"), "unclassified");
