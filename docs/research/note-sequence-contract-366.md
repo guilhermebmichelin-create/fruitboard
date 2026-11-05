@@ -2,9 +2,12 @@
 
 Status: **Parser/full native validation and immutable storage implemented;
 Library implementation is in [slice #379](../review/note-sequence-library-379/README.md),
-with locked CI passed and installed validation pending.** See the [storage slice](../review/note-sequence-storage-377/README.md)
+with locked CI passed and source-bounded installed validation recorded below.** See the [storage slice](../review/note-sequence-storage-377/README.md)
 and the
 [implementation boundary](../review/pattern-note-sequences-366/README.md).
+The [installed follow-up #397](../review/installed-notes-397/README.md) now
+qualifies the bounded workflow on its recorded source, including a narrow
+enlarged-text correction. Dated implementation notes below retain their limits.
 Seven narrow genuine-save cases now have [approved qualification evidence](parser-note-sequence-366-result.md).
 Related [research and genuine-save plan](parser-note-sequence-366.md),
 issue [#366](https://github.com/guilhermebmichelin-create/fruitboard/issues/366).

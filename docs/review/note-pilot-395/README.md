@@ -5,6 +5,12 @@ Source baseline: merged main `6cb560e` (PR383), plus the documentation-only
 status refresh in PR394. Status: **Implementation with local parser/storage
 checks; normal updated-head CI and installed note verification remain required.**
 
+Current follow-up: the [installed review #397](../installed-notes-397/README.md)
+verifies all fifteen note cases plus missing/build controls, restart and source
+authority on its exact recorded source. It also fixes enlarged mobile text;
+later heads retain normal CI/source-equivalence requirements. Earlier limitations
+below record this slice's original local handoff rather than a current blocker.
+
 ## Behavior and evidence
 
 Adapter 0.1.5 promotes the independently observed clean F31-F38 pilot cases

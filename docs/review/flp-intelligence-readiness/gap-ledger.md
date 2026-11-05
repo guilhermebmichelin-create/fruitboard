@@ -5,7 +5,7 @@ Latest status: [November 4 assessment](../development-status-20261104/README.md)
 merged main `6cb560ee5aca53be251153714ced3e3e3dcbb8b0`. PR348 delivered bounded
 same-root project-relative sample checks. PR376/378/380 delivered the qualified
 ordinary-note parser, immutable storage and Library list; locked CI passed,
-installed note verification remains open. PR382/383 add eight approved pilot
+the [installed follow-up #397](../installed-notes-397/README.md) verifies the bounded note workflow and corrects enlarged narrow text at its recorded source. PR382/383 add eight approved pilot
 cases to the 36-file corpus without widening runtime support. The next separate
 implementation can promote demonstrated clean cases while refusing unknown
 records. G5/G6, resources and the phase gate remain open. No historical result

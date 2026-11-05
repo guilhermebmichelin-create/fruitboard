@@ -1508,6 +1508,10 @@
       padding: var(--space-4);
     }
 
+    .main-content:has(.library-page) {
+      padding-inline: var(--space-2);
+    }
+
     .library-page--loading,
     .library-intro,
     .library-scan-panel,
@@ -1515,6 +1519,7 @@
     .library-state-panel,
     .library-stale-banner {
       padding: var(--space-5);
+      padding-inline: var(--space-2);
     }
 
     .library-scan-facts,
@@ -1526,6 +1531,18 @@
     .library-scan-item,
     .library-record-item {
       padding: var(--space-4);
+      padding-inline: var(--space-2);
+    }
+
+    /* Nested Library cards must leave room for enlarged text on narrow screens. */
+    .project-channels__list > li,
+    .project-plugins__list > li,
+    .project-samples__list > li {
+      padding-inline: var(--space-2);
+    }
+
+    .project-note-sequence__records {
+      padding-inline-start: var(--space-3);
     }
 
     .library-scan-item__actions,
