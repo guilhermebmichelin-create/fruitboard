@@ -131,6 +131,9 @@ jobs:
         run: |
           cargo clippy -p fruitboard-flp-parser --all-targets --locked -- -D warnings
           cargo test -p fruitboard-flp-parser --locked
+          cargo clippy -p fruitboard-flp-parser --features compatibility-research --all-targets --locked -- -D warnings
+          cargo test -p fruitboard-flp-parser --features compatibility-research --locked
+          cargo run -p fruitboard-flp-parser --features compatibility-research --example compatibility_probe --locked
 
   migration:
     name: migration

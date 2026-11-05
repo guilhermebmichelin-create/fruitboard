@@ -1,5 +1,11 @@
 # Rust FLP parser process
 
+The opt-in [shared-decoder compatibility probe](../../docs/research/shared-decoder-research-401.md)
+uses the `compatibility-research` Cargo feature and a fixed approved-control
+example. It records unqualified observations under explicit hypotheses; normal
+parser APIs/protocol and the supported-build list stay unchanged, including when
+that feature is compiled. It is not enabled by development desktop packaging.
+
 This is the first product implementation slice after the owner selected Rust
 under [ADR-002](../../docs/adr/002-flp-parser-process.md). Its code derives from
 the bounded research parser at commit `080e825`. It reads one explicit FLP

@@ -77,6 +77,12 @@ in the application. No new fixture, capability, schema or support row is added.
 
 ## Next experiment registration
 
+The [shared-decoder research probe](shared-decoder-research-401.md) now supplies
+the isolated experimental decoder entry point. It is feature-gated, keeps the
+production parser strict, and compares explicit framing hypotheses on the four
+approved controls. Genuine additional-build files and independent expectations
+remain pending; this tooling adds no supported version row.
+
 The [public version-comparison survey](flp-version-literature-399.md) identifies
 existing research and release information. It prioritizes the 25.2.4 release
 line and an adjacent 26.1.x release for investigation; exact runnable builds
