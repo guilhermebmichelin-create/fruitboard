@@ -77,6 +77,12 @@ in the application. No new fixture, capability, schema or support row is added.
 
 ## Next experiment registration
 
+The [public version-comparison survey](flp-version-literature-399.md) identifies
+existing research and release information. It prioritizes the 25.2.4 release
+line and an adjacent 26.1.x release for investigation; exact runnable builds
+remain unverified. The owner does not need to supply versions from memory for
+literature and format analysis to continue.
+
 The owner's cross-build workstream specifies two additional lawfully runnable
 builds: an adjacent build and, where available, one near the known event-172
 width transition. Actual exact numbers must be recorded before experimentation;
