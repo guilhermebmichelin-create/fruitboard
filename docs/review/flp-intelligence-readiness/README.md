@@ -3,7 +3,7 @@
 Status: **Review packet; budgets and Phase 3 exit are not accepted.**
 Updated status: 2026-11-04. Related issue:
 [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259).
-Current source baseline: merged PR383, `6cb560e`. Earlier installed evidence
+Current source baseline: merged PR398, `c6527c5`. Earlier installed evidence
 keeps its original source boundary; the metadata-read optimization does not
 promote historical performance results.
 The [current resource/checkpoint review](../phase3-qualification-306/README.md)
@@ -45,12 +45,16 @@ confirms complete outer-event framing for F11/F23 but no qualified object,
 placement, point-count or reference grammar. Automation extraction and Library
 display remain separate future G6 steps.
 The corpus is now thirty-six files. PR376/378/380 deliver F24-F30's bounded
-ordinary-note parser/storage/Library list with passing locked CI; installed
-note-sequence verification remains outstanding. PR383 adds eight pilot fixtures
-as research evidence without runtime widening. PR348 delivered bounded same-root
-project-relative sample checks. The [current assessment](../development-status-20261104/README.md)
-and maintained field matrix supersede older next-step recommendations below;
-dated delivery/resource rows preserve their original evidence boundaries.
+ordinary-note parser/storage/Library list. PR383 adds eight pilot fixtures;
+merged PR396 promotes the six clean cases while retaining both negative controls.
+Merged PR398 records seventeen passing installed cases and fixes narrow
+enlarged-text readability at its exact source. Both final PR heads passed all
+fifteen checks. PR348 delivered bounded same-root project-relative sample checks.
+The next step is the [cross-build pilot](../../research/cross-build-pilot-399.md):
+four existing-build controls pass, while additional exact builds/genuine saves
+are pending and remain not tested. The maintained field matrix supersedes older
+next-step recommendations below; dated delivery/resource rows preserve their
+original evidence boundaries.
 
 ## Delivered behavior and evidence
 

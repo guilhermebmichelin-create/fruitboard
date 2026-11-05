@@ -5,10 +5,11 @@ analyzing, and finishing music.
 
 ## Current status - 2026-11-04
 
-Reviewed merged baseline: `6cb560ee5aca53be251153714ced3e3e3dcbb8b0`
-([PR #383](https://github.com/guilhermebmichelin-create/fruitboard/pull/383)).
-This includes ordinary-note extraction, immutable storage and Library display
-from PR376/378/380, plus the approved pilot fixtures from PR383.
+Reviewed merged baseline: `c6527c562a5799a7c6e6be06707216d53e391f4e`
+([PR #398](https://github.com/guilhermebmichelin-create/fruitboard/pull/398)).
+PR396 promotes the qualified note pilot values; PR398 adds the installed
+workflow evidence and enlarged-text correction. The next parser step is the
+[cross-build pilot and executable baseline](docs/research/cross-build-pilot-399.md).
 The application includes the current-metadata
 read-path change from [PR #321](https://github.com/guilhermebmichelin-create/fruitboard/pull/321),
 merged as `803ef43`. It consolidates current Plugin Explorer reads under
@@ -59,12 +60,12 @@ next work.
   conversion, playback or editing is claimed. Locked CI passed; installed
   note-sequence evidence is in the source-bounded follow-up below. PR382/383 add
   [eight pilot cases](docs/research/ordinary-note-coverage-381-result.md), six
-  clean and two negative controls. Their publication does not widen runtime
-  support. The next separate implementation can promote demonstrated values
-  and multi-note cases while retaining complete-pattern refusal for unknown state.
-  [Implementation #395](docs/review/note-pilot-395/README.md) promotes the six
-  clean pilot cases with adapter 0.1.5 and matching client validation; updated-head
-  CI and installed note verification remain required for that change.
+  clean and two negative controls. Their publication alone did not widen runtime
+  support. Merged PR396 / [implementation #395](docs/review/note-pilot-395/README.md)
+  promotes the six clean pilot cases with adapter 0.1.5 and matching client
+  validation, while retaining complete-pattern refusal for unknown state.
+  Both final development PR heads passed all fifteen checks; the combined
+  installed source passed 437 client tests and seventeen installed cases.
   The [installed follow-up #397](docs/review/installed-notes-397/README.md)
   verifies the bounded note workflow, restart and authority checks on its
   recorded source, and corrects cramped note text on narrow enlarged displays.

@@ -1,7 +1,7 @@
 # Maintained saved-field reliability matrix
 
 Historical baseline: merged PR261, `19b95362a66a82c91cba56fc8f2226c6ef899cc2`.
-Current source baseline is merged PR383, `6cb560e`; installed evidence below
+Current source baseline is merged PR398, `c6527c5`; installed evidence below
 retains its recorded source boundaries. The current matrix includes saved
 patterns, notes, ordinary mixer records, separate sample-presence observations
 and F23's GUI automation evidence without automation extraction. The 2026-10-31
@@ -11,9 +11,10 @@ only that narrow ordinary-record subset. The [storage slice #377](../note-sequen
 retains it in immutable snapshots with bounded backward-compatible reads;
 [Library slice #379](../note-sequence-library-379/README.md) adds a typed,
 authorized read-only note list; locked CI passed. The [installed follow-up #397](../installed-notes-397/README.md) records bounded verification and a narrow-text correction on its exact source.
-PR383 publishes F31-F38's six clean pilot cases and two negative controls without
-widening runtime extraction. The [current status](../development-status-20261104/README.md)
-records the next bounded implementation.
+PR383 published F31-F38's six clean pilot cases and two negative controls;
+merged PR396 promotes the clean cases, and PR398 completes the bounded installed
+follow-up. The [cross-build pilot](../../research/cross-build-pilot-399.md)
+records the next work: baseline controls pass, additional exact builds are not tested.
 Updated: 2026-11-04. Historical ground truth and measured source boundaries
 below are unchanged.
 This records the opt-in Windows development composition, not production enablement
@@ -22,13 +23,13 @@ display or corpus coverage must update this matrix in the same PR.
 
 ## Saved-build coverage
 
-| Exact saved build  | Approved genuine-save derivatives                       | Independently checked coverage                                                                                                                                                                                                                                                                                        |
-| ------------------ | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 24.1.0.4225        | F01/F04/F05                                             | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                                                                                                                                                                                                                    |
-| 25.1.3.4922        | F06/F22                                                 | Minimal Sampler and one three-cloned-empty-Sampler path at 130 BPM; displayed default labels by labeled inference and absent sample references.                                                                                                                                                                       |
-| 26.1.0.5530        | F11/F12/F13/F14/F15/F16/F17/F18/F19/F20/F21/F23/F24-F38 | Minimal; explicit sample/name; patterns/placements; 3x Osc; cloned empty Samplers; note records/absence; one complete mixer section; F23 GUI shows one automation clip/three points, extraction unqualified; F24-F30 note comparisons plus eight pilot cases (six clean, two negative); runtime widening is separate. |
-| FL Studio 20/21    | F02/F03 are not covered                                 | No runnable matching build or genuine-save fixture here; no supported-build claim.                                                                                                                                                                                                                                    |
-| Other saved builds | No approved row                                         | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                                                                                                                                                                                                  |
+| Exact saved build  | Approved genuine-save derivatives                       | Independently checked coverage                                                                                                                                                                                                                                                                                                      |
+| ------------------ | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 24.1.0.4225        | F01/F04/F05                                             | Minimal Sampler, stored name, tempos 120/140/141 BPM and absent sample references.                                                                                                                                                                                                                                                  |
+| 25.1.3.4922        | F06/F22                                                 | Minimal Sampler and one three-cloned-empty-Sampler path at 130 BPM; displayed default labels by labeled inference and absent sample references.                                                                                                                                                                                     |
+| 26.1.0.5530        | F11/F12/F13/F14/F15/F16/F17/F18/F19/F20/F21/F23/F24-F38 | Minimal; explicit sample/name; patterns/placements; 3x Osc; cloned empty Samplers; note records/absence; one complete mixer section; F23 GUI shows one automation clip/three points, extraction unqualified; F24-F30 note comparisons plus eight pilot cases (six clean, two negative); bounded pilot values are promoted by PR396. |
+| FL Studio 20/21    | F02/F03 are not covered                                 | No runnable matching build or genuine-save fixture here; no supported-build claim.                                                                                                                                                                                                                                                  |
+| Other saved builds | No approved row                                         | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                                                                                                                                                                                                                |
 
 The [manifest](../../../fixtures/parser-corpus/manifest.md) owns approval,
 provenance, license, expected values and SHA-256. Thirty-six files are committed:

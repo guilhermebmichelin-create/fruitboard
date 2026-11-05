@@ -1,14 +1,16 @@
 ﻿# FLP intelligence gaps and next implementation
 
 Status: **Open gaps and proposals; no acceptance or later-phase authorization.**
-Latest status: [November 4 assessment](../development-status-20261104/README.md),
-merged main `6cb560ee5aca53be251153714ced3e3e3dcbb8b0`. PR348 delivered bounded
+Latest merged main: `c6527c562a5799a7c6e6be06707216d53e391f4e` (PR398), after
+the [November 4 assessment](../development-status-20261104/README.md). PR348 delivered bounded
 same-root project-relative sample checks. PR376/378/380 delivered the qualified
 ordinary-note parser, immutable storage and Library list; locked CI passed,
 the [installed follow-up #397](../installed-notes-397/README.md) verifies the bounded note workflow and corrects enlarged narrow text at its recorded source. PR382/383 add eight approved pilot
-cases to the 36-file corpus without widening runtime support. The next separate
-implementation can promote demonstrated clean cases while refusing unknown
-records. G5/G6, resources and the phase gate remain open. No historical result
+cases to the 36-file corpus without widening runtime support; merged PR396
+subsequently promotes the six clean cases while refusing both negative controls.
+The next work is the [cross-build pilot](../../research/cross-build-pilot-399.md):
+existing controls pass, candidate exact builds/genuine saves remain pending.
+G5/G6, resources and the phase gate remain open. No historical result
 is promoted; the older resource table below retains its measured boundaries.
 
 Resource-report source baseline: merged PR333/334, `ce4331e9004f1a7f363f45106adaa192d1f635fb` (tree `4ee79f53fc73cf76283b899e959570f22810396e`). Updated: 2026-10-19.
