@@ -3,18 +3,23 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Current status - 2026-11-04
+## Current status - 2026-11-11
 
-Reviewed merged baseline: `c6527c562a5799a7c6e6be06707216d53e391f4e`
-([PR #398](https://github.com/guilhermebmichelin-create/fruitboard/pull/398)).
+Reviewed merged baseline: `eaa0f978bf5e12ab6deaa7bd743df2739e9538e9`
+([PR #402](https://github.com/guilhermebmichelin-create/fruitboard/pull/402)).
 PR396 promotes the qualified note pilot values; PR398 adds the installed
-workflow evidence and enlarged-text correction. The next parser step is the
-[cross-build pilot and executable baseline](docs/research/cross-build-pilot-399.md).
+workflow evidence and enlarged-text correction. PR400/402 merge the
+[cross-build pilot, baseline and isolated research probe](docs/research/cross-build-pilot-399.md).
+The [supervised comparison](docs/research/cross-build-probe-409.md) checks all
+twelve existing-control hypotheses without choosing a framing interpretation.
+Additional exact builds and independently verified genuine saves remain needed.
+The detected-version display in [PR #404](https://github.com/guilhermebmichelin-create/fruitboard/pull/404)
+has passed its fifteen checks and awaits owner review/manual merge.
 The application includes the current-metadata
 read-path change from [PR #321](https://github.com/guilhermebmichelin-create/fruitboard/pull/321),
 merged as `803ef43`. It consolidates current Plugin Explorer reads under
 existing freshness checks; its measurements did not establish a speedup or
-qualify resource limits. The [current status assessment](docs/review/development-status-20261104/README.md)
+qualify resource limits. The [current status assessment](docs/review/development-status-20261111/README.md)
 records the phase gates, evidence boundaries, live tracker discrepancies, and
 next work.
 
