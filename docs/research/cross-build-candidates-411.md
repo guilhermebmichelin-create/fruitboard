@@ -125,7 +125,9 @@ require separate evidence and implementation. Missing prerequisites stay not tes
 ## Validation and storage
 
 Owned primary-checkout scope is this registration and the pilot pointer/table.
-Runtime, corpus, tools, dependencies and CI commands are unchanged from PR410.
+This documentation changes no runtime, corpus, tools, dependencies or CI commands.
+The registration remains pinned to PR410; later base merges need their own
+updated-head checks and do not change the uncollected experiment observations.
 Required checks: scoped Markdown, privacy, whitespace and official-source/link
 verification, followed by normal updated-head CI. No new tests, local build/cache
 writes, fixture generation or installed/qualification window are needed for this
