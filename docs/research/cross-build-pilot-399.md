@@ -83,6 +83,11 @@ production parser strict, and compares explicit framing hypotheses on the four
 approved controls. Genuine additional-build files and independent expectations
 remain pending; this tooling adds no supported version row.
 
+The [supervised field comparison](cross-build-probe-409.md) now validates the
+fixed probe's complete output and compares all twelve hypotheses against the
+registered independent expectations. It reproduces the F11/F12 framing
+ambiguity without choosing a width. Additional-build inputs remain pending.
+
 The [public version-comparison survey](flp-version-literature-399.md) identifies
 existing research and release information. It prioritizes the 25.2.4 release
 line and an adjacent 26.1.x release for investigation; exact runnable builds
