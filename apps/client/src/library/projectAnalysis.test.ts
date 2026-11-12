@@ -4,6 +4,81 @@ import { parseProjectDetails } from "./projectDetails";
 import { identity, savedDetails } from "./projectDetails.fixture";
 
 describe("analysis display boundary", () => {
+  it("retains only the numeric saved version of a matching unsupported result", () => {
+    const result = {
+      state: "unsupported",
+      attempts: 1,
+      reason: "unsupported_version",
+      savedVersion: "25.2.4.4960",
+      rawPayload: "private",
+    };
+    expect(parseProjectAnalysis(result)).toEqual({
+      state: "unsupported",
+      attempts: 1,
+      reason: "unsupported_version",
+      savedVersion: "25.2.4.4960",
+    });
+    expect(
+      parseProjectAnalysis({
+        state: "unsupported",
+        attempts: 1,
+        reason: "unsupported_version",
+      }),
+    ).toEqual({
+      state: "unsupported",
+      attempts: 1,
+      reason: "unsupported_version",
+    });
+  });
+  it.each([
+    null,
+    "",
+    "25.2.4",
+    "25..4.4960",
+    "25.2.4.4960\n",
+    "C:\\Private\\project.flp",
+    "123456789012345678901234567890.1.1.1",
+    25244960,
+  ])("rejects unsafe or malformed saved versions", (savedVersion) => {
+    expect(() =>
+      parseProjectAnalysis({
+        state: "unsupported",
+        attempts: 1,
+        reason: "unsupported_version",
+        savedVersion,
+      }),
+    ).toThrow("internal");
+  });
+  it.each([
+    "not_current",
+    "queued",
+    "running",
+    "complete",
+    "failed",
+    "cancelled",
+    "stale",
+  ])("rejects a version attached to %s", (state) => {
+    expect(() =>
+      parseProjectAnalysis({
+        state,
+        attempts: 1,
+        reason: "unsupported_version",
+        savedVersion: "25.2.4.4960",
+      }),
+    ).toThrow("internal");
+  });
+  it("rejects a version without an unsupported-version reason", () => {
+    for (const reason of [null, "invalid_file", "unclassified"]) {
+      expect(() =>
+        parseProjectAnalysis({
+          state: "unsupported",
+          attempts: 1,
+          reason,
+          savedVersion: "25.2.4.4960",
+        }),
+      ).toThrow("internal");
+    }
+  });
   it.each([
     "queued",
     "running",
