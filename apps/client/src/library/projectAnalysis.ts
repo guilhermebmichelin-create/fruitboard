@@ -27,6 +27,8 @@ export interface ProjectAnalysis {
   readonly state: (typeof STATES)[number];
   readonly attempts: number | null;
   readonly reason: (typeof REASONS)[number] | null;
+  /** Present only for a matching unsupported-version result; older hosts omit it. */
+  readonly savedVersion?: string;
 }
 export const NO_REPORTED_ANALYSIS: ProjectAnalysis = {
   state: "not_reported",
@@ -45,6 +47,17 @@ export function parseProjectAnalysis(value: unknown): ProjectAnalysis {
   const state = entry["state"];
   const attempts = entry["attempts"];
   const reason = entry["reason"];
+  const savedVersion = entry["savedVersion"];
+  if (
+    savedVersion !== undefined &&
+    (state !== "unsupported" ||
+      reason !== "unsupported_version" ||
+      typeof savedVersion !== "string" ||
+      savedVersion.length > 32 ||
+      /[^0-9.]/.test(savedVersion) ||
+      !/^\d+\.\d+\.\d+\.\d+$/.test(savedVersion))
+  )
+    return fail();
   if (
     !STATES.includes(state as ProjectAnalysis["state"]) ||
     (reason !== null &&
@@ -66,6 +79,7 @@ export function parseProjectAnalysis(value: unknown): ProjectAnalysis {
     state: state as ProjectAnalysis["state"],
     attempts,
     reason: reason as ProjectAnalysis["reason"],
+    ...(savedVersion === undefined ? {} : { savedVersion }),
   };
 }
 

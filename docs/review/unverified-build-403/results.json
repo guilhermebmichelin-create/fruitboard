@@ -1,0 +1,62 @@
+{
+  "date": "2026-11-05",
+  "source": "f03ec730d612915f5f0b17ce7cb70db14956c5ac",
+  "scope": "Real component, styles and strict response decoder with constructed responses; renderer evidence only.",
+  "checks": [
+    {
+      "mode": "unsupported",
+      "viewport": {
+        "width": 1280,
+        "height": 1000
+      },
+      "horizontalOverflow": false,
+      "versionVisible": true,
+      "analysisRequests": 0,
+      "axeViolations": []
+    },
+    {
+      "mode": "unsupported-narrow",
+      "viewport": {
+        "width": 390,
+        "height": 1400
+      },
+      "horizontalOverflow": false,
+      "versionVisible": true,
+      "analysisRequests": 0,
+      "axeViolations": []
+    },
+    {
+      "mode": "unsupported-enlarged-text",
+      "viewport": {
+        "width": 390,
+        "height": 1400
+      },
+      "rootFontSize": "32px",
+      "horizontalOverflow": false,
+      "diagnosticInsideViewport": true,
+      "analysisRequests": 0,
+      "axeViolations": []
+    },
+    {
+      "mode": "legacy-unsupported-without-version",
+      "diagnosticAbsent": true,
+      "fallbackPresent": true,
+      "analysisRequests": 0,
+      "axeViolations": []
+    },
+    {
+      "mode": "failed",
+      "diagnosticAbsent": true,
+      "failedPresent": true,
+      "analysisRequests": 0,
+      "axeViolations": []
+    },
+    {
+      "mode": "source-revoked",
+      "diagnosticAbsent": true,
+      "versionAbsent": true,
+      "analysisRequests": 0,
+      "axeViolations": []
+    }
+  ]
+}
