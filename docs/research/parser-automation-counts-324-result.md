@@ -1,5 +1,11 @@
 # Automation object and control-point counts: current evidence and qualification plan
 
+Follow-up: [four genuine point/placement differentials](automation-differentials-324-result.md)
+were approved for exact publication on 2026-11-14 as F39-F42. They distinguish
+a point-count candidate from Playlist occurrences and falsify earlier byte
+hypotheses. This original report preserves its earlier evidence boundary; no
+runtime automation field is added.
+
 Issue [#324](https://github.com/guilhermebmichelin-create/fruitboard/issues/324)
 asks whether saved automation objects, Playlist placements and editable curve
 points can be counted independently. This report records what the existing
