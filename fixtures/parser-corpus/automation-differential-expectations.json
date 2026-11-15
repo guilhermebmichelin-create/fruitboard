@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "status": "Prepared for exact-byte approval; not approved for public fixture inclusion",
+  "issue": 324,
+  "date": "2026-11-12",
+  "exactSavedBuild": "26.1.0.5530",
+  "sourceBaseline": "30cb3f9",
+  "preregistrationSha256": "acf5733b214960e9ab83ccdaee14ee6d54f66ec9f6a774d7d8eb5404b4fbc014",
+  "contentProvenance": "Owner-controlled purpose-built genuine FL Studio saves derived independently from approved F23; no third-party project/audio content",
+  "cases": [
+    {
+      "case": "A01",
+      "proposedSlot": "F39",
+      "proposedFile": "FIX-FL2026-AUTO-2POINT.flp",
+      "bytes": 47764,
+      "sha256": "4d8d08360702daa0620f55c309fbec671919b6160db36244d795add565b393d0",
+      "gui": {
+        "objects": 1,
+        "playlistPlacements": 1,
+        "editableControlPoints": 2,
+        "baseTempoBpm": 130,
+        "target": "Sampler channel volume",
+        "channelRows": [
+          "Sampler",
+          "Sampler - Channel volume"
+        ],
+        "beforeSaveObserved": true,
+        "rawAndSanitizedReopenConfirmed": true,
+        "noSavingDuringReopen": true,
+        "unchangedHashes": true
+      },
+      "operation": "Deleted only middle point through Point2/3 Delete; hollow tension handle is not a point",
+      "byteObservations": {
+        "event233Bytes": 88,
+        "event234Bytes": 181,
+        "u32At13": 3,
+        "u32At17": 2
+      },
+      "sanitation": "Only16-byte registration event200 plus its2 framing bytes removed; FLdt length corrected; all retained events byte-identical",
+      "approval": "pending exact-byte public inclusion",
+      "privacyScope": "Bounded text/identifier/signature inspection and controlled native-automation provenance; opaque state not fully decoded"
+    },
+    {
+      "case": "A02",
+      "proposedSlot": "F40",
+      "proposedFile": "FIX-FL2026-AUTO-4POINT.flp",
+      "bytes": 47812,
+      "sha256": "415d194563f9a01823483c91c9830e0162471b4a4cf14d1e17006cc524450a52",
+      "gui": {
+        "objects": 1,
+        "playlistPlacements": 1,
+        "editableControlPoints": 4,
+        "baseTempoBpm": 130,
+        "target": "Sampler channel volume",
+        "channelRows": [
+          "Sampler",
+          "Sampler - Channel volume"
+        ],
+        "beforeSaveObserved": true,
+        "rawAndSanitizedReopenConfirmed": true,
+        "noSavingDuringReopen": true,
+        "unchangedHashes": true
+      },
+      "operation": "Added one new editable point by right-click in empty curve space; captured actual position/value rather than claiming an exact tick",
+      "byteObservations": {
+        "event233Bytes": 88,
+        "event234Bytes": 229,
+        "u32At13": 3,
+        "u32At17": 4
+      },
+      "sanitation": "Only16-byte registration event200 plus its2 framing bytes removed; FLdt length corrected; all retained events byte-identical",
+      "approval": "pending exact-byte public inclusion",
+      "privacyScope": "Bounded text/identifier/signature inspection and controlled native-automation provenance; opaque state not fully decoded"
+    },
+    {
+      "case": "A03",
+      "proposedSlot": "F41",
+      "proposedFile": "FIX-FL2026-AUTO-REPEATED.flp",
+      "bytes": 47877,
+      "sha256": "3711c9052417a1f7866027256d75f428b00f25cbf2570e29afccd7416fd6197e",
+      "gui": {
+        "objects": 1,
+        "playlistPlacements": 2,
+        "editableControlPoints": 3,
+        "baseTempoBpm": 130,
+        "target": "Sampler channel volume",
+        "channelRows": [
+          "Sampler",
+          "Sampler - Channel volume"
+        ],
+        "beforeSaveObserved": true,
+        "rawAndSanitizedReopenConfirmed": true,
+        "noSavingDuringReopen": true,
+        "unchangedHashes": true
+      },
+      "operation": "Selected the existing automation channel and painted a second Playlist occurrence; no clone/Make unique; Channel rack still has two rows and automation picker one entry",
+      "byteObservations": {
+        "event233Bytes": 176,
+        "event234Bytes": 205,
+        "u32At13": 3,
+        "u32At17": 3
+      },
+      "sanitation": "Only16-byte registration event200 plus its2 framing bytes removed; FLdt length corrected; all retained events byte-identical",
+      "approval": "pending exact-byte public inclusion",
+      "privacyScope": "Bounded text/identifier/signature inspection and controlled native-automation provenance; opaque state not fully decoded"
+    },
+    {
+      "case": "A04",
+      "proposedSlot": "F42",
+      "proposedFile": "FIX-FL2026-AUTO-UNPLACED.flp",
+      "bytes": 47700,
+      "sha256": "0af2da3f0dcc80c5380a7e75838ac905819a6504f7a6f55faa5939d92ec5e6b0",
+      "gui": {
+        "objects": 1,
+        "playlistPlacements": 0,
+        "editableControlPoints": 3,
+        "baseTempoBpm": 130,
+        "target": "Sampler channel volume",
+        "channelRows": [
+          "Sampler",
+          "Sampler - Channel volume"
+        ],
+        "beforeSaveObserved": true,
+        "rawAndSanitizedReopenConfirmed": true,
+        "noSavingDuringReopen": true,
+        "unchangedHashes": true
+      },
+      "operation": "Discarded failed first attempt, reloaded original A04-start; used explicit Playlist Delete tool to remove sole occurrence; retained automation channel and three-point curve",
+      "byteObservations": {
+        "event233Bytes": 0,
+        "event234Bytes": 205,
+        "u32At13": 3,
+        "u32At17": 3
+      },
+      "sanitation": "Only16-byte registration event200 plus its2 framing bytes removed; FLdt length corrected; all retained events byte-identical",
+      "approval": "pending exact-byte public inclusion",
+      "privacyScope": "Bounded text/identifier/signature inspection and controlled native-automation provenance; opaque state not fully decoded"
+    }
+  ],
+  "limits": "No runtime fields, whole-project object/point aggregate grammar, object/channel binding, target semantics, empty/zero lists, LFO, MIDI, additional builds or production activation qualified. Public file inclusion pending approval."
+}
