@@ -456,6 +456,79 @@ fn approved_automation_differentials_preserve_metadata_and_refusal_read_only() {
 }
 
 #[test]
+fn approved_automation_object_examples_preserve_refusal_and_metadata_read_only() {
+    let registered =
+        include_bytes!("../../../fixtures/parser-corpus/automation-object-expectations.json");
+    assert_eq!(registered.len(), 6777);
+    assert_eq!(
+        fruitboard_flp_parser::sha256_hex(registered),
+        "c206b82e18abdaf11aa8fbc32c3a695e603824bd0c69f4b84421f43f4bc6dfd7"
+    );
+    let oracle: Value = serde_json::from_slice(registered).unwrap();
+    let cases = oracle["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 3);
+    for case in cases {
+        let path = fixture(case["file"].as_str().unwrap());
+        let before = fs::read(&path).unwrap();
+        assert_eq!(before.len() as u64, case["bytes"].as_u64().unwrap());
+        assert_eq!(fruitboard_flp_parser::sha256_hex(&before), case["sha256"]);
+        let attributes = fs::metadata(&path).unwrap();
+        let parsed = parse_file(
+            &path,
+            ExpectedFingerprint {
+                size: attributes.len(),
+                modified_at_ms: modified_at_ms(&attributes).unwrap(),
+            },
+        );
+        assert_eq!(parsed["outcome"], "complete");
+        assert_eq!(parsed["savedVersion"]["value"], oracle["savedBuild"]);
+        assert_eq!(parsed["baseTempoBpm"]["value"], 130.0);
+        let mut names = vec![serde_json::json!("Sampler")];
+        names.extend(
+            case["gui"]["objects"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|object| object["name"].clone()),
+        );
+        assert_eq!(parsed["channelCount"]["value"], names.len());
+        assert_eq!(parsed["channelNames"]["value"], serde_json::json!(names));
+        assert_eq!(parsed["channelNames"]["status"], "inferred");
+        assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
+        assert_eq!(parsed["channelGeneratorNames"]["status"], "unsupported");
+        for item in parsed["channelGeneratorNames"]["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .skip(1)
+        {
+            assert_eq!(item["name"]["reason"], "GENERATOR_CLASS_UNVERIFIED");
+        }
+        // F45 has no visible nonempty rectangle but retains a Playlist record.
+        // It must not gain the unplaced case's empty-pattern-Playlist handling.
+        for field in [
+            "playlistPatternClips",
+            "playlistPatternEndTick",
+            "playlistPatternSpanBars",
+            "playlistPatternNominalSeconds",
+        ] {
+            assert_eq!(parsed[field]["status"], "unsupported");
+            assert_eq!(parsed[field]["reason"], "PLAYLIST_CLIP_KIND_UNVERIFIED");
+            assert!(parsed[field].get("value").is_none());
+        }
+        assert!(
+            parsed
+                .as_object()
+                .unwrap()
+                .keys()
+                .all(|key| !key.to_ascii_lowercase().contains("automation"))
+        );
+        assert_eq!(parsed["inputFingerprint"]["hash"]["value"], case["sha256"]);
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+}
+
+#[test]
 fn read_only_file_parse_checks_expected_fingerprint_and_hides_path() {
     let path = fixture("FIX-FL2026-SAMPLE.flp");
     let bytes_before = fs::read(&path).unwrap();

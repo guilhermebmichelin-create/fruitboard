@@ -31,6 +31,19 @@ const sqliteCompanionSuffix = /\.(?:db|sqlite3?)-(?:wal|shm|journal)$/iu;
 // Only these separately approved public parser fixtures bypass the FLP block.
 // Both the exact repository path and SHA-256 must match.
 const approvedFlpFixtureHashes = new Map([
+  // F43-F45: exact object/minimum-point examples approved on 2026-11-15 (#415).
+  [
+    "fixtures/parser-corpus/FIX-FL2026-AUTO-MOVED.flp",
+    "10a12a7b942844b461eeebcae8295855910abe4c0d8c985132adef01ac087f29",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-AUTO-TWO-OBJECTS.flp",
+    "7df2d97b49f1381ef56fa531aa8670206d6c62bcbddec5d7d9ea41a26b17447f",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-AUTO-1POINT.flp",
+    "095db65915329afe4b9f94a5d65e73663d7b27e127177c846ee5da24c55dc442",
+  ],
   // F39-F42: exact automation differentials approved on 2026-11-14 (#413).
   [
     "fixtures/parser-corpus/FIX-FL2026-AUTO-2POINT.flp",
@@ -303,6 +316,15 @@ export function inspectTrackedPath(path, sha256 = null) {
 
 export function inspectTrackedText(path, text) {
   const violations = [];
+  // Frozen, owner-approved prose lists account, home, email and image checks
+  // separated by slashes.
+  // That phrase resembles a Unix home path. Admit only this exact text/hash,
+  // leaving credential checks and all other path matches intact.
+  const approvedObjectExpectationProse =
+    path.replaceAll("\\", "/") ===
+      "fixtures/parser-corpus/automation-object-expectations.json" &&
+    createHash("sha256").update(text).digest("hex") ===
+      "c206b82e18abdaf11aa8fbc32c3a695e603824bd0c69f4b84421f43f4bc6dfd7";
 
   for (const { name, pattern } of secretPatterns) {
     pattern.lastIndex = 0;
@@ -319,6 +341,11 @@ export function inspectTrackedText(path, text) {
   for (const pattern of homePathPatterns) {
     pattern.lastIndex = 0;
     for (const match of text.matchAll(pattern)) {
+      if (
+        approvedObjectExpectationProse &&
+        match[0] === "/home/" + "email, RIFF/"
+      )
+        continue;
       const homeName = match[1]?.trim().toLowerCase();
       if (homeName && !nonPersonalHomeNames.has(homeName)) {
         violations.push({

@@ -1,7 +1,7 @@
 ﻿# FLP intelligence gaps and next implementation
 
 Status: **Open gaps and proposals; no acceptance or later-phase authorization.**
-Latest merged main: `30cb3f90846926f908e611750e12ecb38c1e757d` (PR406), after
+Latest merged main: `d7e76955ca2563214e45120c455c6e84921f5d74` (PR387), after PR412/414 and
 the [November 4 assessment](../development-status-20261104/README.md). PR348 delivered bounded
 same-root project-relative sample checks. PR376/378/380 delivered the qualified
 ordinary-note parser, immutable storage and Library list; locked CI passed,
@@ -11,9 +11,12 @@ subsequently promotes the six clean cases while refusing both negative controls.
 The owner deferred [additional-build experiments](../../research/cross-build-pilot-399.md)
 on 2026-11-12; those builds remain not tested. Four approved
 [automation differentials](../../research/automation-differentials-324-result.md)
-now extend the corpus to 40 files. They supply point/placement evidence under
-issue #324, without runtime automation extraction. Multiple-object binding and empty
-lists remain research work before a numeric application summary.
+plus three [object/minimum-point examples](../../research/automation-objects-324-result.md)
+extend the corpus to 43 files. They supply point/placement and one two-object
+comparison under issue #324, without runtime automation extraction. The GUI
+refused deletion of the final point. Complete object-set boundaries/binding,
+zero/empty lists and malformed relationships remain research work before a
+numeric application summary.
 G5/G6, resources and the phase gate remain open. No historical result
 is promoted; the older resource table below retains its measured boundaries.
 

@@ -1,9 +1,9 @@
 ﻿# FLP intelligence readiness review
 
 Status: **Review packet; budgets and Phase 3 exit are not accepted.**
-Updated status: 2026-11-04. Related issue:
+Updated status: 2026-11-15. Related issue:
 [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259).
-Current source baseline: merged PR398, `c6527c5`. Earlier installed evidence
+Current source baseline: merged PR387, `d7e7695`, after PR412/414. Earlier installed evidence
 keeps its original source boundary; the metadata-read optimization does not
 promote historical performance results.
 The [current resource/checkpoint review](../phase3-qualification-306/README.md)
@@ -44,10 +44,11 @@ The [issue #324 count research](../../research/parser-automation-counts-324-resu
 confirms complete outer-event framing for F11/F23 but no qualified object,
 placement, point-count or reference grammar. Automation extraction and Library
 display remain separate future G6 steps.
-The corpus now has forty files, including the four exact approved
+The corpus now has forty-three files, including the four exact approved
 [automation differentials](../../research/automation-differentials-324-result.md).
-They supply independent point/placement research; no automation runtime field
-is delivered. PR376/378/380 deliver F24-F30's bounded
+Three approved [object/minimum-point examples](../../research/automation-objects-324-result.md)
+add same-count/two-object evidence and a failed empty-curve attempt that retained
+one point. No automation runtime field is delivered. PR376/378/380 deliver F24-F30's bounded
 ordinary-note parser/storage/Library list. PR383 adds eight pilot fixtures;
 merged PR396 promotes the six clean cases while retaining both negative controls.
 Merged PR398 records seventeen passing installed cases and fixes narrow

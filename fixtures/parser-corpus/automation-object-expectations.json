@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "scope": "Independent genuine-save GUI observations for three exact synthetic files; not a production parser contract. Publication is subject to separate dated exact owner approval.",
+  "researchIssue": 324,
+  "authoringDate": "2026-11-15",
+  "sourceBaseline": "db1c35f0b7c5b5e2094fef00bc8d34e7ba203a84",
+  "savedBuild": "26.1.0.5530",
+  "installedExecutableSha256": "a3ef478a54d660d763113b04dae0a8b985e8610eca213eb3bf0222eed5df4b67",
+  "baseTempoBpm": 130,
+  "content": "Purpose-built empty native Sampler and its volume automation. No notes, sample files, imported audio, external plugins, personal projects or playback.",
+  "semantics": {
+    "objects": "Count independently observed saved native curve definitions, not occurrences.",
+    "points": "Count editable main-curve nodes once per object; exclude hollow tension handles.",
+    "placements": "GUI authoring control only; B03 has no visible nonempty rectangle and unqualified saved placement semantics, represented by null rather than zero.",
+    "zero": "No explicit empty curve or general automation zero rule is established."
+  },
+  "verification": {
+    "rawAndSanitizedReopened": true,
+    "savedAgainDuringVerification": false,
+    "sha256Unchanged": true,
+    "independentNodeAndPythonFraming": true,
+    "sanitation": "Remove only one event200 with 16-byte payload and two framing bytes, correcting FLdt length. Every retained event is byte-identical.",
+    "privacy": "Bounded Latin-1 and both UTF-16LE alignments; no known account/home/email, RIFF/image signature, nonempty sample filename or note payload. Opaque state is not exhaustively decoded."
+  },
+  "cases": [
+    {
+      "case": "B01",
+      "proposedSlot": "F43",
+      "file": "FIX-FL2026-AUTO-MOVED.flp",
+      "bytes": 47788,
+      "sha256": "10a12a7b942844b461eeebcae8295855910abe4c0d8c985132adef01ac087f29",
+      "sourceApprovedFixture": "F23 FIX-FL2026-AUTOMATION.flp",
+      "gui": {
+        "uniqueNativeAutomationObjects": 1,
+        "editableControlPoints": 3,
+        "visibleNonemptyPlaylistOccurrences": 1,
+        "playlistPlacementCount": 1,
+        "objects": [
+          {
+            "name": "Sampler - Channel volume",
+            "editablePoints": 3,
+            "placement": "Track1 bar1 to bar2",
+            "pointObservations": [
+              {
+                "ordinal": "1/3",
+                "position": "001:01:000",
+                "value": "-5.2dB"
+              },
+              {
+                "ordinal": "2/3",
+                "position": "001:09:000",
+                "value": "-2.5dB"
+              },
+              {
+                "ordinal": "3/3",
+                "position": "002:01:000",
+                "value": "-5.2dB"
+              }
+            ]
+          }
+        ],
+        "lfoEnabled": false
+      },
+      "operation": "Moved only the middle editable point vertically; original displayed -12.8dB, new -2.5dB, same 001:09:000 position."
+    },
+    {
+      "case": "B02",
+      "proposedSlot": "F44",
+      "file": "FIX-FL2026-AUTO-TWO-OBJECTS.flp",
+      "bytes": 48966,
+      "sha256": "7df2d97b49f1381ef56fa531aa8670206d6c62bcbddec5d7d9ea41a26b17447f",
+      "sourceApprovedFixture": "F39 FIX-FL2026-AUTO-2POINT.flp",
+      "gui": {
+        "uniqueNativeAutomationObjects": 2,
+        "editableControlPoints": 6,
+        "visibleNonemptyPlaylistOccurrences": 2,
+        "playlistPlacementCount": 2,
+        "objects": [
+          {
+            "name": "Sampler - Channel volume",
+            "placement": "Track1 bar1 to bar2",
+            "editablePoints": 2,
+            "pointObservations": [
+              {
+                "ordinal": "1/2",
+                "position": "001:01:000",
+                "value": "-5.2dB"
+              },
+              {
+                "ordinal": "2/2",
+                "position": "002:01:000",
+                "value": "-5.2dB"
+              }
+            ]
+          },
+          {
+            "name": "Sampler - Channel volume #2",
+            "placement": "Track1 bar3 to bar4",
+            "editablePoints": 4,
+            "pointObservations": [
+              {
+                "ordinal": "1/4",
+                "position": "001:01:000",
+                "value": "-5.2dB"
+              },
+              {
+                "ordinal": "2/4",
+                "position": "001:05:001",
+                "value": "-11.5dB"
+              },
+              {
+                "ordinal": "3/4",
+                "position": "001:13:001",
+                "value": "-1.4dB"
+              },
+              {
+                "ordinal": "4/4",
+                "position": "002:01:000",
+                "value": "-5.2dB"
+              }
+            ]
+          }
+        ],
+        "lfoEnabled": false
+      },
+      "operation": "Selected automation picker; painted second occurrence; used its explicit Make unique menu. Added two editable points only in #2. Reopened original settings and verified 2/2 ordinal with unchanged flat curve. No playback.",
+      "savedTimingObservation": "Second point of #2 displayed 001:05:000 before Save As and 001:05:001 after reopening both unchanged raw and sanitized files. Saved expectations use the latter actual observation; no byte-level timing decoder is qualified."
+    },
+    {
+      "case": "B03",
+      "proposedSlot": "F45",
+      "file": "FIX-FL2026-AUTO-1POINT.flp",
+      "bytes": 47740,
+      "sha256": "095db65915329afe4b9f94a5d65e73663d7b27e127177c846ee5da24c55dc442",
+      "sourceApprovedFixture": "F23 FIX-FL2026-AUTOMATION.flp",
+      "gui": {
+        "uniqueNativeAutomationObjects": 1,
+        "editableControlPoints": 1,
+        "visibleNonemptyPlaylistOccurrences": 0,
+        "playlistPlacementCount": null,
+        "objects": [
+          {
+            "name": "Sampler - Channel volume",
+            "editablePoints": 1,
+            "pointObservations": [
+              {
+                "ordinal": "1/1",
+                "position": "001:01:000",
+                "value": "-5.2dB"
+              }
+            ],
+            "placementObservation": "Original Track1 occurrence no longer has a visible nonempty rectangle after deleting its final endpoint; no manual occurrence deletion. Saved placement semantics remain unqualified, do not equate this with an absent placement record."
+          }
+        ],
+        "lfoEnabled": false
+      },
+      "operation": "Deleted middle point then second endpoint through native point menus. Point1/1 menu has Delete disabled; empty curve cannot be authored by this GUI path. Retained genuine one-point state for save/reopen.",
+      "authoringLimitation": "Final point Delete command disabled; explicit empty curve not achieved. Do not treat the absence of a visible nonempty rectangle as absent saved placement data."
+    }
+  ]
+}

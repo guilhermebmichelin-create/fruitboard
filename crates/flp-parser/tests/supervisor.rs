@@ -143,6 +143,10 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
         "../../../fixtures/parser-corpus/automation-differential-expectations.json"
     ))
     .unwrap();
+    let automation_objects: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/parser-corpus/automation-object-expectations.json"
+    ))
+    .unwrap();
     let corpus = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/parser-corpus")
         .canonicalize()
@@ -153,7 +157,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
         .filter(|path| path.extension().is_some_and(|extension| extension == "flp"))
         .collect::<Vec<_>>();
     fixtures.sort();
-    assert_eq!(fixtures.len(), 40, "only the maintained approved corpus");
+    assert_eq!(fixtures.len(), 43, "only the maintained approved corpus");
     for (index, path) in fixtures.into_iter().enumerate() {
         let before = fs::read(&path).unwrap();
         let attributes = fs::metadata(&path).unwrap();
@@ -326,6 +330,33 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                         ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
                     ));
                 }
+            }
+            if let Some(case) = automation_objects["cases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|case| case["file"] == name)
+            {
+                assert_eq!(sha256_hex(&before), case["sha256"].as_str().unwrap());
+                assert_eq!(before.len() as u64, case["bytes"].as_u64().unwrap());
+                assert_eq!(
+                    metadata.initial().channel_count() as usize,
+                    1 + case["gui"]["objects"].as_array().unwrap().len()
+                );
+                // Even the one-point case retains a nonempty saved Playlist
+                // record; no numeric automation/empty-placement inference.
+                assert!(matches!(
+                    metadata.arrangement_end_tick(),
+                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
+                ));
+                assert!(matches!(
+                    metadata.arrangement_span_bars(),
+                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
+                ));
+                assert!(matches!(
+                    metadata.arrangement_estimated_seconds(),
+                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
+                ));
             }
             if name == "FIX-FL2026-AUTOMATION.flp" {
                 assert_eq!(

@@ -162,6 +162,12 @@ The proposed state rules are:
 
 ## Smallest useful differential save matrix
 
+Follow-up: the approved [F39-F42 point/placement comparisons](automation-differentials-324-result.md)
+and [F43-F45 object/minimum-point comparisons](automation-objects-324-result.md)
+now exercise the bounded rows below. The native GUI refused deletion of the
+last point; no explicit empty list was produced. These results do not establish
+a complete binding/enumeration grammar or runtime automation fields.
+
 The present F11/F23 pair provides the baseline rows below, but cannot
 discriminate all competing grammars. Each proposed new row should start from a
 separate copy of an approved synthetic save, use only exact build 26.1.0.5530,

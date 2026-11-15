@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   inspectApprovedFixtureBinary,
   inspectTrackedPath,
+  inspectTrackedText,
 } from "../scripts/lib/repository-privacy.mjs";
 
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -155,4 +156,135 @@ test("GUI point differentials distinguish the observed count from placements wit
     assert.deepEqual(read(entry.proposedFile), before);
   }
   assert.deepEqual(read(baselineFile), baseline);
+});
+
+const objectRegistration = read("automation-object-expectations.json");
+assert.equal(objectRegistration.length, 6777);
+assert.equal(
+  hash(objectRegistration),
+  "c206b82e18abdaf11aa8fbc32c3a695e603824bd0c69f4b84421f43f4bc6dfd7",
+);
+const objectExamples = JSON.parse(objectRegistration);
+
+test("frozen expectation prose exception cannot admit another file or changed personal paths", () => {
+  const path = "fixtures/parser-corpus/automation-object-expectations.json";
+  const text = objectRegistration.toString("utf8");
+  assert.deepEqual(inspectTrackedText(path, text), []);
+  assert.ok(
+    inspectTrackedText(`other/${path}`, text).some(
+      ({ rule }) => rule === "personal-home-path",
+    ),
+  );
+  assert.ok(
+    inspectTrackedText(path, text + "\n").some(
+      ({ rule }) => rule === "personal-home-path",
+    ),
+  );
+  assert.ok(
+    inspectTrackedText(path, text + "/home/" + "someone/project/").some(
+      ({ rule }) => rule === "personal-home-path",
+    ),
+  );
+  const credential = "ghp_" + "A".repeat(36);
+  assert.ok(
+    inspectTrackedText(path, text + credential).some(
+      ({ rule }) => rule === "github-token",
+    ),
+  );
+});
+
+test("approved object examples require exact bytes, paths and frozen GUI expectations", () => {
+  assert.deepEqual(
+    objectExamples.cases.map((c) => c.proposedSlot),
+    ["F43", "F44", "F45"],
+  );
+  for (const entry of objectExamples.cases) {
+    const path = `fixtures/parser-corpus/${entry.file}`;
+    const bytes = read(entry.file);
+    assert.equal(bytes.length, entry.bytes);
+    assert.equal(hash(bytes), entry.sha256);
+    assert.deepEqual(inspectTrackedPath(path, entry.sha256), []);
+    assert.deepEqual(inspectApprovedFixtureBinary(path, bytes), []);
+    const changed = Buffer.from(bytes);
+    changed[changed.length - 1] ^= 1;
+    assert.equal(
+      inspectTrackedPath(path, hash(changed))[0].rule,
+      "fixture-hash-mismatch",
+    );
+    assert.equal(inspectTrackedPath(path)[0].rule, "fixture-hash-mismatch");
+    assert.equal(
+      inspectTrackedPath(`other/${entry.file}`, entry.sha256)[0].rule,
+      "blocked-extension",
+    );
+  }
+});
+
+test("same-count, multiple-object and one-point saves retain bounded observations without zero or binding inference", () => {
+  const baseline = read("FIX-FL2026-AUTOMATION.flp");
+  const twoPoint = read("FIX-FL2026-AUTO-2POINT.flp");
+  const curves = (records) =>
+    records.filter((event) => event.id === 234).map((event) => event.payload);
+  const playlist = (records) => {
+    const matches = records.filter((event) => event.id === 233);
+    assert.equal(matches.length, 1);
+    return matches[0].payload;
+  };
+  const differentOffsets = (left, right) => {
+    assert.equal(left.length, right.length);
+    return [...left.keys()].filter((i) => left[i] !== right[i]);
+  };
+  const baseRecords = framedRecords(baseline);
+  const baseCurve = curves(baseRecords)[0];
+  const basePlaylist = playlist(baseRecords);
+  for (const entry of objectExamples.cases) {
+    const before = read(entry.file);
+    assert.equal(hash(before), entry.sha256);
+    const records = framedRecords(before);
+    const pointLists = curves(records);
+    const counts = pointLists.map((payload) => payload.readUInt32LE(17));
+    assert.equal(pointLists.length, entry.gui.uniqueNativeAutomationObjects);
+    assert.deepEqual(
+      counts,
+      entry.gui.objects.map((object) => object.editablePoints),
+    );
+    assert.equal(
+      counts.reduce((total, n) => total + n, 0),
+      entry.gui.editableControlPoints,
+    );
+    for (const [i, payload] of pointLists.entries()) {
+      assert.equal(payload.readUInt32LE(13), 3);
+      assert.equal(payload.length, 21 + 24 * counts[i] + 112);
+      assert.deepEqual(payload.subarray(0, 17), baseCurve.subarray(0, 17));
+      assert.deepEqual(payload.subarray(-112), baseCurve.subarray(-112));
+    }
+    const placements = playlist(records);
+    if (entry.case === "B01") {
+      assert.deepEqual(
+        differentOffsets(baseCurve, pointLists[0]),
+        [56, 57, 58, 59, 67],
+      );
+      assert.deepEqual(placements, basePlaylist);
+    } else if (entry.case === "B02") {
+      assert.deepEqual(
+        differentOffsets(curves(framedRecords(twoPoint))[0], pointLists[0]),
+        [67], // Meaning remains unqualified, even with the same GUI shape.
+      );
+      assert.equal(placements.length, 176);
+      assert.equal(
+        entry.gui.objects[1].pointObservations[1].position,
+        "001:05:001",
+      );
+      assert.ok(entry.savedTimingObservation.includes("001:05:000"));
+    } else {
+      assert.equal(entry.gui.editableControlPoints, 1);
+      assert.equal(entry.gui.visibleNonemptyPlaylistOccurrences, 0);
+      assert.equal(entry.gui.playlistPlacementCount, null);
+      assert.equal(placements.length, 88); // Not an absent placement record.
+      assert.deepEqual(differentOffsets(basePlaylist, placements), [8, 9, 32]);
+      assert.ok(entry.authoringLimitation.includes("empty curve not achieved"));
+    }
+    assert.deepEqual(read(entry.file), before);
+  }
+  assert.deepEqual(read("FIX-FL2026-AUTOMATION.flp"), baseline);
+  assert.deepEqual(read("FIX-FL2026-AUTO-2POINT.flp"), twoPoint);
 });
