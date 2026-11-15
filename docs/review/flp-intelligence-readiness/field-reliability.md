@@ -1,7 +1,7 @@
 # Maintained saved-field reliability matrix
 
 Historical baseline: merged PR261, `19b95362a66a82c91cba56fc8f2226c6ef899cc2`.
-Current source baseline is merged PR398, `c6527c5`; installed evidence below
+Current source baseline is merged PR406, `30cb3f9`; installed evidence below
 retains its recorded source boundaries. The current matrix includes saved
 patterns, notes, ordinary mixer records, separate sample-presence observations
 and F23's GUI automation evidence without automation extraction. The 2026-10-31
@@ -13,9 +13,11 @@ retains it in immutable snapshots with bounded backward-compatible reads;
 authorized read-only note list; locked CI passed. The [installed follow-up #397](../installed-notes-397/README.md) records bounded verification and a narrow-text correction on its exact source.
 PR383 published F31-F38's six clean pilot cases and two negative controls;
 merged PR396 promotes the clean cases, and PR398 completes the bounded installed
-follow-up. The [cross-build pilot](../../research/cross-build-pilot-399.md)
-records the next work: baseline controls pass, additional exact builds are not tested.
-Updated: 2026-11-04. Historical ground truth and measured source boundaries
+follow-up. The owner deferred [additional-build experiments](../../research/cross-build-pilot-399.md)
+on 2026-11-12; those builds remain not tested. Approved
+[automation differentials](../../research/automation-differentials-324-result.md)
+add F39-F42 as point/placement research without runtime automation extraction.
+Updated: 2026-11-14. Historical ground truth and measured source boundaries
 below are unchanged.
 This records the opt-in Windows development composition, not production enablement
 or full Phase 3 acceptance. Changes to extraction, validation, persistence,
@@ -32,13 +34,17 @@ display or corpus coverage must update this matrix in the same PR.
 | Other saved builds | No approved row                                         | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                                                                                                                                                                                                                |
 
 The [manifest](../../../fixtures/parser-corpus/manifest.md) owns approval,
-provenance, license, expected values and SHA-256. Thirty-six files are committed:
-thirty-two genuine-save derivatives and four approved robustness derivatives.
-F22-F38 are included; all earlier fixture bytes remain unchanged. The
+provenance, license, expected values and SHA-256. Forty files are committed:
+thirty-six genuine-save derivatives and four approved robustness derivatives.
+F22-F42 are included; all earlier fixture bytes remain unchanged. The
 [adapter 0.1.5 slice](../note-pilot-395/README.md) promotes the six clean pilot
 cases while preserving both negative controls. The three-build allowlist,
 96-PPQ and one/two-Sampler restrictions remain; no generic value range is claimed.
 F07-F10 exercise failure/partial handling; they add no saved-build coverage.
+
+F39-F42 extend the exact 26.1.0.5530 row above with independent two-/four-point,
+repeated-placement and unplaced-object observations. Runtime automation counts,
+object/channel binding and multiple-object totals remain unqualified.
 
 ## Field reliability and application reach
 

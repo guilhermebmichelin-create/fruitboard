@@ -31,6 +31,23 @@ const sqliteCompanionSuffix = /\.(?:db|sqlite3?)-(?:wal|shm|journal)$/iu;
 // Only these separately approved public parser fixtures bypass the FLP block.
 // Both the exact repository path and SHA-256 must match.
 const approvedFlpFixtureHashes = new Map([
+  // F39-F42: exact automation differentials approved on 2026-11-14 (#413).
+  [
+    "fixtures/parser-corpus/FIX-FL2026-AUTO-2POINT.flp",
+    "4d8d08360702daa0620f55c309fbec671919b6160db36244d795add565b393d0",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-AUTO-4POINT.flp",
+    "415d194563f9a01823483c91c9830e0162471b4a4cf14d1e17006cc524450a52",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-AUTO-REPEATED.flp",
+    "3711c9052417a1f7866027256d75f428b00f25cbf2570e29afccd7416fd6197e",
+  ],
+  [
+    "fixtures/parser-corpus/FIX-FL2026-AUTO-UNPLACED.flp",
+    "0af2da3f0dcc80c5380a7e75838ac905819a6504f7a6f55faa5939d92ec5e6b0",
+  ],
   // F31-F38: exact eight-case pilot bytes approved on 2026-11-01 (#381).
   [
     "fixtures/parser-corpus/FIX-FL2026-NOTE-PITCH-CONFOUNDED.flp",
