@@ -94,16 +94,23 @@ line and an adjacent 26.1.x release for investigation; exact runnable builds
 remain unverified. The owner does not need to supply versions from memory for
 literature and format analysis to continue.
 
+After merged PR410, [the exact Windows candidate registration](cross-build-candidates-411.md)
+identifies 26.1.1.5547 and 25.2.4.5242 in Image-Line's official archive and freezes
+eight equivalent-save recipes and a separate observation sheet. Archive listings
+are verified; acquisition, About confirmation, genuine saves and independent
+expectations are not collected. Downloads require sign-in, and local capacity
+remains below the 30 GiB fixture/build reserve.
+
 The owner's cross-build workstream specifies two additional lawfully runnable
 builds: an adjacent build and, where available, one near the known event-172
-width transition. Actual exact numbers must be recorded before experimentation;
-they have not been supplied. The format-transition hypothesis in existing code
-is not an independently qualified version family.
+width transition. The archive-listed exact candidates below require matching
+program/About confirmation before experimentation. The format-transition
+hypothesis in existing code is not an independently qualified version family.
 
-| Candidate role                  | Exact build                                 | Current state |
-| ------------------------------- | ------------------------------------------- | ------------- |
-| Adjacent to a represented build | Pending availability and About confirmation | Not tested    |
-| Near a format transition        | Pending availability and About confirmation | Not tested    |
+| Candidate role                  | Exact build                                        | Current state |
+| ------------------------------- | -------------------------------------------------- | ------------- |
+| Adjacent to a represented build | Windows 26.1.1.5547; archive-listed, About pending | Not tested    |
+| Near a format transition        | Windows 25.2.4.5242; archive-listed, About pending | Not tested    |
 
 For each available candidate, complete the following before inspecting events:
 

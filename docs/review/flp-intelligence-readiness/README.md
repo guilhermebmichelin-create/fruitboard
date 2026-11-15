@@ -44,15 +44,18 @@ The [issue #324 count research](../../research/parser-automation-counts-324-resu
 confirms complete outer-event framing for F11/F23 but no qualified object,
 placement, point-count or reference grammar. Automation extraction and Library
 display remain separate future G6 steps.
-The corpus is now thirty-six files. PR376/378/380 deliver F24-F30's bounded
+The corpus now has forty files, including the four exact approved
+[automation differentials](../../research/automation-differentials-324-result.md).
+They supply independent point/placement research; no automation runtime field
+is delivered. PR376/378/380 deliver F24-F30's bounded
 ordinary-note parser/storage/Library list. PR383 adds eight pilot fixtures;
 merged PR396 promotes the six clean cases while retaining both negative controls.
 Merged PR398 records seventeen passing installed cases and fixes narrow
 enlarged-text readability at its exact source. Both final PR heads passed all
 fifteen checks. PR348 delivered bounded same-root project-relative sample checks.
-The next step is the [cross-build pilot](../../research/cross-build-pilot-399.md):
-four existing-build controls pass, while additional exact builds/genuine saves
-are pending and remain not tested. The maintained field matrix supersedes older
+The owner deferred [additional-build experiments](../../research/cross-build-pilot-399.md)
+on 2026-11-12. Existing-build controls pass; additional builds remain not tested.
+Phase 3 continues with automation qualification under #324. The maintained field matrix supersedes older
 next-step recommendations below; dated delivery/resource rows preserve their
 original evidence boundaries.
 
