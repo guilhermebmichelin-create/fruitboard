@@ -162,6 +162,11 @@ The proposed state rules are:
 
 ## Smallest useful differential save matrix
 
+The later [F46-F48 reorder/removal controls](automation-enumeration-324-result.md)
+add a controlled named-curve association and empty native object set. Review a
+strict recognition/rejection boundary next; no runtime automation fields or
+general absent-record-as-zero rule follow from fixture publication.
+
 Follow-up: the approved [F39-F42 point/placement comparisons](automation-differentials-324-result.md)
 and [F43-F45 object/minimum-point comparisons](automation-objects-324-result.md)
 now exercise the bounded rows below. The native GUI refused deletion of the

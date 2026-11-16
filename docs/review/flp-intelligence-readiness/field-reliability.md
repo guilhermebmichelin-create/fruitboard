@@ -1,7 +1,7 @@
 # Maintained saved-field reliability matrix
 
 Historical baseline: merged PR261, `19b95362a66a82c91cba56fc8f2226c6ef899cc2`.
-Current source baseline is merged PR387, `d7e7695`, after PR412/414; installed evidence below
+Current source baseline is merged PR416, `341f449`; installed evidence below
 retains its recorded source boundaries. The current matrix includes saved
 patterns, notes, ordinary mixer records, separate sample-presence observations
 and F23's GUI automation evidence without automation extraction. The 2026-10-31
@@ -19,7 +19,10 @@ on 2026-11-12; those builds remain not tested. Approved
 add F39-F42 as point/placement research without runtime automation extraction.
 The approved [object/minimum-point examples](../../research/automation-objects-324-result.md)
 add F43-F45: same-count, two-object and forced one-point observations.
-Updated: 2026-11-15. Historical ground truth and measured source boundaries
+The approved [reorder/removal controls](../../research/automation-enumeration-324-result.md)
+add F46-F48: named curves follow reordered channels while numeric IDs change,
+and a controlled empty native clip set survives reopening.
+Updated: 2026-11-16. Historical ground truth and measured source boundaries
 below are unchanged.
 This records the opt-in Windows development composition, not production enablement
 or full Phase 3 acceptance. Changes to extraction, validation, persistence,
@@ -36,9 +39,9 @@ display or corpus coverage must update this matrix in the same PR.
 | Other saved builds | No approved row                                         | Typed `UNSUPPORTED_SAVED_VERSION`; neighboring build numbers do not inherit support.                                                                                                                                                                                                                                                |
 
 The [manifest](../../../fixtures/parser-corpus/manifest.md) owns approval,
-provenance, license, expected values and SHA-256. Forty-three files are committed:
-thirty-nine genuine-save derivatives and four approved robustness derivatives.
-F22-F45 are included; all earlier fixture bytes remain unchanged. The
+provenance, license, expected values and SHA-256. Forty-six files are committed:
+forty-two genuine-save derivatives and four approved robustness derivatives.
+F22-F48 are included; all earlier fixture bytes remain unchanged. The
 [adapter 0.1.5 slice](../note-pilot-395/README.md) promotes the six clean pilot
 cases while preserving both negative controls. The three-build allowlist,
 96-PPQ and one/two-Sampler restrictions remain; no generic value range is claimed.
@@ -48,7 +51,10 @@ F39-F42 extend the exact 26.1.0.5530 row above with independent two-/four-point,
 repeated-placement and unplaced-object observations. Runtime automation counts,
 object/channel binding and general enumeration remain unqualified. F43-F45
 add one observed two-object total of six points and extend the size/count
-relationship to one point. The GUI refused an empty curve; zero remains unqualified.
+relationship to one point. The GUI refused an empty curve. F46-F48 strengthen
+the controlled association and supply an observed empty object set; review a
+strict recognition/rejection boundary before numeric extraction. General
+absence-as-zero and explicit empty point lists remain unqualified.
 
 ## Field reliability and application reach
 

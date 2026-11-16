@@ -529,6 +529,108 @@ fn approved_automation_object_examples_preserve_refusal_and_metadata_read_only()
 }
 
 #[test]
+fn approved_automation_enumeration_controls_preserve_metadata_without_count_fields() {
+    let registered =
+        include_bytes!("../../../fixtures/parser-corpus/automation-enumeration-expectations.json");
+    assert_eq!(registered.len(), 5942);
+    assert_eq!(
+        fruitboard_flp_parser::sha256_hex(registered),
+        "1e9978b757073e885e55659a371a0ea15a1e9ff30525d3733ccb33ad0988831c"
+    );
+    let oracle: Value = serde_json::from_slice(registered).unwrap();
+    let cases = oracle["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 3);
+    for case in cases {
+        let path = fixture(case["file"].as_str().unwrap());
+        let before = fs::read(&path).unwrap();
+        assert_eq!(before.len() as u64, case["bytes"].as_u64().unwrap());
+        assert_eq!(fruitboard_flp_parser::sha256_hex(&before), case["sha256"]);
+        let attributes = fs::metadata(&path).unwrap();
+        let parsed = parse_file(
+            &path,
+            ExpectedFingerprint {
+                size: attributes.len(),
+                modified_at_ms: modified_at_ms(&attributes).unwrap(),
+            },
+        );
+        let gui = &case["independentGui"];
+        assert_eq!(parsed["outcome"], "complete");
+        assert_eq!(parsed["savedVersion"]["value"], oracle["savedBuild"]);
+        assert_eq!(parsed["baseTempoBpm"]["value"], 130.0);
+        assert_eq!(
+            parsed["channelCount"]["value"],
+            gui["channelRows"].as_array().unwrap().len()
+        );
+        assert_eq!(parsed["channelNames"]["value"], gui["channelRows"]);
+        assert_eq!(parsed["channelNames"]["status"], "inferred");
+        assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
+        let removed = case["case"] == "C03";
+        if removed {
+            assert_eq!(parsed["channelGeneratorNames"]["status"], "inferred");
+            assert_eq!(
+                parsed["channelGeneratorNames"]["value"],
+                serde_json::json!(["Sampler"])
+            );
+            assert_eq!(parsed["playlistPatternClips"]["status"], "extracted");
+            assert_eq!(
+                parsed["playlistPatternClips"]["value"],
+                serde_json::json!([])
+            );
+        } else {
+            assert_eq!(parsed["channelGeneratorNames"]["status"], "unsupported");
+            for item in parsed["channelGeneratorNames"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .skip(1)
+            {
+                assert_eq!(item["name"]["reason"], "GENERATOR_CLASS_UNVERIFIED");
+            }
+            assert_eq!(parsed["playlistPatternClips"]["status"], "unsupported");
+            assert_eq!(
+                parsed["playlistPatternClips"]["reason"],
+                "PLAYLIST_CLIP_KIND_UNVERIFIED"
+            );
+            assert!(parsed["playlistPatternClips"].get("value").is_none());
+        }
+        for field in [
+            "playlistPatternEndTick",
+            "playlistPatternSpanBars",
+            "playlistPatternNominalSeconds",
+        ] {
+            assert_eq!(
+                parsed[field]["status"],
+                if removed {
+                    "unavailable"
+                } else {
+                    "unsupported"
+                }
+            );
+            assert_eq!(
+                parsed[field]["reason"],
+                if removed {
+                    "NO_PLAYLIST_PATTERN_CLIPS"
+                } else {
+                    "PLAYLIST_CLIP_KIND_UNVERIFIED"
+                }
+            );
+            assert!(parsed[field].get("value").is_none());
+        }
+        // Even the controlled GUI empty set does not add a numeric automation
+        // zero to today's parser contract or to older immutable results.
+        assert!(
+            parsed
+                .as_object()
+                .unwrap()
+                .keys()
+                .all(|key| !key.to_ascii_lowercase().contains("automation"))
+        );
+        assert_eq!(parsed["inputFingerprint"]["hash"]["value"], case["sha256"]);
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+}
+
+#[test]
 fn read_only_file_parse_checks_expected_fingerprint_and_hides_path() {
     let path = fixture("FIX-FL2026-SAMPLE.flp");
     let bytes_before = fs::read(&path).unwrap();

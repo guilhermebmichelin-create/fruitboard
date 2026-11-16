@@ -166,6 +166,161 @@ assert.equal(
 );
 const objectExamples = JSON.parse(objectRegistration);
 
+const enumerationRegistration = read(
+  "automation-enumeration-expectations.json",
+);
+assert.equal(enumerationRegistration.length, 5942);
+assert.equal(
+  hash(enumerationRegistration),
+  "1e9978b757073e885e55659a371a0ea15a1e9ff30525d3733ccb33ad0988831c",
+);
+const enumerationExamples = JSON.parse(enumerationRegistration);
+
+test("approved enumeration controls require their exact bytes, paths and GUI expectations", () => {
+  assert.deepEqual(
+    enumerationExamples.cases.map((c) => c.proposedSlot),
+    ["F46", "F47", "F48"],
+  );
+  assert.deepEqual(
+    inspectTrackedText(
+      "fixtures/parser-corpus/automation-enumeration-expectations.json",
+      enumerationRegistration.toString("utf8"),
+    ),
+    [],
+  );
+  for (const entry of enumerationExamples.cases) {
+    const path = `fixtures/parser-corpus/${entry.file}`;
+    const bytes = read(entry.file);
+    assert.equal(bytes.length, entry.bytes);
+    assert.equal(hash(bytes), entry.sha256);
+    assert.deepEqual(inspectTrackedPath(path, entry.sha256), []);
+    assert.deepEqual(inspectApprovedFixtureBinary(path, bytes), []);
+    const changed = Buffer.from(bytes);
+    changed[changed.length - 1] ^= 1;
+    assert.equal(
+      inspectTrackedPath(path, hash(changed))[0].rule,
+      "fixture-hash-mismatch",
+    );
+    assert.equal(inspectTrackedPath(path)[0].rule, "fixture-hash-mismatch");
+    assert.equal(
+      inspectTrackedPath(`other/${entry.file}`, entry.sha256)[0].rule,
+      "blocked-extension",
+    );
+  }
+});
+
+test("reorder/removal controls associate named curve bodies while IDs are reassigned; empty set stays a fixed-input observation", () => {
+  // Research only: every input is hash-admitted above. This is not a runtime
+  // recognizer, target decoder or an absence-as-zero rule for other layouts.
+  const declarations = (records) => {
+    const channels = [],
+      orphanCurves = [],
+      playlists = [];
+    let current;
+    for (const { id, payload } of records) {
+      if ([64, 65, 98, 100, 233, 236].includes(id)) current = undefined;
+      if (id === 64) {
+        assert.equal(payload.length, 2);
+        current = {
+          savedId: payload.readUInt16LE(),
+          types: [],
+          names: [],
+          curves: [],
+        };
+        channels.push(current);
+      }
+      if (id === 21 && current) current.types.push(payload[0]);
+      if (id === 203 && current) {
+        assert.equal(payload.length % 2, 0);
+        current.names.push(payload.toString("utf16le").replace(/\0+$/, ""));
+      }
+      if (id === 234) (current ? current.curves : orphanCurves).push(payload);
+      if (id === 233) playlists.push(payload);
+    }
+    assert.deepEqual(orphanCurves, []);
+    assert.equal(playlists.length, 1);
+    assert.equal(new Set(channels.map((c) => c.savedId)).size, channels.length);
+    for (const channel of channels) {
+      assert.equal(channel.types.length, 1);
+      assert.ok([0, 5].includes(channel.types[0]));
+      assert.equal(channel.curves.length, channel.types[0] === 5 ? 1 : 0);
+      assert.equal(channel.names.length, channel.types[0] === 5 ? 1 : 0);
+    }
+    return { channels, playlist: playlists[0] };
+  };
+  const source = enumerationExamples.sourceApprovedFixture;
+  const baseline = read(source.file);
+  assert.equal(hash(baseline), source.sha256);
+  const base = declarations(framedRecords(baseline));
+  const baseObjects = new Map(
+    base.channels.filter((c) => c.types[0] === 5).map((c) => [c.names[0], c]),
+  );
+  for (const entry of enumerationExamples.cases) {
+    const before = read(entry.file);
+    assert.equal(hash(before), entry.sha256);
+    const { channels, playlist } = declarations(framedRecords(before));
+    assert.equal(before.readUInt16LE(10), channels.length);
+    assert.equal(channels.length, entry.independentGui.channelRows.length);
+    const objects = channels.filter((c) => c.types[0] === 5);
+    assert.equal(
+      objects.length,
+      entry.independentGui.nativeAutomationClipObjects,
+    );
+    assert.deepEqual(
+      objects.map((c) => c.names[0]),
+      entry.independentGui.objects.map((o) => o.name),
+    );
+    const counts = objects.map((c) => c.curves[0].readUInt32LE(17));
+    assert.deepEqual(
+      counts,
+      entry.independentGui.objects.map((o) => o.editablePoints),
+    );
+    assert.equal(
+      counts.reduce((n, value) => n + value, 0),
+      entry.independentGui.editableMainCurvePoints,
+    );
+    assert.equal(
+      playlist.length,
+      88 * entry.independentGui.playlistOccurrences,
+    );
+    for (const [i, channel] of objects.entries()) {
+      const original = baseObjects.get(channel.names[0]);
+      const curve = channel.curves[0],
+        old = original.curves[0];
+      assert.equal(curve.length, 21 + 24 * counts[i] + 112);
+      assert.equal(curve.readUInt32LE(13), 3);
+      assert.deepEqual(curve.subarray(0, 17), old.subarray(0, 17));
+      assert.deepEqual(curve.subarray(-112), old.subarray(-112));
+      assert.equal(curve.length, old.length);
+      const offsets = [...curve.keys()].filter((j) => curve[j] !== old[j]);
+      if (entry.case === "C01") {
+        assert.notEqual(channel.savedId, original.savedId);
+        assert.equal(channel.savedId, i + 1);
+        assert.deepEqual(offsets, i === 0 ? [] : [67]);
+      } else {
+        assert.equal(original.savedId, 2);
+        assert.equal(channel.savedId, 1);
+        assert.deepEqual(offsets, [115]); // Meaning remains unqualified.
+      }
+    }
+    if (entry.case === "C03") {
+      assert.deepEqual(
+        channels.map((c) => c.types),
+        [[0]],
+      );
+      assert.equal(objects.length, 0);
+      assert.equal(playlist.length, 0);
+      assert.ok(
+        entry.independentGui.scope.includes(
+          "not a claim about event automation",
+        ),
+      );
+    }
+    assert.deepEqual(read(entry.file), before);
+  }
+  assert.deepEqual(read(source.file), baseline);
+});
+
 test("frozen expectation prose exception cannot admit another file or changed personal paths", () => {
   const path = "fixtures/parser-corpus/automation-object-expectations.json";
   const text = objectRegistration.toString("utf8");
