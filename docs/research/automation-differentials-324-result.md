@@ -89,6 +89,11 @@ are now 40 approved files across the same three saved builds.
 
 ## Parser regressions and next boundary
 
+The subsequent [object/minimum-point examples](automation-objects-324-result.md)
+add F43-F45, approved on 2026-11-15. They supply same-count and two-object
+comparisons; the empty-curve attempt retained one point with Delete disabled.
+This earlier four-file result and its exact expectations remain unchanged.
+
 Publication changes no production parser, native validation, schema, storage,
 client, capability or dependency. Real parser and full supervised native-validation
 regressions cover all 40 files read-only. Placed cases retain unsupported
