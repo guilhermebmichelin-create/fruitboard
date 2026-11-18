@@ -350,3 +350,20 @@ input-file authority. The test command is:
 ```powershell
 cargo test -p fruitboard-flp-parser --locked
 ```
+
+## Saved native Automation Clip counts
+
+Adapter 0.1.6 advertises `automationCounts` through Describe. Successful
+extraction returns integer `objectCount` and `pointCount` together. The
+[recognition study](../../docs/research/automation-recognizer-324.md) records
+the exact FL Studio 26.1.0.5530 / 96 PPQ layout and its independent controls.
+The parser recognizes up to two saved clip definitions and one to four
+editable points per clip, with a six-point combined bound. Zero is available
+only for the reviewed complete empty-set layout.
+
+Other supported builds and unfamiliar layouts report `unavailable` with a
+fixed reason. Basic metadata remains independently available. The native
+validator checks the field shape, build, channel count and numeric bounds
+when the capability is advertised. These counts cover saved definitions and
+editable points. Playlist interpretation, target identity, storage and Library
+presentation remain separate work.

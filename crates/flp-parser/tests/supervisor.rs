@@ -99,8 +99,9 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
     use fruitboard_flp_parser::validation::{
         ChannelGenerators, Confidence, GeneratorReason, ListStatus, MetadataOutcome,
         MixerInsertName, NameInference, NoteRecordCount, NoteSequence, ParseContext,
-        PatternNoteCounts, PatternNoteSequences, ProjectField, ProjectReason, SavedMixerInserts,
-        ValidatedProjectReply, validate_descriptor, validate_project_reply,
+        PatternNoteCounts, PatternNoteSequences, ProjectField, ProjectReason,
+        SavedAutomationCounts, SavedMixerInserts, ValidatedProjectReply, ValidationError,
+        validate_descriptor, validate_project_reply,
     };
     let mut supervisor = ParserSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_fruitboard-flp-parser")),
@@ -118,14 +119,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
         descriptor["fields"]
             .as_array()
             .unwrap()
-            .iter()
-            .all(|field| {
-                !field
-                    .as_str()
-                    .unwrap()
-                    .to_ascii_lowercase()
-                    .contains("automation")
-            })
+            .contains(&serde_json::json!("automationCounts"))
     );
     let mixer_expectations: serde_json::Value = serde_json::from_str(include_str!(
         "../../../fixtures/parser-corpus/mixer-insert-expectations.json"
@@ -188,8 +182,34 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                 &cancellation,
             )
             .unwrap();
-        let validated = validate_project_reply(reply, &capabilities, &context, &context).unwrap();
         let name = path.file_name().unwrap().to_str().unwrap();
+        if name == "FIX-FL2026-AUTOMATION.flp" {
+            let ProtocolReply::Result(raw) = &reply else {
+                panic!("expected result");
+            };
+            for field in [
+                serde_json::Value::Null,
+                serde_json::json!({"status":"extracted","value":{"objectCount":0,"pointCount":0}}),
+                serde_json::json!({"status":"extracted","value":{"objectCount":1,"pointCount":5}}),
+                serde_json::json!({"status":"extracted","value":{"objectCount":1,"pointCount":0}}),
+                serde_json::json!({"status":"extracted","value":{"objectCount":1,"pointCount":3.0}}),
+                serde_json::json!({"status":"extracted","value":{"objectCount":1,"pointCount":3,"unexpected":true}}),
+                serde_json::json!({"status":"unavailable","reason":"AUTOMATION_COUNTS_UNVERIFIED_BUILD"}),
+            ] {
+                let mut forged = raw.clone();
+                forged["automationCounts"] = field;
+                assert!(matches!(
+                    validate_project_reply(
+                        ProtocolReply::Result(forged),
+                        &capabilities,
+                        &context,
+                        &context
+                    ),
+                    Err(ValidationError::InvalidReply)
+                ));
+            }
+        }
+        let validated = validate_project_reply(reply, &capabilities, &context, &context).unwrap();
         let expected_failure = match name {
             "FIX-RB-TRUNC.flp" => Some("TRUNCATED_DATA_CHUNK"),
             "FIX-RB-MALFORM.flp" => Some("EVENT_LENGTH_OUT_OF_BOUNDS"),
@@ -321,6 +341,13 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                 assert_eq!(sha256_hex(&before), case["sha256"].as_str().unwrap());
                 assert_eq!(before.len() as u64, case["bytes"].as_u64().unwrap());
                 assert_eq!(metadata.initial().channel_count(), 2);
+                assert_eq!(
+                    metadata.automation_counts(),
+                    SavedAutomationCounts::Extracted {
+                        object_count: 1,
+                        point_count: case["gui"]["editableControlPoints"].as_u64().unwrap(),
+                    }
+                );
                 // An unplaced automation object still has a curve. An empty
                 // pattern Playlist is not a zero-automation summary.
                 if case["gui"]["playlistPlacements"] == 0 {
@@ -347,8 +374,16 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                     metadata.initial().channel_count() as usize,
                     1 + case["gui"]["objects"].as_array().unwrap().len()
                 );
-                // Even the one-point case retains a nonempty saved Playlist
-                // record; no numeric automation/empty-placement inference.
+                assert_eq!(
+                    metadata.automation_counts(),
+                    SavedAutomationCounts::Extracted {
+                        object_count: case["gui"]["uniqueNativeAutomationObjects"]
+                            .as_u64()
+                            .unwrap(),
+                        point_count: case["gui"]["editableControlPoints"].as_u64().unwrap(),
+                    }
+                );
+                // Even the one-point case retains a nonempty saved Playlist record.
                 assert!(matches!(
                     metadata.arrangement_end_tick(),
                     ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
@@ -377,7 +412,17 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                         .unwrap()
                         .len()
                 );
-                // No automation count is inferred from the GUI empty-set control.
+                assert_eq!(
+                    metadata.automation_counts(),
+                    SavedAutomationCounts::Extracted {
+                        object_count: case["independentGui"]["nativeAutomationClipObjects"]
+                            .as_u64()
+                            .unwrap(),
+                        point_count: case["independentGui"]["editableMainCurvePoints"]
+                            .as_u64()
+                            .unwrap(),
+                    }
+                );
                 if case["case"] == "C03" {
                     assert!(matches!(
                         metadata.arrangement_end_tick(),
@@ -412,6 +457,13 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                     "23b764e4220fc5e48ffbd4a99c602bda092c032ef35b9b2d5b785250b622cf7f"
                 );
                 assert_eq!(metadata.initial().channel_count(), 2);
+                assert_eq!(
+                    metadata.automation_counts(),
+                    SavedAutomationCounts::Extracted {
+                        object_count: 1,
+                        point_count: 3,
+                    }
+                );
                 // Full native validation must preserve refusal rather than
                 // treating automation placement as a pattern or duration.
                 assert!(matches!(

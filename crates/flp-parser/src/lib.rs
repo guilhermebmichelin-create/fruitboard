@@ -22,6 +22,7 @@ pub fn authorize_source(
         .map(AuthorizedSource)
         .map_err(|_| SourceAuthorizationError::Unavailable)
 }
+mod automation_counts;
 mod mixer_inserts;
 mod pattern_note_sequences;
 mod pattern_notes;
@@ -84,6 +85,7 @@ pub fn failed(code: &str) -> Value {
         "patternNames":field("failed",Value::Null,Some(code)),
         "patternNoteCounts":field("failed",Value::Null,Some(code)),
         "patternNoteSequences":field("failed",Value::Null,Some(code)),
+        "automationCounts":field("failed",Value::Null,Some(code)),
         "mixerInsertCount":field("failed",Value::Null,Some(code)),
         "mixerInsertNames":field("failed",Value::Null,Some(code)),
         "playlistPatternClips":field("failed",Value::Null,Some(code)),
@@ -349,6 +351,7 @@ fn unsupported_version(version: &str) -> Value {
         "patternCount":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "patternNames":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "patternNoteSequences":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
+        "automationCounts":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "playlistPatternClips":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "playlistPatternEndTick":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
         "playlistPatternNominalSeconds":field("unsupported",Value::Null,Some("UNSUPPORTED_SAVED_VERSION")),
@@ -530,6 +533,9 @@ fn parse_bytes_with_policy(
     let mut pattern_names = BTreeMap::new();
     let mut current_pattern = None;
     let mut pattern_notes = pattern_notes::PatternNotes::default();
+    let format = u16::from_le_bytes([bytes[8], bytes[9]]);
+    let mut automation_counts =
+        automation_counts::AutomationCounts::new(format, header_ppq, header_channels);
     let mut mixer_inserts = mixer_inserts::MixerInserts::default();
     let mut playlist_payload: Option<Vec<u8>> = None;
     let mut multiple_playlist_payloads = false;
@@ -589,6 +595,7 @@ fn parse_bytes_with_policy(
         observe_event(id, event_offset, cursor, width);
         cursor = end;
         pattern_notes.observe(id, data);
+        automation_counts.observe(id, data);
         if version.as_deref() == Some(mixer_inserts::BUILD) {
             mixer_inserts.observe(id, data);
         }
@@ -926,6 +933,7 @@ fn parse_bytes_with_policy(
         "patternCount":pattern_count,
         "patternNoteCounts":pattern_notes.summary(version.as_deref(), &pattern_ids),
         "patternNoteSequences":pattern_note_sequences,
+        "automationCounts":automation_counts.summary(version.as_deref()),
         "mixerInsertCount":mixer_insert_count,
         "mixerInsertNames":mixer_insert_names,
         "patternNames":pattern_names,

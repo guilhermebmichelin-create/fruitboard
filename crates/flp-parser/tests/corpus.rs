@@ -343,18 +343,10 @@ fn approved_automation_gui_case_keeps_unqualified_fields_unsupported_read_only()
         );
         assert!(parsed[field].get("value").is_none(), "{field}");
     }
-    assert!(
-        parsed
-            .as_object()
-            .unwrap()
-            .keys()
-            .all(|key| !key.to_ascii_lowercase().contains("automation"))
-    );
+    assert_automation_counts(&parsed, serde_json::json!(1), serde_json::json!(3));
     assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
     assert_eq!(parsed["inputFingerprint"]["hash"]["value"], hash);
     assert_eq!(fs::read(&path).unwrap(), before);
-    // F11 remains the genuine empty-Playlist control, not an inferred
-    // automation-count oracle: no automation summary exists yet.
     let control_path = fixture("FIX-FL2026-MIN.flp");
     let control = fs::read(&control_path).unwrap();
     let parsed_control = parse_bytes(&control);
@@ -362,6 +354,7 @@ fn approved_automation_gui_case_keeps_unqualified_fields_unsupported_read_only()
         parsed_control["playlistPatternClips"]["value"],
         serde_json::json!([])
     );
+    assert_automation_counts(&parsed_control, serde_json::json!(0), serde_json::json!(0));
     assert_eq!(fs::read(control_path).unwrap(), control);
 }
 
@@ -443,12 +436,10 @@ fn approved_automation_differentials_preserve_metadata_and_refusal_read_only() {
             );
             assert!(parsed[field].get("value").is_none());
         }
-        assert!(
-            parsed
-                .as_object()
-                .unwrap()
-                .keys()
-                .all(|key| !key.to_ascii_lowercase().contains("automation"))
+        assert_automation_counts(
+            &parsed,
+            serde_json::json!(1),
+            case["gui"]["editableControlPoints"].clone(),
         );
         assert_eq!(parsed["inputFingerprint"]["hash"]["value"], hash);
         assert_eq!(fs::read(&path).unwrap(), before);
@@ -516,12 +507,10 @@ fn approved_automation_object_examples_preserve_refusal_and_metadata_read_only()
             assert_eq!(parsed[field]["reason"], "PLAYLIST_CLIP_KIND_UNVERIFIED");
             assert!(parsed[field].get("value").is_none());
         }
-        assert!(
-            parsed
-                .as_object()
-                .unwrap()
-                .keys()
-                .all(|key| !key.to_ascii_lowercase().contains("automation"))
+        assert_automation_counts(
+            &parsed,
+            case["gui"]["uniqueNativeAutomationObjects"].clone(),
+            case["gui"]["editableControlPoints"].clone(),
         );
         assert_eq!(parsed["inputFingerprint"]["hash"]["value"], case["sha256"]);
         assert_eq!(fs::read(&path).unwrap(), before);
@@ -529,7 +518,7 @@ fn approved_automation_object_examples_preserve_refusal_and_metadata_read_only()
 }
 
 #[test]
-fn approved_automation_enumeration_controls_preserve_metadata_without_count_fields() {
+fn approved_automation_enumeration_controls_preserve_metadata_and_match_counts() {
     let registered =
         include_bytes!("../../../fixtures/parser-corpus/automation-enumeration-expectations.json");
     assert_eq!(registered.len(), 5942);
@@ -616,14 +605,10 @@ fn approved_automation_enumeration_controls_preserve_metadata_without_count_fiel
             );
             assert!(parsed[field].get("value").is_none());
         }
-        // Even the controlled GUI empty set does not add a numeric automation
-        // zero to today's parser contract or to older immutable results.
-        assert!(
-            parsed
-                .as_object()
-                .unwrap()
-                .keys()
-                .all(|key| !key.to_ascii_lowercase().contains("automation"))
+        assert_automation_counts(
+            &parsed,
+            case["independentGui"]["nativeAutomationClipObjects"].clone(),
+            case["independentGui"]["editableMainCurvePoints"].clone(),
         );
         assert_eq!(parsed["inputFingerprint"]["hash"]["value"], case["sha256"]);
         assert_eq!(fs::read(&path).unwrap(), before);
@@ -816,4 +801,122 @@ fn unverified_saved_build_is_explicitly_unsupported() {
     assert_eq!(parsed["channelCount"]["status"], "unsupported");
     assert_eq!(parsed["patternCount"]["status"], "unsupported");
     assert_eq!(parsed["channelGeneratorNames"]["status"], "unsupported");
+}
+
+fn assert_automation_counts(
+    parsed: &serde_json::Value,
+    objects: serde_json::Value,
+    points: serde_json::Value,
+) {
+    assert_eq!(
+        parsed["automationCounts"],
+        serde_json::json!({
+            "status": "extracted", "value": {"objectCount": objects, "pointCount": points},
+        })
+    );
+}
+
+#[test]
+fn automation_counts_refuse_unqualified_layouts_without_losing_basic_metadata() {
+    for name in [
+        "FIX-FL2026-SAMPLE.flp",
+        "FIX-FL2026-PATTERNS.flp",
+        "FIX-FL2026-3XOSC.flp",
+        "FIX-FL2026-MULTISAMPLER.flp",
+    ] {
+        let bytes = fs::read(fixture(name)).unwrap();
+        let parsed = parse_bytes(&bytes);
+        assert_eq!(parsed["outcome"], "complete", "{name}");
+        assert_eq!(parsed["savedVersion"]["value"], "26.1.0.5530", "{name}");
+        assert_eq!(
+            parsed["automationCounts"],
+            serde_json::json!({
+                "status": "unavailable", "reason": "AUTOMATION_COUNTS_UNVERIFIED_LAYOUT"
+            }),
+            "{name}"
+        );
+    }
+
+    let mut bytes = fs::read(fixture("FIX-FL2026-AUTOMATION.flp")).unwrap();
+    bytes[12..14].copy_from_slice(&192u16.to_le_bytes());
+    let parsed = parse_bytes(&bytes);
+    assert_eq!(parsed["outcome"], "complete");
+    assert_eq!(
+        parsed["automationCounts"]["reason"],
+        "AUTOMATION_COUNTS_UNVERIFIED_LAYOUT"
+    );
+}
+
+#[test]
+fn automation_counts_refuse_contradictions_in_the_empty_set() {
+    let empty = fs::read(fixture("FIX-FL2026-AUTO-REMOVED.flp")).unwrap();
+    let expected = parse_bytes(&empty);
+    assert_automation_counts(&expected, serde_json::json!(0), serde_json::json!(0));
+
+    // These byte ranges identify the reviewed events in the fixed corpus files.
+    let generator = 451..455;
+    assert_eq!(empty[generator.clone()], [201, 2, 0, 0]);
+    let playlist = 1323..1325;
+    assert_eq!(empty[playlist.clone()], [233, 0]);
+    let with_clip = fs::read(fixture("FIX-FL2026-AUTOMATION.flp")).unwrap();
+    let curve = &with_clip[1789..1997];
+    assert_eq!(curve[..3], [234, 205, 1]);
+
+    let mut named_sampler = empty.clone();
+    named_sampler.splice(
+        generator,
+        [
+            201, 14, b'3', 0, b'x', 0, b' ', 0, b'O', 0, b's', 0, b'c', 0, 0, 0,
+        ],
+    );
+    let mut orphan_curve = empty;
+    orphan_curve.splice(playlist.end..playlist.end, curve.iter().copied());
+
+    for (case, mut bytes) in [
+        ("contradictory Sampler generator", named_sampler),
+        ("curve outside a channel", orphan_curve),
+    ] {
+        let data_len = u32::try_from(bytes.len() - 22).unwrap();
+        bytes[18..22].copy_from_slice(&data_len.to_le_bytes());
+        let parsed = parse_bytes(&bytes);
+        for field in ["outcome", "savedVersion", "baseTempoBpm", "channelCount"] {
+            assert_eq!(parsed[field], expected[field], "{case}: {field}");
+        }
+        assert_eq!(
+            parsed["automationCounts"],
+            serde_json::json!({
+                "status": "unavailable", "reason": "AUTOMATION_COUNTS_UNVERIFIED_LAYOUT"
+            }),
+            "{case}"
+        );
+    }
+}
+
+#[test]
+fn automation_count_refusal_preserves_the_other_fields_on_a_bad_curve() {
+    let original = fs::read(fixture("FIX-FL2026-AUTOMATION.flp")).unwrap();
+    let prefix = [1, 0, 0, 0, 64, 0, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0];
+    let candidates: Vec<_> = original
+        .windows(prefix.len())
+        .enumerate()
+        .filter_map(|(offset, window)| (window == prefix).then_some(offset))
+        .collect();
+    let [offset] = candidates.as_slice() else {
+        panic!("expected the one qualified curve prefix");
+    };
+    let expected = parse_bytes(&original);
+    for wrong_count in [0u32, 2, u32::MAX] {
+        let mut bytes = original.clone();
+        bytes[offset + 17..offset + 21].copy_from_slice(&wrong_count.to_le_bytes());
+        let parsed = parse_bytes(&bytes);
+        assert_eq!(parsed["outcome"], expected["outcome"]);
+        assert_eq!(parsed["baseTempoBpm"], expected["baseTempoBpm"]);
+        assert_eq!(parsed["channelNames"], expected["channelNames"]);
+        assert_eq!(
+            parsed["automationCounts"],
+            serde_json::json!({
+                "status": "unavailable", "reason": "AUTOMATION_COUNTS_UNVERIFIED_LAYOUT"
+            })
+        );
+    }
 }

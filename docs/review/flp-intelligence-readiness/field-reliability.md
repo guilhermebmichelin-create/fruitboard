@@ -48,12 +48,12 @@ cases while preserving both negative controls. The three-build allowlist,
 F07-F10 exercise failure/partial handling; they add no saved-build coverage.
 
 F39-F42 extend the exact 26.1.0.5530 row above with independent two-/four-point,
-repeated-placement and unplaced-object observations. Runtime automation counts,
-object/channel binding and general enumeration remain unqualified. F43-F45
+repeated-placement and unplaced-object observations. F43-F45
 add one observed two-object total of six points and extend the size/count
 relationship to one point. The GUI refused an empty curve. F46-F48 strengthen
-the controlled association and supply an observed empty object set; review a
-strict recognition/rejection boundary before numeric extraction. General
+the controlled association and supply an observed empty object set. Adapter
+0.1.6 uses the [bounded recognition rule](../../research/automation-recognizer-324.md)
+for saved object and editable point totals. Target identity, general
 absence-as-zero and explicit empty point lists remain unqualified.
 
 ## Field reliability and application reach
@@ -80,7 +80,8 @@ a complete parse does not make every field extracted or universally supported.
 | Saved pattern note records                   | Approved F16 counts 3/2/4, F17 omitted payload; PR291/293/295 and [installed delivery](../library-pattern-notes-294/README.md)                                                                         | Validated, immutably stored and displayed per pattern                                                                          | Exact 26.1.0.5530 initial content series; no explicit-zero qualification, raw notes, audible count or Playlist multiplication.                                                 |
 | Saved ordinary-note sequences                | Approved F24-F30 and six clean F31-F38 pilot cases; [independent GUI result](../../research/parser-note-sequence-366-result.md), issue #366                                                            | Bounded parsing/storage and typed Library list; Installed review #397 at its recorded source; updated-head CI remains required | Exact build/96 PPQ, discrete observed values and one/two-Sampler subset. Both pilot negative controls remain refused; no general conversion, sparse IDs, slides/steps or MIDI. |
 | Saved mixer insert records                   | Approved F18-F21, PR299/301 and [application slice #304](../library-mixer-inserts-304/README.md)                                                                                                       | Validated, immutably stored and displayed                                                                                      | Exact complete 26.1.0.5530 layout only: sixteen ordinary positions; no usage/audibility, effects, routing, sparse layouts or persistent IDs.                                   |
-| Automation/MIDI summaries                    | F23 GUI: one object/one placement/three points; F11 no-clip; [#322](../../research/parser-automation-322-result.md); [#324](../../research/parser-automation-counts-324-result.md).                    | Not delivered; no summary advertised or emitted                                                                                | Exact 26.1.0.5530 GUI cases only. Outer events framed; inner grammar and zero unqualified. F23 generator/Playlist unsupported; no MIDI.                                        |
+| Saved Automation Clip counts                 | F11, F23 and F39–F48 GUI controls; [bounded recognizer](../../research/automation-recognizer-324.md)                                                                                                   | Advertised and validated natively; immutable storage and Library display pending                                               | Exact 26.1.0.5530 / 96 PPQ layout. Zero requires a complete empty-set layout. Playlist placements, targets and curve semantics remain unsupported.                             |
+| MIDI summaries                               | No qualified evidence                                                                                                                                                                                  | No summary advertised or emitted                                                                                               | MIDI interpretation is outside the saved Automation Clip count scope.                                                                                                          |
 | Ephemeral sample metadata observations       | ADR-007/PR285; actual NTFS rights/race and authorized-host tests, installed constructed host mapping plus unchanged F12 outside-root/F15 no-reference cases                                            | Explicit Library checks in `analysis-jobs`; no persisted availability                                                          | Eligible absolute paths and bounded project-relative candidates in the selected local NTFS root; metadata only, no complete FL Studio resolution.                              |
 
 The [saved pattern note-count proposal](../pattern-notes-288/README.md), #288,
