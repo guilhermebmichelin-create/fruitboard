@@ -57,7 +57,7 @@ test("workflow permissions and third-party execution fail closed", () => {
     "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
-    "astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e",
+    "astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2",
   ]);
   assert.ok(actionReferences.length > 0);
   for (const reference of actionReferences) {
@@ -87,8 +87,8 @@ test("security workflows stay pinned, read-only, and informational", () => {
   const approvedSecurityActionReferences = new Set([
     "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
     "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294",
-    "github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370",
-    "github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370",
+    "github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066",
+    "github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066",
   ]);
 
   for (const securityWorkflow of securityWorkflows) {
