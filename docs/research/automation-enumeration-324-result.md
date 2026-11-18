@@ -109,7 +109,9 @@ available. Retained automation cases preserve unsupported generator/Playlist
 interpretation. F48 retains ordinary empty-pattern-Playlist handling and
 unavailable pattern extent; it adds no automation numeric zero or new field.
 
-The next step is review of a strict recognizer for this tested family: exact
+The [strict recognizer study](automation-recognizer-324.md) exercises a narrow
+candidate rule with these controls and constructed inputs. The next review
+should evaluate exact
 build/framing, complete unique declarations with header agreement, singular
 recognized classes, scoped point payloads and reviewed signatures/count bounds.
 Constructed rejection cases must cover missing/duplicate/orphan records,

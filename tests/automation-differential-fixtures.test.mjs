@@ -443,3 +443,359 @@ test("same-count, multiple-object and one-point saves retain bounded observation
   assert.deepEqual(read("FIX-FL2026-AUTOMATION.flp"), baseline);
   assert.deepEqual(read("FIX-FL2026-AUTO-2POINT.flp"), twoPoint);
 });
+
+const channelSectionEnd = new Set([65, 98, 100, 233, 236]);
+const samplerRecords =
+  "64,21,201,212,155,128,41,0,209,138,139,89,97,48,69,86,71,83,74,75,76,85,131,70,104,50,219,229,221,215,132,144,145,32,251,228,228,218,218,218,218,218,143,20,170,51";
+const automationRecords =
+  "64,21,201,212,203,155,128,41,0,209,138,139,89,97,48,69,86,71,83,74,75,76,85,131,70,104,50,219,229,221,215,132,144,145,234,32,228,228,218,218,218,218,218,143,20,170,51";
+const lastChannelRecords = ",99,241,36";
+const emptyGeneratorName = Buffer.alloc(2);
+const curvePrefix = Buffer.from("0100000040000000000400000003000000", "hex");
+const curveSuffix = Buffer.from(
+  "01000000ffffffffffffffffffffffffffffffff80000000800000000000000080000000" +
+    "0500000003000000010000000000000000000000000000000000f03f0000000000000000" +
+    "0100000000000000fffffffffffffffffffffffffbb2000000000000000000000000000000000000",
+  "hex",
+);
+
+function observedCurvePointCount(payload) {
+  // This range is the demonstrated fixture range, not an FL Studio limit.
+  if (payload.length < 21) return null;
+  const count = payload.readUInt32LE(17);
+  if (count < 1 || count > 4 || payload.length !== 21 + 24 * count + 112) {
+    return null;
+  }
+  if (
+    !payload.subarray(0, 17).equals(curvePrefix) ||
+    !payload.subarray(21 + 24 * count).equals(curveSuffix)
+  ) {
+    return null;
+  }
+  return count;
+}
+
+// Deliberately narrow hypothesis evaluated only against approved fixed inputs
+// and in-memory variants. No parser, native command, or app uses this function.
+function recognizeAutomationStudyLayout(header, records) {
+  const channelCount = header.readUInt16LE(10);
+  if (
+    header.readUInt16LE(8) !== 0 ||
+    header.readUInt16LE(12) !== 96 ||
+    channelCount < 1 ||
+    channelCount > 3
+  ) {
+    return { reason: "header" };
+  }
+
+  const versions = records.filter(({ id }) => id === 199);
+  const firstChannel = records.findIndex(({ id }) => id === 64);
+  if (
+    versions.length !== 1 ||
+    versions[0].payload.toString("latin1") !== "26.1.0.5530\0" ||
+    records.indexOf(versions[0]) >= firstChannel
+  ) {
+    return { reason: "version" };
+  }
+
+  const channels = [];
+  const seenIds = new Set();
+  let current;
+  let playlist;
+  for (const record of records) {
+    const { id, payload } = record;
+    if (channelSectionEnd.has(id)) {
+      if (id === 233) {
+        if (playlist || !current) return { reason: "section" };
+        playlist = payload;
+      } else if (!playlist) {
+        return { reason: "section" };
+      }
+      current = undefined;
+      continue;
+    }
+    if (id === 64) {
+      const savedId = payload.readUInt16LE();
+      if (playlist || channels.length >= channelCount || seenIds.has(savedId)) {
+        return { reason: "declaration" };
+      }
+      seenIds.add(savedId);
+      current = [];
+      channels.push(current);
+    }
+    if (current) {
+      current.push(record);
+    } else if (id === 21 || id === 201 || id === 234) {
+      return { reason: "orphan" };
+    }
+  }
+  if (!playlist || channels.length !== channelCount) {
+    return { reason: "incomplete" };
+  }
+
+  const pointCounts = [];
+  for (const [index, channel] of channels.entries()) {
+    const typeRecord = channel[1];
+    const type = typeRecord?.id === 21 ? typeRecord.payload[0] : undefined;
+    const expectedRecords =
+      (index === 0 ? samplerRecords : automationRecords) +
+      (index === channels.length - 1 ? lastChannelRecords : "");
+    if (
+      type !== (index === 0 ? 0 : 5) ||
+      channel.map(({ id }) => id).join(",") !== expectedRecords ||
+      !channel[2].payload.equals(emptyGeneratorName)
+    ) {
+      return { reason: "channel-layout" };
+    }
+    if (type === 5) {
+      const { payload } = channel.find(({ id }) => id === 234);
+      const count = observedCurvePointCount(payload);
+      if (count === null) return { reason: "curve-layout" };
+      pointCounts.push(count);
+    }
+  }
+
+  const pointCount = pointCounts.reduce((total, count) => total + count, 0);
+  if (pointCount > 6) return { reason: "study-aggregate" };
+  if (pointCounts.length === 0 && playlist.length !== 0) {
+    return { reason: "empty-set" };
+  }
+  return { objectCount: pointCounts.length, pointCount, pointCounts };
+}
+
+test("strict automation hypothesis matches the independent fixed-input counts and object order", () => {
+  const approvals = [
+    {
+      file: "FIX-FL2026-MIN.flp",
+      sha256:
+        "e0471d55032b7dfaa8bbcd496c487147149b9ce18e0b250882cc6f67f47480ee",
+      points: [],
+    },
+    {
+      file: "FIX-FL2026-AUTOMATION.flp",
+      sha256:
+        "23b764e4220fc5e48ffbd4a99c602bda092c032ef35b9b2d5b785250b622cf7f",
+      points: [3],
+    },
+    ...expected.cases.map((entry) => ({
+      file: entry.proposedFile,
+      sha256: entry.sha256,
+      points: [entry.gui.editableControlPoints],
+    })),
+    ...objectExamples.cases.map((entry) => ({
+      file: entry.file,
+      sha256: entry.sha256,
+      points: entry.gui.objects.map((object) => object.editablePoints),
+    })),
+    ...enumerationExamples.cases.map((entry) => ({
+      file: entry.file,
+      sha256: entry.sha256,
+      points: entry.independentGui.objects.map(
+        (object) => object.editablePoints,
+      ),
+    })),
+  ];
+  assert.equal(approvals.length, 12);
+  for (const { file, sha256, points } of approvals) {
+    const input = read(file);
+    assert.equal(hash(input), sha256);
+    assert.deepEqual(
+      recognizeAutomationStudyLayout(input, framedRecords(input)),
+      {
+        objectCount: points.length,
+        pointCount: points.reduce((total, count) => total + count, 0),
+        pointCounts: points,
+      },
+      file,
+    );
+    assert.equal(hash(input), sha256);
+    assert.equal(hash(read(file)), sha256);
+  }
+});
+
+test("strict automation hypothesis refuses incomplete counts, unknown signatures, and ambiguous scopes", () => {
+  const input = read("FIX-FL2026-AUTO-TWO-OBJECTS.flp");
+  assert.equal(hash(input), enumerationExamples.sourceApprovedFixture.sha256);
+  const records = framedRecords(input);
+  const curves = records.flatMap(({ id }, index) =>
+    id === 234 ? [index] : [],
+  );
+  const [firstCurve, secondCurve] = curves;
+  const declarations = records.flatMap(({ id }, index) =>
+    id === 64 ? [index] : [],
+  );
+  const [firstId, secondId] = declarations;
+  const playlist = records.findIndex(({ id }) => id === 233);
+  const version = records.findIndex(({ id }) => id === 199);
+  const headerWith = (offset, value) => {
+    const header = Buffer.from(input.subarray(0, 22));
+    header.writeUInt16LE(value, offset);
+    return header;
+  };
+  const withRecord = (index, record) => records.with(index, record);
+  const withBody = (index, payload) =>
+    withRecord(index, { id: records[index].id, payload });
+  const without = (index) => records.toSpliced(index, 1);
+  const insert = (index, record) => records.toSpliced(index, 0, record);
+  const editCurve = (edit) => {
+    const payload = Buffer.from(records[firstCurve].payload);
+    edit(payload);
+    return withBody(firstCurve, payload);
+  };
+
+  const cases = [
+    ["wrong PPQ", "header", records, headerWith(12, 192)],
+    ["oversized channel count", "header", records, headerWith(10, 65535)],
+    [
+      "header overcounts declarations",
+      "incomplete",
+      records.toSpliced(secondId, declarations[2] - secondId),
+    ],
+    [
+      "header undercounts declarations",
+      "declaration",
+      records,
+      headerWith(10, 2),
+    ],
+    [
+      "duplicate declaration ID",
+      "declaration",
+      withBody(secondId, records[firstId].payload),
+    ],
+    ["missing channel type", "channel-layout", without(secondId + 1)],
+    [
+      "duplicate channel type",
+      "channel-layout",
+      insert(secondId + 1, records[secondId + 1]),
+    ],
+    [
+      "unknown channel type",
+      "channel-layout",
+      withBody(secondId + 1, Buffer.from([6])),
+    ],
+    [
+      "unexpected generator name on a clip",
+      "channel-layout",
+      withBody(secondId + 2, Buffer.from("3x Osc\0", "utf16le")),
+    ],
+    ["missing curve", "channel-layout", without(firstCurve)],
+    [
+      "duplicate curve",
+      "channel-layout",
+      insert(firstCurve, records[firstCurve]),
+    ],
+    ["orphan curve", "orphan", insert(playlist + 1, records[firstCurve])],
+    [
+      "section before curve",
+      "section",
+      insert(firstCurve, { id: 65, payload: Buffer.alloc(2) }),
+    ],
+    ["duplicate Playlist", "section", insert(playlist, records[playlist])],
+    [
+      "wrong saved version",
+      "version",
+      withBody(version, Buffer.from("26.1.1.5547\0")),
+    ],
+    ["duplicate saved version", "version", insert(version, records[version])],
+    [
+      "missing curve prefix bytes",
+      "curve-layout",
+      withBody(firstCurve, Buffer.alloc(20)),
+    ],
+    [
+      "contradictory curve width",
+      "curve-layout",
+      withBody(firstCurve, records[firstCurve].payload.subarray(0, -1)),
+    ],
+    [
+      "unknown curve prefix",
+      "curve-layout",
+      editCurve((payload) => (payload[0] ^= 1)),
+    ],
+    [
+      "unknown curve suffix",
+      "curve-layout",
+      editCurve((payload) => (payload[payload.length - 1] ^= 1)),
+    ],
+    [
+      "zero points on a present object",
+      "curve-layout",
+      editCurve((payload) => payload.writeUInt32LE(0, 17)),
+    ],
+    [
+      "count outside study bound",
+      "curve-layout",
+      editCurve((payload) => payload.writeUInt32LE(0xffffffff, 17)),
+    ],
+    [
+      "aggregate outside study bound",
+      "study-aggregate",
+      withBody(firstCurve, records[secondCurve].payload),
+    ],
+  ];
+  for (const [name, reason, observed, header = input] of cases) {
+    assert.deepEqual(
+      recognizeAutomationStudyLayout(header, observed),
+      { reason },
+      name,
+    );
+  }
+
+  const empty = read("FIX-FL2026-AUTO-REMOVED.flp");
+  assert.equal(hash(empty), enumerationExamples.cases[2].sha256);
+  const emptyRecords = framedRecords(empty);
+  const emptyPlaylist = emptyRecords.findIndex(({ id }) => id === 233);
+  const samplerGenerator = emptyRecords.findIndex(({ id }) => id === 201);
+  const namedGenerator = {
+    id: 201,
+    payload: Buffer.from("3x Osc\0", "utf16le"),
+  };
+  assert.deepEqual(
+    recognizeAutomationStudyLayout(
+      empty,
+      emptyRecords.with(samplerGenerator, namedGenerator),
+    ),
+    { reason: "channel-layout" },
+    "a contradictory generator name must not qualify as a zero-object Sampler",
+  );
+  assert.deepEqual(
+    recognizeAutomationStudyLayout(
+      empty,
+      emptyRecords.toSpliced(emptyPlaylist + 1, 0, namedGenerator),
+    ),
+    { reason: "orphan" },
+    "an unscoped generator name must not qualify as a zero-object save",
+  );
+  assert.deepEqual(
+    recognizeAutomationStudyLayout(
+      empty,
+      emptyRecords.with(emptyPlaylist, records[playlist]),
+    ),
+    { reason: "empty-set" },
+  );
+  assert.equal(hash(input), enumerationExamples.sourceApprovedFixture.sha256);
+  assert.equal(hash(empty), enumerationExamples.cases[2].sha256);
+});
+
+test("the study does not promote familiar but unqualified saves to zero", () => {
+  const examples = [
+    ["FIX-FL2026-SAMPLE.flp", "channel-layout"],
+    ["FIX-FL2026-PATTERNS.flp", "section"],
+    ["FIX-FL2026-3XOSC.flp", "channel-layout"],
+    ["FIX-FL2026-MULTISAMPLER.flp", "channel-layout"],
+  ];
+  for (const [file, reason] of examples) {
+    const input = read(file);
+    const before = hash(input);
+    assert.deepEqual(
+      inspectTrackedPath(`fixtures/parser-corpus/${file}`, before),
+      [],
+    );
+    assert.deepEqual(
+      recognizeAutomationStudyLayout(input, framedRecords(input)),
+      { reason },
+      file,
+    );
+    assert.equal(hash(read(file)), before);
+  }
+});
