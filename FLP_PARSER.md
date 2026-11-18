@@ -51,15 +51,13 @@ parser compatibility and broader Phase 3 acceptance.
 
 The approved [F23 GUI evidence from #322 (merged in #323)](docs/research/parser-automation-322-result.md)
 records one saved automation object with three actual control points for FL
-Studio 26.1.0.5530; F11 is the no-clip control. Issue #324's whole-event
-framing does not establish a point-record count or object/reference grammar, so
-counts remain unadvertised and unemitted, and automation Playlist interpretation
-remains unsupported. Future count fields must distinguish qualified values from
-unavailable or unsupported data; older results without them mean not saved,
-never zero. Zero requires a complete, qualified layout that proves the set is
-empty, and full native typed validation must enforce these rules. Immutable
-Library persistence and display are a separate later slice. See the
-[Issue #324 qualification](docs/research/parser-automation-counts-324-result.md).
+Studio 26.1.0.5530; F11 is a no-clip control. Adapter 0.1.6 advertises
+`automationCounts` and validates the saved object and editable point totals
+for the [qualified 26.1.0.5530 / 96 PPQ layout](docs/research/automation-recognizer-324.md).
+A complete, recognized empty set reports zero. Unfamiliar layouts and other
+supported builds report unavailable. Playlist placement and target interpretation
+remain unsupported. Immutable Library persistence and display are a later
+slice, where older results without counts must be treated as not saved.
 
 PyFLP was tested as the comparison candidate. Its stable release returned no
 complete parse on the approved corpus. It remains outside the product, and the

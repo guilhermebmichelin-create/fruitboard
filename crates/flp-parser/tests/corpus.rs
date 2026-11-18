@@ -848,6 +848,51 @@ fn automation_counts_refuse_unqualified_layouts_without_losing_basic_metadata() 
 }
 
 #[test]
+fn automation_counts_refuse_contradictions_in_the_empty_set() {
+    let empty = fs::read(fixture("FIX-FL2026-AUTO-REMOVED.flp")).unwrap();
+    let expected = parse_bytes(&empty);
+    assert_automation_counts(&expected, serde_json::json!(0), serde_json::json!(0));
+
+    // These byte ranges identify the reviewed events in the fixed corpus files.
+    let generator = 451..455;
+    assert_eq!(empty[generator.clone()], [201, 2, 0, 0]);
+    let playlist = 1323..1325;
+    assert_eq!(empty[playlist.clone()], [233, 0]);
+    let with_clip = fs::read(fixture("FIX-FL2026-AUTOMATION.flp")).unwrap();
+    let curve = &with_clip[1789..1997];
+    assert_eq!(curve[..3], [234, 205, 1]);
+
+    let mut named_sampler = empty.clone();
+    named_sampler.splice(
+        generator,
+        [
+            201, 14, b'3', 0, b'x', 0, b' ', 0, b'O', 0, b's', 0, b'c', 0, 0, 0,
+        ],
+    );
+    let mut orphan_curve = empty;
+    orphan_curve.splice(playlist.end..playlist.end, curve.iter().copied());
+
+    for (case, mut bytes) in [
+        ("contradictory Sampler generator", named_sampler),
+        ("curve outside a channel", orphan_curve),
+    ] {
+        let data_len = u32::try_from(bytes.len() - 22).unwrap();
+        bytes[18..22].copy_from_slice(&data_len.to_le_bytes());
+        let parsed = parse_bytes(&bytes);
+        for field in ["outcome", "savedVersion", "baseTempoBpm", "channelCount"] {
+            assert_eq!(parsed[field], expected[field], "{case}: {field}");
+        }
+        assert_eq!(
+            parsed["automationCounts"],
+            serde_json::json!({
+                "status": "unavailable", "reason": "AUTOMATION_COUNTS_UNVERIFIED_LAYOUT"
+            }),
+            "{case}"
+        );
+    }
+}
+
+#[test]
 fn automation_count_refusal_preserves_the_other_fields_on_a_bad_curve() {
     let original = fs::read(fixture("FIX-FL2026-AUTOMATION.flp")).unwrap();
     let prefix = [1, 0, 0, 0, 64, 0, 0, 0, 0, 4, 0, 0, 0, 3, 0, 0, 0];
