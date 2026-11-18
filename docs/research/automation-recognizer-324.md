@@ -1,9 +1,9 @@
 ﻿# Strict native Automation Clip count study
 
 Issue [#324](https://github.com/guilhermebmichelin-create/fruitboard/issues/324).
-Source boundary: PR [#418](https://github.com/guilhermebmichelin-create/fruitboard/pull/418)
-at `cd24c3710782c662b68b864f395057e577e6c0ed`, stacked on the approved
-F46–F48 publication. Status: **Executable research, pending recognition-rule review.**
+Fixture baseline: PR [#418](https://github.com/guilhermebmichelin-create/fruitboard/pull/418),
+merged as `a4f3aa818b463f9006b5424a42037c4d6fb7f9a2` with approved F46–F48.
+Status: **Executable research for the demonstrated layout.**
 
 ## Evidence and proposed boundary
 
@@ -25,8 +25,10 @@ The candidate rule deliberately recognizes only the demonstrated layout:
 2. Require one to three unique declarations, in a single contiguous channel
    section before its Playlist boundary, matching the header count. Recognize
    the observed ordered record shapes for a type-0 Sampler followed by zero to
-   two type-5 clip declarations. Each clip owns one scoped event 234. Clear
-   scope at the observed section boundaries. Never use a saved channel ID as a
+   two type-5 clip declarations. Each declaration must carry the observed
+   empty generator name (event 201 with one UTF-16LE NUL). Each clip owns one
+   scoped event 234. Clear scope at the observed section boundaries and reject
+   generator names outside a declaration. Never use a saved channel ID as a
    persistent identity, or use the name to infer the target.
 3. Check the reviewed 17-byte prefix and 112-byte suffix of a point payload,
    the little-endian count at offset 17, and exact length
@@ -42,9 +44,10 @@ The candidate rule deliberately recognizes only the demonstrated layout:
    list remains unqualified.
 
 Constructed variants exercise missing, duplicate and orphan records, scope
-transitions, version and header contradictions, unfamiliar state signatures,
-zero on a present curve, count/length inconsistency and aggregate limits. The
-study mutates only in-memory input. No authored fixture is changed or generated.
+transitions, version and header contradictions, contradictory generator names,
+unfamiliar state signatures, zero on a present curve, count/length inconsistency
+and aggregate limits. The study mutates only in-memory input. No authored
+fixture is changed or generated.
 
 ## Review decision before native implementation
 

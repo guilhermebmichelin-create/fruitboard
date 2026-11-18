@@ -450,6 +450,7 @@ const samplerRecords =
 const automationRecords =
   "64,21,201,212,203,155,128,41,0,209,138,139,89,97,48,69,86,71,83,74,75,76,85,131,70,104,50,219,229,221,215,132,144,145,234,32,228,228,218,218,218,218,218,143,20,170,51";
 const lastChannelRecords = ",99,241,36";
+const emptyGeneratorName = Buffer.alloc(2);
 const curvePrefix = Buffer.from("0100000040000000000400000003000000", "hex");
 const curveSuffix = Buffer.from(
   "01000000ffffffffffffffffffffffffffffffff80000000800000000000000080000000" +
@@ -524,7 +525,7 @@ function recognizeAutomationStudyLayout(header, records) {
     }
     if (current) {
       current.push(record);
-    } else if (id === 21 || id === 234) {
+    } else if (id === 21 || id === 201 || id === 234) {
       return { reason: "orphan" };
     }
   }
@@ -541,7 +542,8 @@ function recognizeAutomationStudyLayout(header, records) {
       (index === channels.length - 1 ? lastChannelRecords : "");
     if (
       type !== (index === 0 ? 0 : 5) ||
-      channel.map(({ id }) => id).join(",") !== expectedRecords
+      channel.map(({ id }) => id).join(",") !== expectedRecords ||
+      !channel[2].payload.equals(emptyGeneratorName)
     ) {
       return { reason: "channel-layout" };
     }
@@ -671,6 +673,11 @@ test("strict automation hypothesis refuses incomplete counts, unknown signatures
       "channel-layout",
       withBody(secondId + 1, Buffer.from([6])),
     ],
+    [
+      "unexpected generator name on a clip",
+      "channel-layout",
+      withBody(secondId + 2, Buffer.from("3x Osc\0", "utf16le")),
+    ],
     ["missing curve", "channel-layout", without(firstCurve)],
     [
       "duplicate curve",
@@ -738,6 +745,27 @@ test("strict automation hypothesis refuses incomplete counts, unknown signatures
   assert.equal(hash(empty), enumerationExamples.cases[2].sha256);
   const emptyRecords = framedRecords(empty);
   const emptyPlaylist = emptyRecords.findIndex(({ id }) => id === 233);
+  const samplerGenerator = emptyRecords.findIndex(({ id }) => id === 201);
+  const namedGenerator = {
+    id: 201,
+    payload: Buffer.from("3x Osc\0", "utf16le"),
+  };
+  assert.deepEqual(
+    recognizeAutomationStudyLayout(
+      empty,
+      emptyRecords.with(samplerGenerator, namedGenerator),
+    ),
+    { reason: "channel-layout" },
+    "a contradictory generator name must not qualify as a zero-object Sampler",
+  );
+  assert.deepEqual(
+    recognizeAutomationStudyLayout(
+      empty,
+      emptyRecords.toSpliced(emptyPlaylist + 1, 0, namedGenerator),
+    ),
+    { reason: "orphan" },
+    "an unscoped generator name must not qualify as a zero-object save",
+  );
   assert.deepEqual(
     recognizeAutomationStudyLayout(
       empty,
