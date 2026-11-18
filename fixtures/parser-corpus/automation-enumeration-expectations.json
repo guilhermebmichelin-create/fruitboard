@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "researchIssue": 324,
+  "authoringDate": "2026-11-16",
+  "sourceBaseline": "341f4494df5f7e0224e50176bf98e43ad92e34d5",
+  "savedBuild": "26.1.0.5530",
+  "installedExecutableSha256": "a3ef478a54d660d763113b04dae0a8b985e8610eca213eb3bf0222eed5df4b67",
+  "baseTempoBpm": 130,
+  "sourceApprovedFixture": {
+    "slot": "F44",
+    "file": "FIX-FL2026-AUTO-TWO-OBJECTS.flp",
+    "sha256": "7df2d97b49f1381ef56fa531aa8670206d6c62bcbddec5d7d9ea41a26b17447f"
+  },
+  "scope": "Independent GUI observations for native Automation Clip objects and editable main-curve points in these exact synthetic files. No event automation, MIDI, initial-controller value, target-binding or runtime support claim. Publication is subject to separate dated exact owner approval.",
+  "content": "One empty native Sampler plus only the retained volume automation definitions. No notes, sample file, imported audio, external plugin, personal project or playback.",
+  "semantics": {
+    "objects": "Unique independently observed native clip definitions, irrespective of timeline occurrence count.",
+    "points": "Editable main-curve nodes counted once per object; hollow tension handles excluded.",
+    "zero": "C03 is a controlled GUI empty object set obtained by deleting both definitions. It is not an explicitly empty point list on a present object and does not establish a universal missing-record-as-zero rule.",
+    "identity": "GUI labels and curve shapes identify controlled objects for the experiment. Numeric saved IDs are not asserted to persist across saves."
+  },
+  "verification": {
+    "rawAndSanitizedGuiReopened": true,
+    "savedAgainDuringVerification": false,
+    "playback": false,
+    "rawAndCandidateHashesUnchanged": true,
+    "independentNodePythonFramingAndSanitation": true,
+    "sanitation": "Remove only one registration event200 with16-byte payload and two framing bytes; correct FLdt length; every retained event byte identical.",
+    "privacy": "Bounded Latin-1 and both complete UTF-16LE alignments found no known account identifier, email or non-Public home path, RIFF or image signature, nonempty sample filename or note payload. Opaque state is not exhaustively decoded."
+  },
+  "cases": [
+    {
+      "case": "C01",
+      "proposedSlot": "F46",
+      "file": "FIX-FL2026-AUTO-REORDERED.flp",
+      "bytes": 48966,
+      "sha256": "d184654f1243dfbfedf643f00e561d79dafc15eb9a3f9e01a4c0a84a88f5c58d",
+      "operation": "Selected only #2 via Channel selector and used native Alt+Up once; GUI rack and automation-picker order changed, independently opened each named curve.",
+      "independentGui": {
+        "channelRows": [
+          "Sampler",
+          "Sampler - Channel volume #2",
+          "Sampler - Channel volume"
+        ],
+        "nativeAutomationClipObjects": 2,
+        "editableMainCurvePoints": 6,
+        "playlistOccurrences": 2,
+        "objects": [
+          {
+            "name": "Sampler - Channel volume #2",
+            "editablePoints": 4,
+            "placement": "Track1 bar3 to bar4",
+            "observedLastPoint": {
+              "ordinal": "4/4",
+              "position": "002:01:000",
+              "value": "-5.2dB"
+            }
+          },
+          {
+            "name": "Sampler - Channel volume",
+            "editablePoints": 2,
+            "placement": "Track1 bar1 to bar2",
+            "observedLastPoint": {
+              "ordinal": "2/2",
+              "position": "002:01:000",
+              "value": "-5.2dB"
+            }
+          }
+        ],
+        "lfoEnabled": false
+      }
+    },
+    {
+      "case": "C02",
+      "proposedSlot": "F47",
+      "file": "FIX-FL2026-AUTO-4POINT-ONLY.flp",
+      "bytes": 47818,
+      "sha256": "ed0f990f1b9ec31731c50111c84491bd1e4db4f2a8e8a3c4737de7381d1b9e14",
+      "operation": "Deleted original two-point channel via its explicit native Channel rack Delete menu and inspected confirmation, without Remember my choice. Its occurrence and picker entry disappeared. #2 curve, four points and original placement remain.",
+      "independentGui": {
+        "channelRows": [
+          "Sampler",
+          "Sampler - Channel volume #2"
+        ],
+        "nativeAutomationClipObjects": 1,
+        "editableMainCurvePoints": 4,
+        "playlistOccurrences": 1,
+        "objects": [
+          {
+            "name": "Sampler - Channel volume #2",
+            "editablePoints": 4,
+            "placement": "Track1 bar3 to bar4",
+            "observedLastPoint": {
+              "ordinal": "4/4",
+              "position": "002:01:000",
+              "value": "-5.2dB"
+            }
+          }
+        ],
+        "lfoEnabled": false
+      }
+    },
+    {
+      "case": "C03",
+      "proposedSlot": "F48",
+      "file": "FIX-FL2026-AUTO-REMOVED.flp",
+      "bytes": 46593,
+      "sha256": "99411e15d5004a24e0566fb9562a748797df749e1ed146a3950a241f3c043c0b",
+      "operation": "Independently reloaded F44 and deleted both automation channels sequentially through native Channel rack Delete menus, inspecting confirmations without Remember my choice. Only the empty Sampler remains. Automation picker and Playlist are empty.",
+      "independentGui": {
+        "channelRows": [
+          "Sampler"
+        ],
+        "nativeAutomationClipObjects": 0,
+        "editableMainCurvePoints": 0,
+        "playlistOccurrences": 0,
+        "objects": [],
+        "filterObservations": {
+          "availableFilters": [
+            "All",
+            "Unsorted"
+          ],
+          "all": "One Sampler row, no automation row",
+          "unsorted": "One Sampler row, no automation row",
+          "automationPicker": "Selected automation tab contains no entries",
+          "playlist": "No occurrences"
+        },
+        "scope": "Zero observed native automation clip objects/points in this controlled GUI state, not a claim about event automation, initial-controller values, MIDI or a universal saved-byte zero rule."
+      }
+    }
+  ]
+}

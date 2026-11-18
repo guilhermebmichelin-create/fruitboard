@@ -107,6 +107,11 @@ other paths, actual personal paths and credentials; the approved JSON is unchang
 
 ## Parser boundary, validation and next step
 
+The subsequent [reorder/removal controls](automation-enumeration-324-result.md),
+approved on 2026-11-16, add F46-F48. They strengthen controlled channel/name/curve
+association and add an independently observed empty native clip set. This
+earlier three-file result and its exact expectations remain unchanged.
+
 Publication changes fixtures, privacy admission, tests and documentation only.
 Direct parser and full supervised native-validation regressions preserve
 complete basic metadata, unsupported automation generator/Playlist

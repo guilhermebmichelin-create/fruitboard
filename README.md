@@ -50,7 +50,7 @@ next work.
   passes at its recorded source. This completes the scoped implementation and
   installed inspection. It does not establish
   FL Studio resolution or complete G5.
-- **Compatibility and automation**: the approved parser corpus now has 43
+- **Compatibility and automation**: the approved parser corpus now has 46
   files across three exact saved builds. [PR #320](https://github.com/guilhermebmichelin-create/fruitboard/pull/320)
   adds the exact-build F22 cloned-Sampler case; [PR #323](https://github.com/guilhermebmichelin-create/fruitboard/pull/323)
   publishes F23 GUI evidence. F23 shows one automation clip with three visible
@@ -62,7 +62,9 @@ next work.
   approved on 2026-11-14, distinguish a point-count candidate from repeated or
   absent placements. Three [object/minimum-point examples](docs/research/automation-objects-324-result.md),
   approved on 2026-11-15, add a same-count point move, two independent curves
-  and a GUI-forced one-point minimum. Runtime automation extraction remains unfinished.
+  and a GUI-forced one-point minimum. Three [reorder/removal controls](docs/research/automation-enumeration-324-result.md),
+  approved on 2026-11-16, follow named curves across reordered/reassigned IDs
+  and removal of one or both objects. Runtime automation extraction remains unfinished.
 - **Saved notes and next parsing step**: PR376/378/380 deliver bounded parsing,
   immutable storage and a read-only Library note list for F24-F30's qualified
   FL Studio 26.1.0.5530 / 96-PPQ ordinary-Sampler subset. Values remain numeric

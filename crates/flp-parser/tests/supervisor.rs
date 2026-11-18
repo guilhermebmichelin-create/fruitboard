@@ -147,6 +147,10 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
         "../../../fixtures/parser-corpus/automation-object-expectations.json"
     ))
     .unwrap();
+    let automation_enumeration: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/parser-corpus/automation-enumeration-expectations.json"
+    ))
+    .unwrap();
     let corpus = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/parser-corpus")
         .canonicalize()
@@ -157,7 +161,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
         .filter(|path| path.extension().is_some_and(|extension| extension == "flp"))
         .collect::<Vec<_>>();
     fixtures.sort();
-    assert_eq!(fixtures.len(), 43, "only the maintained approved corpus");
+    assert_eq!(fixtures.len(), 46, "only the maintained approved corpus");
     for (index, path) in fixtures.into_iter().enumerate() {
         let before = fs::read(&path).unwrap();
         let attributes = fs::metadata(&path).unwrap();
@@ -357,6 +361,50 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                     metadata.arrangement_estimated_seconds(),
                     ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
                 ));
+            }
+            if let Some(case) = automation_enumeration["cases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|case| case["file"] == name)
+            {
+                assert_eq!(sha256_hex(&before), case["sha256"].as_str().unwrap());
+                assert_eq!(before.len() as u64, case["bytes"].as_u64().unwrap());
+                assert_eq!(
+                    metadata.initial().channel_count() as usize,
+                    case["independentGui"]["channelRows"]
+                        .as_array()
+                        .unwrap()
+                        .len()
+                );
+                // No automation count is inferred from the GUI empty-set control.
+                if case["case"] == "C03" {
+                    assert!(matches!(
+                        metadata.arrangement_end_tick(),
+                        ProjectField::Unavailable(ProjectReason::NoPlaylistPatternClips)
+                    ));
+                    assert!(matches!(
+                        metadata.arrangement_span_bars(),
+                        ProjectField::Unavailable(ProjectReason::NoPlaylistPatternClips)
+                    ));
+                    assert!(matches!(
+                        metadata.arrangement_estimated_seconds(),
+                        ProjectField::Unavailable(ProjectReason::NoPlaylistPatternClips)
+                    ));
+                } else {
+                    assert!(matches!(
+                        metadata.arrangement_end_tick(),
+                        ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
+                    ));
+                    assert!(matches!(
+                        metadata.arrangement_span_bars(),
+                        ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
+                    ));
+                    assert!(matches!(
+                        metadata.arrangement_estimated_seconds(),
+                        ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
+                    ));
+                }
             }
             if name == "FIX-FL2026-AUTOMATION.flp" {
                 assert_eq!(
