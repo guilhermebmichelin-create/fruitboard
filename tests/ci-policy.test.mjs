@@ -183,6 +183,11 @@ test("security checks cover repository privacy and both dependency locks", () =>
     /cargo install cargo-audit --locked --version 0\.22\.2/,
   );
   assert.match(workflow, /cargo audit --file Cargo\.lock/);
+  assert.match(
+    workflow,
+    /cargo tree --locked --workspace --all-features --target x86_64-pc-windows-msvc --prefix none/,
+  );
+  assert.match(workflow, /grep -qE '\^chrono v'[\s\S]+?exit 1/);
   assert.match(auditConfig, /deny = \["warnings"\]/);
   assert.deepEqual((auditConfig.match(/RUSTSEC-\d{4}-\d{4}/g) ?? []).sort(), [
     "RUSTSEC-2024-0370",
@@ -202,6 +207,7 @@ test("security checks cover repository privacy and both dependency locks", () =>
     "RUSTSEC-2025-0081",
     "RUSTSEC-2025-0098",
     "RUSTSEC-2025-0100",
+    "RUSTSEC-2026-0543",
   ]);
 });
 

@@ -6,6 +6,8 @@ overrides:
   js-yaml: 5.4.1
   markdown-it: 14.3.3
   minimatch: 11.0.3
+  # Temporary backport for GHSA-fc5q-39xc-vjpf. Replace with the official fixed release when available.
+  picomatch: npm:@ryotsu/picomatch@4.0.7-a
   smol-toml: 1.9.0
   source-map-js: 1.2.2
   undici: 8.12.2

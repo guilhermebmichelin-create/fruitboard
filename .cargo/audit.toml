@@ -22,6 +22,10 @@ ignore = [
   "RUSTSEC-2025-0081",
   "RUSTSEC-2025-0098",
   "RUSTSEC-2025-0100",
+
+  # Optional serde_with dependency recorded in Cargo.lock. CI rejects this
+  # exception if chrono is resolved in the all-features Windows graph.
+  "RUSTSEC-2026-0543",
 ]
 
 [output]
