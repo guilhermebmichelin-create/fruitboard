@@ -122,6 +122,7 @@ pub struct ValidatedProjectMetadata {
     pattern_note_counts: PatternNoteCounts,
     pattern_note_sequences: PatternNoteSequences,
     mixer_inserts: SavedMixerInserts,
+    automation_counts: SavedAutomationCounts,
     arrangement_end_tick: ProjectField<u32>,
     arrangement_span_bars: ProjectField<f64>,
     arrangement_estimated_seconds: ProjectField<f64>,
@@ -159,6 +160,9 @@ impl ValidatedProjectMetadata {
     }
     pub fn pattern_note_counts(&self) -> &PatternNoteCounts {
         &self.pattern_note_counts
+    }
+    pub fn automation_counts(&self) -> SavedAutomationCounts {
+        self.automation_counts
     }
     pub fn pattern_note_sequences(&self) -> &PatternNoteSequences {
         &self.pattern_note_sequences
@@ -561,6 +565,13 @@ pub fn validate_project_reply(
     let initial = match validate_reply(reply, capabilities, captured, current)? {
         ValidatedReply::Metadata(value) => value,
         ValidatedReply::Failed(code) => {
+            if capabilities.automation_counts {
+                automation_counts::terminal(
+                    &raw.as_ref().ok_or(ValidationError::InvalidReply)?["automationCounts"],
+                    "failed",
+                    code.as_str(),
+                )?;
+            }
             if capabilities.mixer_limits.is_some() {
                 let raw = raw.as_ref().ok_or(ValidationError::InvalidReply)?;
                 mixer_inserts::validate_failed(
@@ -579,6 +590,13 @@ pub fn validate_project_reply(
             return Ok(ValidatedProjectReply::Failed(code));
         }
         ValidatedReply::UnsupportedSavedVersion(value) => {
+            if capabilities.automation_counts {
+                automation_counts::terminal(
+                    &raw.as_ref().ok_or(ValidationError::InvalidReply)?["automationCounts"],
+                    "unsupported",
+                    "UNSUPPORTED_SAVED_VERSION",
+                )?;
+            }
             if capabilities.sequence_limits.is_some() {
                 note_sequences::terminal(
                     &raw.as_ref().ok_or(ValidationError::InvalidReply)?["patternNoteSequences"],
@@ -600,6 +618,12 @@ pub fn validate_project_reply(
         ValidatedReply::Rejected(code) => return Ok(ValidatedProjectReply::Rejected(code)),
     };
     let raw = raw.ok_or(ValidationError::InvalidReply)?;
+    let automation_counts = automation_counts::validate(
+        &raw["automationCounts"],
+        capabilities.automation_counts,
+        initial.saved_version(),
+        initial.channel_count(),
+    )?;
     let channel_generators = channel_generators::validate(
         &raw["channelGeneratorNames"],
         capabilities.channel_generators,
@@ -742,6 +766,7 @@ pub fn validate_project_reply(
             pattern_note_counts,
             pattern_note_sequences,
             mixer_inserts,
+            automation_counts,
             arrangement_end_tick,
             arrangement_span_bars,
             arrangement_estimated_seconds,

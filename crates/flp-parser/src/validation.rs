@@ -9,6 +9,8 @@ use crate::supervisor::ProtocolReply;
 use crate::{ExpectedFingerprint, MAX_FILE_BYTES};
 use serde_json::Value;
 use std::collections::BTreeSet;
+mod automation_counts;
+pub use automation_counts::SavedAutomationCounts;
 mod project_facts;
 pub use project_facts::*;
 mod channel_generators;
@@ -56,6 +58,7 @@ pub struct ParserCapabilities {
     note_limits: Option<(u64, u64)>,
     sequence_limits: Option<note_sequences::NoteSequenceLimits>,
     mixer_limits: Option<(usize, usize)>,
+    automation_counts: bool,
 }
 
 pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, ValidationError> {
@@ -161,6 +164,7 @@ pub fn validate_descriptor(value: &Value) -> Result<ParserCapabilities, Validati
         note_limits,
         sequence_limits,
         mixer_limits,
+        automation_counts: names.contains("automationCounts"),
         project_facts: project_facts::FIELDS
             .iter()
             .all(|field| names.contains(field)),

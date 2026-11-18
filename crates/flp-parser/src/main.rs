@@ -113,7 +113,7 @@ fn respond(line: &[u8]) -> Value {
     let result = match request.method.as_str() {
         "describe" if request.params.is_none() => json!({
             "adapter":ADAPTER_ID, "adapterVersion":ADAPTER_VERSION,
-            "fields":["savedVersion","baseTempoBpm","channelCount","patternCount","patternNames","patternNoteCounts","patternNoteSequences","mixerInsertCount","mixerInsertNames","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","pluginReferences","filesystemCreatedAtMs"],
+            "fields":["savedVersion","baseTempoBpm","channelCount","patternCount","patternNames","patternNoteCounts","patternNoteSequences","automationCounts","mixerInsertCount","mixerInsertNames","playlistPatternClips","playlistPatternEndTick","playlistPatternNominalSeconds","playlistPatternSpanBars","channelNames","channelGeneratorNames","sampleReferences","projectCreatedLocal","flStudioTimeSpentMs","pluginReferences","filesystemCreatedAtMs"],
             "maxFileBytes":MAX_FILE_BYTES, "maxEvents":100_000,
             "maxChannels":256, "maxPatterns":MAX_PATTERNS, "maxPlaylistClips":MAX_PLAYLIST_CLIPS,
             "maxNoteRecordsPerPattern":fruitboard_flp_parser::MAX_NOTE_RECORDS_PER_PATTERN,
