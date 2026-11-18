@@ -335,7 +335,13 @@ jobs:
             cargo install cargo-audit --locked --version 0.22.2
           fi
       - name: Verify Rust advisories
-        run: cargo audit --file Cargo.lock
+        run: |
+          windows_tree=$(cargo tree --locked --workspace --all-features --target x86_64-pc-windows-msvc --prefix none --format '{p}')
+          if grep -qE '^chrono v' <<< "$windows_tree"; then
+            echo 'chrono is active on Windows; RUSTSEC-2026-0543 requires review.'
+            exit 1
+          fi
+          cargo audit --file Cargo.lock
 
   filesystem-watcher-windows:
     name: filesystem-watcher-windows
