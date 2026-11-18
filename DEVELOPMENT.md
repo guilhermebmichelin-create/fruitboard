@@ -269,8 +269,8 @@ The first application packages use these exact Phase 1 foundation versions:
 | ESLint                    | 10.13.0         | Client lint rules                              |
 | Vitest                    | 5.1.0           | Client and adapter contract tests              |
 | typescript-eslint         | 8.72.2          | Typed client lint integration                  |
-| @napi-rs/canvas           | 1.1.1          | Test-only glyph rendering for axe in jsdom     |
-| jsdom                     | 31.0.1         | Browser DOM for client tests                   |
+| @napi-rs/canvas           | 1.1.1           | Test-only glyph rendering for axe in jsdom     |
+| jsdom                     | 31.0.1          | Browser DOM for client tests                   |
 
 Dependency versions remain exact in their generated lockfiles. Updating a pin
 requires a focused PR that regenerates locks, runs the full check, and updates
