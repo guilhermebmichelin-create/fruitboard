@@ -38,8 +38,16 @@ function Invoke-Review([string]$Mode) {
     if ($LASTEXITCODE -ne 0) { throw "Shutdown trace validation failed for $Mode" }
   }
 }
-node scripts/preflight-build-storage.mjs --source $source --build $env:CARGO_TARGET_DIR --cache $env:CARGO_TARGET_DIR --evidence $evidence --estimated-output-gib 0.5
-if ($LASTEXITCODE -ne 0) { throw 'Installed storage preflight failed' }
+# The build window is closed. Installation uses an independent copy of the
+# finished package and does not write to the Cargo cache.
+$reviewVolumes = @($source, $evidence, $env:LOCALAPPDATA, $env:TEMP) | ForEach-Object {
+  [IO.Path]::GetPathRoot($_).Substring(0,1)
+} | Sort-Object -Unique
+foreach ($volume in $reviewVolumes) {
+  $free = (Get-PSDrive $volume).Free / 1GB
+  Write-Output ("Installed preflight: {0}: {1:N2} GiB free" -f $volume, $free)
+  if ($free -lt 30.5) { throw "Insufficient installed-test reserve on ${volume}:" }
+}
 if (Get-Process fruitboard-desktop,fruitboard-flp-parser,cargo,rustc -ErrorAction SilentlyContinue) { throw 'Host is busy' }
 $null = Acquire-FoundationSmokeLock -LockPath $lock -Owner $owner -ArchiveParent $evidence -SharedDataDirectory $profile
 $installed = $false
@@ -49,6 +57,7 @@ try {
   if ($built.Count -ne 1) { throw 'Expected one newly built NSIS installer' }
   $installer = Join-Path $evidence 'setup.exe'
   Copy-Item -LiteralPath $built[0].FullName -Destination $installer
+  if ((Get-Hash $built[0].FullName) -ne (Get-Hash $installer)) { throw 'Retained installer copy differs' }
   New-Item -ItemType Directory -Path $fixtures | Out-Null
   $hashes = @{}
   foreach ($name in $names) {
@@ -79,6 +88,10 @@ try {
     $db = Join-Path $profile 'storage/fruitboard.db'
     $dbBefore = Get-Hash $db
     Invoke-Installer (Join-Path $install 'uninstall.exe') @('/S')
+    $deadline = [DateTime]::UtcNow.AddSeconds(15)
+    while ((Test-Path -LiteralPath $install) -and [DateTime]::UtcNow -lt $deadline) {
+      Start-Sleep -Milliseconds 200
+    }
     if ((Test-Path -LiteralPath $install) -or (Get-Hash $db) -ne $dbBefore) { throw 'Uninstall or database preservation failed' }
     Write-Output 'Uninstalled the review package and verified the database was preserved.'
   }
