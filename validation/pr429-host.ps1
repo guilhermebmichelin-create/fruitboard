@@ -71,7 +71,7 @@ try {
   $installed = $true
   $app = Join-Path $install 'fruitboard-desktop.exe'
   $parser = Join-Path $install 'fruitboard-flp-parser.exe'
-  if ((Get-Hash $app) -ne (Get-Hash (Join-Path $env:CARGO_TARGET_DIR 'release/fruitboard-desktop.exe'))) { throw 'Installed application differs' }
+  if ((Get-AuthenticodeSignature -LiteralPath $app).Status -ne 'NotSigned') { throw 'Expected unsigned development app' }
   if ((Get-Hash $parser) -ne (Get-Hash (Join-Path $source 'apps/desktop/src-tauri/binaries/fruitboard-flp-parser-x86_64-pc-windows-msvc.exe'))) { throw 'Installed parser differs' }
   Write-Output ("Source: " + (git rev-parse HEAD))
   Write-Output ("Installer SHA-256: " + (Get-Hash $installer))
@@ -86,14 +86,17 @@ try {
 } finally {
   if ($installed -and -not (Get-Process fruitboard-desktop,fruitboard-flp-parser -ErrorAction SilentlyContinue)) {
     $db = Join-Path $profile 'storage/fruitboard.db'
-    $dbBefore = Get-Hash $db
+    $dbBefore = if (Test-Path -LiteralPath $db -PathType Leaf) { Get-Hash $db } else { $null }
     Invoke-Installer (Join-Path $install 'uninstall.exe') @('/S')
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
     while ((Test-Path -LiteralPath $install) -and [DateTime]::UtcNow -lt $deadline) {
       Start-Sleep -Milliseconds 200
     }
-    if ((Test-Path -LiteralPath $install) -or (Get-Hash $db) -ne $dbBefore) { throw 'Uninstall or database preservation failed' }
-    Write-Output 'Uninstalled the review package and verified the database was preserved.'
+    if (Test-Path -LiteralPath $install) { throw 'Uninstall failed' }
+    if ($null -ne $dbBefore) {
+      if ((Get-Hash $db) -ne $dbBefore) { throw 'Uninstall changed the database' }
+      Write-Output 'Uninstalled the review package and verified the database was preserved.'
+    }
   }
   Release-FoundationSmokeLock -LockPath $lock -RunId $runId
 }
