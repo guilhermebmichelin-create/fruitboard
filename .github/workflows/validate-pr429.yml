@@ -35,6 +35,17 @@ jobs:
           "CARGO_TARGET_DIR=$cache" >> $env:GITHUB_ENV
           "CARGO_INCREMENTAL=0" >> $env:GITHUB_ENV
           "FRUITBOARD_429_EVIDENCE=$evidence" >> $env:GITHUB_ENV
+          $toolData = Join-Path $env:RUNNER_TEMP 'fruitboard-429-tool-data'
+          New-Item -ItemType Directory -Path $toolData | Out-Null
+          "RUSTUP_HOME=$toolData/rustup" >> $env:GITHUB_ENV
+          "CARGO_HOME=$toolData/cargo" >> $env:GITHUB_ENV
+          "COREPACK_HOME=$toolData/corepack" >> $env:GITHUB_ENV
+          "NPM_CONFIG_CACHE=$toolData/npm" >> $env:GITHUB_ENV
+          "FRUITBOARD_429_PNPM_STORE=$toolData/pnpm-store" >> $env:GITHUB_ENV
+          $profileDrive = [IO.Path]::GetPathRoot($env:LOCALAPPDATA).Substring(0,1)
+          $profileFree = (Get-PSDrive $profileDrive).Free / 1GB
+          Write-Output ("Profile volume {0}: {1:N2} GiB free before tool setup" -f $profileDrive, $profileFree)
+          if ($profileFree -lt 30.5) { throw 'Insufficient reserve on the installed profile volume' }
       - name: Set up pinned tools
         working-directory: source
         run: |
@@ -49,7 +60,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           rustup toolchain install 1.98.1 --profile minimal --component clippy,rustfmt --target x86_64-pc-windows-msvc --no-self-update
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          pnpm.cmd install --frozen-lockfile --ignore-scripts
+          pnpm.cmd install --frozen-lockfile --ignore-scripts --store-dir $env:FRUITBOARD_429_PNPM_STORE
       - name: Build exact PR source
         working-directory: source
         run: |
