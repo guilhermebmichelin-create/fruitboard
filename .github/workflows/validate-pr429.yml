@@ -42,10 +42,10 @@ jobs:
           "COREPACK_HOME=$toolData/corepack" >> $env:GITHUB_ENV
           "NPM_CONFIG_CACHE=$toolData/npm" >> $env:GITHUB_ENV
           "FRUITBOARD_429_PNPM_STORE=$toolData/pnpm-store" >> $env:GITHUB_ENV
-          $profileDrive = [IO.Path]::GetPathRoot($env:LOCALAPPDATA).Substring(0,1)
-          $profileFree = (Get-PSDrive $profileDrive).Free / 1GB
-          Write-Output ("Profile volume {0}: {1:N2} GiB free before tool setup" -f $profileDrive, $profileFree)
-          if ($profileFree -lt 30.5) { throw 'Insufficient reserve on the installed profile volume' }
+          $temporary = Join-Path $env:RUNNER_TEMP 'fruitboard-429-temp'
+          New-Item -ItemType Directory -Path $temporary | Out-Null
+          "TEMP=$temporary" >> $env:GITHUB_ENV
+          "TMP=$temporary" >> $env:GITHUB_ENV
       - name: Set up pinned tools
         working-directory: source
         run: |
@@ -69,4 +69,4 @@ jobs:
       - name: Verify installed Library and restart
         working-directory: source
         run: |
-          & ../control/validation/pr429-host.ps1
+          & ../control/validation/pr429-profile.ps1
