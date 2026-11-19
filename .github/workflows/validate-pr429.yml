@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   installed:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -46,6 +46,10 @@ jobs:
           New-Item -ItemType Directory -Path $temporary | Out-Null
           "TEMP=$temporary" >> $env:GITHUB_ENV
           "TMP=$temporary" >> $env:GITHUB_ENV
+          $profileDrive = [IO.Path]::GetPathRoot($env:LOCALAPPDATA).Substring(0,1)
+          $profileFree = (Get-PSDrive $profileDrive).Free / 1GB
+          Write-Output ("Profile volume {0}: {1:N2} GiB free before tool setup" -f $profileDrive, $profileFree)
+          if ($profileFree -lt 30.5) { throw 'Insufficient reserve on the installed profile volume' }
       - name: Set up pinned tools
         working-directory: source
         run: |
@@ -69,4 +73,4 @@ jobs:
       - name: Verify installed Library and restart
         working-directory: source
         run: |
-          & ../control/validation/pr429-profile.ps1
+          & ../control/validation/pr429-host.ps1
