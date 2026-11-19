@@ -195,19 +195,26 @@ pub struct MetadataPage {
     pub next: Option<MetadataCursor>,
 }
 
-const HEADER_COLUMNS: &str = "snapshot.id, snapshot.project_file_id, snapshot.input_root_id,
+pub(crate) const HEADER_COLUMNS: &str = "snapshot.id, snapshot.project_file_id, snapshot.input_root_id,
     snapshot.input_location_id, snapshot.input_root_revision, snapshot.input_file_revision,
     snapshot.input_location_revision, snapshot.input_byte_size, snapshot.input_modified_at_ns,
     snapshot.input_content_sha256, snapshot.adapter_id, snapshot.adapter_version,
     snapshot.protocol_version, snapshot.parser_schema_version, snapshot.projection_version,
     snapshot.outcome, snapshot.parser_code, snapshot.unsupported_saved_version, snapshot.parsed_at_ms";
 
+pub(crate) fn bounded_payload_column() -> String {
+    format!(
+        "CASE WHEN length(CAST(snapshot.payload_json AS BLOB)) <= {MAX_METADATA_JSON_BYTES}
+     THEN snapshot.payload_json ELSE NULL END"
+    )
+}
+
 // Both ID-only fences and payload reads must apply the same live-source rules.
-const CURRENT_SNAPSHOT_FROM: &str = "FROM project_file AS file
+pub(crate) const CURRENT_SNAPSHOT_FROM: &str = "FROM project_file AS file
     JOIN metadata_snapshot AS snapshot ON snapshot.id = file.current_metadata_snapshot_id
     JOIN file_location AS location ON location.id = snapshot.input_location_id
     JOIN scan_root AS root ON root.id = snapshot.input_root_id
-    WHERE file.id = ?1 AND snapshot.project_file_id = file.id
+    WHERE snapshot.project_file_id = file.id
       AND location.project_file_id = file.id AND location.scan_root_id = root.id
       AND root.enabled = 1 AND root.mode = 'local_ntfs' AND location.presence = 'present'
       AND root.configuration_revision = snapshot.input_root_revision
@@ -245,6 +252,40 @@ fn read_header(row: &rusqlite::Row<'_>) -> rusqlite::Result<MetadataSnapshotHead
         unsupported_saved_version: row.get(17)?,
         parsed_at_ms: row.get(18)?,
     })
+}
+
+pub(crate) fn read_snapshot(row: &rusqlite::Row<'_>) -> rusqlite::Result<MetadataSnapshot> {
+    Ok(MetadataSnapshot {
+        header: read_header(row)?,
+        payload_json: row.get(19)?,
+    })
+}
+
+impl MetadataSnapshot {
+    pub(crate) fn validate_payload(&self) -> Result<()> {
+        if self.header.projection_version != 1 {
+            return Err(StorageError::InvalidSchema);
+        }
+        let expects_payload = matches!(
+            self.header.outcome,
+            MetadataOutcome::Complete | MetadataOutcome::Partial
+        );
+        if expects_payload != self.payload_json.is_some() {
+            return Err(StorageError::InvalidSchema);
+        }
+        if let Some(payload) = &self.payload_json {
+            let value: serde_json::Value =
+                serde_json::from_str(payload).map_err(|_| StorageError::InvalidSchema)?;
+            if value["projectionVersion"] != 1
+                || value["contentSha256"].as_str() != self.header.input_content_sha256.as_deref()
+            {
+                return Err(StorageError::InvalidSchema);
+            }
+            payload::validate_sequences(&value)?;
+            payload::validate_automation_counts(&value)?;
+        }
+        Ok(())
+    }
 }
 
 impl Database {
@@ -302,34 +343,16 @@ impl Database {
         source_query: &str,
         id: &str,
     ) -> Result<Option<MetadataSnapshot>> {
-        let selected = self.connection.prepare_cached(
-            &format!("SELECT {HEADER_COLUMNS}, CASE WHEN length(CAST(snapshot.payload_json AS BLOB)) <= {MAX_METADATA_JSON_BYTES} THEN snapshot.payload_json ELSE NULL END {source_query}"),
-        )?.query_row(
-            [id], |row| Ok(MetadataSnapshot { header: read_header(row)?, payload_json: row.get(19)? }),
-        ).optional()?;
+        let payload = bounded_payload_column();
+        let selected = self
+            .connection
+            .prepare_cached(&format!(
+                "SELECT {HEADER_COLUMNS}, {payload} {source_query}"
+            ))?
+            .query_row([id], read_snapshot)
+            .optional()?;
         if let Some(snapshot) = &selected {
-            if snapshot.header.projection_version != 1 {
-                return Err(StorageError::InvalidSchema);
-            }
-            let expects_payload = matches!(
-                snapshot.header.outcome,
-                MetadataOutcome::Complete | MetadataOutcome::Partial
-            );
-            if expects_payload != snapshot.payload_json.is_some() {
-                return Err(StorageError::InvalidSchema);
-            }
-            if let Some(payload) = &snapshot.payload_json {
-                let value: serde_json::Value =
-                    serde_json::from_str(payload).map_err(|_| StorageError::InvalidSchema)?;
-                if value["projectionVersion"] != 1
-                    || value["contentSha256"].as_str()
-                        != snapshot.header.input_content_sha256.as_deref()
-                {
-                    return Err(StorageError::InvalidSchema);
-                }
-                payload::validate_sequences(&value)?;
-                payload::validate_automation_counts(&value)?;
-            }
+            snapshot.validate_payload()?;
         }
         Ok(selected)
     }
@@ -342,7 +365,10 @@ impl Database {
     ) -> Result<Option<MetadataSnapshot>> {
         // Select the payload under the live-source fences in one statement.
         // Cache only SQL preparation; every read rechecks the current pointer.
-        self.select_metadata_snapshot(CURRENT_SNAPSHOT_FROM, project_file_id)
+        self.select_metadata_snapshot(
+            &format!("{CURRENT_SNAPSHOT_FROM} AND file.id = ?1"),
+            project_file_id,
+        )
     }
 
     /// Same durable freshness query without loading a saved JSON projection.
@@ -352,7 +378,9 @@ impl Database {
         // the selected file and recheck every source fence on every read.
         let id: Option<String> = self
             .connection
-            .prepare_cached(&format!("SELECT snapshot.id {CURRENT_SNAPSHOT_FROM}"))?
+            .prepare_cached(&format!(
+                "SELECT snapshot.id {CURRENT_SNAPSHOT_FROM} AND file.id = ?1"
+            ))?
             .query_row([project_file_id], |row| row.get(0))
             .optional()?;
         Ok(id)
