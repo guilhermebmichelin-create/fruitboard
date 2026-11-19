@@ -201,3 +201,26 @@ fn absent_sequence_details_are_older_results_but_null_is_malformed() {
     raw["patternNoteSequences"] = Value::Null;
     assert!(project(&raw.to_string()).is_err());
 }
+
+#[test]
+fn automation_details_select_only_valid_saved_counts() {
+    let mut raw = super::tests::payload();
+    assert!(project(&raw.to_string()).unwrap().9.is_none());
+
+    raw["automationCounts"] =
+        json!({"status":"extracted","value":{"objectCount":2,"pointCount":6}});
+    assert_eq!(
+        serde_json::to_value(project(&raw.to_string()).unwrap().9).unwrap(),
+        json!({"state":"available","objectCount":2,"pointCount":6})
+    );
+
+    raw["automationCounts"] =
+        json!({"status":"unavailable","reason":"AUTOMATION_COUNTS_UNVERIFIED_LAYOUT"});
+    assert_eq!(
+        serde_json::to_value(project(&raw.to_string()).unwrap().9).unwrap(),
+        json!({"state":"unverified_layout"})
+    );
+
+    raw["automationCounts"] = Value::Null;
+    assert!(project(&raw.to_string()).is_err());
+}

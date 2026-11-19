@@ -10,7 +10,7 @@ use crate::{ExpectedFingerprint, MAX_FILE_BYTES};
 use serde_json::Value;
 use std::collections::BTreeSet;
 mod automation_counts;
-pub use automation_counts::SavedAutomationCounts;
+pub use automation_counts::{SavedAutomationCounts, validate_stored_automation_counts};
 mod project_facts;
 pub use project_facts::*;
 mod channel_generators;

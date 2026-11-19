@@ -328,6 +328,7 @@ impl Database {
                     return Err(StorageError::InvalidSchema);
                 }
                 payload::validate_sequences(&value)?;
+                payload::validate_automation_counts(&value)?;
             }
         }
         Ok(selected)

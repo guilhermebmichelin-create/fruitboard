@@ -3,6 +3,8 @@ use super::{AppError, CommandEnvelope, CommandRuntime};
 #[cfg(feature = "analysis-jobs")]
 use crate::storage_failed;
 use crate::{decode_request, invalid_request};
+#[cfg(feature = "analysis-jobs")]
+use fruitboard_flp_parser::validation::{SavedAutomationCounts, validate_stored_automation_counts};
 use fruitboard_storage::Database;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -74,6 +76,8 @@ enum Content {
         pattern_note_counts: Box<pattern_notes::Summary>,
         pattern_note_sequences: Box<note_sequences::Summary>,
         mixer_inserts: Box<mixer_inserts::Summary>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        automation_counts: Option<AutomationCounts>,
         analysis: analysis::Summary,
         warnings: Vec<&'static str>,
         analysis_request: super::project_analysis::RequestInfo,
@@ -82,6 +86,19 @@ enum Content {
         #[serde(skip_serializing_if = "Option::is_none")]
         plugin_references: Option<Box<plugins::PluginReferences>>,
     },
+}
+
+#[cfg(feature = "analysis-jobs")]
+#[derive(Serialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+enum AutomationCounts {
+    #[serde(rename_all = "camelCase")]
+    Available {
+        object_count: u64,
+        point_count: u64,
+    },
+    UnverifiedBuild,
+    UnverifiedLayout,
 }
 
 #[cfg(feature = "analysis-jobs")]
@@ -201,6 +218,7 @@ fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<
         pattern_note_counts,
         mixer_inserts,
         pattern_note_sequences,
+        automation_counts,
     ) = project(snapshot.payload_json().ok_or(())?)?;
     Ok(Content::Available {
         snapshot_id: header.id.clone(),
@@ -211,6 +229,7 @@ fn current(db: &Database, request: &Request, runtime_available: bool) -> Result<
         pattern_note_counts: Box::new(pattern_note_counts),
         pattern_note_sequences: Box::new(pattern_note_sequences),
         mixer_inserts: Box::new(mixer_inserts),
+        automation_counts,
         analysis,
         warnings,
         analysis_request,
@@ -230,6 +249,7 @@ type DisplayProjection = (
     pattern_notes::Summary,
     mixer_inserts::Summary,
     note_sequences::Summary,
+    Option<AutomationCounts>,
 );
 
 #[cfg(feature = "analysis-jobs")]
@@ -285,6 +305,24 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
     let pattern_note_counts = pattern_notes::project(&value, version)?;
     let mixer_inserts = mixer_inserts::project(value.get("mixerInserts"), version)?;
     let pattern_note_sequences = note_sequences::project(&value, version, channels as usize)?;
+    let automation_counts = match validate_stored_automation_counts(
+        value.get("automationCounts"),
+        version,
+        channels as u16,
+    )
+    .map_err(|_| ())?
+    {
+        SavedAutomationCounts::NotAdvertised => None,
+        SavedAutomationCounts::UnverifiedBuild => Some(AutomationCounts::UnverifiedBuild),
+        SavedAutomationCounts::UnverifiedLayout => Some(AutomationCounts::UnverifiedLayout),
+        SavedAutomationCounts::Extracted {
+            object_count,
+            point_count,
+        } => Some(AutomationCounts::Available {
+            object_count,
+            point_count,
+        }),
+    };
     let channels = channels::project(&value, version, channels as usize)?;
     let warnings = match value.get("diagnostics") {
         None => Vec::new(),
@@ -310,6 +348,7 @@ fn project(payload: &str) -> Result<DisplayProjection, ()> {
         pattern_note_counts,
         mixer_inserts,
         pattern_note_sequences,
+        automation_counts,
     ))
 }
 
