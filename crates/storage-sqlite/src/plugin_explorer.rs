@@ -1,4 +1,7 @@
 //! Bounded root-scoped saved metadata read. No filesystem or parser authority.
+use crate::metadata::{
+    CURRENT_SNAPSHOT_FROM, HEADER_COLUMNS, bounded_payload_column, read_snapshot,
+};
 use crate::publication::{LOCATION_COLUMNS, published_location_from_row};
 use crate::{
     Database, FilePresence, MetadataSnapshot, PublishedLocation, Result, ScanRoot, ScanRootMode,
@@ -55,47 +58,80 @@ impl Database {
         if locations.len() > MAX_EXPLORER_ENTRIES {
             return Ok(ExplorerRead::Limited);
         }
-        let mut input_bytes = 0_usize;
-        let mut entries = Vec::with_capacity(locations.len());
-        for location in locations {
-            let metadata = if location.presence == FilePresence::Missing {
-                ExplorerMetadata::Missing
-            } else {
-                match self.capture_metadata_input(root_id, &location.id) {
-                    Err(StorageError::NotFound) => ExplorerMetadata::Stale,
-                    Err(error) => return Err(error),
-                    Ok(input) => match self.current_metadata_snapshot(input.project_file_id())? {
-                        Some(snapshot) => {
-                            let header = snapshot.header();
-                            if header.input_byte_size != location.byte_size
-                                || header.input_modified_at_ns != location.modified_at_ns
-                            {
-                                ExplorerMetadata::Stale
-                            } else {
-                                input_bytes = input_bytes
-                                    .saturating_add(snapshot.payload_json().map_or(0, str::len));
-                                if input_bytes > MAX_EXPLORER_INPUT_BYTES {
-                                    return Ok(ExplorerRead::Limited);
-                                }
-                                ExplorerMetadata::Current(Box::new(snapshot))
-                            }
-                        }
-                        None => {
-                            if self
-                                .metadata_snapshot_page(input.project_file_id(), None, 1)?
-                                .items
-                                .is_empty()
-                            {
-                                ExplorerMetadata::NoAnalysis
-                            } else {
-                                ExplorerMetadata::Stale
-                            }
-                        }
-                    },
+        let entries = {
+            let payload = bounded_payload_column();
+            // The scalar lookup uses the same origin fences as single-project
+            // reads. Starting from a bounded, ordered root lets SQLite resolve
+            // all present locations without per-location client queries.
+            let mut statement = tx.prepare(&format!(
+                "SELECT {HEADER_COLUMNS}, {payload},
+                    requested.id AS requested_id, candidate.id IS NOT NULL AS has_candidate,
+                    snapshot.id IS NOT NULL AS has_snapshot,
+                    requested_root.configuration_revision AS root_revision,
+                    requested.metadata_revision AS location_revision,
+                    candidate.metadata_revision AS file_revision,
+                    candidate.metadata_publication_revision AS publication_revision
+                 FROM file_location AS requested
+                 JOIN scan_root AS requested_root ON requested_root.id = requested.scan_root_id
+                 LEFT JOIN project_file AS candidate ON candidate.id = requested.project_file_id
+                    AND requested.presence = 'present'
+                    AND requested.byte_size = candidate.byte_size
+                    AND requested.modified_at_ns = candidate.modified_at_ns
+                    AND requested.modified_at_ns >= 0
+                 LEFT JOIN metadata_snapshot AS snapshot ON snapshot.id = (
+                    SELECT snapshot.id {CURRENT_SNAPSHOT_FROM} AND file.id = candidate.id
+                 )
+                 WHERE requested.scan_root_id = ?1
+                 ORDER BY requested.locator_key COLLATE BINARY, requested.id LIMIT ?2"
+            ))?;
+            let mut rows =
+                statement.query(rusqlite::params![root_id, MAX_EXPLORER_ENTRIES as i64])?;
+            let mut input_bytes = 0_usize;
+            let mut entries = Vec::with_capacity(locations.len());
+            for location in locations {
+                let row = rows.next()?.ok_or(StorageError::InvalidSchema)?;
+                if row.get::<_, String>("requested_id")? != location.id {
+                    return Err(StorageError::InvalidSchema);
                 }
-            };
-            entries.push(ExplorerEntry { location, metadata });
-        }
+                let metadata = if location.presence == FilePresence::Missing {
+                    ExplorerMetadata::Missing
+                } else if !row.get::<_, bool>("has_candidate")? {
+                    ExplorerMetadata::Stale
+                } else {
+                    for column in [
+                        "root_revision",
+                        "location_revision",
+                        "file_revision",
+                        "publication_revision",
+                    ] {
+                        if row.get::<_, i64>(column)? < 0 {
+                            return Err(StorageError::InvalidSchema);
+                        }
+                    }
+                    if row.get::<_, bool>("has_snapshot")? {
+                        // Both the requested location and the snapshot already
+                        // match the file fingerprint via the two joins above.
+                        let snapshot = read_snapshot(row)?;
+                        snapshot.validate_payload()?;
+                        input_bytes += snapshot.payload_json().map_or(0, str::len);
+                        if input_bytes > MAX_EXPLORER_INPUT_BYTES {
+                            return Ok(ExplorerRead::Limited);
+                        }
+                        ExplorerMetadata::Current(Box::new(snapshot))
+                    } else if self
+                        .metadata_snapshot_page(&location.project_file_id, None, 1)?
+                        .items
+                        .is_empty()
+                    {
+                        ExplorerMetadata::NoAnalysis
+                    } else {
+                        ExplorerMetadata::Stale
+                    }
+                };
+                entries.push(ExplorerEntry { location, metadata });
+            }
+            entries
+        };
         tx.rollback()?;
         Ok(ExplorerRead::Ready { root, entries })
     }

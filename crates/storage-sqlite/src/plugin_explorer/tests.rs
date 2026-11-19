@@ -179,3 +179,73 @@ fn explorer_entry_budget_returns_no_partial_totals_or_payloads() {
         _ => panic!("exact boundary should fit"),
     }
 }
+
+#[test]
+fn explorer_aliases_keep_both_requested_and_snapshot_origin_fences() {
+    let directory = TestDirectory::new();
+    let (mut db, input) = setup(&directory, MIGRATIONS.len());
+    let alias_root = db.add_scan_root("Alias", "C:\\Synthetic\\Alias").unwrap();
+    db.connection.execute(
+        "INSERT INTO file_location(id,project_file_id,scan_root_id,normalized_path,locator_key,relative_path,byte_size,modified_at_ms,modified_at_ns,created_at_ms,updated_at_ms)
+         SELECT 'alias',project_file_id,?1,normalized_path,locator_key,relative_path,byte_size,modified_at_ms,modified_at_ns,created_at_ms,updated_at_ms FROM file_location WHERE id='location'",
+        [&alias_root.id],
+    ).unwrap();
+    let header = db
+        .publish_metadata_snapshot(&input, &capabilities(), reply(), 100)
+        .unwrap();
+
+    let read_alias = |db: &Database| {
+        let ExplorerRead::Ready { mut entries, .. } =
+            db.read_plugin_explorer(&alias_root.id).unwrap()
+        else {
+            panic!("alias root must remain readable");
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].location.id, "alias");
+        entries.pop().unwrap().metadata
+    };
+    let ExplorerMetadata::Current(snapshot) = read_alias(&db) else {
+        panic!("matching alias should share its file's current snapshot");
+    };
+    assert_eq!(snapshot.header().id, header.id);
+
+    db.connection
+        .execute(
+            "UPDATE file_location SET byte_size=byte_size+1 WHERE id='alias'",
+            [],
+        )
+        .unwrap();
+    assert!(matches!(read_alias(&db), ExplorerMetadata::Stale));
+    db.connection
+        .execute(
+            "UPDATE file_location SET byte_size=byte_size-1 WHERE id='alias'",
+            [],
+        )
+        .unwrap();
+    assert!(matches!(read_alias(&db), ExplorerMetadata::Current(_)));
+
+    db.set_scan_root_enabled(&input.root_id, false).unwrap();
+    assert!(matches!(read_alias(&db), ExplorerMetadata::Stale));
+}
+
+#[test]
+fn explorer_current_payload_validation_propagates_corruption() {
+    let directory = TestDirectory::new();
+    let (mut db, input) = setup(&directory, MIGRATIONS.len());
+    let header = db
+        .publish_metadata_snapshot(&input, &capabilities(), reply(), 100)
+        .unwrap();
+    db.connection
+        .execute_batch("DROP TRIGGER metadata_snapshot_no_update")
+        .unwrap();
+    db.connection
+        .execute(
+            "UPDATE metadata_snapshot SET payload_json='{}' WHERE id=?1",
+            [&header.id],
+        )
+        .unwrap();
+    assert!(matches!(
+        db.read_plugin_explorer(&input.root_id),
+        Err(StorageError::InvalidSchema)
+    ));
+}
