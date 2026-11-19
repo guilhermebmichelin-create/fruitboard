@@ -1,0 +1,58 @@
+﻿name: PR 429 Installed Validation
+on:
+  push:
+    branches: [validation/pr429-installed]
+permissions:
+  contents: read
+concurrency:
+  group: fruitboard-pr429-installed
+  cancel-in-progress: false
+jobs:
+  installed:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: f628d504038d5d151d82b0545f2ed0578b2f6f96
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24.20.0
+      - name: Preflight hosted cache and storage
+        working-directory: source
+        run: |
+          $cache = Join-Path $env:RUNNER_TEMP 'fruitboard-429-target'
+          $evidence = Join-Path $env:RUNNER_TEMP 'fruitboard-429-evidence'
+          New-Item -ItemType Directory -Path $cache, $evidence | Out-Null
+          node scripts/preflight-build-storage.mjs --source $PWD.Path --build $cache --cache $cache --evidence $evidence --estimated-output-gib 8
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted storage preflight failed' }
+          "CARGO_TARGET_DIR=$cache" >> $env:GITHUB_ENV
+          "CARGO_INCREMENTAL=0" >> $env:GITHUB_ENV
+          "FRUITBOARD_429_EVIDENCE=$evidence" >> $env:GITHUB_ENV
+      - name: Set up pinned tools
+        working-directory: source
+        run: |
+          npm.cmd install --global corepack@0.36.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          corepack.cmd enable
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          corepack.cmd install
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          rustup toolchain install 1.98.1 --profile minimal --component clippy,rustfmt --target x86_64-pc-windows-msvc --no-self-update
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pnpm.cmd install --frozen-lockfile --ignore-scripts
+      - name: Build exact PR source
+        working-directory: source
+        run: |
+          if ((git rev-parse HEAD) -ne 'f628d504038d5d151d82b0545f2ed0578b2f6f96') { throw 'Unexpected source SHA' }
+          pnpm.cmd package:windows:analysis-smoke
+      - name: Verify installed Library and restart
+        working-directory: source
+        run: |
+          & ../control/validation/pr429-host.ps1
