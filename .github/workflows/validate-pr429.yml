@@ -38,9 +38,12 @@ jobs:
       - name: Set up pinned tools
         working-directory: source
         run: |
-          npm.cmd install --global corepack@0.36.0
+          $tools = Join-Path $env:RUNNER_TEMP 'fruitboard-429-tools'
+          npm.cmd install --global --prefix $tools corepack@0.36.0
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          corepack.cmd enable
+          $env:PATH = "$tools;$env:PATH"
+          $tools >> $env:GITHUB_PATH
+          corepack.cmd enable --install-directory $tools
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           corepack.cmd install
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
