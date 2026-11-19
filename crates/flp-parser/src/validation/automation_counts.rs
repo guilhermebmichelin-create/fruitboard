@@ -65,3 +65,15 @@ pub(super) fn validate(
         point_count,
     })
 }
+
+/// Read the optional additive field in an immutable metadata projection.
+pub fn validate_stored_automation_counts(
+    value: Option<&Value>,
+    version: &str,
+    channel_count: u16,
+) -> Result<SavedAutomationCounts, ValidationError> {
+    match value {
+        Some(value) => validate(value, true, version, channel_count),
+        None => Ok(SavedAutomationCounts::NotAdvertised),
+    }
+}

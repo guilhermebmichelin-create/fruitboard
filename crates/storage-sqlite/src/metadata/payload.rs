@@ -177,9 +177,46 @@ pub(super) fn encode(metadata: &ValidatedProjectMetadata) -> Result<String> {
     if let Some(sequences) = note_sequences(metadata.pattern_note_sequences()) {
         value["patternNoteSequences"] = sequences;
     }
+    if let Some(counts) = automation_counts(metadata.automation_counts()) {
+        value["automationCounts"] = counts;
+    }
     let mut writer = BoundedJson(Vec::new());
     serde_json::to_writer(&mut writer, &value).map_err(|_| StorageError::InvalidSchema)?;
     String::from_utf8(writer.0).map_err(|_| StorageError::InvalidSchema)
+}
+
+fn automation_counts(value: SavedAutomationCounts) -> Option<Value> {
+    Some(match value {
+        SavedAutomationCounts::NotAdvertised => return None,
+        SavedAutomationCounts::UnverifiedBuild => {
+            json!({"status":"unavailable","reason":"AUTOMATION_COUNTS_UNVERIFIED_BUILD"})
+        }
+        SavedAutomationCounts::UnverifiedLayout => {
+            json!({"status":"unavailable","reason":"AUTOMATION_COUNTS_UNVERIFIED_LAYOUT"})
+        }
+        SavedAutomationCounts::Extracted {
+            object_count,
+            point_count,
+        } => {
+            json!({"status":"extracted","value":{"objectCount":object_count,"pointCount":point_count}})
+        }
+    })
+}
+
+pub(super) fn validate_automation_counts(value: &Value) -> Result<()> {
+    let Some(counts) = value.get("automationCounts") else {
+        return Ok(());
+    };
+    let build = value["savedVersion"]
+        .as_str()
+        .ok_or(StorageError::InvalidSchema)?;
+    let channels = value["channelCount"]
+        .as_u64()
+        .and_then(|n| u16::try_from(n).ok())
+        .ok_or(StorageError::InvalidSchema)?;
+    validate_stored_automation_counts(Some(counts), build, channels)
+        .map_err(|_| StorageError::InvalidSchema)?;
+    Ok(())
 }
 
 fn note_sequences(value: &PatternNoteSequences) -> Option<Value> {

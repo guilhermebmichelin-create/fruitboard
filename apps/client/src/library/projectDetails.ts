@@ -56,6 +56,14 @@ export interface ProjectChannel {
   readonly name: ChannelDetail;
   readonly instrument: ChannelDetail;
 }
+export type ProjectAutomationCounts =
+  | {
+      readonly state: "available";
+      readonly objectCount: number;
+      readonly pointCount: number;
+    }
+  | { readonly state: "unverified_build" | "unverified_layout" };
+
 export type ProjectDetails = {
   readonly rootId: string;
   readonly locationId: string;
@@ -76,6 +84,7 @@ export type ProjectDetails = {
       readonly patternNoteCounts?: ProjectPatternNotes;
       readonly patternNoteSequences?: ProjectNoteSequences;
       readonly mixerInserts?: ProjectMixerInserts;
+      readonly automationCounts?: ProjectAutomationCounts;
       readonly sampleReferences?: readonly ProjectSampleReference[];
       readonly pluginReferences?: ProjectPluginReferences;
       readonly analysis?: ProjectAnalysis;
@@ -112,6 +121,7 @@ export function parseProjectDetails(
       value["patternNoteCounts"] !== undefined ||
       value["patternNoteSequences"] !== undefined ||
       value["mixerInserts"] !== undefined ||
+      value["automationCounts"] !== undefined ||
       value["sampleReferences"] !== undefined ||
       value["pluginReferences"] !== undefined ||
       value["warnings"] !== undefined ||
@@ -327,6 +337,15 @@ export function parseProjectDetails(
             facts[0]?.value ?? "",
           ),
         }),
+    ...(value["automationCounts"] === undefined
+      ? {}
+      : {
+          automationCounts: parseAutomationCounts(
+            value["automationCounts"],
+            build,
+            count,
+          ),
+        }),
     ...(patternNoteCounts === undefined ? {} : { patternNoteCounts }),
     ...(patternNoteSequences === undefined ? {} : { patternNoteSequences }),
     ...(value["sampleReferences"] === undefined
@@ -481,4 +500,41 @@ export function formatProjectFact(fact: ProjectFact): string {
     default:
       return text;
   }
+}
+
+function parseAutomationCounts(
+  value: unknown,
+  build: string | null | undefined,
+  channelCount: number,
+): ProjectAutomationCounts {
+  if (!record(value)) return fail();
+
+  const state = value["state"];
+  const verifiedBuild = build === "26.1.0.5530";
+  if (
+    Object.keys(value).length === 1 &&
+    ((state === "unverified_build" && !verifiedBuild) ||
+      (state === "unverified_layout" && verifiedBuild))
+  )
+    return { state };
+
+  const objectCount = value["objectCount"];
+  const pointCount = value["pointCount"];
+  if (
+    state !== "available" ||
+    !verifiedBuild ||
+    Object.keys(value).length !== 3 ||
+    typeof objectCount !== "number" ||
+    !Number.isInteger(objectCount) ||
+    objectCount < 0 ||
+    objectCount > 2 ||
+    objectCount + 1 !== channelCount ||
+    typeof pointCount !== "number" ||
+    !Number.isInteger(pointCount) ||
+    pointCount < objectCount ||
+    pointCount > Math.min(objectCount * 4, 6)
+  )
+    return fail();
+
+  return { state, objectCount, pointCount };
 }

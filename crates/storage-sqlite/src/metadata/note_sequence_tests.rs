@@ -538,3 +538,59 @@ fn note_sequences_negative_results_and_source_changes_preserve_historical_record
         assert_eq!(saved(&db, &first.id), original);
     }
 }
+
+#[test]
+fn automation_counts_from_approved_saves_survive_reopen_and_require_valid_storage() {
+    let mut descriptor = descriptor();
+    descriptor["fields"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!("automationCounts"));
+    let capabilities = validate_descriptor(&descriptor).unwrap();
+    for (name, objects, points) in [
+        ("FIX-FL2026-MIN.flp", 0, 0),
+        ("FIX-FL2026-AUTO-2POINT.flp", 1, 2),
+    ] {
+        let bytes = fixture(name);
+        let directory = TestDirectory::new();
+        let (mut db, input, raw) = seeded(&directory, &bytes);
+        let older = publish(&mut db, &input, raw.clone());
+        let input = db
+            .capture_metadata_input(&input.root_id, &input.location_id)
+            .unwrap();
+        let header = db
+            .publish_metadata_snapshot(&input, &capabilities, ProtocolReply::Result(raw), 101)
+            .unwrap();
+        drop(db);
+
+        let db = Database::open(directory.path()).unwrap();
+        assert!(saved(&db, &older.id).get("automationCounts").is_none());
+        let snapshot = db.current_metadata_snapshot("project").unwrap().unwrap();
+        assert_eq!(snapshot.header().id, header.id);
+        let mut payload = saved(&db, &header.id);
+        assert_eq!(
+            payload["automationCounts"],
+            json!({"status":"extracted","value":{"objectCount":objects,"pointCount":points}})
+        );
+
+        db.connection
+            .execute_batch("DROP TRIGGER metadata_snapshot_no_update")
+            .unwrap();
+        payload["automationCounts"]["value"]["pointCount"] = json!(7);
+        db.connection
+            .execute(
+                "UPDATE metadata_snapshot SET payload_json=?1 WHERE id=?2",
+                params![payload.to_string(), header.id],
+            )
+            .unwrap();
+        assert!(matches!(
+            db.metadata_snapshot(&header.id),
+            Err(StorageError::InvalidSchema)
+        ));
+        assert!(matches!(
+            db.current_metadata_snapshot("project"),
+            Err(StorageError::InvalidSchema)
+        ));
+        assert_eq!(fixture(name), bytes);
+    }
+}
