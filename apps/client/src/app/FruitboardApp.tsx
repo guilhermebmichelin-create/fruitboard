@@ -1,6 +1,6 @@
 import { CircleAlert, LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router";
+import { NavLink, Outlet, useLocation } from "react-router";
 import fruitboardMark from "../../../desktop/src-tauri/icons/app-icon.svg";
 import type { AppHealth, PlatformPort } from "../platform/contracts";
 import { AppIcon } from "./AppIcon";
@@ -126,7 +126,7 @@ export function FruitboardApp({ platform }: FruitboardAppProps) {
         <img alt="" className="brand-mark" src={fruitboardMark} />
         <span className="brand-copy">
           <strong>Fruitboard</strong>
-          <span>Local workspace</span>
+          <span>Local library</span>
         </span>
       </header>
 
@@ -153,14 +153,8 @@ export function FruitboardApp({ platform }: FruitboardAppProps) {
 
       <section aria-labelledby="page-title" className="page-header">
         <div className="page-header__copy">
-          <p className="eyebrow">Fruitboard workspace</p>
           <h1 id="page-title">{currentRoute.title}</h1>
           <p>{currentRoute.description}</p>
-        </div>
-        <div className="page-actions">
-          <Link className="header-action" to={currentRoute.actionPath}>
-            {currentRoute.actionLabel}
-          </Link>
         </div>
       </section>
 
