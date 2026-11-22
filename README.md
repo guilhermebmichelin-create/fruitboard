@@ -3,123 +3,59 @@
 A local-first FL Studio project library and production tracker for organizing,
 analyzing, and finishing music.
 
-## Current status - 2026-11-11
+## Current status - 2026-11-21
 
-Reviewed merged baseline: `eaa0f978bf5e12ab6deaa7bd743df2739e9538e9`
-([PR #402](https://github.com/guilhermebmichelin-create/fruitboard/pull/402)).
-PR396 promotes the qualified note pilot values; PR398 adds the installed
-workflow evidence and enlarged-text correction. PR400/402 merge the
-[cross-build pilot, baseline and isolated research probe](docs/research/cross-build-pilot-399.md).
-The [supervised comparison](docs/research/cross-build-probe-409.md) checks all
-twelve existing-control hypotheses without choosing a framing interpretation.
-Additional exact builds and independently verified genuine saves remain needed.
-The detected-version display in [PR #404](https://github.com/guilhermebmichelin-create/fruitboard/pull/404)
-has passed its fifteen checks and awaits owner review/manual merge.
-The application includes the current-metadata
-read-path change from [PR #321](https://github.com/guilhermebmichelin-create/fruitboard/pull/321),
-merged as `803ef43`. It consolidates current Plugin Explorer reads under
-existing freshness checks; its measurements did not establish a speedup or
-qualify resource limits. The [current status assessment](docs/review/development-status-20261111/README.md)
-records the phase gates, evidence boundaries, live tracker discrepancies, and
-next work.
+Reviewed merged baseline: [28fc508](https://github.com/guilhermebmichelin-create/fruitboard/commit/28fc508).
+Phases 0 and 1 are accepted. The owner marked
+[Phase 2 accepted with known gaps](docs/review/phase-2-integration/acceptance-2026-09-14.md),
+and P2-08 remains Partial. Phase 3 FLP Intelligence is active. The proposed
+resource budgets, Phase 3 exit, production activation and public distribution
+still require separate decisions.
 
-- **Phases**: Phase 0 was accepted 2026-09-04, Phase 1 on 2026-09-06, and
-  Phase 2 accepted with known gaps on 2026-09-14
-  ([acceptance record](docs/review/phase-2-integration/acceptance-2026-09-14.md)).
-  P2-08 remains Partial. Phase 3 FLP Intelligence is active; its budgets and
-  exit are not accepted. Later phases, production activation, and public
-  distribution remain separate decisions.
-- **Parser and analysis**: Rust was selected on 2026-09-28
-  ([ADR-002](docs/adr/002-flp-parser-process.md)). The parser is packaged in
-  the unsigned Windows development build, and durable analysis is available
-  through the explicit `analysis-jobs` composition. The default desktop does
-  not scan or read FLP content automatically. See the
-  [readiness review](docs/review/flp-intelligence-readiness/README.md) for
-  exact field and build limits.
-- **Library**: the development workflow displays saved facts, channels, inert
-  sample/plugin references, Plugin Explorer groups, pattern names/counts,
-  note-record counts, qualified ordinary-note sequences, and mixer record names. Explicit sample checks
-  observe metadata for eligible literal absolute paths and bounded project-relative
-  candidates inside the selected local NTFS root. Placeholder, external-folder
-  and cloud resolution remain open. See the
-  [sample-check review](docs/review/sample-presence-ui-284/README.md) and
-  [mixer slice](docs/review/library-mixer-inserts-304/README.md).
-  [PR #348](https://github.com/guilhermebmichelin-create/fruitboard/pull/348)
-  merged the owner-accepted same-root project-relative candidate rule;
-  its [installed correctness and accessibility review](docs/review/project-relative-installed-20261028/README.md)
-  passes at its recorded source. This completes the scoped implementation and
-  installed inspection. It does not establish
-  FL Studio resolution or complete G5.
-- **Compatibility and automation**: the approved parser corpus now has 46
-  files across three exact saved builds. [PR #320](https://github.com/guilhermebmichelin-create/fruitboard/pull/320)
-  adds the exact-build F22 cloned-Sampler case; [PR #323](https://github.com/guilhermebmichelin-create/fruitboard/pull/323)
-  publishes F23 GUI evidence. F23 shows one automation clip with three visible
-  control points, but the saved event framing does not establish an object or
-  point-count grammar. Automation extraction and display remain unqualified;
-  [issue #324 research](docs/research/parser-automation-counts-324-result.md)
-  defines the evidence still needed. The four exact
-  [automation differentials](docs/research/automation-differentials-324-result.md),
-  approved on 2026-11-14, distinguish a point-count candidate from repeated or
-  absent placements. Three [object/minimum-point examples](docs/research/automation-objects-324-result.md),
-  approved on 2026-11-15, add a same-count point move, two independent curves
-  and a GUI-forced one-point minimum. Three [reorder/removal controls](docs/research/automation-enumeration-324-result.md),
-  approved on 2026-11-16, follow named curves across reordered/reassigned IDs
-  and removal of one or both objects. Runtime automation extraction remains unfinished.
-- **Saved notes and next parsing step**: PR376/378/380 deliver bounded parsing,
-  immutable storage and a read-only Library note list for F24-F30's qualified
-  FL Studio 26.1.0.5530 / 96-PPQ ordinary-Sampler subset. Values remain numeric
-  saved keys, pattern-local start/duration ticks and raw velocity bytes; no MIDI
-  conversion, playback or editing is claimed. Locked CI passed; installed
-  note-sequence evidence is in the source-bounded follow-up below. PR382/383 add
-  [eight pilot cases](docs/research/ordinary-note-coverage-381-result.md), six
-  clean and two negative controls. Their publication alone did not widen runtime
-  support. Merged PR396 / [implementation #395](docs/review/note-pilot-395/README.md)
-  promotes the six clean pilot cases with adapter 0.1.5 and matching client
-  validation, while retaining complete-pattern refusal for unknown state.
-  Both final development PR heads passed all fifteen checks; the combined
-  installed source passed 437 client tests and seventeen installed cases.
-  The [installed follow-up #397](docs/review/installed-notes-397/README.md)
-  verifies the bounded note workflow, restart and authority checks on its
-  recorded source, and corrects cramped note text on narrow enlarged displays.
-  Later dependency merges do not automatically inherit that installed result.
-- **Resource and scanner status**: scanner qualification remains unaccepted;
-  the historical warm nearest-rank p95 was 10,173 ms against the unchanged
-  10,000 ms target on source `69f27f6`. The
-  [current resource review](docs/review/phase3-qualification-306/README.md) is
-  characterization, not qualification. The
-  [October 14 follow-up](docs/review/resource-repeat-20261014/README.md)
-  records an unexplained installed shutdown timeout and a successful debugging
-  repeat that did not establish its cause or a product fix. Shutdown diagnostics
-  and trace validation have since shipped in PR329/PR331. The
-  [current installed review](docs/review/resource-current-20261018/README.md)
-  adds guarded IPC/UI observations. Merged
-  [PR #335](https://github.com/guilhermebmichelin-create/fruitboard/pull/335)
-  records a stopped remainder run after a failed CPU guard. Resource decisions,
-  remaining measurements and the Phase 3 checkpoint stay open.
-- **Reliability tracker**: GitHub still lists
-  [#220](https://github.com/guilhermebmichelin-create/fruitboard/issues/220),
-  [#221](https://github.com/guilhermebmichelin-create/fruitboard/issues/221),
-  [#222](https://github.com/guilhermebmichelin-create/fruitboard/issues/222),
-  and [#223](https://github.com/guilhermebmichelin-create/fruitboard/issues/223)
-  as open, although their scanner lifecycle, response-validation,
-  event-recovery, and bounded-publication fixes shipped in
-  [PR #225](https://github.com/guilhermebmichelin-create/fruitboard/pull/225).
-  The [review note](docs/review/application-fixes-20260929.md) maps each fix
-  to its tests. This status update does not change issue states.
-- **Repository**: public since 2026-09-07. `main` protection requires pull
-  requests and the ten configured checks, with branches up to date, linear
-  history, and no force pushes or deletion. Secret scanning, push protection,
-  and Dependabot are enabled; CodeQL and dependency review are informational.
-  Use the [security policy](SECURITY.md#vulnerability-handling) for
-  vulnerability reports.
+- **Windows development workflow:** the explicit analysis-jobs build supports
+  local NTFS discovery, read-only FLP analysis and Library inspection.
+  The default desktop leaves scanning and FLP analysis disabled. The
+  [field reliability matrix](docs/review/flp-intelligence-readiness/field-reliability.md)
+  records the supported fields and limitations across 46 fixtures and three
+  exact saved builds. [PR #404](https://github.com/guilhermebmichelin-create/fruitboard/pull/404)
+  displays the detected saved version when a build is unverified.
+- **Library:** the development app displays saved project facts, channels,
+  sample and plugin references, Plugin Explorer groups, pattern names and
+  counts, qualified ordinary-note sequences and ordinary mixer record names.
+  Explicit sample checks observe eligible absolute paths and project-relative
+  candidates within the selected local NTFS root. Placeholder, external-folder
+  and cloud resolution remain open.
+  [Installed notes review](docs/review/installed-notes-397/README.md) ·
+  [Installed sample checks](docs/review/project-relative-installed-20261028/README.md)
+- **Saved automation counts:** Project Details displays Automation Clip and
+  editable control-point totals for the qualified FL Studio 26.1.0.5530 /
+  96 PPQ layout. The installed review checked confirmed zero, one clip with
+  two points, an unverified-build explanation and persistence across restart.
+  Curve targets, coordinates, Playlist placement and MIDI summaries remain open.
+  [PR #429](https://github.com/guilhermebmichelin-create/fruitboard/pull/429) ·
+  [Installed validation](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/44521556690)
+- **Resources:** batching current Plugin Explorer reads reduced the observed
+  native 2,000-entry p95 from 491 ms to 161 ms. Both windows exceeded the
+  background CPU guard. A current-source repeat returned the expected results
+  through 2,001 entries, with the 2,000-entry timing still outside the noise
+  guard. Installed checks verified the 2,001-entry limit and a 64 MiB analysis
+  job. Startup and whole-app resource qualification remain open.
+  Separately, the scanner's historical warm p95 remains 10,173 ms against
+  its 10,000 ms target.
+  [PR #430](https://github.com/guilhermebmichelin-create/fruitboard/pull/430) ·
+  [Phase 3 resource plan](docs/review/phase3-qualification-306/budget-proposal.md)
+- **Repository:** GitHub requires pull requests and the ten configured checks
+  on up-to-date branches. Secret scanning, push protection and Dependabot are
+  enabled. CodeQL and dependency review are informational.
+  [Development workflow](DEVELOPMENT.md#github-governance) ·
+  [Security reporting](SECURITY.md#vulnerability-handling)
 
-The [archived README status](docs/archive/readme-status-20260929.md) preserves
-the superseded status blocks, source pins, installed evidence and links.
-The [October 17 assessment](docs/review/development-status-20261017/README.md)
-and [October 31 assessment](docs/review/development-status-20261031/README.md)
-preserve their dated recommendations, now superseded by this update.
-Dated evidence remains tied to its tested source; a current documentation
-update does not rerun an installed journey or accept a phase.
+The [Phase 3 follow-through](docs/review/development-status-20261121/README.md)
+maps open issues to merged evidence and records the next Windows checks,
+the cross-build prerequisite and the decisions still needed for the checkpoint.
+The [November 11 assessment](docs/review/development-status-20261111/README.md)
+and [archived README status](docs/archive/readme-status-20260929.md) preserve
+historical evidence at their recorded sources.
 
 ## Development
 
