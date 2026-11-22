@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Fruitboard Split Fruit">
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="#141823" stroke="#41475d" stroke-width="1.45" />
+  <g stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6">
+    <path d="M31 22h10l7 5 3 8v4l-3 6-6 6-10 3-8-3 10-8v-4l8-8z" fill="#c1b1ff" stroke="#c1b1ff" />
+    <path d="m9 34 4-9 9-3 6 2 7 7-7 7v4l-8 7-8-5zm20-15 5-7 8-3 7 1-5 7-6 3z" fill="#8ef2c9" stroke="#8ef2c9" />
+  </g>
+</svg>
