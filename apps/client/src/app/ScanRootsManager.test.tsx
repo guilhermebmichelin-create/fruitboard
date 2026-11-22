@@ -592,18 +592,30 @@ describe("ScanRootsManager", () => {
     const platform = createFakePlatformWithPickedDirectory(
       "C:\\Music\\Projects",
     );
+    let finishPicker!: (path: string) => void;
+    const pendingPicker = new Promise<string>((resolve) => {
+      finishPicker = resolve;
+    });
+    vi.spyOn(platform, "pickScanRootDirectory").mockReturnValueOnce(
+      pendingPicker,
+    );
     render(<ScanRootsManager platform={platform} />);
 
+    const addButton = await screen.findByRole("button", { name: "Add folder" });
     await user.tab();
-    expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Add folder" }),
-    );
+    expect(document.activeElement).toBe(addButton);
     await user.keyboard("{Enter}");
+    expect(addButton).toHaveProperty("disabled", true);
+    // A native picker can take focus from the disabled trigger.
+    addButton.blur();
+    expect(document.activeElement).toBe(document.body);
+    await act(async () => {
+      finishPicker("C:\\Music\\Projects");
+      await pendingPicker;
+    });
     expect(await screen.findByText("Projects")).toBeTruthy();
     expect(await screen.findByText("Folder added.")).toBeTruthy();
-    expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Add folder" }),
-    );
+    expect(document.activeElement).toBe(addButton);
 
     await user.tab({ shift: true });
     expect(document.activeElement).toBe(
