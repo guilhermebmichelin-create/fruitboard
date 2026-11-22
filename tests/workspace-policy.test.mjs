@@ -154,7 +154,10 @@ test("the shared UI package owns the accessible shell token vocabulary", () => {
     ["color-text-muted", "color-surface"],
     ["color-text-on-dark-muted", "color-sidebar"],
     ["color-accent-strong", "color-accent-soft"],
-    ["color-text-on-dark", "color-accent"],
+    ["color-text-on-accent", "color-accent"],
+    ["color-text-on-accent", "color-accent-strong"],
+    ["color-accent", "color-surface"],
+    ["color-note", "color-surface"],
     ["color-danger", "color-danger-soft"],
     // Pairs actually used by the CSS: preference and library error text,
     // the narrow-layout connection error, the desktop sidebar connection

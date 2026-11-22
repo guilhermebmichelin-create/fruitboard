@@ -1,4 +1,10 @@
-import { CircleAlert, Columns3, LibraryBig, ShieldCheck } from "lucide-react";
+import {
+  ArrowUpRight,
+  CircleAlert,
+  Columns3,
+  FolderOpen,
+  LibraryBig,
+} from "lucide-react";
 import { Link } from "react-router";
 import { AppIcon } from "./AppIcon";
 import { ScanRootsManager } from "./ScanRootsManager";
@@ -8,47 +14,42 @@ export { LibraryPage } from "../library/LibraryPage";
 
 export function HomePage() {
   return (
-    <div className="content-stack">
+    <div className="content-stack workspace-home">
       <section
         aria-labelledby="home-state-title"
-        className="state-panel state-panel--initial"
+        className="state-panel workspace-intro"
         data-shell-state="initial"
       >
         <div className="state-panel__icon">
           <AppIcon icon={LibraryBig} size="large" />
         </div>
-        <h2 id="home-state-title">Your FL Studio project library</h2>
+        <h2 id="home-state-title">FL Studio projects</h2>
         <p className="state-panel__description">
-          Choose your project folders in Preferences. When scanning is enabled
-          in your build, open Library to discover projects in those folders.
+          Choose a project folder in Preferences, then scan it from Library when
+          scanning is available.
         </p>
+        <Link className="inline-action" to="/library">
+          Open Library
+        </Link>
       </section>
 
-      <section aria-labelledby="foundation-title" className="section-stack">
-        <div className="section-heading">
-          <div>
-            <h2 id="foundation-title">How Library works</h2>
-          </div>
-        </div>
-
-        <div className="foundation-grid">
-          <article className="foundation-card">
-            <AppIcon icon={ShieldCheck} />
-            <h3>Local project files</h3>
-            <p>
-              Fruitboard keeps its library data on this device and leaves your
-              FL Studio project files unchanged.
-            </p>
-          </article>
-          <article className="foundation-card">
-            <AppIcon icon={LibraryBig} />
-            <h3>Saved project details</h3>
-            <p>
-              When analysis is enabled in your build, select a project and
-              choose Analyze project to inspect supported saved details.
-            </p>
-          </article>
-        </div>
+      <section aria-label="Library workflow" className="foundation-grid">
+        <article className="foundation-card workspace-module">
+          <AppIcon icon={FolderOpen} />
+          <h3>Project folders</h3>
+          <p>Choose the local folders you want in your Library.</p>
+          <Link className="workspace-module__link" to="/preferences">
+            Manage folders <AppIcon icon={ArrowUpRight} size="small" />
+          </Link>
+        </article>
+        <article className="foundation-card workspace-module workspace-module--details">
+          <AppIcon icon={LibraryBig} />
+          <h3>Project inspection</h3>
+          <p>
+            Open a project to inspect its saved details when analysis is
+            available. Fruitboard leaves the project file unchanged.
+          </p>
+        </article>
       </section>
     </div>
   );
