@@ -1,5 +1,4 @@
-//! Verified built-in classes, independent of editable channel labels. No raw
-//! plugin text, channel IDs, automatic Debug or Serialize leaves this boundary.
+//! Channel-scoped instrument names must also occur in validated plugin metadata.
 use super::{ValidationError, field_shape};
 use serde_json::Value;
 
@@ -25,7 +24,7 @@ impl GeneratorReason {
     }
 }
 pub enum ChannelGenerator {
-    ExtractedOsc,
+    Extracted(String),
     InferredSampler,
     Unsupported(GeneratorReason),
 }
@@ -48,6 +47,7 @@ pub(super) fn validate(
     advertised: bool,
     build: &str,
     count: usize,
+    plugin_names: &std::collections::BTreeSet<&str>,
 ) -> Result<ChannelGenerators, ValidationError> {
     // A descriptor without this extension grants no authority to retain it.
     if !advertised {
@@ -71,18 +71,22 @@ pub(super) fn validate(
         .as_str()
         .ok_or(ValidationError::InvalidReply)?;
     field_shape(value, status)?;
+    let extracted = |value: &Value| {
+        value
+            .as_str()
+            .filter(|name| plugin_names.contains(name))
+            .map(|name| ChannelGenerator::Extracted(name.to_owned()))
+            .ok_or(ValidationError::InvalidReply)
+    };
     if status == "extracted" {
         let names = value["value"]
             .as_array()
             .ok_or(ValidationError::InvalidReply)?;
-        if names.len() != count
-            || names.iter().any(|v| v != "3x Osc")
-            || value.get("items").is_some()
-        {
+        if names.len() != count || value.get("items").is_some() {
             return Err(ValidationError::InvalidReply);
         }
         return Ok(ChannelGenerators::Items(
-            (0..count).map(|_| ChannelGenerator::ExtractedOsc).collect(),
+            names.iter().map(extracted).collect::<Result<_, _>>()?,
         ));
     }
     if !matches!(status, "inferred" | "unsupported") {
@@ -96,7 +100,7 @@ pub(super) fn validate(
     }
     let mut entries = Vec::with_capacity(count);
     let mut names = Vec::with_capacity(count);
-    let (mut extracted, mut inferred, mut unknown) = (0, 0, 0);
+    let (mut extracted_count, mut inferred, mut unknown) = (0, 0, 0);
     for (index, item) in items.iter().enumerate() {
         if item["channelIndex"].as_u64() != Some(index as u64) {
             return Err(ValidationError::InvalidReply);
@@ -108,12 +112,10 @@ pub(super) fn validate(
         let entry = match name["status"].as_str() {
             Some("extracted") => {
                 field_shape(name, "extracted")?;
-                if name["value"] != "3x Osc" {
-                    return Err(ValidationError::InvalidReply);
-                }
-                extracted += 1;
-                names.push(Value::from("3x Osc"));
-                ChannelGenerator::ExtractedOsc
+                let entry = extracted(&name["value"])?;
+                extracted_count += 1;
+                names.push(name["value"].clone());
+                entry
             }
             Some("inferred") => {
                 field_shape(name, "inferred")?;
@@ -150,12 +152,16 @@ pub(super) fn validate(
             return Err(ValidationError::InvalidReply);
         }
     } else {
-        let method = if extracted > 0 {
+        let method = if extracted_count > 0 {
             "mixed-extracted-and-sampler-generator-default"
         } else {
             "sampler-generator-default-for-known-build"
         };
-        let confidence = if extracted > 0 { "medium" } else { "high" };
+        let confidence = if extracted_count > 0 {
+            "medium"
+        } else {
+            "high"
+        };
         if unknown > 0
             || inferred == 0
             || value["value"] != Value::Array(names)
@@ -173,6 +179,20 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn validate(
+        value: &Value,
+        advertised: bool,
+        build: &str,
+        count: usize,
+    ) -> Result<ChannelGenerators, ValidationError> {
+        super::validate(
+            value,
+            advertised,
+            build,
+            count,
+            &["3x Osc"].into_iter().collect(),
+        )
+    }
     fn saved() -> Value {
         let bytes = std::fs::read(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -188,7 +208,7 @@ mod tests {
             panic!("verified items")
         };
         assert!(matches!(items[0], ChannelGenerator::InferredSampler));
-        assert!(matches!(items[1], ChannelGenerator::ExtractedOsc));
+        assert!(matches!(&items[1], ChannelGenerator::Extracted(name) if name == "3x Osc"));
         assert!(matches!(
             validate(&Value::Null, false, "26.1.0.5530", 2).unwrap(),
             ChannelGenerators::Unsupported(GeneratorReason::NotAdvertised)

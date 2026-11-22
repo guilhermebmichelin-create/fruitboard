@@ -209,12 +209,12 @@ and [approved manifest](fixtures/parser-corpus/manifest.md).
 
 Generator names are separate from editable channel labels. A controlled
 FL Studio 2026 save shows built-in `3x Osc` stored in event 201, while the
-renamed channel label is stored in event 203. The draft
-`channelGeneratorNames` field extracts that verified built-in class and
-labels the 2026 Event 21 type-0 Sampler default as an inference. Event 64
-identifies the channel; it does not encode the channel type. Unverified
-generator classes, mixer effects, external VST identity, and other saved builds remain
-`unsupported` for this field. The owner approved the exact sanitized
+renamed channel label is stored in event 203. On saved build 26.1.0.5530,
+type-2 generators expose their explicit class. A Fruity Wrapper exposes the
+hosted name when one recognized wrapper record belongs to the same channel.
+The type-0 Sampler default remains inferred. The Library cross-checks
+extracted instrument names against the saved plugin references.
+The owner approved the exact sanitized
 two-channel F14 save for corpus inclusion on 2026-09-29 under the
 [fixture rules](DEVELOPMENT.md#parser-fixture-rules).
 
@@ -465,6 +465,33 @@ The selected Rust implementation's current fields and limits are listed in its
 Project comments and all strings must be size-limited and rendered as text or
 through a sanitizer. Plugin state blobs are neither stored in sync nor exposed
 to the UI unless a future diagnostic need is reviewed.
+
+## Priorities from testing representative arrangements
+
+1. **Pattern notes.** Return bounded pages for a selected pattern so a large
+   project can still show its first page. Resolve each note's saved rack ID
+   against unique declarations. Compare chord starts, lengths, keys and
+   velocities against FL Studio using simultaneous notes, reordered synths,
+   slide notes and step events. Preserve the count for ambiguous records.
+   Track in #366.
+2. **Automation.** Identify clip objects from their channel declarations
+   and points from each object's own curve. Validate the complete array.
+   Compare a mixed rack, unplaced clips, repeated placements, a curve with
+   more than four points and a confirmed empty rack against FL Studio.
+   Track event automation separately. Track clip coverage in #324.
+3. **Mixer.** Test named inserts at known positions in small and expanded
+   mixers with effects loaded, repeated names, empty slots and special
+   tracks. Confirm section boundaries and distinguish saved slots from used
+   inserts before publishing a count or binding a name to an insert number.
+4. **Older saves.** Compare the older playlist record layout and note and
+   curve fields against independent observations for each exact build.
+   Add paired positive and negative controls before enabling those fields.
+   Track in #399.
+
+For the qualified 2026 playlist layout, pattern timing now survives referenced
+audio placements. Channel instruments can use the hosted name stored inside
+the wrapper. Parser version 0.1.7 applies these changes to new analyses.
+Private projects and their extracted musical content stay outside the corpus.
 
 ## Duration estimation
 

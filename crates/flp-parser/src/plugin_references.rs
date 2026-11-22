@@ -66,12 +66,10 @@ impl PluginReferences {
         Ok(())
     }
 
-    pub fn data(&mut self, data: &[u8]) {
-        let Some((reference, _)) = self.current.as_mut() else {
-            return;
-        };
+    pub fn data(&mut self, data: &[u8]) -> Option<&str> {
+        let (reference, _) = self.current.as_mut()?;
         if reference["className"]["value"] != "Fruity Wrapper" {
-            return;
+            return None;
         }
         let parsed = if self.wrapper_data_seen {
             Err("MULTIPLE_VST_METADATA_RECORDS")
@@ -95,6 +93,7 @@ impl PluginReferences {
                 reference["vendor"] = field("unsupported", Value::Null, Some(reason));
             }
         }
+        reference["name"]["value"].as_str()
     }
 
     pub fn into_field(
@@ -119,7 +118,7 @@ impl PluginReferences {
 // by checked lengths and are never copied, loaded, logged or included in JSON.
 fn wrapper_metadata(data: &[u8]) -> Result<(Option<String>, Option<String>), &'static str> {
     let invalid = "VST_METADATA_UNSUPPORTED";
-    if data.len() < 4 || !matches!(le_u32(&data[..4]), 8 | 10) {
+    if data.len() < 4 || !matches!(le_u32(&data[..4]), 8 | 10 | 12) {
         return Err(invalid);
     }
     let mut cursor = 4_usize;

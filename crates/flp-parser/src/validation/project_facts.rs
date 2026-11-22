@@ -30,6 +30,7 @@ pub enum ProjectReason {
     PlaylistDataNotStored,
     PlaylistClipLayoutUnverified,
     PlaylistClipKindUnverified,
+    PlaylistClipLimit,
     PlaylistPatternReferenceUnverified,
     ZeroLengthPlaylistClipUnverified,
     NoPlaylistPatternClips,
@@ -55,6 +56,7 @@ fn reason(value: &Value) -> Result<ProjectReason, ValidationError> {
         "MULTIPLE_ARRANGEMENTS_UNVERIFIED" => ProjectReason::MultipleArrangementsUnverified,
         "PLAYLIST_DATA_NOT_STORED" => ProjectReason::PlaylistDataNotStored,
         "PLAYLIST_CLIP_LAYOUT_UNVERIFIED" => ProjectReason::PlaylistClipLayoutUnverified,
+        "PLAYLIST_CLIP_LIMIT" => ProjectReason::PlaylistClipLimit,
         "PLAYLIST_CLIP_KIND_UNVERIFIED" => ProjectReason::PlaylistClipKindUnverified,
         "PLAYLIST_PATTERN_REFERENCE_UNVERIFIED" => {
             ProjectReason::PlaylistPatternReferenceUnverified
@@ -394,11 +396,12 @@ fn plugins(
         .collect()
 }
 
-const PLAYLIST_UNSUPPORTED: [ProjectReason; 7] = [
+const PLAYLIST_UNSUPPORTED: [ProjectReason; 8] = [
     ProjectReason::PlaylistClipsUnverifiedBuild,
     ProjectReason::MultipleArrangementsUnverified,
     ProjectReason::PlaylistClipLayoutUnverified,
     ProjectReason::PlaylistClipKindUnverified,
+    ProjectReason::PlaylistClipLimit,
     ProjectReason::PlaylistPatternReferenceUnverified,
     ProjectReason::ZeroLengthPlaylistClipUnverified,
     ProjectReason::MeterUnverified,
@@ -523,6 +526,7 @@ fn estimate(
             ProjectReason::MultipleArrangementsUnverified,
             ProjectReason::PlaylistClipLayoutUnverified,
             ProjectReason::PlaylistClipKindUnverified,
+            ProjectReason::PlaylistClipLimit,
             ProjectReason::PlaylistPatternReferenceUnverified,
             ProjectReason::ZeroLengthPlaylistClipUnverified,
             ProjectReason::PpqUnverified,
@@ -624,11 +628,26 @@ pub fn validate_project_reply(
         initial.saved_version(),
         initial.channel_count(),
     )?;
+    let plugins = plugins(
+        &raw["pluginReferences"],
+        initial.saved_version(),
+        raw["eventCount"]
+            .as_u64()
+            .ok_or(ValidationError::InvalidReply)?,
+    )?;
+    let plugin_names = plugins
+        .iter()
+        .filter_map(|plugin| match plugin.name() {
+            ProjectField::Extracted(name) => Some(name.as_str()),
+            _ => None,
+        })
+        .collect();
     let channel_generators = channel_generators::validate(
         &raw["channelGeneratorNames"],
         capabilities.channel_generators,
         initial.saved_version(),
         initial.channel_count() as usize,
+        &plugin_names,
     )?;
     let project_created_local = project_created(&raw["projectCreatedLocal"])?;
     let patterns = patterns::validate(
@@ -692,13 +711,6 @@ pub fn validate_project_reply(
         u64::MAX,
         &[ProjectReason::FilesystemCreationTimeUnavailable],
         &[],
-    )?;
-    let plugins = plugins(
-        &raw["pluginReferences"],
-        initial.saved_version(),
-        raw["eventCount"]
-            .as_u64()
-            .ok_or(ValidationError::InvalidReply)?,
     )?;
     let arrangement_end_tick = arrangement_end(&raw, capabilities.max_playlist_clips)?;
     if capabilities.patterns && raw["playlistPatternClips"]["status"] == "extracted" {

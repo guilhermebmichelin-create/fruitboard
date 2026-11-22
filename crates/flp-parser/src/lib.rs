@@ -202,6 +202,7 @@ enum GeneratorEvent {
     #[default]
     Missing,
     Name(String),
+    Wrapped(Option<String>),
     Invalid,
     Multiple,
 }
@@ -212,6 +213,7 @@ enum ChannelType {
     Missing,
     Sampler,
     NativeGenerator,
+    AudioClip,
     Invalid,
     Multiple,
 }
@@ -221,6 +223,7 @@ impl ChannelType {
         match value {
             0 => Self::Sampler,
             2 => Self::NativeGenerator,
+            4 => Self::AudioClip,
             _ => Self::Invalid,
         }
     }
@@ -250,8 +253,7 @@ impl ChannelContext {
 }
 
 /// Event 201 names the generator class separately from editable event-203
-/// channel text. Only the 2026 built-in Sampler and 3x Osc layouts have GUI
-/// evidence. Other classes remain field-level unsupported.
+/// channel text. A wrapped instrument requires its own saved metadata name.
 fn channel_generator_names_json(
     version: Option<&str>,
     channel_types: Vec<ChannelType>,
@@ -283,9 +285,12 @@ fn channel_generator_names_json(
                     "confidence":"high"
                 }),
                 (ChannelType::NativeGenerator, GeneratorEvent::Name(value))
-                    if value == "3x Osc" =>
+                    if !value.is_empty() && value != "Fruity Wrapper" =>
                 {
                     field("extracted", json!(value), None)
+                }
+                (ChannelType::NativeGenerator, GeneratorEvent::Wrapped(Some(name))) => {
+                    field("extracted", json!(name), None)
                 }
                 (_, GeneratorEvent::Invalid) => field(
                     "unsupported",
@@ -387,6 +392,7 @@ fn playlist_pattern_clips(
     payload: Option<&[u8]>,
     multiple_payloads: bool,
     pattern_ids: &BTreeSet<u16>,
+    channels: &[Channel],
 ) -> Result<(Value, Option<u32>), &'static str> {
     if !known_pattern_build(version) {
         return Ok((
@@ -416,7 +422,7 @@ fn playlist_pattern_clips(
     };
     // The approved F13 GUI save has four 88-byte event-233 records. The
     // 2026 minimal saves have an empty event-233 payload. Other layouts and
-    // clip kinds stay unsupported rather than being interpreted as patterns.
+    // ambiguous clip kinds stay unsupported.
     if !payload.len().is_multiple_of(88) {
         return Ok((
             field(
@@ -427,15 +433,26 @@ fn playlist_pattern_clips(
             None,
         ));
     }
-    if payload.len() / 88 > MAX_PLAYLIST_CLIPS {
-        return Err("PLAYLIST_CLIP_LIMIT");
+    // A low item ID references a rack declaration. Only skip an audio item
+    // when the declaration is unique, typed and has a stored sample reference.
+    // A repeated declaration makes the ID ambiguous regardless of its type.
+    let mut audio_channels = BTreeMap::new();
+    for channel in channels {
+        audio_channels
+            .entry(channel.id)
+            .and_modify(|eligible| *eligible = false)
+            .or_insert(channel.channel_type == ChannelType::AudioClip && channel.sample.is_some());
     }
-    let mut clips = Vec::with_capacity(payload.len() / 88);
+    let mut clips = Vec::with_capacity((payload.len() / 88).min(MAX_PLAYLIST_CLIPS));
     let mut end_tick: Option<u32> = None;
     for record in payload.as_chunks::<88>().0 {
         let item = le_u32(&record[4..8]);
         let family = item as u16;
         let encoded_id = (item >> 16) as u16;
+        if family == 0x5000 && encoded_id < 0x5000 && audio_channels.get(&encoded_id) == Some(&true)
+        {
+            continue;
+        }
         if family != 0x5000 || encoded_id <= 0x5000 {
             return Ok((
                 field(
@@ -473,6 +490,12 @@ fn playlist_pattern_clips(
             .checked_add(length_tick)
             .ok_or("PLAYLIST_POSITION_OVERFLOW")?;
         end_tick = Some(end_tick.map_or(clip_end, |previous| previous.max(clip_end)));
+        if clips.len() == MAX_PLAYLIST_CLIPS {
+            return Ok((
+                field("unsupported", Value::Null, Some("PLAYLIST_CLIP_LIMIT")),
+                None,
+            ));
+        }
         clips.push(json!({
             "patternId":pattern_id,
             "startTick":start_tick,
@@ -606,7 +629,7 @@ fn parse_bytes_with_policy(
         }
         if id == 64 {
             plugin_channel_scope = true;
-        } else if matches!(id, 65 | 100 | 233 | 236) {
+        } else if matches!(id, 65 | 98 | 99 | 100 | 233 | 236) {
             plugin_channel_scope = false;
         }
         if id == 201 {
@@ -618,7 +641,18 @@ fn parse_bytes_with_policy(
                 return failed(code);
             }
         } else if id == 213 {
-            plugins.data(data);
+            let name = plugins.data(data);
+            if plugin_channel_scope
+                && let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
+            {
+                let event = &mut channels[index].generator_event;
+                if matches!(event, GeneratorEvent::Name(class) if class == "Fruity Wrapper")
+                    || matches!(event, GeneratorEvent::Wrapped(_))
+                {
+                    // Repeated or malformed wrapper data clears the provisional name.
+                    *event = GeneratorEvent::Wrapped(name.map(str::to_owned));
+                }
+            }
         } else if id == 237 {
             project_info.observe(data);
         }
@@ -740,7 +774,7 @@ fn parse_bytes_with_policy(
                 };
                 channels[index].name = Some(name);
             }
-            201 if current_channel.is_some() && known_pattern_build(version.as_deref()) => {
+            201 if plugin_channel_scope && known_pattern_build(version.as_deref()) => {
                 let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
                 else {
                     continue;
@@ -799,6 +833,16 @@ fn parse_bytes_with_policy(
         .collect::<Vec<_>>();
     let pattern_note_sequences =
         pattern_notes.sequences(version.as_deref(), header_ppq, &pattern_ids, &channels);
+    let (playlist_clips, playlist_end_tick) = match playlist_pattern_clips(
+        version.as_deref(),
+        playlist_payload.as_deref(),
+        multiple_playlist_payloads,
+        &pattern_ids,
+        &channels,
+    ) {
+        Ok(value) => value,
+        Err(code) => return failed(code),
+    };
     let samples = channels
         .into_iter()
         .map(|channel| channel.sample)
@@ -841,15 +885,6 @@ fn parse_bytes_with_policy(
         } else {
             json!({"status":"unavailable","reason":"PATTERN_NAME_NOT_STORED","items":items})
         }
-    };
-    let (playlist_clips, playlist_end_tick) = match playlist_pattern_clips(
-        version.as_deref(),
-        playlist_payload.as_deref(),
-        multiple_playlist_payloads,
-        &pattern_ids,
-    ) {
-        Ok(value) => value,
-        Err(code) => return failed(code),
     };
     let playlist_end = match playlist_end_tick {
         Some(value) => field("extracted", json!(value), None),

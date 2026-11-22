@@ -253,6 +253,15 @@ export function parseProjectDetails(
   );
   const build = facts.find((fact) => fact.key === "savedVersion")?.value;
   if (!Array.isArray(channels) || channels.length !== count) return fail();
+  const pluginReferences =
+    value["pluginReferences"] === undefined
+      ? undefined
+      : parseProjectPlugins(value["pluginReferences"], build ?? "");
+  const pluginNames = new Set(
+    pluginReferences?.items
+      .filter((plugin) => plugin.name.status === "extracted")
+      .map((plugin) => plugin.name.value),
+  );
   let inferredNames = 0;
   let inferredNameStyle: "literal" | "numbered" | undefined;
   const selectedChannels = channels.map(
@@ -260,6 +269,12 @@ export function parseProjectDetails(
       if (!record(entry) || entry["position"] !== index + 1) return fail();
       const name = parseChannelDetail(entry["name"], false);
       const instrument = parseChannelDetail(entry["instrument"], true);
+      if (
+        instrument.status === "extracted" &&
+        instrument.value !== "3x Osc" &&
+        !pluginNames.has(instrument.value)
+      )
+        return fail();
       if (name.status === "inferred") {
         inferredNames++;
         // Older immutable results may retain their numbered inference. The
@@ -320,14 +335,7 @@ export function parseProjectDetails(
     outcome: value["outcome"] as "complete" | "partial",
     facts,
     channels: selectedChannels,
-    ...(value["pluginReferences"] === undefined
-      ? {}
-      : {
-          pluginReferences: parseProjectPlugins(
-            value["pluginReferences"],
-            facts[0]?.value ?? "",
-          ),
-        }),
+    ...(pluginReferences === undefined ? {} : { pluginReferences }),
     ...(patterns === undefined ? {} : { patterns }),
     ...(value["mixerInserts"] === undefined
       ? {}
@@ -408,7 +416,7 @@ function parseChannelDetail(
     return fail();
   if (
     instrument &&
-    (status === "extracted" ? text !== "3x Osc" : text !== "Sampler")
+    (status === "extracted" ? text.length === 0 : text !== "Sampler")
   )
     return fail();
   return { status, value: text, explanation };
@@ -465,12 +473,12 @@ export const FACT_NOTES: Partial<Readonly<Record<ProjectFactKey, string>>> = {
   filesystemCreatedAtMs:
     "Filesystem creation time; copying a file can change it.",
   flStudioTimeSpentMs:
-    "FL Studio’s saved counter; Fruitboard has not measured your work time.",
+    "FL StudioÃ¢â‚¬â„¢s saved counter; Fruitboard has not measured your work time.",
   playlistPatternEndTick: "Latest verified pattern clip endpoint, in ticks.",
   playlistPatternSpanBars:
     "Verified pattern clips only; excludes unverified clip kinds.",
   playlistPatternNominalSeconds:
-    "An estimate for verified pattern clips, not the finished song’s length.",
+    "An estimate for verified pattern clips, not the finished songÃ¢â‚¬â„¢s length.",
 };
 
 export function formatProjectFact(fact: ProjectFact): string {
