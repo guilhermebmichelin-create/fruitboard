@@ -438,6 +438,7 @@ function ConnectedLibraryPage({
       setPagePosition({ cursor: null, snapshotId: null });
       setCursorHistory([]);
       setPageState({ kind: "loading" });
+      setExplorerSnapshot(null);
       setPaginationNotice(
         notice ??
           "The committed Library snapshot changed. Pagination restarted at page 1.",
