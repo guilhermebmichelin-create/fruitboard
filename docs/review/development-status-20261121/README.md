@@ -90,6 +90,10 @@ the distinction between qualification and characterization.
 
 ## Checkpoint decisions
 
+The [November 22 checkpoint proposal](../phase3-checkpoint-20261122/README.md)
+adds the populated startup matrix, the native Explorer target recommendation,
+and a proposed scope and deferrals for owner review.
+
 Review guarded measurements before accepting resource targets. Decide whether
 broader dependency resolution, arrangements and duration, MIDI, or mixer
 effects are required for Phase 3 exit, or explicitly defer each with its scope,
