@@ -47,8 +47,8 @@ export function ProjectAnalysisStatus({
       {analysis.reason !== null && <p>{ANALYSIS_REASONS[analysis.reason]}</p>}
       {retained && (
         <p>
-          The saved facts below still matched the scanned file when read. They
-          are separate from this recorded attempt.
+          The saved facts still matched the scanned file when read. They are
+          separate from this recorded attempt.
         </p>
       )}
       <p className="project-analysis__note">

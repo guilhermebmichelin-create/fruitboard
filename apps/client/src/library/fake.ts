@@ -2,6 +2,8 @@ import type { ScanRoot } from "../platform/contracts";
 import type { ProjectDetails } from "./projectDetails";
 import {
   LIBRARY_PAGE_LIMIT,
+  DEFAULT_LIBRARY_VIEW,
+  type LibraryView,
   LibraryAdapterError,
   MAX_LIBRARY_PAGE_LIMIT,
   MIN_LIBRARY_PAGE_LIMIT,
@@ -86,6 +88,36 @@ const orderRootRecords = (records: readonly PublishedFileLocation[]) =>
       compareBinary(left.locationId, right.locationId),
   );
 
+function browseRecords(
+  records: readonly PublishedFileLocation[],
+  view: LibraryView,
+) {
+  const fold = (path: string) => path.toLowerCase().replaceAll("\\", "/");
+  const term = fold(view.search.trim());
+  const matches = records.filter(
+    (file) =>
+      (!view.presence || file.presence === view.presence) &&
+      fold(file.relativePath).includes(term),
+  );
+  if (view.sort === "path") return matches;
+  // RFC3339 fractions have variable precision. Normalize before comparing so
+  // records separated by less than one millisecond keep their native order.
+  const stamp = (value: string) =>
+    value.slice(0, 19) + value.slice(19, -1).replace(".", "").padEnd(9, "0");
+  return matches.sort((a, b) => {
+    const tie = compareBinary(a.locationId, b.locationId);
+    if (view.sort === "name")
+      return (
+        compareBinary(a.fileName.toLowerCase(), b.fileName.toLowerCase()) || tie
+      );
+    if (view.sort === "largest")
+      return Number(BigInt(b.byteSize) - BigInt(a.byteSize)) || -tie;
+    const byTime =
+      compareBinary(stamp(a.modifiedAt), stamp(b.modifiedAt)) || tie;
+    return view.sort === "newest" ? -byTime : byTime;
+  });
+}
+
 const makeCounters = (): ScanProgressCounters => ({
   filesObserved: 0,
   directoriesVisited: 0,
@@ -102,6 +134,7 @@ const cloneStatus = (status: ScanStatus): ScanStatus => ({
 });
 
 interface FakeCursorPayload {
+  readonly viewKey?: string;
   readonly v: 1;
   readonly rootId: string;
   readonly snapshotId: string;
@@ -143,6 +176,7 @@ const decodeCursor = (
   rootId: string,
   currentSnapshotId: string,
   cursor: string,
+  viewKey: string,
 ): number => {
   let payload: unknown;
   try {
@@ -175,7 +209,8 @@ const decodeCursor = (
   ) {
     throw new LibraryAdapterError("invalid_cursor");
   }
-  if (typed.rootId !== rootId) throw new LibraryAdapterError("invalid_cursor");
+  if (typed.viewKey !== viewKey || typed.rootId !== rootId)
+    throw new LibraryAdapterError("invalid_cursor");
   if (typed.snapshotId !== currentSnapshotId) {
     throw new LibraryAdapterError("stale_cursor");
   }
@@ -347,12 +382,16 @@ export function createFakeLibraryScanAdapter(
       calls.pages.push(request.limit);
       calls.pageRequests.push({ ...request });
       if (pageErrorCode !== null) throw new LibraryAdapterError(pageErrorCode);
-      const records = getRootRecords(request.rootId);
+      const view = request.view ?? DEFAULT_LIBRARY_VIEW;
+      const records = browseRecords(getRootRecords(request.rootId), view);
+      const viewKey = encodeURIComponent(
+        JSON.stringify([view.search, view.presence, view.sort]),
+      );
       const snapshotId = snapshotIdFor(request.rootId);
       const start =
         request.cursor === null
           ? 0
-          : decodeCursor(request.rootId, snapshotId, request.cursor);
+          : decodeCursor(request.rootId, snapshotId, request.cursor, viewKey);
       const limit = Math.min(clampPageLimit(request.limit), pageLimit);
       const pageRecords = records.slice(start, start + limit);
       const nextIndex = start + pageRecords.length;
@@ -368,6 +407,7 @@ export function createFakeLibraryScanAdapter(
                 rootId: request.rootId,
                 snapshotId,
                 index: nextIndex,
+                viewKey,
                 locationId: last.locationId,
               })
             : null,

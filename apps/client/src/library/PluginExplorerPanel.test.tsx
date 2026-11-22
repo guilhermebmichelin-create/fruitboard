@@ -279,7 +279,7 @@ describe("saved Plugin Explorer", () => {
         <LibraryPage adapter={adapter} />
       </MemoryRouter>,
     );
-    await screen.findByRole("heading", { name: "File locations" });
+    await screen.findByRole("heading", { name: "Project files" });
     await open();
     await screen.findByText(/5 exact saved plugin groups/);
     await userEvent.click(

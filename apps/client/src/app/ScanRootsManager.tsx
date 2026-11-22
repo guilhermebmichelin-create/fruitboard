@@ -278,30 +278,25 @@ export function ScanRootsManager({
       : root.displayName;
 
   return (
-    <section aria-labelledby="scan-roots-title" className="preferences-card">
+    <section
+      aria-labelledby="scan-roots-title"
+      className="preferences-card settings-module"
+    >
       <div className="section-heading section-heading--compact">
         <div>
-          <p className="eyebrow">Storage locations</p>
           <h2 id="scan-roots-title">Scan roots</h2>
         </div>
         <p>
-          Choose folders or virtual drives Fruitboard may look inside. Nothing
-          is scanned yet; removing a location only forgets it here and never
-          deletes files.
+          Choose the folders shown in your Library. Removing a folder keeps its
+          files on disk.
         </p>
       </div>
 
       {loadState.roots.length === 0 ? (
         <div className="scan-roots-onboarding">
           <p className="preference-hint" role="status">
-            No folders yet. Folders you add are only listed for now — scanning
-            arrives in a later phase.
+            No folders yet. Add one, then open Library to run its first scan.
           </p>
-          <ol className="scan-roots-steps">
-            <li>Choose a folder with Add folder below.</li>
-            <li>Name it anything recognizable.</li>
-            <li>Turn folders off anytime without losing them.</li>
-          </ol>
         </div>
       ) : (
         <ul className="scan-roots-list">
@@ -379,9 +374,6 @@ export function ScanRootsManager({
                         Google Drive virtual drive · Experimental
                       </span>
                     )}
-                    <span className="scan-roots-item__status">
-                      Availability not rechecked · Not scanned yet
-                    </span>
                   </>
                 )}
               </div>
@@ -495,12 +487,6 @@ export function ScanRootsManager({
         </ul>
       )}
 
-      <p className="preference-hint" id="drive-virtual-help">
-        Virtual drives are experimental and are checked only when you start a
-        scan manually. If a drive is unavailable, files will not be marked as
-        missing. If Google Drive mirrors files into a local folder, use Add
-        folder instead.
-      </p>
       <div className="scan-roots-item__actions">
         <button
           aria-busy={busy}
@@ -527,6 +513,11 @@ export function ScanRootsManager({
           Add Google Drive virtual drive (experimental)
         </button>
       </div>
+
+      <p className="preference-hint" id="drive-virtual-help">
+        Virtual drives use manual scans. Files keep their status if a drive is
+        offline. For mirrored Google Drive folders, choose Add folder.
+      </p>
 
       {actionState.kind === "notice" && (
         <p aria-live="polite" className="preference-message" role="status">

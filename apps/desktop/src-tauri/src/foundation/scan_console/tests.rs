@@ -3158,16 +3158,22 @@ fn opaque_tokens_round_trip_and_reject_malformed_input() {
         locator_key: "v1:i:a.flp".to_owned(),
         location_id: "location-1".to_owned(),
     };
-    let encoded = encode_cursor_token(&cursor);
+    let view = LibraryView::default();
+    let encoded = encode_cursor_token(&cursor, &view);
+    let other_view = LibraryView {
+        search: "loop".into(),
+        ..view.clone()
+    };
+    assert!(decode_cursor_token(&encoded, "root-1", &other_view).is_err());
     assert_eq!(
-        decode_cursor_token(&encoded, "root-1").expect("decode"),
+        decode_cursor_token(&encoded, "root-1", &view).expect("decode"),
         cursor
     );
     assert!(
-        decode_cursor_token(&encoded, "root-2").is_err(),
+        decode_cursor_token(&encoded, "root-2", &view).is_err(),
         "wrong root rejected"
     );
-    assert!(decode_cursor_token("{\"v\":1,\"rootId\":\"root-1\",\"snapshot\":null,\"locatorKey\":\"\",\"locationId\":\"l\"}", "root-1").is_err());
+    assert!(decode_cursor_token("{\"v\":1,\"rootId\":\"root-1\",\"snapshot\":null,\"locatorKey\":\"\",\"locationId\":\"l\"}", "root-1", &view).is_err());
 
     assert_eq!(parse_canonical_i64("0"), Ok(0));
     assert_eq!(parse_canonical_i64("42"), Ok(42));
