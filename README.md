@@ -36,9 +36,9 @@ still require separate decisions.
   [Installed validation](https://github.com/guilhermebmichelin-create/fruitboard/actions/runs/44521556690)
 - **Resources:** batching current Plugin Explorer reads reduced the observed
   native 2,000-entry p95 from 491 ms to 161 ms. Both windows exceeded the
-  background CPU guard. A current-source repeat returned the expected results
-  through 2,001 entries, with the 2,000-entry timing still outside the noise
-  guard. Installed checks verified the 2,001-entry limit and a 64 MiB analysis
+  background CPU guard. A current-source repeat passed the guard at 2,000
+  entries with a p95 of 161.96 ms against the proposed 200 ms target.
+  Installed checks verified the 2,001-entry limit and a 64 MiB analysis
   job. Startup and whole-app resource qualification remain open.
   Separately, the scanner's historical warm p95 remains 10,173 ms against
   its 10,000 ms target.

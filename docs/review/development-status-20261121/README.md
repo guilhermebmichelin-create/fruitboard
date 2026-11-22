@@ -17,10 +17,13 @@ timer includes the native command and outer envelope serialization.
 | 1,000        | Complete                             |  88.93 ms | Passed               |
 | 2,000        | Complete                             | 161.47 ms | Failed               |
 | 2,001        | Explicit limit, no partial aggregate |   2.88 ms | Passed               |
+| 2,000 repeat | Complete                             | 161.96 ms | Passed               |
 
-The 2,000-entry run exceeded the unchanged 0.5 CPU-second per-process guard
-in Windows Explorer and two T3 processes. Its timing is characterization.
-The native 200 ms candidate remains proposed and #259 stays open.
+The first 2,000-entry run exceeded the unchanged 0.5 CPU-second per-process
+guard in Windows Explorer and two T3 processes. Its timing is
+characterization. The separately retained 2,000-entry repeat met the proposed
+200 ms native candidate under the same guard. The result is ready for review
+under #259. The budget still requires an owner decision.
 
 The installed repeat used the hash-verified 28fc508 development package and its
 retained 100-entry review profile. Timing ended after the Library selected the
@@ -28,8 +31,10 @@ expected root and displayed a project heading. A persistent helper was ready
 before launch. All 12 launches used one graceful-close request, exited within
 ten seconds, and produced valid eight-stage traces. Warm p95 was 686.27 ms
 across ten measured launches. Windows Explorer, the text input service, T3 and
-an unbound WebView2 process exceeded the unchanged guard. The result is
-characterization. The review package was uninstalled and the review database
+an unbound WebView2 process exceeded the unchanged guard. A separate repeat
+at the same boundary returned 702.81 ms and also exceeded the guard. Each
+repeat produced 12 validated graceful-close traces. Both timings are
+characterization. Each review package was uninstalled and its review database
 was preserved.
 
 Earlier installed checks with the same package verified two additional
@@ -41,11 +46,10 @@ behavior. The memory window during real analysis still needs qualification.
 
 ## Qualification order
 
-1. Reuse independently retained, hash-verified native probes where they have
-   matching build inputs. Repeat the outstanding 2,000-entry case for
+1. Review the guarded current-source native Explorer evidence under
    [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259).
-   Use the existing CPU guard and 200 ms proposed native p95 for complete reads.
-   Preserve every sample and each failed guard receipt.
+   Preserve the earlier failed guard receipts and review the proposed 200 ms
+   p95 target for complete native reads. Installed limits are a separate check.
 2. For [#306](https://github.com/guilhermebmichelin-create/fruitboard/issues/306),
    bind the installed runner to a current package, the expected profile and
    fixture hashes. Acquire the existing installed host lock and prepare outside
@@ -70,14 +74,15 @@ the distinction between qualification and characterization.
 
 ## Tracker reconciliation
 
-| Open issues                                                                                                                                                                                                                        | Merged evidence                                                                                                                                                                                      | Disposition to review                                                                                                            |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| [#347](https://github.com/guilhermebmichelin-create/fruitboard/issues/347)                                                                                                                                                         | [PR #348](https://github.com/guilhermebmichelin-create/fruitboard/pull/348) and [installed review](../project-relative-installed-20261028/README.md)                                                 | Same-root check delivered. Track broader dependency resolution separately.                                                       |
-| [#324](https://github.com/guilhermebmichelin-create/fruitboard/issues/324)                                                                                                                                                         | [Parser and native validation](https://github.com/guilhermebmichelin-create/fruitboard/pull/427), [Library and installed evidence](https://github.com/guilhermebmichelin-create/fruitboard/pull/429) | Qualified saved totals delivered. Targets, curves, placement and MIDI need separate scope.                                       |
-| [#366](https://github.com/guilhermebmichelin-create/fruitboard/issues/366)                                                                                                                                                         | [Note pilot delivery](../note-pilot-395/README.md) and [installed review](../installed-notes-397/README.md)                                                                                          | Qualified ordinary notes delivered. Preserve the exact-build, layout and value boundaries.                                       |
-| [#220–#223](https://github.com/guilhermebmichelin-create/fruitboard/pull/225)                                                                                                                                                      | [Fix and test mapping](../application-fixes-20260929.md)                                                                                                                                             | Compare each issue's acceptance criteria with its merged fix. Keep P2-08 and scanner qualification separate.                     |
-| [#349](https://github.com/guilhermebmichelin-create/fruitboard/issues/349)                                                                                                                                                         | [PR #350](https://github.com/guilhermebmichelin-create/fruitboard/pull/350) and the current lockfile                                                                                                 | The requested markdown-it 14.3.3 pin is present and required security CI passed on the reviewed baseline.                        |
-| [#399](https://github.com/guilhermebmichelin-create/fruitboard/issues/399), [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259), [#306](https://github.com/guilhermebmichelin-create/fruitboard/issues/306) | Prepared evidence and procedures linked above                                                                                                                                                        | Continue until genuine additional-build evidence and quiet resource results are collected, or record an explicit scope decision. |
+| Open issues                                                                                                                                            | Merged evidence                                                                                                                                                                                      | Disposition to review                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| [#347](https://github.com/guilhermebmichelin-create/fruitboard/issues/347)                                                                             | [PR #348](https://github.com/guilhermebmichelin-create/fruitboard/pull/348) and [installed review](../project-relative-installed-20261028/README.md)                                                 | Same-root check delivered. Track broader dependency resolution separately.                                                                 |
+| [#324](https://github.com/guilhermebmichelin-create/fruitboard/issues/324)                                                                             | [Parser and native validation](https://github.com/guilhermebmichelin-create/fruitboard/pull/427), [Library and installed evidence](https://github.com/guilhermebmichelin-create/fruitboard/pull/429) | Qualified saved totals delivered. Targets, curves, placement and MIDI need separate scope.                                                 |
+| [#366](https://github.com/guilhermebmichelin-create/fruitboard/issues/366)                                                                             | [Note pilot delivery](../note-pilot-395/README.md) and [installed review](../installed-notes-397/README.md)                                                                                          | Qualified ordinary notes delivered. Preserve the exact-build, layout and value boundaries.                                                 |
+| [#220–#223](https://github.com/guilhermebmichelin-create/fruitboard/pull/225)                                                                          | [Fix and test mapping](../application-fixes-20260929.md)                                                                                                                                             | Compare each issue's acceptance criteria with its merged fix. Keep P2-08 and scanner qualification separate.                               |
+| [#349](https://github.com/guilhermebmichelin-create/fruitboard/issues/349)                                                                             | [PR #350](https://github.com/guilhermebmichelin-create/fruitboard/pull/350) and the current lockfile                                                                                                 | The requested markdown-it 14.3.3 pin is present and required security CI passed on the reviewed baseline.                                  |
+| [#259](https://github.com/guilhermebmichelin-create/fruitboard/issues/259)                                                                             | Current guarded native matrix above                                                                                                                                                                  | Review the measured limit-sized read and proposed native target.                                                                           |
+| [#399](https://github.com/guilhermebmichelin-create/fruitboard/issues/399), [#306](https://github.com/guilhermebmichelin-create/fruitboard/issues/306) | Prepared evidence and procedures linked above                                                                                                                                                        | Continue until genuine additional-build evidence and quiet installed resource results are collected, or record an explicit scope decision. |
 
 ## Checkpoint decisions
 
