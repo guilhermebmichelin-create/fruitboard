@@ -473,12 +473,12 @@ export const FACT_NOTES: Partial<Readonly<Record<ProjectFactKey, string>>> = {
   filesystemCreatedAtMs:
     "Filesystem creation time; copying a file can change it.",
   flStudioTimeSpentMs:
-    "FL StudioÃ¢â‚¬â„¢s saved counter; Fruitboard has not measured your work time.",
+    "FL Studio’s saved counter; Fruitboard has not measured your work time.",
   playlistPatternEndTick: "Latest verified pattern clip endpoint, in ticks.",
   playlistPatternSpanBars:
     "Verified pattern clips only; excludes unverified clip kinds.",
   playlistPatternNominalSeconds:
-    "An estimate for verified pattern clips, not the finished songÃ¢â‚¬â„¢s length.",
+    "An estimate for verified pattern clips, not the finished song’s length.",
 };
 
 export function formatProjectFact(fact: ProjectFact): string {

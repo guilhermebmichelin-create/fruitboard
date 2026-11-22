@@ -170,7 +170,7 @@ describe("typed project details", () => {
     expect(result).toEqual(details);
     expect(channelLabel("")).toBe("Empty saved label");
     expect(channelLabel("Lead\n\u202eName")).toBe("Lead\\u000a\\u202eName");
-    expect(channelLabel("é¼“ / Bass ðŸŽµ")).toBe("é¼“ / Bass ðŸŽµ");
+    expect(channelLabel("鼓 / Bass 🎵")).toBe("鼓 / Bass 🎵");
     const empty = {
       ...details,
       facts: details.facts.map((fact) =>
