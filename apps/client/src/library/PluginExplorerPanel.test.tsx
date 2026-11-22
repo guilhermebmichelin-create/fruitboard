@@ -270,9 +270,10 @@ describe("saved Plugin Explorer", () => {
         },
       },
     });
+    const readExplorer = vi.fn(() => Promise.resolve(fixture));
     const adapter = {
       ...base,
-      getPluginExplorer: () => Promise.resolve(fixture),
+      getPluginExplorer: readExplorer,
     };
     const view = render(
       <MemoryRouter>
@@ -282,6 +283,18 @@ describe("saved Plugin Explorer", () => {
     await screen.findByRole("heading", { name: "Project files" });
     await open();
     await screen.findByText(/5 exact saved plugin groups/);
+    const explorerSearch = screen.getByRole("searchbox", {
+      name: "Search saved plugin names, classes or vendors",
+    });
+    await userEvent.type(explorerSearch, "3x osc");
+    await userEvent.selectOptions(screen.getByLabelText("Sort by"), "name");
+    await screen.findByRole("heading", { name: "Project files" });
+    expect(
+      screen.getByRole<HTMLInputElement>("searchbox", {
+        name: "Search saved plugin names, classes or vendors",
+      }).value,
+    ).toBe("3x osc");
+    expect(readExplorer).toHaveBeenCalledTimes(1);
     await userEvent.click(
       screen.getByRole("button", { name: "Show matching entries for 3x Osc" }),
     );

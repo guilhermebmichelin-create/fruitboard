@@ -252,6 +252,11 @@ function ConnectedLibraryPage({
     [],
   );
   const [pageState, setPageState] = useState<PageState>({ kind: "loading" });
+  // Project filtering and paging can temporarily clear the current page.
+  const [explorerSnapshot, setExplorerSnapshot] = useState<Pick<
+    LibraryPageData,
+    "rootId" | "snapshotId"
+  > | null>(null);
   const [statusState, setStatusState] = useState<StatusState>({
     kind: "loading",
   });
@@ -589,6 +594,10 @@ function ConnectedLibraryPage({
             return;
           }
           setPageState({ kind: "ready", page, refreshError: false });
+          setExplorerSnapshot({
+            rootId: page.rootId,
+            snapshotId: page.snapshotId,
+          });
         } catch (error) {
           if (!isCurrentRequest()) return;
           if (
@@ -1391,7 +1400,11 @@ function ConnectedLibraryPage({
           adapter={adapter}
           rootId={resolvedRootId}
           rootLabel={selectedStatus.root.displayName}
-          sourceSnapshotId={page?.snapshotId ?? "no-page"}
+          sourceSnapshotId={
+            explorerSnapshot?.rootId === resolvedRootId
+              ? explorerSnapshot.snapshotId
+              : "no-page"
+          }
         />
       )}
 
