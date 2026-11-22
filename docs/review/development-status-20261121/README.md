@@ -44,6 +44,10 @@ explicit analysis, produced a new snapshot, and retained matching saved
 version and channel-count values on readback. These cases establish installed
 behavior. The memory window during real analysis still needs qualification.
 
+The [November 22 installed memory review](../installed-memory-306/README.md)
+adds guarded observations for the 64 MiB analysis and 2,000-entry steady
+Explorer windows on the same package.
+
 ## Qualification order
 
 1. Review the guarded current-source native Explorer evidence under
