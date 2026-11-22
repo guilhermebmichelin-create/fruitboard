@@ -1,10 +1,4 @@
-import {
-  CircleAlert,
-  Columns3,
-  MonitorSmartphone,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+import { CircleAlert, Columns3, LibraryBig, ShieldCheck } from "lucide-react";
 import { Link } from "react-router";
 import { AppIcon } from "./AppIcon";
 import { ScanRootsManager } from "./ScanRootsManager";
@@ -21,41 +15,38 @@ export function HomePage() {
         data-shell-state="initial"
       >
         <div className="state-panel__icon">
-          <AppIcon icon={Sparkles} size="large" />
+          <AppIcon icon={LibraryBig} size="large" />
         </div>
-        <p className="eyebrow">Foundation ready</p>
-        <h2 id="home-state-title">A calm home for every project.</h2>
+        <h2 id="home-state-title">Your FL Studio project library</h2>
         <p className="state-panel__description">
-          Fruitboard is establishing its local, accessible foundation before
-          project discovery and production tools arrive.
+          Choose your project folders in Preferences. When scanning is enabled
+          in your build, open Library to discover projects in those folders.
         </p>
       </section>
 
       <section aria-labelledby="foundation-title" className="section-stack">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Current boundary</p>
-            <h2 id="foundation-title">Built for focused, local work</h2>
+            <h2 id="foundation-title">How Library works</h2>
           </div>
-          <p>
-            These foundations are active now. Product data and workflows remain
-            deliberately out of this slice.
-          </p>
         </div>
 
         <div className="foundation-grid">
           <article className="foundation-card">
             <AppIcon icon={ShieldCheck} />
-            <h3>Local by default</h3>
+            <h3>Local project files</h3>
             <p>
-              The desktop host exposes only health, startup preference, and
-              scan-root commands. Folders are listed, never scanned yet.
+              Fruitboard keeps its library data on this device and leaves your
+              FL Studio project files unchanged.
             </p>
           </article>
           <article className="foundation-card">
-            <AppIcon icon={MonitorSmartphone} />
-            <h3>One shared client</h3>
-            <p>The same vocabulary can adapt to desktop and narrow screens.</p>
+            <AppIcon icon={LibraryBig} />
+            <h3>Saved project details</h3>
+            <p>
+              When analysis is enabled in your build, select a project and
+              choose Analyze project to inspect supported saved details.
+            </p>
           </article>
         </div>
       </section>

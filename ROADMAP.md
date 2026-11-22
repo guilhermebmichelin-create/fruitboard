@@ -265,7 +265,17 @@ records; names may be unavailable and record count does not imply use.
 [Application slice #304](docs/review/library-mixer-inserts-304/README.md) adds
 immutable selected storage, authorized Library display and installed validation.
 Broader layouts remain open; this narrow step does not complete G6.
-Automation/MIDI, mixer effects/nested plugins and richer arrangements remain open.
+[PR #429](https://github.com/guilhermebmichelin-create/fruitboard/pull/429)
+adds saved Automation Clip and control-point totals for the qualified layout.
+Automation targets and curves, MIDI, mixer effects/nested plugins and richer
+arrangements remain open.
+
+The [cross-build pilot](docs/research/cross-build-pilot-399.md) has a controlled
+research decoder and [registered candidate recipes](docs/research/cross-build-candidates-411.md)
+for two additional Windows builds. Resume with matching installers, genuine
+saves and independent GUI expectations before proposing support for individual
+fields. The [Phase 3 follow-through](docs/review/development-status-20261121/README.md)
+records the qualification order and remaining checkpoint decisions.
 
 ### Epic: Phase 3 — FLP intelligence
 

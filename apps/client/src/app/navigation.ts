@@ -30,7 +30,7 @@ export const navigationItems: readonly NavigationItem[] = [
     path: "/library",
     label: "Library",
     title: "Library",
-    description: "FL Studio projects will be collected here.",
+    description: "Browse your FL Studio projects and inspect saved details.",
     actionLabel: "Return home",
     actionPath: "/",
     icon: LibraryBig,
