@@ -160,6 +160,14 @@ export function ScanRootsManager({
     await refreshAfterMutation("Folder added.");
   };
 
+  const addFolderFromButton = (
+    button: HTMLButtonElement,
+    mode?: ScanRootMode,
+  ) => {
+    const restoreFocus = prepareFocus();
+    void addFolder(mode).finally(() => restoreFocus(() => button));
+  };
+
   const removeRoot = async (id: string) => {
     const restoreFocus = prepareFocus();
     setConfirmingRemoval(null);
@@ -498,7 +506,7 @@ export function ScanRootsManager({
           aria-busy={busy}
           className="preference-button"
           disabled={busy}
-          onClick={() => void addFolder()}
+          onClick={(event) => addFolderFromButton(event.currentTarget)}
           ref={addButtonReference}
           type="button"
         >
@@ -511,7 +519,9 @@ export function ScanRootsManager({
           aria-describedby="drive-virtual-help"
           className="preference-button preference-button--secondary"
           disabled={busy}
-          onClick={() => void addFolder("driveVirtual")}
+          onClick={(event) =>
+            addFolderFromButton(event.currentTarget, "driveVirtual")
+          }
           type="button"
         >
           Add Google Drive virtual drive (experimental)
