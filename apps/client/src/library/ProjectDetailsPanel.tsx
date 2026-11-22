@@ -172,7 +172,8 @@ export function ProjectDetailsPanel({
                 <p className="project-details__intro">
                   {state.details.outcome === "partial"
                     ? "Partial coverage"
-                    : "Supported fields read"}
+                    : "Supported fields read"}{" "}
+                  · Matched the scanned file.
                 </p>
                 {state.details.warnings?.includes("unverified_events") && (
                   <p>
