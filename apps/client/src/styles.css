@@ -178,18 +178,11 @@
   }
 
   .brand-mark {
-    display: grid;
+    display: block;
     flex: 0 0 auto;
     inline-size: var(--control-size-touch);
     block-size: var(--control-size-touch);
-    place-items: center;
-    border: var(--border-width-standard) solid var(--color-sidebar-raised);
     border-radius: var(--radius-medium);
-    background: var(--color-accent-soft);
-    color: var(--color-accent-strong);
-    font-size: var(--font-size-title-small);
-    font-weight: var(--font-weight-bold);
-    box-shadow: var(--shadow-small);
   }
 
   .brand-copy {
