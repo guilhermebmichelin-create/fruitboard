@@ -11,7 +11,7 @@ analysis-jobs = ["parser-metadata"]
 
 [dependencies]
 fruitboard-flp-parser = { path = "../flp-parser", optional = true }
-rusqlite.workspace = true
+rusqlite = { workspace = true, features = ["functions"] }
 serde.workspace = true
 serde_json.workspace = true
 uuid.workspace = true

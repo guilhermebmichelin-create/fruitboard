@@ -148,13 +148,14 @@ export function StartupViewPreference({
   const changed = loadState.draft !== loadState.saved;
 
   return (
-    <section aria-labelledby="startup-view-title" className="preferences-card">
+    <section
+      aria-labelledby="startup-view-title"
+      className="preferences-card settings-module"
+    >
       <div className="section-heading section-heading--compact">
         <div>
-          <p className="eyebrow">Local preference</p>
           <h2 id="startup-view-title">Startup view</h2>
         </div>
-        <p>Choose the page Fruitboard opens when the desktop app starts.</p>
       </div>
 
       <form
@@ -176,11 +177,6 @@ export function StartupViewPreference({
               </option>
             ))}
           </select>
-          <p className="preference-hint">
-            {loadState.saved === "home"
-              ? "Home is the default startup view."
-              : `Fruitboard currently starts on ${labels[loadState.saved]}.`}
-          </p>
         </div>
 
         <button
@@ -191,6 +187,11 @@ export function StartupViewPreference({
           {saveState === "saving" ? "Saving…" : "Save preference"}
         </button>
       </form>
+      <p className="preference-hint">
+        {loadState.saved === "home"
+          ? "Home is the default startup view."
+          : `Fruitboard currently starts on ${labels[loadState.saved]}.`}
+      </p>
 
       {saveState === "saved" && (
         <p aria-live="polite" className="preference-message" role="status">

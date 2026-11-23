@@ -30,8 +30,9 @@ export function PluginExplorerPanel({
     >
       <div className="library-results__heading">
         <div>
-          <p className="eyebrow">Saved project references</p>
-          <h2 id="plugin-explorer-title">Plugin Explorer</h2>
+          <h2 tabIndex={-1} id="plugin-explorer-title">
+            Plugin Explorer
+          </h2>
         </div>
         <button
           type="button"

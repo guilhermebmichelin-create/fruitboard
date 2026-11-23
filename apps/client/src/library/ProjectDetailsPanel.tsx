@@ -1,4 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  Activity,
+  ChevronDown,
+  CircuitBoard,
+  FileClock,
+  Piano,
+  SlidersVertical,
+  Waves,
+  type LucideIcon,
+} from "lucide-react";
 import type { LibraryScanAdapter, PublishedFileLocation } from "./contracts";
 import { ProjectChannels } from "./ProjectChannels";
 import { ProjectPatterns } from "./SavedPatterns";
@@ -13,6 +23,7 @@ import {
   FACT_NOTES,
   formatProjectFact,
   type ProjectDetails,
+  type ProjectFact,
 } from "./projectDetails";
 
 type State =
@@ -114,7 +125,7 @@ export function ProjectDetailsPanel({
           setOpen(!open);
         }}
       >
-        {open ? "Hide project details" : "Project details"}
+        Details <ChevronDown aria-hidden="true" />
       </button>
       {open && (
         <section
@@ -146,6 +157,117 @@ export function ProjectDetailsPanel({
               again.
             </p>
           )}
+          {state.kind === "ready" &&
+            (state.details.state === "disabled" ? (
+              <p>
+                Project details are unavailable in this version of Fruitboard.
+              </p>
+            ) : state.details.state === "no_current" ? (
+              <p>
+                No current saved project details. The file may be missing,
+                changed, not yet analyzed, or unsupported.
+              </p>
+            ) : (
+              <>
+                <p className="project-details__intro">
+                  {state.details.outcome === "partial"
+                    ? "Partial coverage"
+                    : "Supported fields read"}{" "}
+                  · Matched the scanned file.
+                </p>
+                {state.details.warnings?.includes("unverified_events") && (
+                  <p>
+                    Some saved events are not understood. Supported fields are
+                    still shown.
+                  </p>
+                )}
+                <FactList primary facts={state.details.facts.slice(0, 3)} />
+                <div
+                  className="project-sections"
+                  key={state.details.snapshotId}
+                >
+                  <DetailGroup
+                    label="Project timeline"
+                    icon={FileClock}
+                    value="Dates & estimates"
+                  >
+                    <FactList facts={state.details.facts.slice(3)} />
+                  </DetailGroup>
+                  <DetailGroup
+                    label="Channels & instruments"
+                    icon={CircuitBoard}
+                    value={String(state.details.channels.length)}
+                  >
+                    <ProjectChannels channels={state.details.channels} />
+                  </DetailGroup>
+                  <DetailGroup
+                    label="Patterns & notes"
+                    icon={Piano}
+                    value={
+                      state.details.patterns?.state === "available"
+                        ? String(state.details.patterns.count)
+                        : "No verified count"
+                    }
+                  >
+                    <ProjectPatterns
+                      key={`patterns:${state.details.snapshotId}`}
+                      patterns={state.details.patterns}
+                      notes={state.details.patternNoteCounts}
+                      sequences={state.details.patternNoteSequences}
+                      channels={state.details.channels}
+                    />
+                  </DetailGroup>
+                  <DetailGroup
+                    label="Automation"
+                    tone="automation"
+                    icon={Activity}
+                    value={
+                      state.details.automationCounts?.state === "available"
+                        ? `${state.details.automationCounts.objectCount} objects`
+                        : "No verified count"
+                    }
+                  >
+                    <SavedAutomationCounts
+                      counts={state.details.automationCounts}
+                    />
+                  </DetailGroup>
+                  <DetailGroup
+                    label="Mixer inserts"
+                    tone="mixer"
+                    icon={SlidersVertical}
+                    value={
+                      state.details.mixerInserts?.state === "available"
+                        ? String(state.details.mixerInserts.count)
+                        : "No verified count"
+                    }
+                  >
+                    <SavedMixerInserts
+                      key={`mixer:${state.details.snapshotId}`}
+                      mixer={state.details.mixerInserts}
+                    />
+                  </DetailGroup>
+                  <DetailGroup
+                    label="Samples & plugins"
+                    icon={Waves}
+                    value="References"
+                  >
+                    <ProjectSamples
+                      key={`samples:${state.details.snapshotId}`}
+                      samples={state.details.sampleReferences}
+                      checkView={{
+                        adapter,
+                        record,
+                        snapshotId: state.details.snapshotId,
+                      }}
+                    />
+                    <ProjectPlugins
+                      key={`plugins:${state.details.snapshotId}`}
+                      plugins={state.details.pluginReferences}
+                    />
+                  </DetailGroup>
+                </div>
+              </>
+            ))}
           {state.kind === "ready" && state.details.state !== "disabled" && (
             <ProjectAnalysisAction
               key={`${rootId}:${locationId}:${byteSize}:${modifiedAt}:${sourceEligible}`}
@@ -168,84 +290,71 @@ export function ProjectDetailsPanel({
               hasFacts={state.details.state === "available"}
             />
           )}
-          {state.kind === "ready" &&
-            (state.details.state === "disabled" ? (
-              <p>
-                Project details are unavailable in this version of Fruitboard.
-              </p>
-            ) : state.details.state === "no_current" ? (
-              <p>
-                No current saved project details. The file may be missing,
-                changed, not yet analyzed, or unsupported.
-              </p>
-            ) : (
-              <>
-                <p className="project-details__intro">
-                  Saved parser result ·{" "}
-                  {state.details.outcome === "partial"
-                    ? "Partial coverage"
-                    : "Supported fields read"}
-                  . Matched the scanned file when these details were read.
-                  Refresh details to check again.
-                </p>
-                {state.details.warnings?.includes("unverified_events") && (
-                  <p>
-                    Some saved events are not understood. Supported fields are
-                    still shown.
-                  </p>
-                )}
-                <dl className="project-details__facts">
-                  {state.details.facts.map((fact) => (
-                    <div key={fact.key} data-fact-status={fact.status}>
-                      <dt>{FACT_LABELS[fact.key]}</dt>
-                      <dd>
-                        <div className="project-details__value">
-                          <strong>{formatProjectFact(fact)}</strong>
-                          <span
-                            className={`project-details__badge project-details__badge--${fact.status}`}
-                          >
-                            {fact.status[0]?.toUpperCase()}
-                            {fact.status.slice(1)}
-                          </span>
-                        </div>
-                        {fact.explanation && <p>{fact.explanation}</p>}
-                        {FACT_NOTES[fact.key] && <p>{FACT_NOTES[fact.key]}</p>}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                <ProjectChannels channels={state.details.channels} />
-                <ProjectPatterns
-                  key={`patterns:${state.details.snapshotId}`}
-                  patterns={state.details.patterns}
-                  notes={state.details.patternNoteCounts}
-                  sequences={state.details.patternNoteSequences}
-                  channels={state.details.channels}
-                />
-                <SavedAutomationCounts
-                  counts={state.details.automationCounts}
-                />
-                <SavedMixerInserts
-                  key={`mixer:${state.details.snapshotId}`}
-                  mixer={state.details.mixerInserts}
-                />
-                <ProjectSamples
-                  key={`samples:${state.details.snapshotId}`}
-                  samples={state.details.sampleReferences}
-                  checkView={{
-                    adapter,
-                    record,
-                    snapshotId: state.details.snapshotId,
-                  }}
-                />
-                <ProjectPlugins
-                  key={`plugins:${state.details.snapshotId}`}
-                  plugins={state.details.pluginReferences}
-                />
-              </>
-            ))}
         </section>
       )}
     </div>
+  );
+}
+
+function DetailGroup({
+  label,
+  value,
+  icon: Icon,
+  tone,
+  children,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly icon: LucideIcon;
+  readonly tone?: "automation" | "mixer";
+  readonly children: ReactNode;
+}) {
+  return (
+    <details className="project-group" data-tone={tone}>
+      <summary>
+        <Icon aria-hidden="true" />
+        <strong>{label}</strong>
+        <span>{value}</span>
+        <ChevronDown aria-hidden="true" />
+      </summary>
+      <div className="project-group__content">{children}</div>
+    </details>
+  );
+}
+
+function FactList({
+  facts,
+  primary = false,
+}: {
+  readonly facts: readonly ProjectFact[];
+  readonly primary?: boolean;
+}) {
+  return (
+    <dl
+      className={
+        primary
+          ? "project-details__facts project-readouts"
+          : "project-details__facts"
+      }
+    >
+      {facts.map((fact) => (
+        <div key={fact.key} data-fact-status={fact.status}>
+          <dt>{FACT_LABELS[fact.key]}</dt>
+          <dd>
+            <div className="project-details__value">
+              <strong>{formatProjectFact(fact)}</strong>
+              <span
+                className={`project-details__badge project-details__badge--${fact.status}`}
+              >
+                {fact.status[0]?.toUpperCase()}
+                {fact.status.slice(1)}
+              </span>
+            </div>
+            {fact.explanation && <p>{fact.explanation}</p>}
+            {FACT_NOTES[fact.key] && <p>{FACT_NOTES[fact.key]}</p>}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

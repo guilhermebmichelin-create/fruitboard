@@ -177,7 +177,20 @@ export interface PublishedFileLocation {
   readonly presence: LibraryFilePresence;
 }
 
+export type LibrarySort = "path" | "name" | "newest" | "oldest" | "largest";
+export interface LibraryView {
+  readonly search: string;
+  readonly presence: LibraryFilePresence | null;
+  readonly sort: LibrarySort;
+}
+export const DEFAULT_LIBRARY_VIEW: LibraryView = {
+  search: "",
+  presence: null,
+  sort: "path",
+};
+
 export interface LibraryPageRequest {
+  readonly view?: LibraryView;
   /** The single root this page reads; pages never mix roots. */
   readonly rootId: string;
   /** Requested page size; the native boundary clamps to 1..200. */

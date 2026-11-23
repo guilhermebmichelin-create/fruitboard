@@ -4183,6 +4183,97 @@ fn same_scan_rename_replacement_and_surviving_aliases_are_order_independent() {
 }
 
 #[test]
+fn library_view_filters_and_sorts_before_paging() {
+    let directory = TestDirectory::new();
+    let mut db = Database::open(directory.path()).unwrap();
+    let root = db.add_scan_root("Projects", "C:\\Music\\Projects").unwrap();
+    db.begin_scan_session("browse", 1).unwrap();
+    let rows = [
+        staged_observation("aaa/zeta.flp", 50, 9, None),
+        ScanObservation {
+            locator_key: "v1:i:zzz/i:m%C3%BAsica_100%25.flp".into(),
+            ..staged_observation("zzz/MÚSICA_100%.flp", 100, 5, None)
+        },
+        staged_observation("zzz/alpha.flp", 100, 12, None),
+    ];
+    for (time, observations) in [(2, &rows[..]), (20, &rows[1..])] {
+        db.enqueue_scan(&root.id, ScanKind::Manual, time).unwrap();
+        let lease = db
+            .lease_next_scan("browse", time + 1, 100)
+            .unwrap()
+            .unwrap();
+        publish_observations(&mut db, &lease, time + 2, observations);
+    }
+    let query = LibraryQuery {
+        scan_root_id: root.id,
+        page_size: 1,
+        cursor: None,
+        snapshot: None,
+    };
+    let view = LibraryView {
+        sort: LibrarySort::Name,
+        ..Default::default()
+    };
+    let first = db.browse_library(&query, &view).unwrap();
+    assert_eq!(first.locations[0].relative_path, rows[2].relative_path);
+    let next = LibraryQuery {
+        cursor: first.next_cursor,
+        snapshot: Some(first.snapshot),
+        ..query.clone()
+    };
+    assert_eq!(
+        db.browse_library(&next, &view).unwrap().locations[0].relative_path,
+        rows[1].relative_path
+    );
+    for (sort, expected) in [(LibrarySort::Newest, 2), (LibrarySort::Oldest, 1)] {
+        let result = db
+            .browse_library(
+                &query,
+                &LibraryView {
+                    sort,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            result.locations[0].relative_path,
+            rows[expected].relative_path
+        );
+    }
+    let view = LibraryView {
+        sort: LibrarySort::Largest,
+        presence: Some(FilePresence::Present),
+        search: "ZZZ".into(),
+    };
+    let first = db.browse_library(&query, &view).unwrap();
+    assert_eq!(first.locations[0].byte_size, 100);
+    let next = LibraryQuery {
+        cursor: first.next_cursor,
+        snapshot: Some(first.snapshot),
+        ..query.clone()
+    };
+    let second = db.browse_library(&next, &view).unwrap();
+    assert_ne!(first.locations[0].id, second.locations[0].id);
+    assert!(!second.has_more);
+    let named = LibraryView {
+        search: "ZZZ\\música_100%".into(),
+        ..view.clone()
+    };
+    assert_eq!(
+        db.browse_library(&query, &named).unwrap().locations[0].relative_path,
+        rows[1].relative_path
+    );
+    let missing = LibraryView {
+        presence: Some(FilePresence::Missing),
+        ..Default::default()
+    };
+    assert_eq!(
+        db.browse_library(&query, &missing).unwrap().locations[0].relative_path,
+        rows[0].relative_path
+    );
+}
+
+#[test]
 fn library_query_is_bounded_cursored_and_snapshot_stable() {
     let directory = TestDirectory::new();
     let mut database = Database::open(directory.path()).unwrap();

@@ -17,6 +17,7 @@ import {
   type LibraryErrorCode,
   type LibraryPage,
   type LibraryPageRequest,
+  type LibraryView,
   type LibraryScanAdapter,
   type PublishedFileLocation,
   type ScanErrorCode,
@@ -594,12 +595,14 @@ export function createGetLibraryPageArguments(
   rootId: string,
   limit: number,
   cursor: string | null,
+  view?: LibraryView,
 ) {
   return Object.freeze({
     request: Object.freeze({
       schemaVersion: NATIVE_COMMAND_SCHEMA_VERSION,
       rootId,
       limit: clampLibraryLimit(limit),
+      ...(view && { view }),
       cursor,
       snapshotId: null,
     }),
@@ -725,6 +728,7 @@ export function createNativeLibraryScanAdapter(
           request.rootId,
           request.limit,
           request.cursor,
+          request.view,
         ) as unknown as Record<string, unknown>,
         parseLibraryPage,
       );

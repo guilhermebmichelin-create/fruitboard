@@ -11,8 +11,6 @@ export interface NavigationItem {
   readonly label: string;
   readonly title: string;
   readonly description: string;
-  readonly actionLabel: string;
-  readonly actionPath: string;
   readonly icon: LucideIcon;
 }
 
@@ -21,9 +19,7 @@ export const navigationItems: readonly NavigationItem[] = [
     path: "/",
     label: "Home",
     title: "Home",
-    description: "Your local production workspace at a glance.",
-    actionLabel: "View library",
-    actionPath: "/library",
+    description: "Discover projects and inspect saved FL Studio data.",
     icon: House,
   },
   {
@@ -31,8 +27,6 @@ export const navigationItems: readonly NavigationItem[] = [
     label: "Library",
     title: "Library",
     description: "Browse your FL Studio projects and inspect saved details.",
-    actionLabel: "Return home",
-    actionPath: "/",
     icon: LibraryBig,
   },
   {
@@ -40,8 +34,6 @@ export const navigationItems: readonly NavigationItem[] = [
     label: "Board",
     title: "Board",
     description: "A future view of projects moving through production.",
-    actionLabel: "View library",
-    actionPath: "/library",
     icon: Columns3,
   },
   {
@@ -50,8 +42,6 @@ export const navigationItems: readonly NavigationItem[] = [
     title: "Preferences",
     description:
       "Choose where your local workspace opens and manage scan roots.",
-    actionLabel: "Return home",
-    actionPath: "/",
     icon: SlidersHorizontal,
   },
 ];
@@ -61,8 +51,6 @@ const notFoundRoute: NavigationItem = {
   label: "Home",
   title: "Page not found",
   description: "This location is not part of the Fruitboard shell.",
-  actionLabel: "Return home",
-  actionPath: "/",
   icon: House,
 };
 

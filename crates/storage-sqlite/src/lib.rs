@@ -36,9 +36,9 @@ use files::{Location, check_path, private_directory, private_file};
 use migrations::{MIGRATIONS, Migration};
 pub use publication::{
     EncodedIdentity, FilePresence, LibraryCursor, LibraryPage, LibraryQuery, LibrarySnapshot,
-    MAX_LIBRARY_PAGE_SIZE, MAX_STAGED_BATCH_RECORDS, MAX_STAGED_PATH_BYTES, MAX_STAGED_RECORDS,
-    PublishedLocation, ScanObservation, ScanPublication, ScanRootPublication, ScanStageState,
-    ScanStaging,
+    LibrarySort, LibraryView, MAX_LIBRARY_PAGE_SIZE, MAX_STAGED_BATCH_RECORDS,
+    MAX_STAGED_PATH_BYTES, MAX_STAGED_RECORDS, PublishedLocation, ScanObservation, ScanPublication,
+    ScanRootPublication, ScanStageState, ScanStaging,
 };
 use rusqlite::{
     Connection, OpenFlags, TransactionBehavior,
@@ -120,6 +120,7 @@ fn connect(path: &Path, read_only: bool) -> Result<Connection> {
     if !read_only {
         connection.pragma_update(None, "synchronous", "FULL")?;
     }
+    publication::register_library_functions(&connection)?;
     Ok(connection)
 }
 

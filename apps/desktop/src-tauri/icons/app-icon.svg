@@ -1,4 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Fruitboard">
-  <rect width="512" height="512" rx="96" fill="#202124" />
-  <path d="M152 112h232v72H232v72h128v72H232v120h-80z" fill="#fff" />
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Fruitboard Split Fruit">
+  <rect x="1" y="1" width="62" height="62" rx="13" fill="#141823" stroke="#41475d" stroke-width="1.45" />
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#c1b1ff">
+      <path d="M36 17h10l7 5 3 8v4l-3 6-6 6-10 3-8-3 10-8v-4l8-8z" fill="#181c2a" stroke-opacity=".45" stroke-width=".85" />
+      <path d="M31 22h10l7 5 3 8v4l-3 6-6 6 5-5 6-6 3-6v-4l-3-8-7-5H36z" fill="#373055" stroke-opacity=".58" stroke-width=".9" />
+      <path d="m41 22 5-5m2 10 5-5m-2 13 5-5m-8 15 5-5" fill="none" stroke-opacity=".62" stroke-width=".9" />
+      <path d="M31 22h10l7 5 3 8v4l-3 6-6 6-10 3-8-3 10-8v-4l8-8z" fill="#302948" stroke-width="1.35" />
+      <path d="m48 27 3 8-10 5 1-9z" fill="#4a3c62" stroke="none" />
+      <path d="m48 27-7 13-9 14m16-9-7-5 1-9" fill="none" stroke-opacity=".58" />
+    </g>
+    <g stroke="#8ef2c9">
+      <path d="m14 29 4-9 9-3 6 2 7 7-7 7v4l-8 7-8-5z" fill="#181c2a" stroke-opacity=".45" stroke-width=".85" />
+      <path d="m9 34 4-9 9-3 6 2 7 7 5-5-7-7-6-2-9 3-4 9z" fill="#234740" stroke-opacity=".58" stroke-width=".9" />
+      <path d="m13 25 5-5m4 2 5-5m1 7 5-5" fill="none" stroke-opacity=".62" stroke-width=".9" />
+      <path d="m9 34 4-9 9-3 6 2 7 7-7 7v4l-8 7-8-5z" fill="#243d39" stroke-width="1.35" />
+      <path d="m13 25 9-3v12H9z" fill="#284a41" stroke="none" />
+      <path d="m35 31-13 3-2 15m2-27v12L12 44" fill="none" stroke-opacity=".58" />
+      <path d="m22 22 6 2 7 7-7 7v4l-8 7" fill="none" stroke-width="1.65" />
+      <path d="m29 19 5-7 8-3 7 1-5 7-6 3z" fill="#2f6454" stroke-width="1.2" />
+      <path d="m29 19 13-10 7 1-11 10z" fill="#203e3a" stroke="none" />
+      <path d="m29 19 13-10 7 1" fill="none" stroke-width=".9" />
+    </g>
+    <path d="m31 22 11 9-8 8v4l-10 8" fill="none" stroke="#c1b1ff" stroke-width="1.65" />
+  </g>
 </svg>

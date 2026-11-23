@@ -1,5 +1,10 @@
 import {
   AlertCircle,
+  FolderTree,
+  Search,
+  SlidersHorizontal,
+  Layers3,
+  AudioLines,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -18,6 +23,8 @@ import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 import { PluginExplorerPanel } from "./PluginExplorerPanel";
 import {
   LIBRARY_PAGE_LIMIT,
+  DEFAULT_LIBRARY_VIEW,
+  type LibraryView,
   LibraryAdapterError,
   formatByteSizeDecimal,
   isScanAvailabilityUnavailable,
@@ -238,10 +245,18 @@ function ConnectedLibraryPage({
     cursor: null,
     snapshotId: null,
   });
+  const [view, setView] = useState(DEFAULT_LIBRARY_VIEW);
+  const [searchDraft, setSearchDraft] = useState("");
+  const searchInput = useRef<HTMLInputElement>(null);
   const [cursorHistory, setCursorHistory] = useState<readonly PagePosition[]>(
     [],
   );
   const [pageState, setPageState] = useState<PageState>({ kind: "loading" });
+  // Project filtering and paging can temporarily clear the current page.
+  const [explorerSnapshot, setExplorerSnapshot] = useState<Pick<
+    LibraryPageData,
+    "rootId" | "snapshotId"
+  > | null>(null);
   const [statusState, setStatusState] = useState<StatusState>({
     kind: "loading",
   });
@@ -423,6 +438,7 @@ function ConnectedLibraryPage({
       setPagePosition({ cursor: null, snapshotId: null });
       setCursorHistory([]);
       setPageState({ kind: "loading" });
+      setExplorerSnapshot(null);
       setPaginationNotice(
         notice ??
           "The committed Library snapshot changed. Pagination restarted at page 1.",
@@ -474,6 +490,34 @@ function ConnectedLibraryPage({
     [cancelPendingFocus, resolvedRootId],
   );
 
+  const changeView = useCallback(
+    (next: LibraryView) => {
+      pageRequestSequence.current += 1;
+      cancelPendingFocus();
+      pendingPageFocus.current = null;
+      setCursorHistory([]);
+      setPagePosition({ cursor: null, snapshotId: null });
+      setPaginationNotice(null);
+      setPageState({ kind: "loading" });
+      setView(next);
+    },
+    [cancelPendingFocus],
+  );
+
+  useEffect(() => {
+    const search = searchDraft.trim();
+    if (search === view.search) return;
+    const timer = window.setTimeout(() => changeView({ ...view, search }), 180);
+    return () => window.clearTimeout(timer);
+  }, [changeView, searchDraft, view]);
+
+  const clearFilters = () => {
+    setSearchDraft("");
+    changeView({ ...view, search: "", presence: null });
+    searchInput.current?.focus();
+  };
+  const filtered = view.search !== "" || view.presence !== null;
+
   const loadPage = useCallback(
     async (ensureFresh = false) => {
       const requestPosition = pagePosition;
@@ -481,6 +525,7 @@ function ConnectedLibraryPage({
       if (requestRootId === null) return;
       const loadKey = JSON.stringify([
         requestRootId,
+        view,
         requestPosition.cursor,
         requestPosition.snapshotId,
       ]);
@@ -519,6 +564,9 @@ function ConnectedLibraryPage({
             rootId: requestRootId,
             cursor: requestPosition.cursor,
             limit: LIBRARY_PAGE_LIMIT,
+            ...((view.search || view.presence || view.sort !== "path") && {
+              view,
+            }),
           });
           if (!isCurrentRequest()) return;
           if (page.rootId !== requestRootId) {
@@ -547,6 +595,10 @@ function ConnectedLibraryPage({
             return;
           }
           setPageState({ kind: "ready", page, refreshError: false });
+          setExplorerSnapshot({
+            rootId: page.rootId,
+            snapshotId: page.snapshotId,
+          });
         } catch (error) {
           if (!isCurrentRequest()) return;
           if (
@@ -584,7 +636,7 @@ function ConnectedLibraryPage({
       refresh.promise = promise;
       return promise;
     },
-    [adapter, pagePosition, resolvedRootId, restartPagination],
+    [adapter, pagePosition, resolvedRootId, restartPagination, view],
   );
 
   const loadStatuses = useCallback(
@@ -788,8 +840,10 @@ function ConnectedLibraryPage({
   useEffect(() => {
     if (pageState.kind !== "ready") return;
     const count = pageState.page.records.length;
-    if (count === 0) return;
-    const announcement = `${count} committed ${count === 1 ? "location" : "locations"} on page ${pageNumber}`;
+    const announcement =
+      count === 0
+        ? "No projects to show."
+        : `${count} committed ${count === 1 ? "location" : "locations"} on page ${pageNumber}`;
     const timer = window.setTimeout(() => {
       if (mounted.current) setPageAnnouncement(announcement);
     }, 0);
@@ -805,10 +859,10 @@ function ConnectedLibraryPage({
       if (!isCurrentAction()) return false;
       await loadStatuses(true);
       if (!isCurrentAction()) return false;
-      await loadPage(true);
+      await loadPageReference.current?.(true);
       return isCurrentAction();
     },
-    [loadPage, loadStatuses, refreshRuntimeHealth],
+    [loadStatuses, refreshRuntimeHealth],
   );
 
   const runScan = async (status: ScanStatus, action: "retry" | "scan-now") => {
@@ -1030,92 +1084,121 @@ function ConnectedLibraryPage({
         {pageAnnouncement}
       </p>
       <section
+        className="library-toolbar"
         aria-labelledby="library-content-title"
-        className="library-intro"
       >
-        <div>
-          <p className="eyebrow">Committed file locations</p>
-          <h2 id="library-content-title">Your FLP library</h2>
-          <p>
-            These are published filesystem observations. Scan progress below
-            never edits this list until a run completes authoritatively.
-          </p>
-        </div>
+        <header className="library-index-heading">
+          <h2 id="library-content-title">
+            <Layers3 aria-hidden="true" />
+            Project index
+          </h2>
+          <div className="library-jumps">
+            {selectedStatus && (
+              <button
+                type="button"
+                onClick={() =>
+                  document.getElementById("plugin-explorer-title")?.focus()
+                }
+              >
+                <AudioLines aria-hidden="true" />
+                Plugins
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() =>
+                document.getElementById("scan-status-title")?.focus()
+              }
+            >
+              <ScanLine aria-hidden="true" />
+              Scan status
+            </button>
+          </div>
+        </header>
         {renderContext === "review-harness" && (
           <span className="library-review-badge">
             Review harness · fake adapter
           </span>
         )}
-      </section>
-
-      <ScanStatusPanel
-        actionState={actionState}
-        duplicateDisplayNames={duplicateDisplayNames}
-        runtimeAvailable={runtimeAvailable}
-        subscriptionState={subscriptionState}
-        onRetryStatus={() => {
-          if (statusRefresh.current !== null) {
-            statusRefresh.current.rerun = true;
-          }
-          statusRequestSequence.current += 1;
-          setStatusState({ kind: "loading" });
-          setStatusAttempt((attempt) => attempt + 1);
-        }}
-        onRunScan={(status, action) => {
-          void runScan(status, action);
-        }}
-        onCancelScan={(status) => {
-          void cancelScan(status);
-        }}
-        retryButtonReferences={retryButtonReferences}
-        scanButtonReferences={scanButtonReferences}
-        cancelButtonReferences={cancelButtonReferences}
-        statusState={statusState}
-      />
-
-      {statusState.kind === "ready" && statuses.length > 0 && (
-        <section
-          aria-labelledby="library-root-select-title"
-          className="library-root-select"
-        >
-          <div>
-            <p className="eyebrow" id="library-root-select-title">
-              Per-root pages
-            </p>
-            <label
-              className="library-root-select__label"
-              htmlFor="library-root-select"
-            >
-              Scan root
+        {statusState.kind === "ready" && statuses.length > 0 && (
+          <div className="library-controls">
+            <label className="index-field" htmlFor="library-root-select">
+              <span>
+                <FolderTree aria-hidden="true" />
+                Scan root
+              </span>
+              <select
+                id="library-root-select"
+                onChange={(event) => selectRoot(event.target.value)}
+                value={resolvedRootId ?? ""}
+              >
+                {statuses.map((status) => (
+                  <option key={status.root.id} value={status.root.id}>
+                    {rootControlName(status, duplicateDisplayNames)}
+                  </option>
+                ))}
+              </select>
             </label>
-            <p className="library-root-select__hint">
-              Library pages read one root at a time from its own committed
-              snapshot. Switching roots discards the current page position.
-            </p>
+            <label className="index-field" htmlFor="library-search">
+              <span>
+                <Search aria-hidden="true" />
+                Find a project
+              </span>
+              <input
+                id="library-search"
+                type="search"
+                ref={searchInput}
+                placeholder="Name or folder…"
+                maxLength={160}
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
+              />
+            </label>
+            <label className="index-field" htmlFor="library-presence">
+              <span>File status</span>
+              <select
+                id="library-presence"
+                value={view.presence ?? ""}
+                onChange={(event) =>
+                  changeView({
+                    ...view,
+                    search: searchDraft.trim(),
+                    presence:
+                      (event.target.value as LibraryView["presence"]) || null,
+                  })
+                }
+              >
+                <option value="">All files</option>
+                <option value="present">Present files</option>
+                <option value="missing">Missing files</option>
+              </select>
+            </label>
+            <label className="index-field" htmlFor="library-sort">
+              <span>
+                <SlidersHorizontal aria-hidden="true" />
+                Sort by
+              </span>
+              <select
+                id="library-sort"
+                value={view.sort}
+                onChange={(event) =>
+                  changeView({
+                    ...view,
+                    search: searchDraft.trim(),
+                    sort: event.target.value as LibraryView["sort"],
+                  })
+                }
+              >
+                <option value="path">Folder order</option>
+                <option value="name">Name A–Z</option>
+                <option value="newest">Newest modified</option>
+                <option value="oldest">Oldest modified</option>
+                <option value="largest">Largest first</option>
+              </select>
+            </label>
           </div>
-          <select
-            id="library-root-select"
-            onChange={(event) => selectRoot(event.target.value)}
-            value={resolvedRootId ?? ""}
-          >
-            {statuses.map((status) => (
-              <option key={status.root.id} value={status.root.id}>
-                {rootControlName(status, duplicateDisplayNames)}
-              </option>
-            ))}
-          </select>
-        </section>
-      )}
-
-      {selectedStatus !== null && resolvedRootId !== null && (
-        <PluginExplorerPanel
-          key={`${resolvedRootId}:${selectedStatus.root.enabled}:${selectedStatus.root.mode}`}
-          adapter={adapter}
-          rootId={resolvedRootId}
-          rootLabel={selectedStatus.root.displayName}
-          sourceSnapshotId={page?.snapshotId ?? "no-page"}
-        />
-      )}
+        )}
+      </section>
 
       {pageState.kind === "error" && (
         <section
@@ -1181,7 +1264,31 @@ function ConnectedLibraryPage({
         </section>
       )}
 
+      {pageState.kind === "loading" &&
+        !showEmptyForMissingRoots &&
+        resolvedRootId && <p role="status">Loading projects…</p>}
+      {pageState.kind === "ready" &&
+        filtered &&
+        !pageHasRecords &&
+        !hasNoRoots && (
+          <section
+            className="library-state-panel"
+            aria-labelledby="library-no-matches"
+          >
+            <Search aria-hidden="true" className="library-state-panel__icon" />
+            <h2 id="library-no-matches">No matching projects</h2>
+            <p>Try another name, folder or file status.</p>
+            <button
+              className="library-button library-button--secondary"
+              type="button"
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
+          </section>
+        )}
       {(pageState.kind === "ready" || showEmptyForMissingRoots) &&
+        (!filtered || hasNoRoots) &&
         !pageHasRecords && (
           <section
             aria-labelledby="library-empty-title"
@@ -1224,18 +1331,17 @@ function ConnectedLibraryPage({
         >
           <div className="library-results__heading">
             <div>
-              <p className="eyebrow">Published dataset</p>
               <h2
                 id="library-list-title"
                 ref={listHeadingReference}
                 tabIndex={-1}
               >
-                File locations
+                Project files
               </h2>
             </div>
             <p>
-              {page.records.length} committed{" "}
-              {page.records.length === 1 ? "location" : "locations"} on page{" "}
+              {page.records.length}{" "}
+              {page.records.length === 1 ? "file" : "files"} on page{" "}
               {cursorHistory.length + 1}
               {selectedRootLabel === null ? "" : ` in ${selectedRootLabel}`}
             </p>
@@ -1289,6 +1395,44 @@ function ConnectedLibraryPage({
           )}
         </section>
       )}
+      {selectedStatus !== null && resolvedRootId !== null && (
+        <PluginExplorerPanel
+          key={`${resolvedRootId}:${selectedStatus.root.enabled}:${selectedStatus.root.mode}`}
+          adapter={adapter}
+          rootId={resolvedRootId}
+          rootLabel={selectedStatus.root.displayName}
+          sourceSnapshotId={
+            explorerSnapshot?.rootId === resolvedRootId
+              ? explorerSnapshot.snapshotId
+              : "no-page"
+          }
+        />
+      )}
+
+      <ScanStatusPanel
+        actionState={actionState}
+        duplicateDisplayNames={duplicateDisplayNames}
+        runtimeAvailable={runtimeAvailable}
+        subscriptionState={subscriptionState}
+        onRetryStatus={() => {
+          if (statusRefresh.current !== null) {
+            statusRefresh.current.rerun = true;
+          }
+          statusRequestSequence.current += 1;
+          setStatusState({ kind: "loading" });
+          setStatusAttempt((attempt) => attempt + 1);
+        }}
+        onRunScan={(status, action) => {
+          void runScan(status, action);
+        }}
+        onCancelScan={(status) => {
+          void cancelScan(status);
+        }}
+        retryButtonReferences={retryButtonReferences}
+        scanButtonReferences={scanButtonReferences}
+        cancelButtonReferences={cancelButtonReferences}
+        statusState={statusState}
+      />
     </div>
   );
 }
@@ -1335,13 +1479,11 @@ function ScanStatusPanel({
     >
       <div className="library-scan-panel__heading">
         <div>
-          <p className="eyebrow">Execution</p>
-          <h2 id="scan-status-title">Scan status</h2>
+          <h2 tabIndex={-1} id="scan-status-title">
+            Scan status
+          </h2>
         </div>
-        <p>
-          Availability is the last stored adapter observation, not a live
-          reachability check. Incomplete work never publishes partial results.
-        </p>
+        <p>Scan a folder to update its project list.</p>
       </div>
 
       {!runtimeAvailable && (
@@ -1650,33 +1792,43 @@ function LibraryRecord({
   const rootLabel = duplicateDisplayNames.has(record.rootDisplayName)
     ? `${record.rootDisplayName} (${record.rootCanonicalPath})`
     : record.rootDisplayName;
+  const folder = record.relativePath.split(/[\\/]/).slice(0, -1).join(" / ");
+  const directory = folder
+    ? duplicateDisplayNames.has(record.rootDisplayName)
+      ? rootLabel + " / " + folder
+      : folder
+    : rootLabel;
   return (
     <li className="library-record-item" data-presence={record.presence}>
       <article aria-labelledby={`library-record-${record.locationId}`}>
-        <div className="library-record-item__heading">
-          <h3 id={`library-record-${record.locationId}`}>{record.fileName}</h3>
-          <span
-            className={`library-presence library-presence--${record.presence}`}
-          >
-            {record.presence === "present" ? (
-              <CheckCircle2 aria-hidden="true" />
-            ) : (
-              <XCircle aria-hidden="true" />
-            )}
-            {record.presence === "present" ? "Present" : "Missing"}
-          </span>
+        <div className="library-file">
+          <Layers3 className="library-file__icon" aria-hidden="true" />
+          <div className="library-file__identity">
+            <h3 id={`library-record-${record.locationId}`}>
+              <bdi>{record.fileName}</bdi>
+            </h3>
+            <p className="library-file__path" title={record.relativePath}>
+              <bdi>{directory}</bdi>
+            </p>
+          </div>
         </div>
+        <span
+          className={`library-presence library-presence--${record.presence}`}
+        >
+          {record.presence === "present" ? (
+            <CheckCircle2 aria-hidden="true" />
+          ) : (
+            <XCircle aria-hidden="true" />
+          )}
+          {record.presence === "present" ? "Present" : "Missing"}
+        </span>
         <dl className="library-record-facts">
-          <div>
+          <div className="library-visually-hidden">
             <dt>Root</dt>
             <dd>{rootLabel}</dd>
           </div>
           <div>
-            <dt>Relative path</dt>
-            <dd>{record.relativePath}</dd>
-          </div>
-          <div>
-            <dt>Byte size</dt>
+            <dt>Size</dt>
             <dd>{formatBytes(record.byteSize)}</dd>
           </div>
           <div>
