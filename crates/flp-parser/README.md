@@ -33,8 +33,8 @@ files at 64 MiB (67,108,864 bytes), events at 100,000, and channels at 256.
 Event 213 (saved plugin data) may occupy the file budget: opaque state and path
 subrecords are skipped by checked lengths, with at most 1024 wrapper subrecords
 and unchanged name/vendor text bounds. Other event payloads remain capped at
-2 MiB. No plugin state is loaded or returned. Unique saved patterns and playlist
-clips are each capped at 1024. Only the three exact saved builds
+2 MiB. No plugin state is loaded or returned. Unique saved patterns and returned pattern placements
+are each capped at 1024. Only the three exact saved builds
 in the approved corpus currently return
 metadata; other build strings receive `UNSUPPORTED_SAVED_VERSION`.
 
@@ -257,27 +257,19 @@ unverified saved build has an `unsupported` count. The approved valid projects
 each have one channel. Arrangement length and plugin details need separate,
 pre-registered fixture coverage before they are claimed.
 
-`channelGeneratorNames` is distinct from editable `channelNames`. For the exact
-26.1.0.5530 build, a controlled GUI save identified native generator class
-`3x Osc` in UTF-16 event 201, while its editable channel name
-`Fixture Synth A` was in event 203. A channel with Event 21 type 0 and an
-explicitly empty event 201 is reported as built-in `Sampler` by a labeled,
-high-confidence inference from the approved 2026 minimal saves. A verified `3x Osc` class is
-`extracted`. The array retains per-channel provenance in `items` and reports
-`medium` aggregate confidence when stored and inferred classes are mixed.
-Unknown classes or layouts are field-level `unsupported`, even if event 201
-contains a plausible string. The 2024/2025 builds are `unsupported` for this
-field. The full `validate_project_reply` projection now retains this extension
-only when advertised by the selected descriptor, after checking build/class
-allowlists, cardinality, dense parser order, item/aggregate values and inference
-method/confidence. It preserves verified siblings of unsupported classes and
-returns typed reasons without arbitrary plugin text. Descriptors without the
-extension produce unsupported instrument details; the initial-only projection
-still discards generator metadata.
+`channelGeneratorNames` reads a type-2 channel's own saved class on
+26.1.0.5530. For Fruity Wrapper it selects the hosted name from the same
+channel's event 213. The name and vendor records in wrapper versions 8, 10
+and 12 use checked lengths. A missing name, duplicate class, ambiguous type
+or malformed wrapper produces an unsupported entry for that channel.
+A type-0 channel with an explicitly empty class retains its inferred Sampler
+label. Editable labels and mixer slots cannot supply an instrument name.
 
-This channel-only field does not decode mixer effects or VST identity;
-the separate `pluginReferences` field has the narrower metadata support above.
-Plugin state is not decoded.
+The full validator checks extracted instrument names against validated saved
+plugin names, channel count, item order and aggregate provenance. The desktop
+and client preserve previously stored instrument details. New analysis uses
+parser version 0.1.7. Existing snapshots retain their original evidence.
+
 The owner approved the exact sanitized two-channel F14 file for corpus
 inclusion on 2026-09-29. Its ordinary test checks the class and editable
 label separately; it does not establish broader compatibility.
@@ -321,9 +313,12 @@ ticks long. The approved 2026 minimal projects have empty saved arrangement
 payloads and return an extracted empty array. An absent payload is
 `unavailable`. Other supported builds and unfamiliar layouts, clip kinds,
 references, or multiple arrangement payloads return `unsupported` for this
-field. The parser rejects clip counts over 1024 and overflowing end positions.
-Audio clips, automation clips, track normalization, and rendered song length
-are not yet decoded. The existing response-size fallback still applies.
+field. The parser can recognize a non-pattern item by its low index when it
+resolves to a unique type-4 audio channel with a saved sample reference.
+These items use none of the 1024 returned pattern slots and cannot extend
+the pattern endpoint. Exceeding the pattern budget suppresses the four
+playlist facts while preserving independent metadata. The 2 MiB interpreted
+event bound and checked endpoint arithmetic still apply.
 
 `playlistPatternEndTick` is the greatest saved pattern-clip start plus length,
 not a sum of clips. The approved F13 arrangement ends at tick 1536. An empty

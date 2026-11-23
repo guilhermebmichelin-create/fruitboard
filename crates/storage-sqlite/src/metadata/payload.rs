@@ -61,6 +61,7 @@ fn project_reason(reason: ProjectReason) -> &'static str {
         ProjectReason::MultipleArrangementsUnverified => "MULTIPLE_ARRANGEMENTS_UNVERIFIED",
         ProjectReason::PlaylistDataNotStored => "PLAYLIST_DATA_NOT_STORED",
         ProjectReason::PlaylistClipLayoutUnverified => "PLAYLIST_CLIP_LAYOUT_UNVERIFIED",
+        ProjectReason::PlaylistClipLimit => "PLAYLIST_CLIP_LIMIT",
         ProjectReason::PlaylistClipKindUnverified => "PLAYLIST_CLIP_KIND_UNVERIFIED",
         ProjectReason::PlaylistPatternReferenceUnverified => {
             "PLAYLIST_PATTERN_REFERENCE_UNVERIFIED"
@@ -363,7 +364,7 @@ fn generators(value: &ChannelGenerators) -> Value {
             json!({"status":"unsupported","reason":reason.as_str()})
         }
         ChannelGenerators::Items(items) => json!({"items":items.iter().map(|item| match item {
-            ChannelGenerator::ExtractedOsc => json!({"status":"extracted","value":"3x Osc"}),
+            ChannelGenerator::Extracted(name) => json!({"status":"extracted","value":name}),
             ChannelGenerator::InferredSampler => json!({"status":"inferred","value":"Sampler","method":"sampler-generator-default-for-known-build","confidence":"high"}),
             ChannelGenerator::Unsupported(reason) => json!({"status":"unsupported","reason":reason.as_str()}),
         }).collect::<Vec<_>>()}),

@@ -525,6 +525,11 @@ fn reason_copy(key: &str, status: &str, reason: &str) -> Option<&'static str> {
         (
             "playlistPatternEndTick" | "playlistPatternSpanBars" | "playlistPatternNominalSeconds",
             "unsupported",
+            "PLAYLIST_CLIP_LIMIT",
+        ) => Some("This arrangement exceeds the supported pattern clip count."),
+        (
+            "playlistPatternEndTick" | "playlistPatternSpanBars" | "playlistPatternNominalSeconds",
+            "unsupported",
             "PLAYLIST_CLIPS_UNVERIFIED_BUILD"
             | "MULTIPLE_ARRANGEMENTS_UNVERIFIED"
             | "PLAYLIST_CLIP_LAYOUT_UNVERIFIED"
@@ -767,6 +772,18 @@ mod tests {
         assert_eq!(channels[0]["instrument"]["value"], "3x Osc");
         assert_eq!(channels[1]["instrument"]["status"], "inferred");
         assert_eq!(channels[2]["instrument"]["status"], "unsupported");
+        let mut hosted = raw.clone();
+        hosted["channelGeneratorNames"]["items"][0]["value"] = json!("Fixture Synth");
+        hosted["pluginReferences"] = json!({
+            "coverage":"top-level-saved-references","items":[{
+                "className":{"status":"extracted","value":"Fruity Wrapper"},
+                "name":{"status":"extracted","value":"Fixture Synth"},
+                "vendor":{"status":"unavailable","reason":"PLUGIN_VENDOR_NOT_STORED"}
+            }]
+        });
+        let channels = serde_json::to_value(project(&hosted.to_string()).unwrap().1).unwrap();
+        assert_eq!(channels[0]["instrument"]["value"], "Fixture Synth");
+        assert_eq!(channels[0]["name"]["value"], "Kick");
         for (pointer, bad) in [
             ("/channelNames/items/0/value", json!("bad\u{0000}")),
             (

@@ -1,3 +1,4 @@
+import { builtinPlugin } from "./pluginReferences.fixture";
 import { describe, expect, it, vi } from "vitest";
 import {
   channelLabel,
@@ -71,6 +72,24 @@ describe("typed project details", () => {
       ),
     };
     expect(() => parseProjectDetails(mixed, identity)).toThrow("internal");
+  });
+
+  it("reads a channel instrument with a corroborating saved plugin name", () => {
+    const details = savedDetails();
+    const pluginReferences = {
+      coverage: "top-level-saved-references" as const,
+      items: [builtinPlugin(1, "Fixture Native")],
+    };
+    const channels = details.channels.map((channel, i) =>
+      i === 0
+        ? {
+            ...channel,
+            instrument: { ...channel.instrument, value: "Fixture Native" },
+          }
+        : channel,
+    );
+    const expected = { ...details, pluginReferences, channels };
+    expect(parseProjectDetails(expected, identity)).toEqual(expected);
   });
 
   it.each([

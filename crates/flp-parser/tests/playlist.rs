@@ -196,7 +196,61 @@ fn zero_length_and_overflow_are_bounded() {
         &mut excessive,
         &clip(0, 1, 384, 499).repeat(MAX_PLAYLIST_CLIPS + 1),
     );
-    assert_eq!(parse_bytes(&excessive)["code"], "PLAYLIST_CLIP_LIMIT");
+    let parsed = parse_bytes(&excessive);
+    assert_eq!(parsed["outcome"], "complete");
+    assert_eq!(parsed["patternCount"]["value"], 1);
+    for key in [
+        "playlistPatternClips",
+        "playlistPatternEndTick",
+        "playlistPatternNominalSeconds",
+        "playlistPatternSpanBars",
+    ] {
+        assert_eq!(parsed[key]["status"], "unsupported");
+        assert_eq!(parsed[key]["reason"], "PLAYLIST_CLIP_LIMIT");
+    }
+}
+
+// A low item index is a saved rack ID, independent of declaration order.
+#[test]
+fn mixed_audio_placements_do_not_consume_the_pattern_budget_or_extend_its_endpoint() {
+    let mut bytes = stream("26.1.0.5530", &[1]);
+    bytes[10..12].copy_from_slice(&2_u16.to_le_bytes());
+    bytes.extend_from_slice(&[64, 27, 0, 21, 4, 196, 4, b'x', 0, 0, 0]);
+    append_meter(&mut bytes, 4, 4);
+    append_tempo(&mut bytes, 120_000);
+    let mut audio = clip(9_600, 1, 768, 498);
+    audio[6..8].copy_from_slice(&27_u16.to_le_bytes());
+    let pattern = clip(192, 1, 192, 499);
+    let mut payload = audio.repeat(MAX_PLAYLIST_CLIPS + 1);
+    payload.extend_from_slice(&pattern);
+    for (extra_declaration, expected) in [(false, "extracted"), (true, "unsupported")] {
+        let mut input = bytes.clone();
+        if extra_declaration {
+            input[10..12].copy_from_slice(&3_u16.to_le_bytes());
+            input.extend_from_slice(&[64, 27, 0, 21, 0]);
+        }
+        append_payload(&mut input, &payload);
+        let parsed = parse_bytes(&input);
+        assert_eq!(parsed["playlistPatternClips"]["status"], expected);
+        if !extra_declaration {
+            assert_eq!(
+                parsed["playlistPatternClips"]["value"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                1
+            );
+            assert_eq!(parsed["playlistPatternEndTick"]["value"], 384);
+            assert_eq!(parsed["playlistPatternSpanBars"]["value"], 1.0);
+            assert_eq!(parsed["playlistPatternNominalSeconds"]["value"], 2.0);
+        }
+    }
+    audio[6..8].copy_from_slice(&99_u16.to_le_bytes());
+    append_payload(&mut bytes, &[pattern, audio].concat());
+    assert_eq!(
+        parse_bytes(&bytes)["playlistPatternClips"]["reason"],
+        "PLAYLIST_CLIP_KIND_UNVERIFIED"
+    );
 }
 
 #[test]

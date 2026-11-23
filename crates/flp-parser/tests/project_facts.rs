@@ -199,6 +199,76 @@ fn saved_plugin_names_include_wrapper_metadata_without_paths_or_state() {
 }
 
 #[test]
+fn instrument_names_use_only_their_own_channel_and_survive_project_validation() {
+    let native = vec![
+        event(64, &[9, 0]),
+        event(21, &[2]),
+        event(201, &utf16("Fixture Native")),
+    ];
+    let mut data = wrapper();
+    data[..4].copy_from_slice(&12_u32.to_le_bytes());
+    let hosted = vec![
+        event(64, &[3, 0]),
+        event(21, &[2]),
+        event(203, &utf16("Editable label")),
+        event(201, &utf16("Fruity Wrapper")),
+        event(213, &data),
+    ];
+    let effect = vec![event(100, &[0, 0]), event(201, &utf16("Unrelated Effect"))];
+    let bytes = project([native.clone(), hosted.clone(), effect.clone()].concat(), 2);
+    let raw = reply(&bytes);
+    assert_eq!(
+        raw["channelGeneratorNames"]["value"],
+        json!(["Fixture Native", "Fixture VST"])
+    );
+    let mut forged = raw.clone();
+    forged["channelGeneratorNames"]["value"][1] = json!("Editable label");
+    assert!(validate(forged, &bytes).is_err());
+    metadata(raw, &bytes);
+
+    for extra in [
+        vec![event(213, &data)],
+        vec![event(201, &utf16("Second class"))],
+    ] {
+        let bytes = project(
+            [native.clone(), hosted.clone(), extra, effect.clone()].concat(),
+            2,
+        );
+        let raw = reply(&bytes);
+        let items = &raw["channelGeneratorNames"]["items"];
+        assert_eq!(items[0]["name"]["value"], "Fixture Native");
+        assert_eq!(items[1]["name"]["status"], "unsupported");
+        metadata(raw, &bytes);
+    }
+}
+
+#[test]
+fn v12_wrapper_exposes_only_checked_text_subrecords() {
+    let mut data = wrapper();
+    data[..4].copy_from_slice(&12_u32.to_le_bytes());
+    for (trailer, expected) in [
+        (vec![], Some("Fixture VST")),
+        (chunk(54, b"Duplicate"), None),
+        (vec![0; 8], None),
+    ] {
+        let bytes = project(
+            vec![
+                event(201, &utf16("Fruity Wrapper")),
+                event(213, &[data.as_slice(), &trailer].concat()),
+            ],
+            0,
+        );
+        let raw = reply(&bytes);
+        assert!(!raw.to_string().contains("DO_NOT_RETURN"));
+        let result = metadata(raw, &bytes);
+        assert_eq!(
+            result.plugins()[0].name().value().map(String::as_str),
+            expected
+        );
+    }
+}
+
+#[test]
 fn malformed_wrapper_lengths_duplicates_and_text_do_not_leak_or_panic() {
     let mut oversized = 8_u32.to_le_bytes().to_vec();
     oversized.extend(54_u32.to_le_bytes());

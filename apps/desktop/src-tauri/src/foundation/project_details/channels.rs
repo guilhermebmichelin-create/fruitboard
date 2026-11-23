@@ -45,6 +45,14 @@ pub(super) fn project(value: &Value, build: &str, count: usize) -> Result<Vec<Ch
     if count > 256 {
         return Err(());
     }
+    let plugin_names: std::collections::BTreeSet<_> = value["pluginReferences"]["items"]
+        .as_array()
+        .filter(|items| items.len() <= 1024)
+        .into_iter()
+        .flatten()
+        .filter(|plugin| plugin["name"]["status"] == "extracted")
+        .filter_map(|plugin| plugin["name"]["value"].as_str())
+        .collect();
     let names = &value["channelNames"];
     let items = names["items"]
         .as_array()
@@ -115,7 +123,13 @@ pub(super) fn project(value: &Value, build: &str, count: usize) -> Result<Vec<Ch
         result.push(Channel {
             position: index + 1,
             name,
-            instrument: instrument(value.get("channelGeneratorNames"), build, count, index)?,
+            instrument: instrument(
+                value.get("channelGeneratorNames"),
+                build,
+                count,
+                index,
+                &plugin_names,
+            )?,
         });
     }
     match names["status"].as_str() {
@@ -157,7 +171,13 @@ pub(super) fn project(value: &Value, build: &str, count: usize) -> Result<Vec<Ch
     }
     // A zero-channel result still validates the optional instrument container.
     if count == 0 {
-        instrument(value.get("channelGeneratorNames"), build, count, 0)?;
+        instrument(
+            value.get("channelGeneratorNames"),
+            build,
+            count,
+            0,
+            &plugin_names,
+        )?;
     }
     Ok(result)
 }
@@ -166,6 +186,7 @@ fn instrument(
     build: &str,
     count: usize,
     index: usize,
+    plugin_names: &std::collections::BTreeSet<&str>,
 ) -> Result<Detail, ()> {
     let Some(field) = field else {
         return Ok(detail(
@@ -209,10 +230,17 @@ fn instrument(
     match item["status"].as_str() {
         Some("extracted") => {
             has_value(item, "extracted")?;
-            if item["value"] != "3x Osc" {
-                return Err(());
-            }
-            Ok(detail("extracted", Some("3x Osc"), None))
+            let name = item["value"]
+                .as_str()
+                .filter(|name| {
+                    !name.is_empty()
+                        && name.len() <= 12285
+                        && name.encode_utf16().count() <= 4095
+                        && !name.contains('\0')
+                        && (*name == "3x Osc" || plugin_names.contains(name))
+                })
+                .ok_or(())?;
+            Ok(detail("extracted", Some(name), None))
         }
         Some("inferred") => {
             has_value(item, "inferred")?;
