@@ -21,7 +21,11 @@ fn stream(version: &str, pattern_ids: &[u16]) -> Vec<u8> {
 }
 
 fn append_payload(bytes: &mut Vec<u8>, payload: &[u8]) {
-    bytes.push(233);
+    append_variable_event(bytes, 233, payload);
+}
+
+fn append_variable_event(bytes: &mut Vec<u8>, event: u8, payload: &[u8]) {
+    bytes.push(event);
     let mut length = payload.len();
     while length >= 128 {
         bytes.push((length as u8 & 127) | 128);
@@ -251,6 +255,77 @@ fn mixed_audio_placements_do_not_consume_the_pattern_budget_or_extend_its_endpoi
         parse_bytes(&bytes)["playlistPatternClips"]["reason"],
         "PLAYLIST_CLIP_KIND_UNVERIFIED"
     );
+}
+
+#[test]
+fn mixed_playlist_ignores_only_automation_with_a_unique_channel_and_verified_curve() {
+    let mut bytes = stream("26.1.0.5530", &[1]);
+    bytes[10..12].copy_from_slice(&3_u16.to_le_bytes());
+    bytes.extend_from_slice(&[64, 27, 0, 21, 4, 196, 4, b'x', 0, 0, 0]);
+    bytes.extend_from_slice(&[64, 28, 0, 21, 5]);
+
+    // Extend the approved three-point curve to five points to check that
+    // classification does not inherit the automation-summary point limit.
+    let fixture = include_bytes!("../../../fixtures/parser-corpus/FIX-FL2026-AUTOMATION.flp");
+    let original = &fixture[1792..1997];
+    let mut curve = [
+        original[..93].to_vec(),
+        original[21..69].to_vec(),
+        original[93..].to_vec(),
+    ]
+    .concat();
+    curve[17..21].copy_from_slice(&5_u32.to_le_bytes());
+    let mut malformed = curve.clone();
+    malformed.pop();
+
+    let pattern = clip(192, 1, 192, 499);
+    let mut audio = clip(9600, 1, 768, 498);
+    audio[6..8].copy_from_slice(&27_u16.to_le_bytes());
+    let mut automation = clip(19200, 1, 768, 497);
+    automation[6..8].copy_from_slice(&28_u16.to_le_bytes());
+    let playlist = [pattern, audio, automation].concat();
+    for (curves, boundary, duplicate_channel, verified) in [
+        (vec![curve.as_slice()], false, false, true),
+        (vec![], false, false, false),
+        (vec![malformed.as_slice()], false, false, false),
+        (vec![curve.as_slice(); 2], false, false, false),
+        (vec![curve.as_slice()], true, false, false),
+        (vec![curve.as_slice()], false, true, false),
+    ] {
+        let mut input = bytes.clone();
+        if boundary {
+            input.extend_from_slice(&[100, 0, 0]);
+        }
+        for payload in curves {
+            append_variable_event(&mut input, 234, payload);
+        }
+        if duplicate_channel {
+            input[10..12].copy_from_slice(&4_u16.to_le_bytes());
+            input.extend_from_slice(&[64, 28, 0, 21, 0]);
+        }
+        append_meter(&mut input, 4, 4);
+        append_tempo(&mut input, 120_000);
+        append_payload(&mut input, &playlist);
+        let parsed = parse_bytes(&input);
+        assert_eq!(parsed["automationCounts"]["status"], "unavailable");
+        if verified {
+            assert_eq!(
+                parsed["playlistPatternClips"]["value"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                1
+            );
+            assert_eq!(parsed["playlistPatternEndTick"]["value"], 384);
+            assert_eq!(parsed["playlistPatternSpanBars"]["value"], 1.0);
+            assert_eq!(parsed["playlistPatternNominalSeconds"]["value"], 2.0);
+        } else {
+            assert_eq!(
+                parsed["playlistPatternClips"]["reason"],
+                "PLAYLIST_CLIP_KIND_UNVERIFIED"
+            );
+        }
+    }
 }
 
 #[test]

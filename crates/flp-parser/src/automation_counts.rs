@@ -129,7 +129,9 @@ impl AutomationCounts {
             return None;
         }
         if id == 234 {
-            channel.points = Some(curve_points(payload)?);
+            channel.points =
+                saved_curve_point_count(payload).filter(|&n| n <= MAX_POINTS_PER_OBJECT);
+            channel.points?;
         }
         channel.event_index += 1;
         Some(())
@@ -176,9 +178,11 @@ impl AutomationCounts {
     }
 }
 
-fn curve_points(payload: &[u8]) -> Option<u64> {
+// Recognizing a saved curve for playlist classification does not qualify
+// aggregate automation counts for that layout.
+pub(crate) fn saved_curve_point_count(payload: &[u8]) -> Option<u64> {
     let count = u32::from_le_bytes(payload.get(17..21)?.try_into().ok()?);
-    if !(1..=MAX_POINTS_PER_OBJECT).contains(&u64::from(count)) {
+    if count == 0 {
         return None;
     }
     let suffix_offset = (count as usize).checked_mul(24)?.checked_add(21)?;

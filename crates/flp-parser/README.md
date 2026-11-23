@@ -313,8 +313,9 @@ ticks long. The approved 2026 minimal projects have empty saved arrangement
 payloads and return an extracted empty array. An absent payload is
 `unavailable`. Other supported builds and unfamiliar layouts, clip kinds,
 references, or multiple arrangement payloads return `unsupported` for this
-field. The parser can recognize a non-pattern item by its low index when it
-resolves to a unique type-4 audio channel with a saved sample reference.
+field. The parser recognizes a non-pattern item by its low index when it
+resolves to a unique type-4 audio channel with a saved sample reference or
+a unique type-5 automation channel with one structurally verified curve.
 These items use none of the 1024 returned pattern slots and cannot extend
 the pattern endpoint. Exceeding the pattern budget suppresses the four
 playlist facts while preserving independent metadata. The 2 MiB interpreted
