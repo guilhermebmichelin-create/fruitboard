@@ -208,10 +208,10 @@ fn automation_details_select_only_valid_saved_counts() {
     assert!(project(&raw.to_string()).unwrap().9.is_none());
 
     raw["automationCounts"] =
-        json!({"status":"extracted","value":{"objectCount":2,"pointCount":6}});
+        json!({"status":"extracted","value":{"objectCount":2,"pointCount":11}});
     assert_eq!(
         serde_json::to_value(project(&raw.to_string()).unwrap().9).unwrap(),
-        json!({"state":"available","objectCount":2,"pointCount":6})
+        json!({"state":"available","objectCount":2,"pointCount":11})
     );
 
     raw["automationCounts"] =

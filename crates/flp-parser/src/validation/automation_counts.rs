@@ -1,6 +1,6 @@
 use super::ValidationError;
 use crate::automation_counts::{
-    BUILD, MAX_OBJECTS, MAX_POINTS, MAX_POINTS_PER_OBJECT, UNVERIFIED_BUILD, UNVERIFIED_LAYOUT,
+    BUILD, MAX_POINTS, MAX_POINTS_PER_OBJECT, UNVERIFIED_BUILD, UNVERIFIED_LAYOUT,
 };
 use serde_json::Value;
 
@@ -53,8 +53,9 @@ pub(super) fn validate(
     let point_count = counts["pointCount"]
         .as_u64()
         .ok_or(ValidationError::InvalidReply)?;
-    if object_count > MAX_OBJECTS
-        || object_count + 1 != u64::from(channel_count)
+    if channel_count > crate::MAX_CHANNELS
+        || object_count > u64::from(channel_count)
+        || (object_count == 0 && channel_count != 1)
         || !(object_count..=(object_count * MAX_POINTS_PER_OBJECT).min(MAX_POINTS))
             .contains(&point_count)
     {
