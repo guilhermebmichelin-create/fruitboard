@@ -576,7 +576,7 @@ fn automation_counts_from_approved_saves_survive_reopen_and_require_valid_storag
         db.connection
             .execute_batch("DROP TRIGGER metadata_snapshot_no_update")
             .unwrap();
-        payload["automationCounts"]["value"]["pointCount"] = json!(7);
+        payload["automationCounts"]["value"]["pointCount"] = json!(87_376);
         db.connection
             .execute(
                 "UPDATE metadata_snapshot SET payload_json=?1 WHERE id=?2",

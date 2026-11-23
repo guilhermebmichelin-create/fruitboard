@@ -207,7 +207,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
             for field in [
                 serde_json::Value::Null,
                 serde_json::json!({"status":"extracted","value":{"objectCount":0,"pointCount":0}}),
-                serde_json::json!({"status":"extracted","value":{"objectCount":1,"pointCount":5}}),
+                serde_json::json!({"status":"extracted","value":{"objectCount":1,"pointCount":87376}}),
                 serde_json::json!({"status":"extracted","value":{"objectCount":1,"pointCount":0}}),
                 serde_json::json!({"status":"extracted","value":{"objectCount":1,"pointCount":3.0}}),
                 serde_json::json!({"status":"extracted","value":{"objectCount":1,"pointCount":3,"unexpected":true}}),

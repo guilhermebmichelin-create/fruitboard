@@ -259,10 +259,11 @@ fn mixed_audio_placements_do_not_consume_the_pattern_budget_or_extend_its_endpoi
 
 #[test]
 fn mixed_playlist_ignores_only_automation_with_a_unique_channel_and_verified_curve() {
-    let mut bytes = stream("26.1.0.5530", &[1]);
+    let mut bytes = stream("26.1.0.5530", &[]);
     bytes[10..12].copy_from_slice(&3_u16.to_le_bytes());
+    bytes.extend_from_slice(&[21, 0, 65, 1, 0]);
     bytes.extend_from_slice(&[64, 27, 0, 21, 4, 196, 4, b'x', 0, 0, 0]);
-    bytes.extend_from_slice(&[64, 28, 0, 21, 5]);
+    bytes.extend_from_slice(&[64, 28, 0, 21, 5, 201, 2, 0, 0]);
 
     // Extend the approved three-point curve to five points to check that
     // classification does not inherit the automation-summary point limit.
@@ -283,7 +284,7 @@ fn mixed_playlist_ignores_only_automation_with_a_unique_channel_and_verified_cur
     audio[6..8].copy_from_slice(&27_u16.to_le_bytes());
     let mut automation = clip(19200, 1, 768, 497);
     automation[6..8].copy_from_slice(&28_u16.to_le_bytes());
-    let playlist = [pattern, audio, automation].concat();
+    let playlist = [pattern, audio, automation, automation].concat();
     for (curves, boundary, duplicate_channel, verified) in [
         (vec![curve.as_slice()], false, false, true),
         (vec![], false, false, false),
@@ -307,8 +308,11 @@ fn mixed_playlist_ignores_only_automation_with_a_unique_channel_and_verified_cur
         append_tempo(&mut input, 120_000);
         append_payload(&mut input, &playlist);
         let parsed = parse_bytes(&input);
-        assert_eq!(parsed["automationCounts"]["status"], "unavailable");
         if verified {
+            assert_eq!(
+                parsed["automationCounts"]["value"],
+                json!({"objectCount":1,"pointCount":5})
+            );
             assert_eq!(
                 parsed["playlistPatternClips"]["value"]
                     .as_array()
@@ -320,6 +324,7 @@ fn mixed_playlist_ignores_only_automation_with_a_unique_channel_and_verified_cur
             assert_eq!(parsed["playlistPatternSpanBars"]["value"], 1.0);
             assert_eq!(parsed["playlistPatternNominalSeconds"]["value"], 2.0);
         } else {
+            assert_eq!(parsed["automationCounts"]["status"], "unavailable");
             assert_eq!(
                 parsed["playlistPatternClips"]["reason"],
                 "PLAYLIST_CLIP_KIND_UNVERIFIED"

@@ -237,14 +237,16 @@ struct Channel {
     name: Option<String>,
     generator_event: GeneratorEvent,
     sample: Option<String>,
-    automation_curve: Option<bool>,
+    automation_curve: automation_counts::Curve,
 }
 
 impl Channel {
     fn is_verified_non_pattern_clip(&self) -> bool {
         match self.channel_type {
             ChannelType::AudioClip => self.sample.is_some(),
-            ChannelType::AutomationClip => self.automation_curve == Some(true),
+            ChannelType::AutomationClip => {
+                matches!(self.automation_curve, automation_counts::Curve::Verified(_))
+            }
             _ => false,
         }
     }
@@ -570,8 +572,7 @@ fn parse_bytes_with_policy(
     let mut current_pattern = None;
     let mut pattern_notes = pattern_notes::PatternNotes::default();
     let format = u16::from_le_bytes([bytes[8], bytes[9]]);
-    let mut automation_counts =
-        automation_counts::AutomationCounts::new(format, header_ppq, header_channels);
+    let mut automation_rack_unverified = false;
     let mut mixer_inserts = mixer_inserts::MixerInserts::default();
     let mut playlist_payload: Option<Vec<u8>> = None;
     let mut multiple_playlist_payloads = false;
@@ -631,7 +632,6 @@ fn parse_bytes_with_policy(
         observe_event(id, event_offset, cursor, width);
         cursor = end;
         pattern_notes.observe(id, data);
-        automation_counts.observe(id, data);
         if version.as_deref() == Some(mixer_inserts::BUILD) {
             mixer_inserts.observe(id, data);
         }
@@ -677,6 +677,7 @@ fn parse_bytes_with_policy(
                 multiple_timing_events |= timing_denominator.replace(data[0]).is_some();
             }
             64 => {
+                automation_rack_unverified |= playlist_payload.is_some();
                 current_pattern = None;
                 if channels.len() >= MAX_CHANNELS as usize {
                     return failed("CHANNEL_COUNT_LIMIT");
@@ -689,7 +690,7 @@ fn parse_bytes_with_policy(
                     name: None,
                     generator_event: GeneratorEvent::Missing,
                     sample: None,
-                    automation_curve: None,
+                    automation_curve: automation_counts::Curve::Missing,
                 });
                 current_channel = Some(ChannelContext { id, index });
             }
@@ -801,15 +802,15 @@ fn parse_bytes_with_policy(
                     _ => GeneratorEvent::Multiple,
                 };
             }
-            234 if plugin_channel_scope && known_pattern_build(version.as_deref()) => {
-                if let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
+            234 if known_pattern_build(version.as_deref()) => {
+                if let Some(index) = current_channel
+                    .filter(|_| plugin_channel_scope)
+                    .and_then(|context| context.resolve(&channels))
                 {
                     let channel = &mut channels[index];
-                    channel.automation_curve = Some(
-                        channel.automation_curve.is_none()
-                            && channel.channel_type == ChannelType::AutomationClip
-                            && automation_counts::saved_curve_point_count(data).is_some(),
-                    );
+                    channel.automation_curve.observe(channel.channel_type, data);
+                } else {
+                    automation_rack_unverified = true;
                 }
             }
             196 if current_channel.is_some() => {
@@ -835,6 +836,15 @@ fn parse_bytes_with_policy(
         return failed("CHANNEL_COUNT_MISMATCH");
     }
     let channel_count = channels.len();
+    let automation_counts = automation_counts::summary(
+        version.as_deref(),
+        &channels,
+        format == 0
+            && header_ppq == 96
+            && playlist_payload.is_some()
+            && !automation_rack_unverified,
+        playlist_payload.as_ref().is_some_and(Vec::is_empty) && !multiple_playlist_payloads,
+    );
     let (project_created_local, fl_studio_time_spent_ms) = project_info.into_fields();
     let plugin_references = match plugins.into_field(|index| {
         channels
@@ -993,7 +1003,7 @@ fn parse_bytes_with_policy(
         "patternCount":pattern_count,
         "patternNoteCounts":pattern_notes.summary(version.as_deref(), &pattern_ids),
         "patternNoteSequences":pattern_note_sequences,
-        "automationCounts":automation_counts.summary(version.as_deref()),
+        "automationCounts":automation_counts,
         "mixerInsertCount":mixer_insert_count,
         "mixerInsertNames":mixer_insert_names,
         "patternNames":pattern_names,

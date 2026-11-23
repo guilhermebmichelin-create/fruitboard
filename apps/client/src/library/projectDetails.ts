@@ -535,12 +535,12 @@ function parseAutomationCounts(
     typeof objectCount !== "number" ||
     !Number.isInteger(objectCount) ||
     objectCount < 0 ||
-    objectCount > 2 ||
-    objectCount + 1 !== channelCount ||
+    objectCount > channelCount ||
+    (objectCount === 0 && channelCount !== 1) ||
     typeof pointCount !== "number" ||
     !Number.isInteger(pointCount) ||
     pointCount < objectCount ||
-    pointCount > Math.min(objectCount * 4, 6)
+    pointCount > Math.min(objectCount * 87_375, 2_796_202)
   )
     return fail();
 

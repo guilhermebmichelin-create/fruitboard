@@ -29,6 +29,25 @@ describe("saved automation counts", () => {
     expect(section.getAllByText("0")).toHaveLength(2);
   });
 
+  it("shows counts in a mixed channel rack", () => {
+    const details = parseProjectDetails(
+      {
+        ...savedDetails(),
+        automationCounts: {
+          state: "available",
+          objectCount: 2,
+          pointCount: 11,
+        },
+      },
+      identity,
+    );
+    if (details.state !== "available")
+      throw new Error("Expected saved details");
+    render(<SavedAutomationCounts counts={details.automationCounts} />);
+    expect(screen.getByText("2")).toBeTruthy();
+    expect(screen.getByText("11")).toBeTruthy();
+  });
+
   it("distinguishes older records from unverified layouts and builds", () => {
     const view = render(<SavedAutomationCounts />);
     expect(screen.getByText(/did not save automation counts/)).toBeTruthy();
@@ -47,8 +66,8 @@ describe("saved automation counts", () => {
     null,
     { state: "unverified_build" },
     { state: "unverified_layout", pointCount: 0 },
-    { state: "available", objectCount: 1, pointCount: 4 },
-    { state: "available", objectCount: 2, pointCount: 7 },
+    { state: "available", objectCount: 4, pointCount: 4 },
+    { state: "available", objectCount: 2, pointCount: 1 },
     { state: "available", objectCount: 2, pointCount: 2.5 },
   ])("rejects an invalid details field (%j)", (automationCounts) => {
     expect(() =>
