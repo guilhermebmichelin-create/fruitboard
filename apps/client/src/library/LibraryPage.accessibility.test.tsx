@@ -314,7 +314,7 @@ describe("LibraryPage accessibility", () => {
     // completed transition rather than a document still being replaced.
     await waitFor(() =>
       expect(document.activeElement).toBe(
-        screen.getByRole("heading", { name: "File locations" }),
+        screen.getByRole("heading", { name: "Project files" }),
       ),
     );
     await expectNoViolations(view.container);

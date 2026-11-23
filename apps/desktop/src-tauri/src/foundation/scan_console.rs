@@ -40,8 +40,8 @@
 use super::command::CommandRuntime;
 use super::errors::{AppError, DiagnosticCode, ErrorCode};
 use fruitboard_storage::{
-    Database, FilePresence, LibraryCursor, LibrarySnapshot, PublishedLocation, ScanRoot,
-    StorageError,
+    Database, FilePresence, LibraryCursor, LibrarySnapshot, LibraryView, PublishedLocation,
+    ScanRoot, StorageError,
 };
 #[cfg(feature = "scan-console")]
 use fruitboard_storage::{
@@ -293,6 +293,8 @@ struct GetLibraryPageRequest {
     /// Opaque committed-snapshot identity; null means "current". When both
     /// are present the storage contract requires them to agree.
     snapshot_id: Option<String>,
+    #[serde(default)]
+    view: LibraryView,
 }
 
 #[derive(Deserialize)]
@@ -356,6 +358,7 @@ impl ScanConsoleService {
         _limit: u64,
         _cursor: Option<String>,
         _snapshot_id: Option<String>,
+        _view: LibraryView,
     ) -> Result<LibraryPageResponse, AppError> {
         Err(Self::scan_console_disabled())
     }
@@ -766,6 +769,7 @@ impl ScanConsoleService {
         limit: u64,
         cursor: Option<String>,
         snapshot_id: Option<String>,
+        view: LibraryView,
     ) -> Result<LibraryPageResponse, AppError> {
         if root_id.is_empty() {
             return Err(invalid_request());
@@ -773,7 +777,7 @@ impl ScanConsoleService {
         let page_size = usize::try_from(limit.clamp(1, MAX_LIBRARY_PAGE_SIZE as u64))
             .map_err(|_| invalid_request())?;
         let cursor = cursor
-            .map(|token| decode_cursor_token(&token, &root_id).map_err(map_cursor_reject))
+            .map(|token| decode_cursor_token(&token, &root_id, &view).map_err(map_cursor_reject))
             .transpose()?;
         let snapshot = snapshot_id
             .map(|token| decode_snapshot_token(&token).map_err(map_cursor_reject))
@@ -795,12 +799,15 @@ impl ScanConsoleService {
             .find(|root| root.id == root_id)
             .ok_or_else(unknown_root)?;
         let page = database
-            .query_library(&LibraryQuery {
-                scan_root_id: root_id.clone(),
-                page_size,
-                cursor,
-                snapshot,
-            })
+            .browse_library(
+                &LibraryQuery {
+                    scan_root_id: root_id.clone(),
+                    page_size,
+                    cursor,
+                    snapshot,
+                },
+                &view,
+            )
             .map_err(map_page_storage_error)?;
         let records = page
             .locations
@@ -811,7 +818,9 @@ impl ScanConsoleService {
         // client seam treats `nextCursor: null` as the end of the list, so the
         // adapter only exposes one while more rows are pending.
         let next_cursor = if page.has_more {
-            page.next_cursor.as_ref().map(encode_cursor_token)
+            page.next_cursor
+                .as_ref()
+                .map(|cursor| encode_cursor_token(cursor, &view))
         } else {
             None
         };
@@ -984,6 +993,8 @@ struct CursorToken {
     snapshot: SnapshotToken,
     locator_key: String,
     location_id: String,
+    #[serde(default)]
+    view: LibraryView,
 }
 
 #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
@@ -1005,7 +1016,7 @@ fn encode_snapshot_token(snapshot: &LibrarySnapshot) -> String {
 }
 
 #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
-fn encode_cursor_token(cursor: &LibraryCursor) -> String {
+fn encode_cursor_token(cursor: &LibraryCursor, view: &LibraryView) -> String {
     serde_json::to_string(&CursorToken {
         version: OPAQUE_TOKEN_VERSION,
         root_id: cursor.scan_root_id.clone(),
@@ -1023,6 +1034,7 @@ fn encode_cursor_token(cursor: &LibraryCursor) -> String {
         },
         locator_key: cursor.locator_key.clone(),
         location_id: cursor.location_id.clone(),
+        view: view.clone(),
     })
     .expect("the opaque cursor token always serializes")
 }
@@ -1071,12 +1083,17 @@ fn decode_snapshot_token(token: &str) -> Result<LibrarySnapshot, ()> {
 }
 
 #[cfg_attr(not(feature = "scan-console"), allow(dead_code))]
-fn decode_cursor_token(token: &str, root_id: &str) -> Result<LibraryCursor, ()> {
+fn decode_cursor_token(
+    token: &str,
+    root_id: &str,
+    view: &LibraryView,
+) -> Result<LibraryCursor, ()> {
     if token.len() > MAX_OPAQUE_TOKEN_BYTES {
         return Err(());
     }
     let token: CursorToken = serde_json::from_str(token).map_err(|_| ())?;
     if token.version != OPAQUE_TOKEN_VERSION
+        || &token.view != view
         || token.root_id != root_id
         || token.locator_key.is_empty()
         || token.location_id.is_empty()
@@ -1309,6 +1326,7 @@ pub(crate) fn handle_get_library_page(
             request.limit,
             request.cursor,
             request.snapshot_id,
+            request.view,
         )
     })
 }

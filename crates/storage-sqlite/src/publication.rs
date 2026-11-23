@@ -265,6 +265,45 @@ pub struct LibrarySnapshot {
     pub last_successful_at_ms: Option<i64>,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LibrarySort {
+    #[default]
+    Path,
+    Name,
+    Newest,
+    Oldest,
+    Largest,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct LibraryView {
+    pub search: String,
+    pub presence: Option<FilePresence>,
+    pub sort: LibrarySort,
+}
+
+pub(crate) fn register_library_functions(
+    connection: &rusqlite::Connection,
+) -> rusqlite::Result<()> {
+    use rusqlite::functions::FunctionFlags;
+    let flags = FunctionFlags::SQLITE_UTF8
+        | FunctionFlags::SQLITE_DETERMINISTIC
+        | FunctionFlags::SQLITE_DIRECTONLY;
+    connection.create_scalar_function("fb_search_path", 1, flags, |ctx| {
+        Ok(ctx.get::<String>(0)?.replace('\\', "/").to_lowercase())
+    })?;
+    connection.create_scalar_function("fb_file_name", 1, flags, |ctx| {
+        Ok(ctx
+            .get::<String>(0)?
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or_default()
+            .to_lowercase())
+    })
+}
+
 /// Bounded read-only Library query. Pagination is deliberately per root: a
 /// global page would need a cross-root snapshot that this slice does not own.
 /// This is the storage-side contract for a typed IPC adapter; it is
@@ -1740,6 +1779,13 @@ impl Database {
     /// must echo the returned snapshot on subsequent pages. A committed
     /// publication expires the cursor and requires a restart from page one.
     pub fn query_library(&self, query: &LibraryQuery) -> Result<LibraryPage> {
+        self.browse_library(query, &LibraryView::default())
+    }
+
+    pub fn browse_library(&self, query: &LibraryQuery, view: &LibraryView) -> Result<LibraryPage> {
+        if view.search.chars().count() > 160 || view.search.chars().any(char::is_control) {
+            return Err(StorageError::InvalidSchema);
+        }
         if query.scan_root_id.is_empty()
             || query.scan_root_id.contains('\0')
             || query.page_size == 0
@@ -1785,10 +1831,6 @@ impl Database {
             return Err(StorageError::StaleCursor);
         }
 
-        let cursor_key = query
-            .cursor
-            .as_ref()
-            .map(|cursor| cursor.locator_key.as_str());
         let cursor_id = query
             .cursor
             .as_ref()
@@ -1809,17 +1851,33 @@ impl Database {
             }
         }
         let limit = i64::try_from(query.page_size + 1).map_err(|_| StorageError::Conflict)?;
+        // Both SQL fragments come from closed enums. Values, including search
+        // punctuation and cursor IDs, are exclusively bound parameters.
+        let (key, comparison, direction) = match view.sort {
+            LibrarySort::Path => ("locator_key", ">", "ASC"),
+            LibrarySort::Name => ("fb_file_name(relative_path)", ">", "ASC"),
+            LibrarySort::Newest => ("modified_at_ns", "<", "DESC"),
+            LibrarySort::Oldest => ("modified_at_ns", ">", "ASC"),
+            LibrarySort::Largest => ("byte_size", "<", "DESC"),
+        };
+        let presence = view.presence.map(|presence| match presence {
+            FilePresence::Present => "present",
+            FilePresence::Missing => "missing",
+        });
+        let search = view.search.trim().replace('\\', "/").to_lowercase();
         let mut statement = transaction.prepare(&format!(
             "{LOCATION_COLUMNS}
              WHERE scan_root_id = ?1
-               AND (?2 IS NULL OR locator_key > ?2
-                    OR (locator_key = ?2 AND id > ?3))
-             ORDER BY locator_key COLLATE BINARY, id
-             LIMIT ?4"
+               AND (?2 IS NULL OR presence = ?2)
+               AND (?3 = '' OR instr(fb_search_path(relative_path), ?3) > 0)
+               AND (?4 IS NULL OR ({key}, id) {comparison}
+                    (SELECT {key}, id FROM file_location WHERE id = ?4))
+             ORDER BY {key} {direction}, id {direction}
+             LIMIT ?5"
         ))?;
         let mut locations = statement
             .query_map(
-                params![&query.scan_root_id, cursor_key, cursor_id, limit],
+                params![&query.scan_root_id, presence, search, cursor_id, limit],
                 published_location_from_row,
             )?
             .collect::<rusqlite::Result<Vec<_>>>()?;

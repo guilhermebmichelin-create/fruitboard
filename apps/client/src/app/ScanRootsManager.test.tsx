@@ -18,7 +18,7 @@ describe("ScanRootsManager", () => {
     ).toBeTruthy();
     expect(screen.getByText("No folders yet.", { exact: false }));
     expect(
-      screen.getByText(/never deletes files/, { exact: false }),
+      screen.getByText(/keeps its files on disk/, { exact: false }),
     ).toBeTruthy();
   });
 
@@ -46,9 +46,11 @@ describe("ScanRootsManager", () => {
     const driveButton = await screen.findByRole("button", {
       name: "Add Google Drive virtual drive (experimental)",
     });
-    expect(screen.getByText(/checked only when/i)).toBeTruthy();
-    expect(screen.getByText(/will not be marked as missing/i)).toBeTruthy();
-    expect(screen.getByText(/mirrors files into a local folder/i)).toBeTruthy();
+    expect(screen.getByText(/use manual scans/i)).toBeTruthy();
+    expect(
+      screen.getByText(/keep their status if a drive is offline/i),
+    ).toBeTruthy();
+    expect(screen.getByText(/mirrored Google Drive folders/i)).toBeTruthy();
 
     await user.click(driveButton);
 
@@ -199,9 +201,10 @@ describe("ScanRootsManager", () => {
     render(<ScanRootsManager platform={createFakePlatform()} />);
 
     expect(
-      await screen.findByText(/only listed for now/, { exact: false }),
+      await screen.findByText(/open Library to run its first scan/, {
+        exact: false,
+      }),
     ).toBeTruthy();
-    expect(screen.getByText("Turn folders off anytime without losing them."));
     expect(screen.queryByText(/scan complete|scanning now/i)).toBeNull();
   });
 
@@ -215,9 +218,9 @@ describe("ScanRootsManager", () => {
     await user.click(screen.getByRole("button", { name: "Add folder" }));
 
     expect(
-      await screen.findByText("Availability not rechecked · Not scanned yet"),
+      await screen.findByRole("checkbox", { name: /enabled/i }),
     ).toBeTruthy();
-    expect(screen.queryByText(/ready/i)).toBeNull();
+    expect(screen.queryByText(/Not scanned yet|scan complete/i)).toBeNull();
   });
 
   it("renames a root and keeps the new name after reload", async () => {

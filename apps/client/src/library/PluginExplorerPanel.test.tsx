@@ -4,6 +4,7 @@ import axe from "axe-core";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import { PluginExplorerPanel } from "./PluginExplorerPanel";
+import { LibraryAdapterError } from "./contracts";
 import { createFakeLibraryScanAdapter } from "./fake";
 import { explorerFixture } from "./pluginExplorer.fixture";
 import type { PluginExplorerResult } from "./pluginExplorer";
@@ -14,6 +15,15 @@ const props = {
   rootId: "root-test",
   rootLabel: "Projects",
   sourceSnapshotId: "snapshot-1",
+};
+const root = {
+  id: props.rootId,
+  displayName: "Projects",
+  canonicalPath: "C:\\Synthetic\\Projects",
+  mode: "localNtfs" as const,
+  enabled: true,
+  availability: "available" as const,
+  lastErrorCode: null,
 };
 const adapterWith = (read: () => Promise<PluginExplorerResult>) => ({
   ...createFakeLibraryScanAdapter(),
@@ -250,15 +260,6 @@ describe("saved Plugin Explorer", () => {
 
   it("integrates with the Library while keeping matching-entry detail IDs distinct from Library rows", async () => {
     const fixture = explorerFixture();
-    const root = {
-      id: props.rootId,
-      displayName: "Projects",
-      canonicalPath: "C:\\Synthetic\\Projects",
-      mode: "localNtfs" as const,
-      enabled: true,
-      availability: "available" as const,
-      lastErrorCode: null,
-    };
     const base = createFakeLibraryScanAdapter({
       roots: [root],
       files: fixture.entries,
@@ -270,18 +271,31 @@ describe("saved Plugin Explorer", () => {
         },
       },
     });
+    const readExplorer = vi.fn(() => Promise.resolve(fixture));
     const adapter = {
       ...base,
-      getPluginExplorer: () => Promise.resolve(fixture),
+      getPluginExplorer: readExplorer,
     };
     const view = render(
       <MemoryRouter>
         <LibraryPage adapter={adapter} />
       </MemoryRouter>,
     );
-    await screen.findByRole("heading", { name: "File locations" });
+    await screen.findByRole("heading", { name: "Project files" });
     await open();
     await screen.findByText(/5 exact saved plugin groups/);
+    const explorerSearch = screen.getByRole("searchbox", {
+      name: "Search saved plugin names, classes or vendors",
+    });
+    await userEvent.type(explorerSearch, "3x osc");
+    await userEvent.selectOptions(screen.getByLabelText("Sort by"), "name");
+    await screen.findByRole("heading", { name: "Project files" });
+    expect(
+      screen.getByRole<HTMLInputElement>("searchbox", {
+        name: "Search saved plugin names, classes or vendors",
+      }).value,
+    ).toBe("3x osc");
+    expect(readExplorer).toHaveBeenCalledTimes(1);
     await userEvent.click(
       screen.getByRole("button", { name: "Show matching entries for 3x Osc" }),
     );
@@ -293,5 +307,50 @@ describe("saved Plugin Explorer", () => {
     await userEvent.click(details[0]!);
     await screen.findByText(/Matched the scanned file/);
     await accessible(view.container);
+  });
+
+  it("discards old plugin results when a stale Library page cannot reload", async () => {
+    const fixture = explorerFixture();
+    const base = createFakeLibraryScanAdapter({
+      roots: [root],
+      files: fixture.entries,
+      pageLimit: 1,
+    });
+    let snapshotExpired = false;
+    const readExplorer = vi
+      .fn<() => Promise<PluginExplorerResult>>()
+      .mockResolvedValueOnce(fixture)
+      .mockRejectedValue(new Error("Explorer read failed"));
+    const adapter = {
+      ...base,
+      getLibraryPage: async (
+        request: Parameters<typeof base.getLibraryPage>[0],
+      ) => {
+        if (snapshotExpired) {
+          throw new LibraryAdapterError(
+            request.cursor ? "stale_cursor" : "internal",
+          );
+        }
+        return base.getLibraryPage(request);
+      },
+      getPluginExplorer: readExplorer,
+    };
+    render(
+      <MemoryRouter>
+        <LibraryPage adapter={adapter} />
+      </MemoryRouter>,
+    );
+    await screen.findByRole("heading", { name: "Project files" });
+    await open();
+    await screen.findByText(/5 exact saved plugin groups/);
+
+    snapshotExpired = true;
+    await userEvent.click(
+      screen.getByRole("button", { name: "Next library page" }),
+    );
+    await screen.findByText(/The committed list could not be read/);
+    await screen.findByText(/Plugin Explorer could not be read/);
+    expect(screen.queryByText(/5 exact saved plugin groups/)).toBeNull();
+    expect(readExplorer).toHaveBeenCalledTimes(2);
   });
 });

@@ -553,7 +553,7 @@ describe("LibraryPage", () => {
     renderLibrary(adapter);
 
     expect(
-      await screen.findByRole("heading", { name: "Your FLP library" }),
+      await screen.findByRole("heading", { name: "Project index" }),
     ).toBeTruthy();
     expect(
       await screen.findByRole("heading", { name: "First.flp" }),
@@ -591,6 +591,43 @@ describe("LibraryPage", () => {
     ).toEqual({ rootId: rootB.id, limit: 4, cursor: null });
   });
 
+  it("finds projects beyond the current page, composes filters and resets pagination", async () => {
+    const user = userEvent.setup();
+    const adapter = createFakeLibraryScanAdapter({
+      roots: [rootA],
+      pageLimit: 1,
+      files: [
+        makeRecord(rootA, "s1", "Zulu.flp", "A/Zulu.flp", "present", "12"),
+        makeRecord(rootA, "s2", "Alpha.flp", "B/Alpha.flp", "missing", "120"),
+        makeRecord(rootA, "s3", "Pulse.flp", "C/Pulse.flp", "present", "350"),
+      ],
+    });
+    renderLibrary(adapter);
+    await screen.findByRole("heading", { name: "Zulu.flp" });
+    await user.click(screen.getByRole("button", { name: "Next library page" }));
+    await screen.findByRole("heading", { name: "Alpha.flp" });
+    await user.selectOptions(screen.getByLabelText("Sort by"), "largest");
+    await screen.findByRole("heading", { name: "Pulse.flp" });
+    expect(
+      screen
+        .getByRole("button", { name: "Previous library page" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    await user.selectOptions(screen.getByLabelText("File status"), "missing");
+    await screen.findByRole("heading", { name: "Alpha.flp" });
+    const input = screen.getByRole("searchbox", { name: "Find a project" });
+    await user.type(input, "Pulse");
+    await screen.findByRole("heading", { name: "No matching projects" });
+    await user.selectOptions(screen.getByLabelText("File status"), "");
+    await screen.findByRole("heading", { name: "Pulse.flp" });
+    await user.type(input, "xxx");
+    await user.click(
+      await screen.findByRole("button", { name: "Clear filters" }),
+    );
+    await screen.findByRole("heading", { name: "Pulse.flp" });
+    expect(document.activeElement).toBe(input);
+  });
+
   it("navigates per-root pages back without losing focus", async () => {
     const adapter = createFakeLibraryScanAdapter({
       roots: [rootA],
@@ -617,7 +654,7 @@ describe("LibraryPage", () => {
     expect(screen.getByText("Missing")).toBeTruthy();
     await waitFor(() => {
       expect(document.activeElement).toBe(
-        screen.getByRole("heading", { name: "File locations" }),
+        screen.getByRole("heading", { name: "Project files" }),
       );
     });
 
@@ -630,7 +667,7 @@ describe("LibraryPage", () => {
     expect(screen.queryByRole("heading", { name: "Third.flp" })).toBeNull();
     await waitFor(() => {
       expect(document.activeElement).toBe(
-        screen.getByRole("heading", { name: "File locations" }),
+        screen.getByRole("heading", { name: "Project files" }),
       );
     });
   });
