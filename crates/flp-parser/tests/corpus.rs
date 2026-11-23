@@ -275,8 +275,27 @@ fn approved_fl2025_three_sampler_save_keeps_qualified_labels_read_only() {
     assert_eq!(fs::read(&path).unwrap(), before);
 }
 
+fn assert_no_pattern_placements(parsed: &Value) {
+    assert_eq!(
+        parsed["playlistPatternClips"],
+        serde_json::json!({"status":"extracted","value":[]})
+    );
+    for field in [
+        "playlistPatternEndTick",
+        "playlistPatternSpanBars",
+        "playlistPatternNominalSeconds",
+    ] {
+        assert_eq!(parsed[field]["status"], "unavailable", "{field}");
+        assert_eq!(
+            parsed[field]["reason"], "NO_PLAYLIST_PATTERN_CLIPS",
+            "{field}"
+        );
+        assert!(parsed[field].get("value").is_none(), "{field}");
+    }
+}
+
 #[test]
-fn approved_automation_gui_case_keeps_unqualified_fields_unsupported_read_only() {
+fn approved_automation_gui_case_has_no_pattern_placements_read_only() {
     // GUI oracle registered before byte inspection; exact F23 files approved
     // on 2026-10-16. Counts below describe the GUI, not parser extraction.
     let registered =
@@ -330,19 +349,7 @@ fn approved_automation_gui_case_keeps_unqualified_fields_unsupported_read_only()
         parsed["channelGeneratorNames"]["items"][1]["name"]["reason"],
         "GENERATOR_CLASS_UNVERIFIED"
     );
-    for field in [
-        "playlistPatternClips",
-        "playlistPatternEndTick",
-        "playlistPatternSpanBars",
-        "playlistPatternNominalSeconds",
-    ] {
-        assert_eq!(parsed[field]["status"], "unsupported", "{field}");
-        assert_eq!(
-            parsed[field]["reason"], "PLAYLIST_CLIP_KIND_UNVERIFIED",
-            "{field}"
-        );
-        assert!(parsed[field].get("value").is_none(), "{field}");
-    }
+    assert_no_pattern_placements(&parsed);
     assert_automation_counts(&parsed, serde_json::json!(1), serde_json::json!(3));
     assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
     assert_eq!(parsed["inputFingerprint"]["hash"]["value"], hash);
@@ -398,44 +405,7 @@ fn approved_automation_differentials_preserve_metadata_and_refusal_read_only() {
             "GENERATOR_CLASS_UNVERIFIED"
         );
         assert_eq!(parsed["sampleReferences"]["status"], "unavailable");
-        let unplaced = case["gui"]["playlistPlacements"] == 0;
-        if unplaced {
-            assert_eq!(parsed["playlistPatternClips"]["status"], "extracted");
-            assert_eq!(
-                parsed["playlistPatternClips"]["value"],
-                serde_json::json!([])
-            );
-        } else {
-            assert_eq!(parsed["playlistPatternClips"]["status"], "unsupported");
-            assert_eq!(
-                parsed["playlistPatternClips"]["reason"],
-                "PLAYLIST_CLIP_KIND_UNVERIFIED"
-            );
-            assert!(parsed["playlistPatternClips"].get("value").is_none());
-        }
-        for field in [
-            "playlistPatternEndTick",
-            "playlistPatternSpanBars",
-            "playlistPatternNominalSeconds",
-        ] {
-            assert_eq!(
-                parsed[field]["status"],
-                if unplaced {
-                    "unavailable"
-                } else {
-                    "unsupported"
-                }
-            );
-            assert_eq!(
-                parsed[field]["reason"],
-                if unplaced {
-                    "NO_PLAYLIST_PATTERN_CLIPS"
-                } else {
-                    "PLAYLIST_CLIP_KIND_UNVERIFIED"
-                }
-            );
-            assert!(parsed[field].get("value").is_none());
-        }
+        assert_no_pattern_placements(&parsed);
         assert_automation_counts(
             &parsed,
             serde_json::json!(1),
@@ -447,7 +417,7 @@ fn approved_automation_differentials_preserve_metadata_and_refusal_read_only() {
 }
 
 #[test]
-fn approved_automation_object_examples_preserve_refusal_and_metadata_read_only() {
+fn approved_automation_object_examples_keep_pattern_timeline_empty_read_only() {
     let registered =
         include_bytes!("../../../fixtures/parser-corpus/automation-object-expectations.json");
     assert_eq!(registered.len(), 6777);
@@ -495,18 +465,9 @@ fn approved_automation_object_examples_preserve_refusal_and_metadata_read_only()
         {
             assert_eq!(item["name"]["reason"], "GENERATOR_CLASS_UNVERIFIED");
         }
-        // F45 has no visible nonempty rectangle but retains a Playlist record.
-        // It must not gain the unplaced case's empty-pattern-Playlist handling.
-        for field in [
-            "playlistPatternClips",
-            "playlistPatternEndTick",
-            "playlistPatternSpanBars",
-            "playlistPatternNominalSeconds",
-        ] {
-            assert_eq!(parsed[field]["status"], "unsupported");
-            assert_eq!(parsed[field]["reason"], "PLAYLIST_CLIP_KIND_UNVERIFIED");
-            assert!(parsed[field].get("value").is_none());
-        }
+        // F45 retains a one-tick automation record even with no visible
+        // rectangle. The result here describes pattern placements only.
+        assert_no_pattern_placements(&parsed);
         assert_automation_counts(
             &parsed,
             case["gui"]["uniqueNativeAutomationObjects"].clone(),
@@ -560,11 +521,6 @@ fn approved_automation_enumeration_controls_preserve_metadata_and_match_counts()
                 parsed["channelGeneratorNames"]["value"],
                 serde_json::json!(["Sampler"])
             );
-            assert_eq!(parsed["playlistPatternClips"]["status"], "extracted");
-            assert_eq!(
-                parsed["playlistPatternClips"]["value"],
-                serde_json::json!([])
-            );
         } else {
             assert_eq!(parsed["channelGeneratorNames"]["status"], "unsupported");
             for item in parsed["channelGeneratorNames"]["items"]
@@ -575,36 +531,8 @@ fn approved_automation_enumeration_controls_preserve_metadata_and_match_counts()
             {
                 assert_eq!(item["name"]["reason"], "GENERATOR_CLASS_UNVERIFIED");
             }
-            assert_eq!(parsed["playlistPatternClips"]["status"], "unsupported");
-            assert_eq!(
-                parsed["playlistPatternClips"]["reason"],
-                "PLAYLIST_CLIP_KIND_UNVERIFIED"
-            );
-            assert!(parsed["playlistPatternClips"].get("value").is_none());
         }
-        for field in [
-            "playlistPatternEndTick",
-            "playlistPatternSpanBars",
-            "playlistPatternNominalSeconds",
-        ] {
-            assert_eq!(
-                parsed[field]["status"],
-                if removed {
-                    "unavailable"
-                } else {
-                    "unsupported"
-                }
-            );
-            assert_eq!(
-                parsed[field]["reason"],
-                if removed {
-                    "NO_PLAYLIST_PATTERN_CLIPS"
-                } else {
-                    "PLAYLIST_CLIP_KIND_UNVERIFIED"
-                }
-            );
-            assert!(parsed[field].get("value").is_none());
-        }
+        assert_no_pattern_placements(&parsed);
         assert_automation_counts(
             &parsed,
             case["independentGui"]["nativeAutomationClipObjects"].clone(),

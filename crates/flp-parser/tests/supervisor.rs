@@ -94,14 +94,31 @@ fn actual_parser_health_describe_and_approved_file_share_one_supervisor() {
     assert_eq!(supervisor.process_id(), None);
 }
 
+fn assert_no_pattern_timing(
+    metadata: &fruitboard_flp_parser::validation::ValidatedProjectMetadata,
+) {
+    use fruitboard_flp_parser::validation::{ProjectField, ProjectReason};
+    assert!(matches!(
+        metadata.arrangement_end_tick(),
+        ProjectField::Unavailable(ProjectReason::NoPlaylistPatternClips)
+    ));
+    assert!(matches!(
+        metadata.arrangement_span_bars(),
+        ProjectField::Unavailable(ProjectReason::NoPlaylistPatternClips)
+    ));
+    assert!(matches!(
+        metadata.arrangement_estimated_seconds(),
+        ProjectField::Unavailable(ProjectReason::NoPlaylistPatternClips)
+    ));
+}
+
 #[test]
 fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutation() {
     use fruitboard_flp_parser::validation::{
         ChannelGenerators, Confidence, GeneratorReason, ListStatus, MetadataOutcome,
         MixerInsertName, NameInference, NoteRecordCount, NoteSequence, ParseContext,
-        PatternNoteCounts, PatternNoteSequences, ProjectField, ProjectReason,
-        SavedAutomationCounts, SavedMixerInserts, ValidatedProjectReply, ValidationError,
-        validate_descriptor, validate_project_reply,
+        PatternNoteCounts, PatternNoteSequences, SavedAutomationCounts, SavedMixerInserts,
+        ValidatedProjectReply, ValidationError, validate_descriptor, validate_project_reply,
     };
     let mut supervisor = ParserSupervisor::new(
         PathBuf::from(env!("CARGO_BIN_EXE_fruitboard-flp-parser")),
@@ -348,19 +365,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                         point_count: case["gui"]["editableControlPoints"].as_u64().unwrap(),
                     }
                 );
-                // An unplaced automation object still has a curve. An empty
-                // pattern Playlist is not a zero-automation summary.
-                if case["gui"]["playlistPlacements"] == 0 {
-                    assert!(matches!(
-                        metadata.arrangement_end_tick(),
-                        ProjectField::Unavailable(ProjectReason::NoPlaylistPatternClips)
-                    ));
-                } else {
-                    assert!(matches!(
-                        metadata.arrangement_end_tick(),
-                        ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
-                    ));
-                }
+                assert_no_pattern_timing(&metadata);
             }
             if let Some(case) = automation_objects["cases"]
                 .as_array()
@@ -383,19 +388,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                         point_count: case["gui"]["editableControlPoints"].as_u64().unwrap(),
                     }
                 );
-                // Even the one-point case retains a nonempty saved Playlist record.
-                assert!(matches!(
-                    metadata.arrangement_end_tick(),
-                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
-                ));
-                assert!(matches!(
-                    metadata.arrangement_span_bars(),
-                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
-                ));
-                assert!(matches!(
-                    metadata.arrangement_estimated_seconds(),
-                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
-                ));
+                assert_no_pattern_timing(&metadata);
             }
             if let Some(case) = automation_enumeration["cases"]
                 .as_array()
@@ -423,33 +416,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                             .unwrap(),
                     }
                 );
-                if case["case"] == "C03" {
-                    assert!(matches!(
-                        metadata.arrangement_end_tick(),
-                        ProjectField::Unavailable(ProjectReason::NoPlaylistPatternClips)
-                    ));
-                    assert!(matches!(
-                        metadata.arrangement_span_bars(),
-                        ProjectField::Unavailable(ProjectReason::NoPlaylistPatternClips)
-                    ));
-                    assert!(matches!(
-                        metadata.arrangement_estimated_seconds(),
-                        ProjectField::Unavailable(ProjectReason::NoPlaylistPatternClips)
-                    ));
-                } else {
-                    assert!(matches!(
-                        metadata.arrangement_end_tick(),
-                        ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
-                    ));
-                    assert!(matches!(
-                        metadata.arrangement_span_bars(),
-                        ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
-                    ));
-                    assert!(matches!(
-                        metadata.arrangement_estimated_seconds(),
-                        ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
-                    ));
-                }
+                assert_no_pattern_timing(&metadata);
             }
             if name == "FIX-FL2026-AUTOMATION.flp" {
                 assert_eq!(
@@ -464,20 +431,7 @@ fn actual_parser_corpus_replies_pass_project_metadata_validation_without_mutatio
                         point_count: 3,
                     }
                 );
-                // Full native validation must preserve refusal rather than
-                // treating automation placement as a pattern or duration.
-                assert!(matches!(
-                    metadata.arrangement_end_tick(),
-                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
-                ));
-                assert!(matches!(
-                    metadata.arrangement_span_bars(),
-                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
-                ));
-                assert!(matches!(
-                    metadata.arrangement_estimated_seconds(),
-                    ProjectField::Unsupported(ProjectReason::PlaylistClipKindUnverified)
-                ));
+                assert_no_pattern_timing(&metadata);
             }
             if let Some(case) = mixer_expectations["cases"]
                 .as_array()

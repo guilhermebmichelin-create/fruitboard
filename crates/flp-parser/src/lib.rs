@@ -214,6 +214,7 @@ enum ChannelType {
     Sampler,
     NativeGenerator,
     AudioClip,
+    AutomationClip,
     Invalid,
     Multiple,
 }
@@ -224,6 +225,7 @@ impl ChannelType {
             0 => Self::Sampler,
             2 => Self::NativeGenerator,
             4 => Self::AudioClip,
+            5 => Self::AutomationClip,
             _ => Self::Invalid,
         }
     }
@@ -235,6 +237,17 @@ struct Channel {
     name: Option<String>,
     generator_event: GeneratorEvent,
     sample: Option<String>,
+    automation_curve: Option<bool>,
+}
+
+impl Channel {
+    fn is_verified_non_pattern_clip(&self) -> bool {
+        match self.channel_type {
+            ChannelType::AudioClip => self.sample.is_some(),
+            ChannelType::AutomationClip => self.automation_curve == Some(true),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -433,15 +446,13 @@ fn playlist_pattern_clips(
             None,
         ));
     }
-    // A low item ID references a rack declaration. Only skip an audio item
-    // when the declaration is unique, typed and has a stored sample reference.
-    // A repeated declaration makes the ID ambiguous regardless of its type.
-    let mut audio_channels = BTreeMap::new();
+    // A low item ID must resolve to a unique, verified non-pattern channel.
+    let mut non_pattern_channels = BTreeMap::new();
     for channel in channels {
-        audio_channels
+        non_pattern_channels
             .entry(channel.id)
             .and_modify(|eligible| *eligible = false)
-            .or_insert(channel.channel_type == ChannelType::AudioClip && channel.sample.is_some());
+            .or_insert(channel.is_verified_non_pattern_clip());
     }
     let mut clips = Vec::with_capacity((payload.len() / 88).min(MAX_PLAYLIST_CLIPS));
     let mut end_tick: Option<u32> = None;
@@ -449,7 +460,9 @@ fn playlist_pattern_clips(
         let item = le_u32(&record[4..8]);
         let family = item as u16;
         let encoded_id = (item >> 16) as u16;
-        if family == 0x5000 && encoded_id < 0x5000 && audio_channels.get(&encoded_id) == Some(&true)
+        if family == 0x5000
+            && encoded_id < 0x5000
+            && non_pattern_channels.get(&encoded_id) == Some(&true)
         {
             continue;
         }
@@ -676,6 +689,7 @@ fn parse_bytes_with_policy(
                     name: None,
                     generator_event: GeneratorEvent::Missing,
                     sample: None,
+                    automation_curve: None,
                 });
                 current_channel = Some(ChannelContext { id, index });
             }
@@ -786,6 +800,17 @@ fn parse_bytes_with_policy(
                     },
                     _ => GeneratorEvent::Multiple,
                 };
+            }
+            234 if plugin_channel_scope && known_pattern_build(version.as_deref()) => {
+                if let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
+                {
+                    let channel = &mut channels[index];
+                    channel.automation_curve = Some(
+                        channel.automation_curve.is_none()
+                            && channel.channel_type == ChannelType::AutomationClip
+                            && automation_counts::saved_curve_point_count(data).is_some(),
+                    );
+                }
             }
             196 if current_channel.is_some() => {
                 let Some(index) = current_channel.and_then(|context| context.resolve(&channels))
